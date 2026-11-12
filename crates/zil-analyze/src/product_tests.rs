@@ -567,3 +567,105 @@ fn ordinary_unsafe_lexical_spans_are_never_ignored_as_diagnostic_relocations() {
     assert!(!current.reused);
     assert_ne!(current.input, previous.input);
 }
+
+#[test]
+fn product_checkpoint_requires_exact_owners_and_restores_real_item_receipts() {
+    let source = program();
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let candidate = run(&mut session, &source, &limits);
+    assert!(!session.last_product_changes().is_empty());
+    let checkpoint = session.product_checkpoint_for(&source, &candidate).unwrap();
+    assert!(checkpoint.last_product_changes().is_empty());
+    assert!(Arc::ptr_eq(
+        &checkpoint.initialization_items,
+        &session.initialization_items
+    ));
+    assert!(
+        checkpoint
+            .product
+            .as_ref()
+            .unwrap()
+            .rows
+            .ptr_eq(&session.product.as_ref().unwrap().rows)
+    );
+    assert!(
+        session
+            .product_checkpoint_for(&Arc::new((*source).clone()), &candidate)
+            .is_none()
+    );
+    assert!(
+        session
+            .product_checkpoint_for(&source, &Arc::new((*candidate).clone()))
+            .is_none()
+    );
+    let mut forged = (*candidate).clone();
+    forged.functions[0].function = FunctionId(u32::MAX);
+    assert!(
+        session
+            .product_checkpoint_for(&source, &Arc::new(forged))
+            .is_none()
+    );
+
+    let mut broad = (*source).clone();
+    for function in &mut broad.module.functions {
+        function.name.push_str("_broad");
+    }
+    let broad = Arc::new(broad);
+    let broad_candidate = run(&mut session, &broad, &limits);
+    assert!(
+        session
+            .product_checkpoint_for(&source, &candidate)
+            .is_none()
+    );
+    assert!(
+        session
+            .product_checkpoint_for(&broad, &broad_candidate)
+            .is_some()
+    );
+
+    // A parent raw query hit activates the matching retained receipts, rather
+    // than leaving the broad epoch as the next private edit's comparison base.
+    session = checkpoint;
+    let private = edit(&source, 11);
+    run(&mut session, &private, &limits);
+    assert_eq!(session.last_stats().product_admission_functions_checked, 1);
+    assert_eq!(session.last_stats().product_function_queries_executed, 1);
+    assert_eq!(session.last_stats().product_function_queries_reused, 2);
+    assert_eq!(session.last_stats().executed_functions, 0);
+    assert_eq!(session.last_stats().reused_functions, 1);
+}
+
+#[test]
+fn restored_product_checkpoint_keeps_limits_and_failure_recovery_binding() {
+    let source = program();
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let candidate = run(&mut session, &source, &limits);
+    let mut restored = session.product_checkpoint_for(&source, &candidate).unwrap();
+    let short = Limits {
+        max_analysis_steps: 1,
+        ..limits.clone()
+    };
+    assert_eq!(
+        restored
+            .analyze_product(&source, &short)
+            .as_ref()
+            .map(|p| p.as_ref()),
+        expected(&source, &short).as_ref()
+    );
+    assert!(
+        restored
+            .product_checkpoint_for(&source, &candidate)
+            .is_some()
+    );
+    let private = edit(&source, 19);
+    run(&mut restored, &private, &limits);
+    assert_eq!(restored.last_stats().product_function_queries_executed, 1);
+    assert_eq!(restored.last_stats().product_function_queries_reused, 2);
+    assert!(
+        restored
+            .product_checkpoint_for(&source, &candidate)
+            .is_none()
+    );
+}
