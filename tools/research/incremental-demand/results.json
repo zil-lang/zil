@@ -6705,20 +6705,20 @@
     "archive_manifest": "out/evidence-archives/incremental-demand-final/MANIFEST.json"
   },
   "latest_full_push_checkpoint": {
-    "compiler": "328eb392d8d88148a75a743d899b43aebae73587",
+    "compiler": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
     "measured_compiler": "328eb392d8d88148a75a743d899b43aebae73587",
     "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
     "full_results": "full-push-matched-328.json",
-    "panorama": "full-push-checkpoint-328.md",
+    "panorama": "full-push-checkpoint-03b.md",
     "status": "in_progress_not_complete_not_globally_faster_than_Rust",
-    "latest_compiler_verification": "25c CT74/Expand102/Types103/driver210/strictClippy/fmt/release12 pass; subsequentonlywork_products.cpp,328native72/backend242/mixed3/strictClippy13/release13pass. Original208/1 anddiagnostic/infra failures retained. No new current fullworkspace claim.",
+    "latest_compiler_verification": "1453 unchanged nativeCPP: native72/backend242/mixed3/strictClippy/release14 pass; subsequent only Expand3 files,03b Expand105/full driver210/strictClippy/fmt/release15 pass. No current fullworkspace rerun or adding overlapping counts.",
     "raw_recovery": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json",
     "historical_identity_above_is_not_current": true,
     "formal_comparison_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
-    "latest_profile": "full-push-checkpoint-328.json",
+    "latest_profile": "full-push-checkpoint-03b.json",
     "frame_review": "full-push-spill-frame-review-addendum.json",
     "architecture_review": "full-push-astra-native-panorama-review.json",
-    "latest_profile_status": "328profile12 afterready: one original425 block34valid180native15qualitypairs,private461.152/main1453.001,cold6944.966/main5725.460 andbroad6628.490/main5816.821negative. No newRust or priorcandidatewallratio. 11qualitypass buttimingunknown preserved.",
+    "latest_profile_status": "One main/candidate diagnostic block; original425/22files/CGU16/O2/jobs1. Candidate profiled. All named parents and errors retained. No Rust, earlier-candidate timing ratio or isolated causal attribution. Full qualification passed34rows/17pairs/180 native; cold/broad negative.",
     "native_quality": {
       "successful_zil_pairs_including_parents": 78,
       "measured_pairs": 42,
@@ -6730,9 +6730,11 @@
       "verified_blobs": 479
     },
     "current_next_components": [
-      "Integrate complete DenseMap capture scratch slice and batch native/backend/mixed/strict/release gates",
-      "Retained native owner with scoped symbol binding and current providers: owner lifetime reviewed, full prototype still open",
-      "Whole-phase/global work and affected-CGU LLVM work remain; universal lead not achieved"
+      "Whole-phase keys and global inventories/fingerprints still present; central ReactiveGraph not global scheduler",
+      "Affected CGU IR optimization and MIR keys/capture/rebuild remain",
+      "NativeRegion owner lifecycle reviewed but whole allocator/provider/overlay closure not complete; prototype only, not enabled",
+      "inotify cannot authorize full link discovery: mmap changes and hidden tool/loader dependency reads uncovered",
+      "Implement bounded post-O2 private use-empty deletion without changing original O2 decisions or CGU partition; not yet implemented/qualified"
     ],
     "formal_o2_paired_geometric_ratios": {
       "private": 0.8442225120595596,

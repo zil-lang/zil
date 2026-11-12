@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "llvm_source_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "zil_source_observed_sha": "86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb",
+  "review_method": "Limited read-only source inspection. No build, compiler execution, runtime test, or performance measurement.",
+  "verdict": "Minimal ownership lifetime can be implemented without retaining the full legacy pass manager or changing existing class layouts. Direct repeated AsmPrinter emission remains unsafe without a complete emission binding/overlay and fresh provider contract.",
+  "minimum_owner_set": [
+    "LLVMContext",
+    "Module",
+    "TargetMachine",
+    "heap external MCContext",
+    "original-address MachineModuleInfoWrapperPass, owning retained MachineFunctions"
+  ],
+  "closed_by_source": [
+    {
+      "file": "llvm/lib/CodeGen/MachineModuleInfo.cpp",
+      "lines": "29-40,58-72,136-140,208-211",
+      "finding": "finalize resets internal Context and deletes ObjFileMMI, explicitly leaves ExternalContext alone, and does not erase the MF map. Actual per-function destruction is FreeMachineFunction calling deleteMachineFunctionFor. Original finalization can run when external context owns all admitted MF MC dependencies and no retained object depends on deleted ObjFileMMI."
+    },
+    {
+      "file": "llvm/include/llvm/CodeGen/MachineModuleInfo.h",
+      "lines": "93-132,173",
+      "finding": "Existing ExternalContext constructor/getContext and embedded wrapper MMI permit a heap external context plus stable-address wrapper; no owner-layout field is required."
+    },
+    {
+      "file": "llvm/lib/CodeGen/MachineModuleInfo.cpp",
+      "lines": "43-55",
+      "finding": "Do not move MMI itself: its move constructor constructs a new internal context while moving MachineFunctions; that is not MF reference rebinding."
+    },
+    {
+      "file": "llvm/lib/IR/LegacyPassManager.cpp",
+      "lines": "728-737,793-801,848-853,1255-1258",
+      "finding": "ImmutablePass ownership resides in the top-level ImmutablePasses vector; top-level destruction deletes contained managers before immutable passes. Ordinary PMDataManager deletion owns PassVector. A terminal unique-ownership extraction for the exact MMI wrapper is structurally possible."
+    },
+    {
+      "file": "llvm/lib/IR/Pass.cpp",
+      "lines": "43-45,132-135",
+      "finding": "Pass destructor deletes Resolver. setResolver asserts the resolver was unset; setResolver(nullptr) is not detachment. Add a field-neutral detachAnalysisResolver method that deletes the existing resolver and sets its field to null."
+    },
+    {
+      "file": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "lines": "468-474",
+      "finding": "Inspected AsmPrinter destructor only invokes its debug/EH finalized assertion; it does not itself query MMI analysis."
+    }
+  ],
+  "prototype_lifetime_contract": [
+    "Allocate external MCContext and original-address MMIWrapper on heap; own Module, LLVMContext and TargetMachine for the complete region lifetime.",
+    "Keep original complete pass execution and finalizers. At FreeMachineFunction, retain only sealed admitted MF entries; ordinary entries retain original deletion behavior.",
+    "After whole-object success and complete sequence checks, terminal takeImmutablePass removes exactly the wrapper from owning ImmutablePasses and transfers unique ownership without moving it.",
+    "After take, the old PM may only be destroyed. Its lookup map may retain a borrowed wrapper pointer until destruction so remaining destructors preserve lookup availability; it must never resume execution.",
+    "Keep wrapper alive through old PM destruction; then detach its resolver before seal/publication. No old wrapper reinitialization, re-addition to a PM, or old-analysis access.",
+    "Destroy wrapper/MFs before external MCContext; destroy external MCContext before TargetMachine; keep Module and LLVMContext alive until all MF users are gone, and destroy Module before LLVMContext.",
+    "Seal requires no dependency on finalized ObjFileMMI, no MF Observer and no MF Delegate. Observer is already checked by the existing domain; a field-neutral private-state query can cover Delegate.",
+    "Account actual retained owner allocations as a region: retaining one MF may retain an entire Module/TM. Logical serialized snapshot bytes are not a region resident-memory bound."
+  ],
+  "emission_source_blockers": [
+    {
+      "file": "llvm/lib/CodeGen/MachineBasicBlock.cpp",
+      "lines": "61-111",
+      "finding": "MBB caches normal, EH-continuation and end symbols from MF.getContext. A preserved owner is not a fresh object-emission symbol state."
+    },
+    {
+      "file": "llvm/lib/MC/MCObjectStreamer.cpp",
+      "lines": "254-269",
+      "finding": "emitLabel registers the symbol and writes its current fragment/offset. Reusing a first-object symbol in a new streamer is incorrect; resetting its context instead invalidates the cached pointer."
+    },
+    {
+      "file": "llvm/include/llvm/CodeGen/MachineFunction.h",
+      "lines": "295-318,736-742,758-759",
+      "finding": "MF owns references to Function, Target, Subtarget and MCContext, plus section and function-number state. A symbol-only overlay is incomplete."
+    },
+    {
+      "file": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "lines": "1016-1034,3174-3243,5298-5342",
+      "finding": "AP writes MF section and reads MF context/function number; its analysis-provider adapters cannot silently use a retained historical Function in the current PM."
+    },
+    {
+      "file": "llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "lines": "80-96",
+      "finding": "X86 AP queries PSI/SDPI with MF parent Module and creates a code emitter using MF.getContext; current emission binding must cover these paths."
+    },
+    {
+      "file": "llvm/lib/CodeGen/MachineFunction.cpp",
+      "lines": "868-872",
+      "finding": "getPICBaseSymbol directly reads Ctx, bypassing a getContext-only overlay; route it explicitly or reject the relevant opcode domain."
+    },
+    {
+      "file": "llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "lines": "2437-2475",
+      "finding": "MOVPC32r emission mutates X86MachineFunctionInfo HasCFIAdjustCfa. Reject this pseudo in the initial domain or implement a complete scoped write strategy."
+    }
+  ],
+  "required_emission_design_not_yet_proven": [
+    "Use the overlay on the first emission as well as reuse: current object MCContext, current function number, per-MBB symbols and current section must not mutate the sealed product.",
+    "Retain original AsmPrinter/CFI/MC execution with fresh current-request providers. Explicitly bind current Function/Module for ORE/MDT/MLI/PSI/SDPI interactions; unknown providers decline reuse.",
+    "Preserve existing snapshot-domain exclusions, including IR/MMO/Alloca/constant-pool/jump-table/debug/EH/blockaddress/symbol owners. Initial admitted domain remains x86_64 ELF scalar/no-call with covered stack/FI/CFI state.",
+    "Run MachineVerifier on the actual live retained MF each borrow. Complete current Input, World and canonical pipeline values authorize product consumption; do not claim this is a newly constructed current-owner MF.",
+    "Prove all admitted AP/target writes are overlay-local or explicitly restored, and final sealed Module/World remains consistent with the pre-emission bound input.",
+    "Unknown ownership, analysis-provider or emission-write state falls back to original fresh compilation."
+  ],
+  "performance_non_claims": {
+    "cold_mir_capture_ms_reported_by_root": 353,
+    "warm_reconstruct_plus_validation_ms_reported_by_root": 34,
+    "statement": "These are gross opportunities only. Admission/sealing, retained-MF verification, overlay/provider work and full-owner memory accounting remain payable. No measured saving or full-O2 completion claim."
+  },
+  "related_receipts": [
+    "/tmp/full-push-astra-emission-transaction-review.md",
+    "/tmp/full-push-astra-emission-transaction-review.json"
+  ],
+  "local_fixed_source_roots": [
+    "/tmp/industry-incremental-official/llvm23-runtime/llvm",
+    "/tmp/astra-owned-region-7a/llvm",
+    "/tmp/astra-mc-products-7a/llvm"
+  ]
+}

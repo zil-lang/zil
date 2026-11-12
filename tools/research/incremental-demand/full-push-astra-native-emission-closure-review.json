@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "reviewer": "astra_architecture",
+  "llvm_source_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "scope": "Limited source review of x86_64 Linux/ELF retained post-RA MF emission: no calls/asm/debug/constantpool/jumptable/blockaddress/symbol operands/EH, with ordinary spill/FI/stack MMO/symbol-free CFI/uwtable. No optimizer redesign.",
+  "status": "Implementation seams identified; emission/provider closure and whole-owner allocation capability are NOT established by runtime evidence. Whole-owner budget capability is currently unavailable and must decline retention.",
+  "validation": {
+    "builds": false,
+    "runtime_tests": false,
+    "performance_measurements": false
+  },
+  "providers": [
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:517",
+      "required": [
+        "MachineOptimizationRemarkEmitterPass",
+        "GCModuleInfo",
+        "LazyMachineBlockFrequencyInfoPass",
+        "MachineBranchProbabilityInfoWrapperPass"
+      ],
+      "conditional": "MachineBlockHashInfo if EmitBBHash",
+      "optional": "BasicBlockSectionsProfileReaderWrapperPass",
+      "note": "Also retain MachineFunctionPass base usage/properties/diagnostic behavior. X86AsmPrinter has no getAnalysisUsage override."
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:418",
+      "callbacks": "GetMMI, GetORE, optional GetMDT/GetMLI; GC module init/final/stackmaps",
+      "action": "Keep current object MMI/AP/module finalization and fresh providers; never use detached old PM resolver."
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:2404",
+      "finding": "InstructionCount remark is constructed and ORE.emit(R) is called on every function, even when optional extra remark analysis is disabled. A null ORE is invalid."
+    },
+    {
+      "source": "llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp:57",
+      "finding": "emit uses MF.getFunction().getContext() for hotness threshold and diagnose. Provider run chooses MBFI using that context hotness request."
+    },
+    {
+      "source": "llvm/include/llvm/CodeGen/MachineOptimizationRemarkEmitter.h:32",
+      "finding": "DiagnosticInfoMIROptimization captures Function from MBB parent MF; remark isEnabled/allowExtraAnalysis also read that Function LLVMContext. Recreating ORE alone does not fix historical diagnostic binding."
+    },
+    {
+      "source": "llvm/lib/CodeGen/LazyMachineBlockFrequencyInfo.cpp:47",
+      "finding": "run stores MF pointer; calculate may consume available MBFI/MDT/MLI or create fresh MDT/MLI/MBFI. Old cached analysis cannot be borrowed across retained MF identity."
+    },
+    {
+      "source": "llvm/lib/CodeGen/MachineBranchProbabilityInfo.cpp:61",
+      "finding": "MBPI is stateless and reads MBB successor probabilities; a fresh current immutable provider can serve the retained MF graph."
+    },
+    {
+      "source": "llvm/lib/Target/X86/X86MCInstLower.cpp:2651",
+      "finding": "JCC_1 branch-hint path directly calls getAnalysis<MachineBranchProbabilityInfoWrapperPass>(), bypassing AP Get* callbacks."
+    },
+    {
+      "source": "llvm/lib/Target/X86/X86AsmPrinter.cpp:60",
+      "finding": "Legacy PSI/SDPI callbacks ignore their Module argument and query current PM. New-PM adapters at 1172+ use Module-indexed analysis. Preserve the actual selected PM contract."
+    }
+  ],
+  "current_binding_seams": [
+    "A current Function/Module/diagnostic binding must cover provider execution as well as AP; otherwise ORE is initialized using historical hotness settings before AP begins.",
+    "AP function header/entry/size reads Function attributes, linkage, visibility, section, data layout and unwind requirements. Current complete Input/World binding remains mandatory.",
+    "X86 AP queries PSI/SDPI and indirect_branch_cs_prefix from MF parent Module; KCFI emission additionally reads kcfi/kcfi-arity module flags and function metadata.",
+    "Keep current object MMI for module flags, metadata/stubs and module finalization. Do not substitute retained old MMI into current module-wide consumers.",
+    "Scoped current MCContext, MBB symbol maps, current section and current function number must be active during the FIRST emission too. MF.getPICBaseSymbol directly reads Ctx and needs explicit routing or excluded opcodes.",
+    "MachineVerifier must run on the actual retained owner graph outside an emission-only IR binding. This does not claim reconstruction of a current-owner MF."
+  ],
+  "writes_and_allowed_CFI": [
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:1031",
+      "finding": "MF.setSection writes actual MF state; route section reads/writes to scoped emission state."
+    },
+    {
+      "source": "llvm/lib/CodeGen/MachineBasicBlock.cpp:61",
+      "finding": "getSymbol/getEHContSymbol/getEndSymbol lazily cache MC symbol pointers; route all three through current object symbol overlay."
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp:1435",
+      "finding": "CFI emission reads frame instruction vector and instruction order, then emits through current streamer; it does not modify the retained frame vector."
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinterDwarf.cpp:205",
+      "finding": "Inspected CFI switch reads MCCFI values and emits current-streamer CFI operations. Symbol-free values and null source locations remain required."
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp:59",
+      "finding": "Allowed no-personality/no-landingpad uwtable path updates current handler/streamer CFI state. Current AP/EH handlers must remain object-local."
+    },
+    {
+      "source": "llvm/lib/Target/X86/X86MCInstLower.cpp:2437",
+      "finding": "MOVPC32r writes X86MachineFunctionInfo HasCFIAdjustCfa and obtains a PIC symbol; explicitly reject in initial region domain."
+    },
+    {
+      "source": "llvm/lib/Target/X86/X86MCInstLower.cpp:145",
+      "finding": "Normal lowering constructs temporary MCInst values with AP.OutContext and retained immutable target/subtarget data. Inspected setOpcode/setFlags writes target temporary MCInst, not original MI."
+    }
+  ],
+  "initial_explicit_declines": [
+    "VerboseAsm unless actual current-MF MDT/MLI and historical MBB IR-name reads are fully handled; no returning stale optional analyses.",
+    "Profile/hotness/remark-streamer configurations until current diagnostic/provider binding is complete; do not silently change requested flags.",
+    "PSEUDO_PROBE, STATEPOINT, FAULTING_OP, FENTRY_CALL, STACKMAP, PATCHPOINT, PATCHABLE_* instrumentation, KCFI_CHECK, ASAN_CHECK_MEMACCESS, MORESTACK_*, SEH_* and MOVPC32r unless each real consumer is admitted explicitly. NoCall/no-symbol operands alone are not a complete pseudo filter.",
+    "Uncovered module debug/custom AP handlers/GC, BB address-map/hash/profile outputs, stack-usage file, split-stack or patchable/function-instrument paths. Current eligibleFunction already rejects function/instruction metadata, GC/personality, prefix/prologue data, comdat and address-taken IR blocks; keep those guards.",
+    "Unknown target pseudo/helper side effects or ownership/provider behavior: use original fresh pipeline; no optimization-quality change."
+  ],
+  "whole_owner_budget": {
+    "verdict": "No currently established whole-owner retained-byte API or safe multiplier. Budget capability must be false and retention declined until complete accounting exists.",
+    "source_blockers": [
+      "AllocatorBase.h:88 MallocAllocator routes allocate_buffer; MemAlloc.cpp:15 uses operator new with alignment/nothrow, and matching delete.",
+      "MemAlloc.h:25-63 independently uses std::malloc/calloc/realloc.",
+      "Allocator.h:299 getTotalMemory counts slab memory only, excluding even Slabs/CustomSizedSlabs SmallVector backing allocations at 328-332.",
+      "LLVMContextImpl owns ConstantUniqueMap, DenseMap unique_ptr values, separately allocated constants/types/attributes and std::vector-backed tables.",
+      "MCContext owns several bump allocators plus StringMap/DenseMap/std::map and string members; slabs alone cannot cover it.",
+      "X86TargetMachine.h:29 owns TargetLoweringObjectFile and StringMap<unique_ptr<X86Subtarget>> with further recursive target state."
+    ],
+    "rejected_shortcuts": [
+      "serialized snapshot byte total",
+      "RSS difference",
+      "empirical multiplier",
+      "single-TU allocator hook",
+      "count only public bump allocators",
+      "TLS arena bulk-free without proving global/shared escape ownership"
+    ],
+    "requirements_for_real_allocator_component": [
+      "Cover owner creation before adoption and all retained SDK allocation paths, including aligned/nothrow/new-array variants, malloc/calloc/realloc/aligned alloc/free and direct mappings.",
+      "Cover out-of-line libstdc++ allocations such as strings/node containers via an actually proved SDK/stdlib link boundary; LLVM-only hooks do not establish this.",
+      "Track frees by original allocation owner across scopes; global registry/target/cache escapes cannot be silently uncharged or bulk-freed with region.",
+      "Include ledger metadata and any warm retained-product growth; unknown paths invalidate capability rather than falling back to estimates.",
+      "A fixed private-object traversal would need the complete recursive LLVM ownership graph plus container allocation ABI; not established by the inspected public APIs."
+    ],
+    "ELF_or_libstdcxx_allocation_closure_proven": false
+  },
+  "non_claims": [
+    "No end-to-end safe-reemission assertion",
+    "No complete target pseudo helper audit beyond listed source/domain exclusions",
+    "No full-O2 terminal solution",
+    "No runtime or speedup claim"
+  ],
+  "related_owner_receipt": "/tmp/full-push-astra-native-owner-review.json",
+  "source_files": [
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "llvm_path": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "sha256": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0"
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "llvm_path": "llvm/lib/Target/X86/X86AsmPrinter.cpp",
+      "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/Target/X86/X86AsmPrinter.h",
+      "llvm_path": "llvm/lib/Target/X86/X86AsmPrinter.h",
+      "sha256": "35dae4ae013580412479dabe09fee54c03a53f30aa6256f17e5eb5fc08b64cac"
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "llvm_path": "llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "sha256": "792ee48b7589c0777a1201a6f144c41a44e70f82daf61b8994cfab6e681864ad"
+    },
+    {
+      "path": "/tmp/astra-mc-products-7a/llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+      "llvm_path": "llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+      "sha256": "4a1a5c99c4a7221e5505cac6739b1122bd3771663f9c2ca053f8c48cf0eaf107"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/CodeGen/AsmPrinter/AsmPrinterDwarf.cpp",
+      "llvm_path": "llvm/lib/CodeGen/AsmPrinter/AsmPrinterDwarf.cpp",
+      "sha256": "467b66ae13a394a37b824372734e666115feb5fad0dbd9aa8de780f127da2325"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp",
+      "llvm_path": "llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp",
+      "sha256": "b4b710fe531d973df7f202ec20e365aa419425abe9909eb46ed1a50a320449ce"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/include/llvm/CodeGen/MachineOptimizationRemarkEmitter.h",
+      "llvm_path": "llvm/include/llvm/CodeGen/MachineOptimizationRemarkEmitter.h",
+      "sha256": "6be8212638a829ded7c0125701f60fc610860602655e557f480fbb3f16d8f8d1"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/CodeGen/LazyMachineBlockFrequencyInfo.cpp",
+      "llvm_path": "llvm/lib/CodeGen/LazyMachineBlockFrequencyInfo.cpp",
+      "sha256": "7f5621cf944ea393dbd24da181e1ec15993cb1c8b1a788a161f7e4b95bdb78fd"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/CodeGen/MachineBranchProbabilityInfo.cpp",
+      "llvm_path": "llvm/lib/CodeGen/MachineBranchProbabilityInfo.cpp",
+      "sha256": "c4ee46ff47a84c16ccdad3a27189d9547727fc5868f76cd147868af8fc9b8a02"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/include/llvm/Support/Allocator.h",
+      "llvm_path": "llvm/include/llvm/Support/Allocator.h",
+      "sha256": "65f1f328ee86e57abdabc713bded9ff537ddfaf32f53dd077424eaa8549cc7ca"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/include/llvm/Support/AllocatorBase.h",
+      "llvm_path": "llvm/include/llvm/Support/AllocatorBase.h",
+      "sha256": "8d1a7f449a8939253b154b608520a6e22c2e22644ae2e9bb5bff9b33b1e82fd2"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/include/llvm/Support/MemAlloc.h",
+      "llvm_path": "llvm/include/llvm/Support/MemAlloc.h",
+      "sha256": "6c847b67545449f8f93224b622520e6cb2b77b43cfd6e58164d5c4b8cd58f8b3"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/Support/MemAlloc.cpp",
+      "llvm_path": "llvm/lib/Support/MemAlloc.cpp",
+      "sha256": "1c0595c9225e139b5940266c107eba258e3bb84b510217db5819234f14284eb1"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/IR/LLVMContextImpl.h",
+      "llvm_path": "llvm/lib/IR/LLVMContextImpl.h",
+      "sha256": "8220559a4cbbfd013c459fe193c43e6d9d511340ad7665171fae2ef6be56c202"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/include/llvm/MC/MCContext.h",
+      "llvm_path": "llvm/include/llvm/MC/MCContext.h",
+      "sha256": "fc02a24be107e758c63b4f078bda637744c737aafee7b696c8db4d763d78f6fa"
+    },
+    {
+      "path": "/tmp/astra-owned-region-7a/llvm/lib/Target/X86/X86TargetMachine.h",
+      "llvm_path": "llvm/lib/Target/X86/X86TargetMachine.h",
+      "sha256": "a1787be04c9d9455365fc39d681c610dffe55b8d5e510649b06558b5540ae19b"
+    }
+  ]
+}
