@@ -83,7 +83,6 @@ fn contextual_record_relocation_actual_source_record_relocation_has_independent_
             },
             input_tokens: &input,
             snapshot: &environment.snapshot,
-            stage_inventory: environment.stage_inventory.as_deref(),
             limits: &limits,
         })
         .unwrap();
@@ -160,7 +159,6 @@ fn contextual_record_relocation_actual_source_record_relocation_has_independent_
         let authority = FrozenAuthority {
             source_fingerprint: sources[0].fingerprint(),
             snapshot: &environment.snapshot,
-            stage_inventory: environment.stage_inventory.as_deref(),
             input: &input,
             index: &environment.index,
             expected_functions: &expected.functions,
@@ -550,7 +548,6 @@ fn mixed_compile_time_actual_actual_source_instances_raw_wire_ledger_and_indepen
                 entry: entry(),
                 input_tokens: &input,
                 snapshot: &environment.snapshot,
-                stage_inventory: environment.stage_inventory.as_deref(),
                 limits: &limits,
             })
             .unwrap();
@@ -618,7 +615,6 @@ fn mixed_compile_time_actual_actual_source_instances_raw_wire_ledger_and_indepen
             let authority = FrozenAuthority {
                 source_fingerprint: sources[0].fingerprint(),
                 snapshot: &environment.snapshot,
-                stage_inventory: environment.stage_inventory.as_deref(),
                 input: &input,
                 index: &environment.index,
                 expected_functions: &expected.functions,
@@ -1086,7 +1082,6 @@ fn nested_static_member_nested_source_calls_keep_private_vectors_and_published_g
             entry: entry(),
             input_tokens: &input,
             snapshot: &environment.snapshot,
-            stage_inventory: environment.stage_inventory.as_deref(),
             limits: &limits,
         })
         .unwrap();
@@ -1139,7 +1134,6 @@ fn nested_static_member_nested_source_calls_keep_private_vectors_and_published_g
         let authority = FrozenAuthority {
             source_fingerprint: sources[0].fingerprint(),
             snapshot: &environment.snapshot,
-            stage_inventory: environment.stage_inventory.as_deref(),
             input: &input,
             index: &environment.index,
             expected_functions: &expected.functions,

@@ -212,7 +212,6 @@ fn with_authenticated_source(
         entry: entry(),
         input_tokens: &input,
         snapshot: &environment.snapshot,
-        stage_inventory: environment.stage_inventory.as_deref(),
         limits: &limits,
     })
     .unwrap();
@@ -260,7 +259,6 @@ fn with_authenticated_source(
     let authority = FrozenAuthority {
         source_fingerprint: sources[0].fingerprint(),
         snapshot: &environment.snapshot,
-        stage_inventory: environment.stage_inventory.as_deref(),
         input: &input,
         index: &environment.index,
         expected_functions: &expected.functions,
