@@ -863,4 +863,47 @@ mod native_product_tests {
         );
         assert_ne!(changed.bytes, cold.bytes);
     }
+
+    #[test]
+    fn native_product_scope_does_not_capture_a_reentrant_ordinary_compilation() {
+        let source = module(42);
+        let nested = module(99);
+        let reference =
+            compile_module(&nested, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        let (cold, _, products) = compile_products(&source, None);
+        assert_eq!(
+            cold.receipt.native_products.unwrap().available,
+            1,
+            "strict lifecycle acceptance requires the audited extension DSO"
+        );
+        let products = products.expect("cold product");
+        let polls = AtomicUsize::new(0);
+        let cancelled = || {
+            // The fourth boundary is after optimization, while the outer
+            // native scope remains installed and before machine emission.
+            if polls.fetch_add(1, Ordering::SeqCst) == 3 {
+                let actual =
+                    compile_module(&nested, &config(), FunctionMerging::Disabled, &|| false)
+                        .unwrap();
+                assert_eq!(actual.bytes, reference.bytes);
+                assert!(actual.receipt.native_products.is_none());
+            }
+            false
+        };
+        let (warm, _, _) = compile_module_with_native_products(
+            &source,
+            &config(),
+            FunctionMerging::Disabled,
+            &cancelled,
+            Some(&products),
+        )
+        .unwrap();
+        assert!(polls.load(Ordering::SeqCst) >= 5);
+        assert_eq!(warm.bytes, cold.bytes);
+        let stats = warm.receipt.native_products.unwrap();
+        assert_eq!(stats.available, 1);
+        assert_eq!(stats.machine_function_reuses, 2);
+        assert_eq!(stats.machine_function_executions, 0);
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+    }
 }
