@@ -335,7 +335,7 @@ pub fn build_view_with_cancellation_and_session(
         )]);
     }
     let machine_started = std::time::Instant::now();
-    let (mut machine, collected_closed, mut task_work) = crate::emit::lower_view_with_session(
+    let (mut machine, collected_closed, mut task_work) = crate::emit::lower_output_with_session(
         verified,
         lir,
         &options.emit,
@@ -345,6 +345,10 @@ pub fn build_view_with_cancellation_and_session(
             && options.codegen.units >= 2,
         options.codegen.jobs,
         session.as_deref_mut().map(|session| &mut session.lower),
+        options.backend == NativeBackend::LlvmApi
+            && options.optimization == Optimization::O2
+            && !options.incremental_o2
+            && !options.closed_executable,
     )?;
     if let Some(session) = session.as_deref_mut() {
         session.summary.lowered_functions = session.lower.misses;
@@ -357,7 +361,11 @@ pub fn build_view_with_cancellation_and_session(
             session.lower.source_projection_instruction_visits;
         session.summary.source_projection_reuses = session.lower.source_projection_reuses;
     }
-    let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
+    let mut task_abis = if verified.task_interfaces().is_empty() {
+        Vec::new()
+    } else {
+        crate::task_abi::derive(verified, &machine.to_module(), &mut task_work)?
+    };
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
@@ -382,8 +390,10 @@ pub fn build_view_with_cancellation_and_session(
         }
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
-            crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
-            crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
+            let mut flat = machine.to_module();
+            crate::machine_checked_add_chain::fold_checked_add_chains(&mut flat);
+            crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
+            machine = flat.into();
         }
         if let (Some(session), Some(input)) = (session.as_deref_mut(), transform_input) {
             session.transformed = Some(std::sync::Arc::new(crate::incremental::TransformProduct {
@@ -422,7 +432,7 @@ pub fn build_view_with_cancellation_and_session(
     }
     let partition_started = std::time::Instant::now();
     let partition_input = session.as_ref().map(|session| {
-        crate::incremental::PartitionInput::new(
+        crate::incremental::PartitionInput::new_output(
             options,
             stable_names,
             collected_closed,
@@ -474,7 +484,7 @@ pub fn build_view_with_cancellation_and_session(
                 if !old.input.same_recipe_environment(input) {
                     return None;
                 }
-                old.recipe.as_ref()?.replay(&machine, &old.units)
+                old.recipe.as_ref()?.replay_output(&machine, &old.units)
             })
             .flatten();
         let mut stable = if options.closed_executable
@@ -488,7 +498,7 @@ pub fn build_view_with_cancellation_and_session(
             stable_names.and_then(|names| {
                 if collected_closed {
                     crate::machine_stable_identity::prepare_collected(
-                        &machine,
+                        &machine.to_module(),
                         lir,
                         names,
                         options.codegen.units,
@@ -496,7 +506,7 @@ pub fn build_view_with_cancellation_and_session(
                     )
                 } else {
                     crate::machine_stable_identity::prepare(
-                        &machine,
+                        &machine.to_module(),
                         lir,
                         names,
                         options.codegen.units,
@@ -509,17 +519,19 @@ pub fn build_view_with_cancellation_and_session(
         };
         check_cancelled(cancelled)?;
         if let Some(plan) = &mut stable {
-            plan.prune_unreachable_closed_definitions(&mut machine);
-            plan.rename(&mut machine);
+            let mut flat = machine.to_module();
+            plan.prune_unreachable_closed_definitions(&mut flat);
+            plan.rename(&mut flat);
+            machine = flat.into();
         }
         // Diagnostic/reference output only. Each nonempty transform plan requires
         // complete original-model preflight. Existing per-unit API preflight still runs
         // immediately before its LLVMBuilder calls and cannot be bypassed.
         let diagnostic_started = std::time::Instant::now();
         let llvm = if let Some(session) = session.as_deref_mut() {
-            session.render(&machine)
+            session.render_output(&machine)
         } else {
-            crate::incremental::DiagnosticText::from(machine.to_text())
+            crate::incremental::DiagnosticText::from(machine.to_module().to_text())
         };
         timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
@@ -535,12 +547,12 @@ pub fn build_view_with_cancellation_and_session(
             } else if let Some(stable) = stable {
                 let trace = std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV)
                     .map(PathBuf::from);
-                let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+                let (plan, candidates, diagnostic) = stable.partition(machine.to_module(), trace);
                 (plan, Some(candidates), diagnostic, None)
             } else if collected_closed {
                 (
                     crate::machine_cgu::Plan {
-                        units: vec![machine],
+                        units: vec![machine.to_module()],
                         fallback: None,
                     },
                     None,
@@ -548,20 +560,27 @@ pub fn build_view_with_cancellation_and_session(
                     None,
                 )
             } else if ordinary_recipe {
-                let (plan, pending, recipe) = crate::machine_cgu::partition_view_cached_with_recipe(
-                    machine,
-                    lir,
-                    options.emit.entry,
-                    options.codegen.units,
-                    false,
-                    crate::machine_cgu::CallImportPolicy::Disabled,
-                    options.object_cache.as_deref(),
-                );
+                let (plan, pending, mut recipe) =
+                    crate::machine_cgu::partition_view_cached_with_recipe(
+                        machine.to_module(),
+                        lir,
+                        options.emit.entry,
+                        options.codegen.units,
+                        false,
+                        crate::machine_cgu::CallImportPolicy::Disabled,
+                        options.object_cache.as_deref(),
+                    );
+                if recipe
+                    .as_mut()
+                    .is_some_and(|recipe| !recipe.bind_output(&machine))
+                {
+                    recipe = None;
+                }
                 pending_layout = pending;
                 (plan, None, None, recipe)
             } else {
                 let (plan, pending) = crate::machine_cgu::partition_view_cached(
-                    machine,
+                    machine.to_module(),
                     lir,
                     options.emit.entry,
                     options.codegen.units,

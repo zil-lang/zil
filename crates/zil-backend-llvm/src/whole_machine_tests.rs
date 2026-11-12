@@ -844,3 +844,195 @@ fn machine_product_push_keeps_equal_root_and_patches_only_changed_result_leaves(
     assert!(session.reused_machine_module);
     assert!(first.1.ptr_eq(&restored.1));
 }
+
+#[test]
+fn actual_output_pieces_reach_diagnostics_and_cgu_consumers_without_warm_flattening() {
+    fn current(first: i64, second: i64) -> VerifiedModule {
+        let verified = history_fixture(first, second);
+        let mut module = verified.module().clone();
+        module.functions[0].span.file = zil_base::FileId(0);
+        module.functions[1].span.file = zil_base::FileId(1);
+        recheck(module, &Limits::default())
+    }
+    fn produce(
+        verified: &VerifiedModule,
+        session: &mut crate::emit::incremental::Session,
+    ) -> crate::machine_output::MachineOutput {
+        crate::emit::lower_output_with_session(
+            verified,
+            &lir(verified).as_view(),
+            &EmitOptions {
+                entry: EntryPoint::None,
+            },
+            false,
+            false,
+            1,
+            Some(session),
+            true,
+        )
+        .unwrap()
+        .0
+    }
+    let original = current(42, 99);
+    let mut lower = crate::emit::incremental::Session::default();
+    let cold = produce(&original, &mut lower);
+    assert!(
+        !cold.is_materialized(),
+        "emitter must preserve actual pieces before any consumer"
+    );
+    let mut diagnostic = BackendSession::default();
+    let cold_text = diagnostic.render_output(&cold);
+    let (old, _, mut recipe) = crate::machine_cgu::partition_view_cached_with_recipe(
+        cold.to_module(),
+        &lir(&original).as_view(),
+        EntryPoint::None,
+        2,
+        false,
+        crate::machine_cgu::CallImportPolicy::Disabled,
+        None,
+    );
+    assert_eq!(old.units.len(), 2);
+    let mut recipe = recipe.take().unwrap();
+    assert!(recipe.bind_output(&cold));
+    assert_eq!(cold_text.to_text(), cold.to_module().to_text());
+    let edited = current(43, 99);
+    let warm = produce(&edited, &mut lower);
+    assert_eq!((lower.hits, lower.misses), (1, 1));
+    assert!(!warm.is_materialized());
+    assert_eq!(warm.changed_items(&cold).unwrap().len(), 1);
+    diagnostic.begin();
+    let text = diagnostic.render_output(&warm);
+    assert_eq!(diagnostic.summary().rendered_diagnostic_items, 1);
+    let (updated, next, count) = recipe.replay_output(&warm, &old.units).unwrap();
+    assert_eq!(count, 1);
+    assert!(
+        !warm.is_materialized(),
+        "actual diag and CGU consumers must not flatten the current full machine"
+    );
+    let fresh = crate::emit::lower_view_with_session(
+        &edited,
+        &lir(&edited).as_view(),
+        &EmitOptions {
+            entry: EntryPoint::None,
+        },
+        false,
+        false,
+        1,
+        None,
+    )
+    .unwrap()
+    .0;
+    assert_eq!(text.to_text(), fresh.to_text());
+    let full = crate::machine_cgu::partition_view(
+        fresh,
+        &lir(&edited).as_view(),
+        EntryPoint::None,
+        2,
+        false,
+        false,
+    );
+    assert_eq!(updated.units, full.units);
+    assert!(!warm.is_materialized());
+    let broad = current(44, 100);
+    let wide = produce(&broad, &mut lower);
+    let (all, _, count) = next.replay_output(&wide, &updated.units).unwrap();
+    assert_eq!(count, 2);
+    assert!(!wide.is_materialized());
+    let fresh = crate::emit::lower_view_with_session(
+        &broad,
+        &lir(&broad).as_view(),
+        &EmitOptions {
+            entry: EntryPoint::None,
+        },
+        false,
+        false,
+        1,
+        None,
+    )
+    .unwrap()
+    .0;
+    assert_eq!(
+        all.units,
+        crate::machine_cgu::partition_view(
+            fresh,
+            &lir(&broad).as_view(),
+            EntryPoint::None,
+            2,
+            false,
+            false
+        )
+        .units
+    );
+    let restored = produce(&original, &mut lower);
+    assert!(lower.reused_machine_module);
+    assert_eq!(restored.changed_items(&cold), Some(vec![]));
+    // Restoring a different parent is compared to its actual output tree, not
+    // the last recipe's changed list or an unrelated lower identity.
+    let (back, _, _) = next.replay_output(&restored, &updated.units).unwrap();
+    assert_eq!(back.units, old.units);
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn native_output_pieces_preserve_current_checks_and_full_fresh_object_quality() {
+    let directory = TestDirectory::new();
+    let mut options = BuildOptions::new(directory.0.join("piece-program"));
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.codegen.units = 2;
+    options.object_cache = Some(directory.0.join("piece-objects"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut session = BackendSession::default();
+    for value in [42, 43] {
+        let verified = history_fixture(value, 99);
+        let mut module = verified.module().clone();
+        module.functions[0].span.file = zil_base::FileId(0);
+        module.functions[1].span.file = zil_base::FileId(1);
+        let current = recheck(module, &Limits::default());
+        let raw = lir(&current);
+        let mut actual = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &options,
+            &|| false,
+            None,
+            Some(&mut session),
+        )
+        .unwrap();
+        actual.commit_object_cache();
+        assert_eq!(actual.codegen.actual_units, 2);
+        if value == 43 {
+            assert!(session.summary().reused_partition_recipe);
+            assert_eq!(session.summary().rebuilt_partition_units, 1);
+            assert_eq!(session.summary().reused_partition_units, 1);
+            assert!(
+                !session
+                    .transformed
+                    .as_ref()
+                    .unwrap()
+                    .machine
+                    .is_materialized(),
+                "full native build must consume current pieces and actual per-unit Modules"
+            );
+        }
+        let actual_ir = fs::read(&actual.llvm_ir).unwrap();
+        let actual_elf = fs::read(&actual.executable).unwrap();
+        let run = Command::new(&actual.executable).output().unwrap();
+        assert!(run.status.success());
+        assert_eq!(run.stdout, format!("{value}\n").as_bytes());
+        assert!(run.stderr.is_empty());
+        let mut fresh = options.clone();
+        fresh.object_cache = None;
+        let reference = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &fresh,
+            &|| false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(actual_ir, fs::read(reference.llvm_ir).unwrap());
+        assert_eq!(actual_elf, fs::read(reference.executable).unwrap());
+    }
+}
