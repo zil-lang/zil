@@ -11,6 +11,26 @@ const SOURCE: &str =
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "returned-task-fnonce.zil", text)
 }
+fn typed_original(text: &str) -> zil_ir::TypedModule {
+    let input = source(text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    zil_types::check(&core, &target, &limits).unwrap()
+}
 
 #[test]
 fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
@@ -27,6 +47,17 @@ fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
         "let child=make_safe_child()",
         "let child=make_async_child()",
     );
+    let explicit = asynchronous.replace(
+        ".ok(original)=>{return 0;}",
+        ".ok(original)=>{return close(give original);}",
+    );
+    let drained = compile_source(&source(&explicit), &options);
+    assert_eq!(
+        drained.status,
+        ResultCategory::Success,
+        "{}",
+        drained.to_json()
+    );
     let rejected = compile_source(&source(&asynchronous), &options);
     assert_ne!(
         rejected.status,
@@ -42,6 +73,86 @@ fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
         "{}",
         rejected.to_json()
     );
+}
+
+#[test]
+fn actual_child_factory_change_cannot_reuse_a_synchronous_cleanup_plan_raw_and_wire() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/child-frame-cleanup.zil"
+    );
+    let mut raw = typed_original(text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let safe = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "make_safe_child")
+        .unwrap()
+        .clone();
+    let asynchronous = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "make_async_child")
+        .unwrap()
+        .clone();
+    assert_eq!(safe.return_type, asynchronous.return_type);
+    assert_eq!(safe.parameters.len(), asynchronous.parameters.len());
+    let mut changed = 0;
+    for i in raw
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+    {
+        if let zil_ir::InstructionKind::Call { function, .. } = &mut i.kind {
+            if *function == safe.id {
+                *function = asynchronous.id;
+                changed += 1;
+            }
+        }
+    }
+    assert_eq!(changed, 1);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    plan.module_fingerprint = raw.fingerprint();
+    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+}
+
+#[test]
+fn mutable_task_capture_keeps_parent_loans_until_actual_owner_cleanup() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil"
+    );
+    for replacement in [
+        "var callback=keep(give original);number=0;let answer=callback();",
+        "var callback=keep(give original);number=0;let answer=0;",
+    ] {
+        let hostile = text.replace("let answer=drive_callback(give original);", replacement);
+        let report = compile_source(
+            &source(&hostile),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            matches!(
+                report.phase,
+                zil_base::Phase::Analyze | zil_base::Phase::Verify
+            ),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
