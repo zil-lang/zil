@@ -119,6 +119,7 @@ pub(super) struct Budget {
     // Presence flags from paid actual-type/slot/capture inventories. These
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
+    pub(super) task_failure_carriers: bool,
     pub(super) stored_fixed_owner: bool,
     pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
@@ -134,6 +135,13 @@ pub(super) struct Budget {
 }
 
 impl Budget {
+    pub(super) fn task_sources(&self) -> bool {
+        self.task_borrowed_results || self.task_failure_carriers
+    }
+    pub(super) fn masked_stored_tasks(&self) -> bool {
+        self.store_option_results || self.task_failure_carriers
+    }
+
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
@@ -210,6 +218,7 @@ impl Budget {
             capture_relations: false,
             stored_owned_fixed: false,
             stored_packages: false,
+            task_failure_carriers: false,
             stored_fixed_owner: false,
             stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
@@ -716,6 +725,14 @@ fn local_value(
     if super::nested_store::protocol_payload(ty).is_some() {
         super::nested_store::protocol(module, ty, budget)?;
         return super::resources::sums::admit(module, ty, budget);
+    }
+    if budget.task_failure_carriers
+        && let Type::ErrorUnion { error, result } = ty
+        && matches!(result.as_ref(),Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+        && matches!(error.as_ref(),Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:")))
+    {
+        super::stored_flow::physical(error, budget)?;
+        return legacy_value(result, span, module).map(|_| false);
     }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);

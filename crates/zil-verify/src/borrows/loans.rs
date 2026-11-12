@@ -182,7 +182,7 @@ fn reconstruct(
     ports: &super::port_facts::FunctionFacts,
     budget: &mut Budget,
 ) -> Check<Flow> {
-    let task_covered = if budget.task_borrowed_results && budget.store_option_results {
+    let task_covered = if budget.task_sources() && budget.masked_stored_tasks() {
         budget.spend(1)?;
         budget
             .task_stored_sources
@@ -197,7 +197,7 @@ fn reconstruct(
             })?
             .covered
     } else {
-        budget.task_borrowed_results
+        budget.task_sources()
     };
     let v = f.values.len();
     let base = v
@@ -219,7 +219,7 @@ fn reconstruct(
         .parameters
         .iter()
         .filter(|(position, _)| {
-            budget.task_borrowed_results && !position.path.is_empty()
+            budget.task_sources() && !position.path.is_empty()
                 || position
                     .path
                     .iter()
@@ -291,7 +291,7 @@ fn reconstruct(
     let mut initial = Locals::new();
     for (i, local) in f.parameters.iter().enumerate() {
         if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-            || budget.store_option_results
+            || budget.masked_stored_tasks()
                 && matches!(f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
                 && crate::stored_flow::option_address::shape(
                     &f.locals[local.0 as usize].ty,
@@ -521,7 +521,7 @@ fn reconstruct(
                                 }
                             }
                             InstructionKind::MakeVariant { fields, .. }
-                                if budget.store_option_results
+                                if budget.masked_stored_tasks()
                                     && crate::stored_flow::option_address::shape(
                                         &f.values[id],
                                         &budget.limits.clone(),
@@ -540,7 +540,7 @@ fn reconstruct(
                                 value,
                                 variant: 1,
                                 index: 0,
-                            } if budget.store_option_results
+                            } if budget.masked_stored_tasks()
                                 && crate::stored_flow::option_address::shape(
                                     &f.values[value.0 as usize],
                                     &budget.limits.clone(),
@@ -554,7 +554,7 @@ fn reconstruct(
                             InstructionKind::Call {
                                 function,
                                 arguments,
-                            } if budget.store_option_results
+                            } if budget.masked_stored_tasks()
                                 && crate::stored_flow::option_address::shape(
                                     &f.values[id],
                                     &budget.limits.clone(),
@@ -1365,7 +1365,7 @@ pub(super) fn check(
         };
         matches!(ty, Type::Closure(id) if !module.closures[id.0 as usize].lending_captures.is_empty())
     };
-    if !budget.task_borrowed_results
+    if !budget.task_sources()
         && !shared_thread
         && !descriptor_origins
         && !f
@@ -1391,7 +1391,7 @@ pub(super) fn check(
     let replacements = replacement_schedule(module, f, graph, budget)?;
     let schedule = replacements.as_ref().map(|(_, s)| s);
     let apart = RefCell::new(Apart::new());
-    let apart_ref = (capture.is_some() || budget.task_borrowed_results).then_some(&apart);
+    let apart_ref = (capture.is_some() || budget.task_sources()).then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
     let flow = reconstruct(module, f, graph, facts, ports, budget)?;
     let n = f.blocks.len();

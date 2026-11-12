@@ -107,6 +107,21 @@ impl Builder<'_, '_> {
         if let Some(expected) = expected {
             self.same(&ty, expected, initializer.span)?;
         }
+        if let Type::BorrowedStorage { storage, .. } = &ty
+            && matches!(storage.as_ref(), Type::Tuple(_))
+        {
+            self.closures.snapshot_type(&ty, 4, 0, initializer.span)?;
+            if !self.irrefutable_pattern(pattern, storage)? {
+                return Err(error(
+                    "E-PATTERN-REFUTABLE",
+                    pattern.span,
+                    "qualified Tuple view requires a complete irrefutable pattern",
+                ));
+            }
+            let parent = self.temp(ty.clone(), initializer.span)?;
+            self.store(parent, value, initializer.span)?;
+            return self.owned_tuple_pattern(pattern, parent, storage, mutable);
+        }
         // This checks the complete value, including discarded fields, exact arity
         // at every tuple and duplicate names, using the existing paid pattern core.
         if !self.irrefutable_pattern(pattern, &ty)? {

@@ -132,12 +132,12 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_borrowed_results || budget.store_option_results {
+    if budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks() {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
-        if budget.task_borrowed_results || budget.store_option_results {
-            if budget.store_option_results {
+        if budget.task_sources() || budget.masked_stored_tasks() {
+            if budget.masked_stored_tasks() {
                 budget.spend(module.functions.len(), "qualified Option function mask")?;
                 budget.composition_stored = module
                     .functions
@@ -192,7 +192,7 @@ fn analyze_budgeted(
     // The Option mask schedules only the stored-address solver. Every
     // function, including the ones with a qualified Option, still needs its
     // independent ordinary Hold/resource solution over the original CFG.
-    let store_option_mask = if budget.store_option_results {
+    let store_option_mask = if budget.masked_stored_tasks() {
         std::mem::take(&mut budget.composition_stored)
     } else {
         Vec::new()
@@ -251,7 +251,7 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
-            if budget.store_option_results && budget.task_borrowed_results {
+            if budget.masked_stored_tasks() && budget.task_sources() {
                 budget.spend(1, "mixed stored proof coverage")?;
                 if !budget
                     .task_stored_coverage
@@ -283,7 +283,7 @@ fn analyze_budgeted(
                 }
                 continue;
             }
-            if budget.store_option_results && !budget.task_borrowed_results {
+            if budget.masked_stored_tasks() && !budget.task_sources() {
                 if !store_option_mask.is_empty() && !store_option_mask[index] {
                     continue;
                 }
@@ -335,7 +335,7 @@ fn analyze_budgeted(
                         actual_holds[index][value] = stored.clone();
                     }
                 }
-            } else if budget.task_borrowed_results || budget.composition_stored[index] {
+            } else if budget.task_sources() || budget.composition_stored[index] {
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }

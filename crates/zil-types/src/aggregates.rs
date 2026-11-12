@@ -3153,6 +3153,37 @@ impl<'a> Builder<'a, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
+        if member == "inputs" && self.known_type_is_checked(object, tasks::failure::is_carrier)? {
+            let (value, parent) = self.transfer_expr(object, None)?;
+            self.closures.snapshot_type(&parent, 6, 16, e.span)?;
+            self.member_owner(&parent, owner.as_ref(), e.span)?;
+            let view = tasks::failure::inputs_view(&parent).ok_or_else(|| {
+                unsupported(
+                    e.span,
+                    "Task failure input view requires its complete original carrier",
+                )
+            })?;
+            let temporary = self.temp(parent.clone(), e.span)?;
+            self.store(temporary, value, e.span)?;
+            let storage = self.value(
+                InstructionKind::BorrowLocalMut { local: temporary },
+                Type::Address {
+                    mutable: true,
+                    inner: Box::new(parent),
+                },
+                e.span,
+            )?;
+            let result = self.value(
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path: vec![PlaceProjection::Field(1)],
+                    mode: StoredBorrowLoad::Take,
+                },
+                view.clone(),
+                e.span,
+            )?;
+            return Ok((result, view));
+        }
         if self.known_type_is_checked(object, |ty| {
             stored::shared_value(ty) || stored::shared_address(ty)
         })? {

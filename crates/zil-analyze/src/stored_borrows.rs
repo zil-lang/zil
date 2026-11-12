@@ -95,6 +95,15 @@ pub(super) fn instruction(
     i: &Instruction,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if let Some(expected) = super::stored_flow::failure_projection(f, i, budget)? {
+        return if i.result.and_then(|r| f.values.get(r.0 as usize)) == Some(&expected) {
+            Ok(())
+        } else {
+            Err(fail(
+                "failure child view result differs from actual parent projection",
+            ))
+        };
+    }
     let expected = match &i.kind {
         InstructionKind::LoadStoredBorrow {
             storage,

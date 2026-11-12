@@ -4310,6 +4310,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for _ in 0..4 {
                     self.graph.reserve_type(&signature.result, 0, span)?;
                 }
+                if name == "task_create_owned" {
+                    for parameter in &signature.parameters {
+                        for _ in 0..6 {
+                            self.graph.reserve_type(parameter, 0, span)?;
+                        }
+                    }
+                }
                 return self.known(
                     &if name == "task_await" {
                         signature.result

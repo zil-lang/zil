@@ -1602,6 +1602,9 @@ impl Plan {
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
         budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
         budget.spend(1, "Sum instruction facts")?;
+        if crate::stored_flow::failure_unpack(f, i, budget)? {
+            return Ok(None);
+        }
         // Only this bounded set has no remaining implicit tree search. In
         // particular Meta::step's result observer and managed-success Sum
         // extraction retain the complete old reserve through the fallback.

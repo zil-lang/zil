@@ -557,6 +557,7 @@ pub(super) fn check_resolved_program_with_reuse(
         closures,
         unsupported: Vec::new(),
     };
+    tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)

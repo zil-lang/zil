@@ -69,7 +69,7 @@ fn wrapper(ty: &Type) -> Path {
     }
 }
 pub(super) fn work(p: &Payload, b: &mut Budget) -> Check<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     b.spend(p.task_ports.len())?;
@@ -98,7 +98,7 @@ fn insert(
     }
 }
 pub(super) fn join(out: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(false);
     }
     let mut changed = false;
@@ -114,7 +114,7 @@ pub(super) fn seed(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_borrowed_results || !shape(ty) {
+    if !b.task_sources() || !shape(ty) {
         return Ok(());
     }
     let (_, context) = task_type(ty).unwrap();
@@ -175,7 +175,7 @@ pub(super) fn call(
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     for (path, sources) in &summary.task_ports {
@@ -217,7 +217,7 @@ pub(super) fn summarize(
     summary: &mut Summary,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     for (path, permission) in &p.task_ports {
@@ -260,7 +260,7 @@ pub(super) fn transfer(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Option<Payload>> {
-    if !b.task_borrowed_results || !operation(&i.kind) {
+    if !b.task_sources() || !operation(&i.kind) {
         return Ok(None);
     }
     let get = |id: ValueId| {

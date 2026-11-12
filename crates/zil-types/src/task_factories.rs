@@ -144,6 +144,15 @@ impl<'a> Scan<'a, '_> {
                         })?;
                     let cost = inference::signature_snapshot_work("", worker, e.span, self.limits)?;
                     self.pay(cost, e.span)?;
+                    if name == "task_create_owned" {
+                        for parameter in &worker.parameters {
+                            self.pay(
+                                inference::type_snapshot_work(parameter, e.span, self.limits)?
+                                    .saturating_mul(6),
+                                e.span,
+                            )?;
+                        }
+                    }
                     let result = worker.result.clone();
                     let parameters = worker.parameters.clone();
                     if result_task(&result).is_some() {

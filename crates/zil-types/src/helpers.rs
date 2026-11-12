@@ -959,7 +959,13 @@ impl Builder<'_, '_> {
             let mut parameters = vec![];
             for parameter in &actual.parameters {
                 let t = &actual.locals[parameter.0 as usize].ty;
-                inference::charge_type_snapshot(t, span, self.limits, &mut remaining, 3)?;
+                inference::charge_type_snapshot(
+                    t,
+                    span,
+                    self.limits,
+                    &mut remaining,
+                    if name == "task_create_owned" { 9 } else { 3 },
+                )?;
                 parameters.push(t.clone());
             }
             let life = actual

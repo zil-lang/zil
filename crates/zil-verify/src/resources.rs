@@ -1487,6 +1487,8 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
+                InstructionKind::UnpackTuple { .. }
+                    if crate::stored_flow::failure_unpack(f, instruction, budget)? => {}
                 InstructionKind::UnpackVariant { local, fields, .. }
                 | InstructionKind::UnpackTuple { local, fields } => {
                     let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");

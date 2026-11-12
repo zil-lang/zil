@@ -24,6 +24,21 @@ mod retained;
 #[cfg(test)]
 mod snapshot_tests;
 mod task_address;
+mod task_failure;
+pub(super) fn failure_unpack(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    task_failure::unpack(f, i, b)
+}
+pub(super) fn failure_projection(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<Option<Type>> {
+    task_failure::projection(f, i, b)
+}
 use std::collections::BTreeMap;
 pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
@@ -738,7 +753,7 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         option_variants,
         pointer: copy_permission(&value.pointer, b)?,
         store_description: copy_permission(&value.store_description, b)?,
-        task_ports: if b.task_borrowed_results {
+        task_ports: if b.task_sources() {
             copy_permission_rows(&value.task_ports, b)?
         } else {
             BTreeMap::new()
@@ -892,12 +907,12 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             }
         }
     }
-    if b.task_borrowed_results {
+    if b.task_sources() {
         fee(b, f.pointer_values.len())?;
         for row in &f.pointer_values {
             fee(b, row.len())?;
         }
-        if b.store_option_results {
+        if b.masked_stored_tasks() {
             fee(b, f.pointer_parents.len())?;
             for row in &f.pointer_parents {
                 fee(b, row.len())?;
@@ -1372,6 +1387,9 @@ pub(super) fn inventory(
     )?;
     for (index, decl) in module.life_declarations.iter().enumerate() {
         identity_work(&decl.identity, b)?;
+        if task_failure::declaration(decl) {
+            b.task_failure_carriers = true;
+        }
         if enum_address::poll_reserved(decl) && !enum_address::poll_declaration(decl) {
             return Err(failure("reserved Poll declaration domain is not authentic"));
         }
@@ -1427,6 +1445,7 @@ pub(super) fn inventory(
             .ok_or_else(|| failure("nominal instance references absent declaration"))?;
         if matches!(storage, Type::Enum { name, .. } if name.starts_with("@std.task:v1:Poll:"))
             && !enum_address::poll_declaration(decl)
+            && !task_failure::declaration(decl)
         {
             return Err(failure(
                 "reserved Poll physical domain lacks its authentic declaration",
@@ -2014,6 +2033,9 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
+    if b.task_failure_carriers && task_failure::shape(ty, b)? {
+        return Ok(true);
+    }
     if option_address::shape(ty, b)? {
         return Ok(true);
     }
@@ -2881,7 +2903,7 @@ fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
             union(&mut permission, leaf, b)?;
         }
     }
-    if b.task_borrowed_results {
+    if b.task_sources() {
         for leaf in value.task_ports.values() {
             union(&mut permission, leaf, b)?;
         }
@@ -3152,6 +3174,9 @@ fn transfer(
     let dyn_transfer = dyn_address::transfer(module, f, i, state, values, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
+    let failure_view = failure_projection(f, i, b)?;
+    let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
+    let unpack_failure = failure_unpack(f, i, b)?;
     let option_transfer = if enum_transfer.is_none() && task_transfer.is_none() {
         option_address::transfer(module, f, i, values, b)?
     } else {
@@ -3179,6 +3204,22 @@ fn transfer(
             let actual = snapshot(actual, b)?;
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(*index, actual);
+        }
+        InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
+            task_failure::unpack_value(f, *local, fields, state, b)?;
+        }
+        InstructionKind::TaskCreateOwned { arguments, .. } if b.task_failure_carriers => {
+            out = task_transfer.unwrap_or_default();
+            task_failure::create(f, i, arguments, values, &mut out, b)?;
+        }
+        InstructionKind::LoadStoredBorrow { storage, .. } if failure_view.is_some() => {
+            let Type::Address { inner, .. } = value_type(f, *storage)? else {
+                unreachable!()
+            };
+            let Type::BorrowedStorage { life, .. } = inner.as_ref() else {
+                unreachable!()
+            };
+            task_failure::take_view(state, &get(*storage)?.pointer, life, &mut out, b)?;
         }
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
@@ -3317,7 +3358,7 @@ fn transfer(
                     environment_merge(&mut out, held, b)?;
                 }
             }
-            if b.task_borrowed_results
+            if b.task_sources()
                 && let Some(held) = state.locals.get(local)
             {
                 task_address::merge(&mut out, held, b)?;
@@ -3339,6 +3380,20 @@ fn transfer(
         }
         InstructionKind::AddressField { address, index } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
+            if b.masked_stored_tasks()
+                && matches!(value_type(f, i.result.ok_or_else(|| failure("Store field result absent"))?)?,
+                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. }))
+                && (out.pointer.targets.is_empty()
+                    || out
+                        .pointer
+                        .targets
+                        .iter()
+                        .any(|target| target.heap_element.is_none()))
+            {
+                return Err(failure(
+                    "owning Store field address lacks an actual element window",
+                ));
+            }
             let mut targets = Targets::new();
             for target in &out.pointer.targets {
                 fee(b, target_width(target).saturating_add(2))?;
@@ -3948,7 +4003,7 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DropPackage { local } if b.store_option_results => {
+        InstructionKind::DropPackage { local } if b.masked_stored_tasks() => {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
@@ -3965,13 +4020,13 @@ fn transfer(
             union(&mut out.held, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. }
-        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.store_option_results => {
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.masked_stored_tasks() => {
             let description = &get(*store)?.store_description;
             if description.targets.is_empty() {
                 return Err(failure(
@@ -4036,6 +4091,9 @@ fn transfer(
         | InstructionKind::ReadDesc { .. } => {}
         _ if dyn_transfer.is_some() => {
             out = dyn_transfer.unwrap();
+        }
+        _ if failure_wrapper.is_some() => {
+            out = failure_wrapper.unwrap();
         }
         _ if enum_transfer.is_some() => {
             out = enum_transfer.unwrap();
@@ -4513,7 +4571,7 @@ fn active(
                     active_loans_union(&mut direct, permission, b)?;
                 }
             }
-            if b.task_borrowed_results {
+            if b.task_sources() {
                 for permission in value.task_ports.values() {
                     active_loans_union(&mut direct, permission, b)?;
                 }
@@ -4530,7 +4588,7 @@ fn active(
             }
         }
     }
-    if b.task_borrowed_results {
+    if b.task_sources() {
         // Retained ports are frame obligations, even when this particular
         // borrowed head has no further SSA use in the callee.
         fee(b, state.locals.len())?;
@@ -4603,7 +4661,7 @@ fn active_by_permission(
                     union(&mut direct, permission, b)?;
                 }
             }
-            if b.task_borrowed_results {
+            if b.task_sources() {
                 for permission in value.task_ports.values() {
                     union(&mut direct, permission, b)?;
                 }
@@ -4620,7 +4678,7 @@ fn active_by_permission(
             }
         }
     }
-    if b.task_borrowed_results {
+    if b.task_sources() {
         // Retained ports are frame obligations, even when this particular
         // borrowed head has no further SSA use in the callee.
         for value in state.locals.values() {
@@ -5778,7 +5836,7 @@ fn derive_cfg(
                     fee(b, actual.none_values.len().saturating_add(1))?;
                     actual.none_values.insert(ValueId(id as u32));
                 }
-                if b.task_borrowed_results {
+                if b.task_sources() {
                     fee(b, value.pointer.targets.len().saturating_add(1))?;
                     let roots = value
                         .pointer
@@ -5787,7 +5845,7 @@ fn derive_cfg(
                         .map(|t| t.base)
                         .collect::<BTreeSet<_>>();
                     actual.pointer_values.push(roots.into_iter().collect());
-                    if b.store_option_results {
+                    if b.masked_stored_tasks() {
                         actual.pointer_parents.push(pointer_anchors(
                             f,
                             ValueId(id as u32),
@@ -6133,7 +6191,7 @@ fn derive_cfg(
     }
     // Freeze only the original, fully converged graph facts. A second solve
     // receives no authority to trim another edge from its narrowed summaries.
-    if !b.composition_stored.is_empty() && observed_none && !b.store_option_results {
+    if !b.composition_stored.is_empty() && observed_none && !b.masked_stored_tasks() {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "mixed stored/ordinary Option-address refinement is outside the scalar seam",
@@ -6196,14 +6254,14 @@ pub(super) fn infer(
     byte_queries::authenticate(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    let owned_byte_profile = !b.task_borrowed_results
-        && !b.store_option_results
+    let owned_byte_profile = !b.task_sources()
+        && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
         && owned_byte_views::profile(module, b)?;
     b.stored_owned_fixed = if !owned_byte_profile
-        && !b.task_borrowed_results
-        && !b.store_option_results
+        && !b.task_sources()
+        && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
     {
@@ -6220,7 +6278,7 @@ pub(super) fn infer(
         }
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.call_kind != CallKind::Direct
-                && !(b.task_borrowed_results && f.call_kind == CallKind::Suspend)
+                && !(b.task_sources() && f.call_kind == CallKind::Suspend)
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -6272,7 +6330,7 @@ pub(super) fn infer(
             };
             if !(byte_value
                 || super::stored_callables::value(module, ty)
-                || b.task_borrowed_results && task_address::admitted_value(ty)
+                || b.task_sources() && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -6280,7 +6338,7 @@ pub(super) fn infer(
                 || shared_array_shape(ty, b)?
                 || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || b.stored_owned_fixed && owned::data(ty, b)?
-                || b.store_option_results
+                || b.masked_stored_tasks()
                     && matches!(
                         ty,
                         Type::Package { .. }
@@ -6290,7 +6348,7 @@ pub(super) fn infer(
                             | Type::Desc(_)
                             | Type::ErrorUnion { .. }
                     )
-                || b.store_option_results
+                || b.masked_stored_tasks()
                     && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::OwnedStore { .. } | Type::Managed(_)))
                 || mixed_resource
                 || b.stored_enum_addresses
@@ -6350,8 +6408,8 @@ pub(super) fn infer(
         || b.stored_owned_fixed
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
-            && !b.task_borrowed_results
-            && !b.store_option_results
+            && !b.task_sources()
+            && !b.masked_stored_tasks()
     {
         super::resources::check_module(module, graphs, b)?;
     }
@@ -6361,12 +6419,12 @@ pub(super) fn infer(
         .store_option_results
         .then(|| Vec::with_capacity(facts.len()));
     for (index, function) in facts.into_iter().enumerate() {
-        if b.task_borrowed_results && b.store_option_results {
+        if b.task_sources() && b.masked_stored_tasks() {
             fee(b, 1)?;
             b.task_stored_coverage
                 .push(b.composition_stored.is_empty() || b.composition_stored[index]);
         }
-        if b.store_option_results
+        if b.masked_stored_tasks()
             && !b.composition_stored.is_empty()
             && !b.composition_stored[index]
         {
@@ -6375,7 +6433,7 @@ pub(super) fn infer(
             if let Some(actual) = &mut option_targets {
                 actual.push(vec![Vec::new(); count]);
             }
-            if b.task_borrowed_results {
+            if b.task_sources() {
                 fee(b, count)?;
                 b.task_pointer_roots.push(vec![Vec::new(); count]);
                 fee(b, count)?;
@@ -6401,12 +6459,12 @@ pub(super) fn infer(
             }
             actual.push(function.values.clone());
         }
-        if b.task_borrowed_results {
+        if b.task_sources() {
             if function.pointer_values.len() != function.values.len() {
                 return Err(failure("Task physical-source proof omitted an SSA value"));
             }
             b.task_pointer_roots.push(function.pointer_values);
-            if b.store_option_results {
+            if b.masked_stored_tasks() {
                 if function.pointer_parents.len() != function.values.len() {
                     return Err(failure("Task physical parent proof omitted an SSA value"));
                 }
@@ -6652,6 +6710,7 @@ fn actual_instructions(
         for i in &block.instructions {
             fee(b, 1)?;
             let byte_view = owned_byte_views::instruction(module, f, i, b)?;
+            let unpack_failure = failure_unpack(f, i, b)?;
             let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
@@ -6676,8 +6735,9 @@ fn actual_instructions(
                 && !package_read
                 && !package_description
                 && !error_borrow
-                && !(b.task_borrowed_results && task_address::operation(&i.kind))
-                && !(b.store_option_results
+                && !(b.task_sources() && task_address::operation(&i.kind))
+                && !unpack_failure
+                && !(b.masked_stored_tasks()
                     && matches!(
                         i.kind,
                         InstructionKind::OwnedStoreNew { .. }
@@ -6817,7 +6877,7 @@ fn actual_instructions(
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
-                && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
+                && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
             {
                 // A qualified Enum claim cannot become an unsupported Copy
                 // operation merely by deleting its nominal instance inventory.
@@ -7010,7 +7070,7 @@ fn actual_instructions(
                         && !shared_array_shape(child, b)?
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
-                        && !(b.store_option_results && matches!(child, Type::Package { .. }))
+                        && !(b.masked_stored_tasks() && matches!(child, Type::Package { .. }))
                     {
                         return Err(failure(
                             "stored borrowed leaf must use actual slot-load protocol",

@@ -1,5 +1,7 @@
 //! Source preparation for the sealed scalar cooperative task ABI.
 use super::*;
+pub(super) mod failure;
+pub(super) use failure::append_inventory as append_failure_inventory;
 pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -316,11 +318,12 @@ pub(super) fn call_create_type(
     context: zil_ir::RetainedLifeShape,
     inputs: &[Type],
 ) -> Type {
+    let failure = (name == "task_create_owned").then(|| failure::carrier(inputs, &context));
     let mut ty = create_type(result, context);
-    if name == "task_create_owned"
+    if let Some(failure) = failure
         && let Type::ErrorUnion { error, .. } = &mut ty
     {
-        *error = Box::new(create_failure(Type::Tuple(inputs.to_vec())));
+        *error = Box::new(failure);
     }
     ty
 }
@@ -611,6 +614,11 @@ impl Builder<'_, '_> {
             }
             let inputs = self.commit_arguments(prepared_inputs, span)?;
             self.closures.snapshot_type(&worker_result, 3, 0, span)?;
+            if name == "task_create_owned" {
+                for parameter in &parameters {
+                    self.closures.snapshot_type(parameter, 6, 128, span)?;
+                }
+            }
             let ty = if name == "task_await" {
                 worker_result
             } else {
