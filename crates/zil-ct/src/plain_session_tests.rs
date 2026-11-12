@@ -446,3 +446,75 @@ fn changed_prefix_n_and_n_minus_one_replay_costs_without_renewing_budget() {
         }
     }
 }
+
+#[test]
+fn raw_declaration_numbering_does_not_change_plain_hint_environment() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut initial = program();
+    initial.modules[0].exports = vec![NodeId(1)];
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &initial, &target, &limits);
+    let checkpoint = session.checkpoint_for(&initial).unwrap();
+    let mut renumbered = initial.clone();
+    Arc::make_mut(&mut renumbered.modules[0].core).functions[1].id = NodeId(101);
+    renumbered.modules[0].exports = vec![NodeId(101)];
+    assert!(checkpoint.checkpoint_for(&renumbered).is_none());
+    checked(&mut session, &renumbered, &target, &limits);
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_checks, 1);
+    assert_eq!(session.stats.body_reuses, 2);
+    assert_eq!(session.stats.declaration_modules, 1);
+    assert!(session.checkpoint_for(&renumbered).is_some());
+    assert!(session.checkpoint_for(&initial).is_none());
+
+    // Exports do not participate in CT's hint lookup; the current raw export
+    // table must still be returned and cannot attach to the old checkpoint.
+    let checkpoint = session.clone();
+    let mut exports_only = renumbered.clone();
+    exports_only.modules[0].exports = vec![NodeId(2)];
+    assert!(checkpoint.checkpoint_for(&exports_only).is_none());
+    let actual = run(&mut session, &exports_only, &target, &limits).unwrap();
+    assert_eq!(actual, fresh(&exports_only, &target, &limits).unwrap());
+    assert_eq!(actual.0.modules[0].exports, vec![NodeId(2)]);
+    assert_eq!(session.stats.body_checks, 0);
+    assert_eq!(session.stats.body_reuses, 3);
+    assert_eq!(session.stats.declaration_modules, 1);
+    assert!(checkpoint.checkpoint_for(&renumbered).is_some());
+}
+
+#[test]
+fn renumbering_does_not_hide_changed_foreign_or_real_hint_headers() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut initial = program();
+    let callee = &mut Arc::make_mut(&mut initial.modules[0].core).functions[1];
+    callee.body.statements.clear();
+    callee.foreign = Some(ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "callee_external".into(),
+        noescape_parameters: vec![],
+        static_callbacks: false,
+        scoped_callback: None,
+    });
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &initial, &target, &limits);
+    let previous = session.clone();
+    let mut changed = initial.clone();
+    let callee = &mut Arc::make_mut(&mut changed.modules[0].core).functions[1];
+    callee.id = NodeId(100);
+    callee.foreign.as_mut().unwrap().symbol = "a_different_external_symbol".into();
+    changed.modules[0].exports = vec![NodeId(100)];
+    checked(&mut session, &changed, &target, &limits);
+    assert_eq!(session.stats.context_reuses, 0);
+    assert_eq!(session.stats.body_checks, 3);
+    assert_eq!(session.stats.declaration_modules, 1);
+    assert!(previous.checkpoint_for(&changed).is_none());
+    let callee = &mut Arc::make_mut(&mut changed.modules[0].core).functions[1];
+    callee.id = NodeId(101);
+    callee.parameters[0].ty = Type::I64;
+    changed.modules[0].exports = vec![NodeId(101)];
+    checked(&mut session, &changed, &target, &limits);
+    assert_eq!(session.stats.context_reuses, 0);
+    assert_eq!(session.stats.body_reuses, 0);
+}

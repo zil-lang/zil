@@ -325,7 +325,7 @@ impl Directory {
     fn native_scalar_project(&self, label: &str) -> ProjectSources {
         assert!(matches!(
             label,
-            "cold" | "private" | "positions" | "error" | "recovery"
+            "cold" | "private" | "positions" | "error" | "recovery" | "alias"
         ));
         let mut main = "import io\n".to_owned();
         for i in 0..20 {
@@ -353,7 +353,11 @@ impl Directory {
                 } else {
                     0
                 };
-                text += &format!("fn h{j}(x: i32) -> i32 {{\n    var y: i32 = x\n");
+                if label == "alias" && i == 0 && j == 0 {
+                    text += "fn h0(x: i32) -> i32 {\n    let input_copy: i32 = x\n    var y: i32 = input_copy\n";
+                } else {
+                    text += &format!("fn h{j}(x: i32) -> i32 {{\n    var y: i32 = x\n");
+                }
                 for k in 0..16 {
                     let a = (i + j + k) % 13 + 1 + delta;
                     let b = (j * 3 + k) % 11 + 2;
@@ -542,4 +546,103 @@ fn native_error_recovery_bridges_raw_epochs_without_rebuilding_425_cfgs() {
             assert_eq!(report.verification_runs, 1);
         }
     }
+}
+
+#[test]
+fn native_scalar_alias_rebinds_raw_ids_without_clearing_plain_hint_receipts() {
+    fn core(session: &CompilationSession, report: &CompileReport) -> zil_ir::CoreProgram {
+        session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::ProjectCore(prepared)
+                    if prepared.program().source_fingerprint == report.input_fingerprint =>
+                {
+                    Some(prepared.program().clone())
+                }
+                _ => None,
+            })
+            .expect("actual current prepared Core")
+    }
+    let dir = Directory::new();
+    let options = CompileOptions {
+        push_reuse: true,
+        stop_after: Stage::Lower,
+        ..Default::default()
+    };
+    let mut session = CompilationSession::with_capacity(256);
+    let initial = dir.native_scalar_project("cold");
+    let cold = session.compile_project(&initial, &options);
+    assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+    compare(&session, &cold, &initial, &options);
+    let before = core(&session, &cold);
+    let checkpoint = session.plain_source.checkpoint_for(&before).unwrap();
+
+    // Add a pure i32 alias only to m0.h0 in the real 20x20x16 project. All
+    // arithmetic, functions, files, settings and formal request labels survive.
+    let alias = dir.native_scalar_project("alias");
+    assert_eq!(alias.modules.len(), 22);
+    let texts: BTreeMap<_, _> = alias
+        .modules
+        .iter()
+        .map(|unit| {
+            (
+                Path::new(&unit.path).file_name().unwrap().to_str().unwrap(),
+                &unit.text,
+            )
+        })
+        .collect();
+    let mut joined = String::new();
+    for (name, text) in texts {
+        joined.push_str(name);
+        joined.push('\0');
+        joined.push_str(text);
+        joined.push('\0');
+    }
+    // Independently prepared from native_workloads.generated(20,20,16,cold,False)
+    // plus precisely the two-line alias substitution above; all 22 files bound.
+    assert_eq!(
+        Fingerprint::of(joined.as_bytes()).to_hex(),
+        "5a51c60f12e9ca7b4f85e7968fd80d694ea40d7e961eb628d30e1e26436b8e4f"
+    );
+    let report = session.compile_project(&alias, &options);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    compare(&session, &report, &alias, &options);
+    let after = core(&session, &report);
+    let old = before
+        .modules
+        .iter()
+        .find(|m| m.core.module_id == ModuleId(2))
+        .unwrap();
+    let new = after
+        .modules
+        .iter()
+        .find(|m| m.core.module_id == ModuleId(2))
+        .unwrap();
+    assert_eq!(old.core.functions[1].name, "h1");
+    assert_eq!(new.core.functions[1].name, "h1");
+    assert_ne!(old.core.functions[1].id, new.core.functions[1].id);
+    assert_ne!(old.exports, new.exports);
+    assert!(checkpoint.checkpoint_for(&after).is_none());
+    assert!(checkpoint.checkpoint_for(&before).is_some());
+    assert_plain_checkpoint_is_bound(&session, &report);
+    let plain = session.plain_source_stats();
+    assert_eq!(plain.context_reuses, 1, "{plain:?}");
+    assert_eq!(plain.fallbacks, 0, "{plain:?}");
+    assert_eq!(plain.body_checks, 21, "{plain:?}");
+    assert_eq!(plain.body_reuses, 404, "{plain:?}");
+    assert_eq!(plain.shape_checks, 21, "{plain:?}");
+    assert_eq!(plain.shape_reuses, 404, "{plain:?}");
+    assert_eq!(plain.declaration_modules, 22);
+    let types = report.types_push_work.as_ref().unwrap();
+    assert_eq!(types.context_rebuilds, 0);
+    assert_eq!(types.body_checks, 1);
+    assert_eq!(types.position_rebindings, 20);
+    assert_eq!(current(&session, &report).module.functions.len(), 425);
+    assert_eq!(report.verification_runs, 1);
 }
