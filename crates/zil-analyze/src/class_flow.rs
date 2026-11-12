@@ -1038,7 +1038,11 @@ fn check_with(
     };
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
-    let receiver_region = if exclusive_head { Some(e.fresh(true, b)?) } else { None };
+    let receiver_region = if exclusive_head {
+        Some(e.fresh(true, b)?)
+    } else {
+        None
+    };
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
