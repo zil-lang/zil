@@ -188,6 +188,23 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if let s::TypeKind::Named{path,args}=&ty.kind
+                && matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce"))
+                && let [s::GenericArg::Type(parameters),s::GenericArg::Type(result)]=args.as_slice()
+                && let s::TypeKind::Tuple(parameters)=&reference(parameters).kind
+            {
+                let mark=self.headers.len();
+                for header in parameters.iter().chain(std::iter::once(result)){
+                    self.budget.node(header.span,depth+1).map_err(|error|vec![error])?;
+                    self.headers.push(std::ptr::from_ref(reference(header)));
+                }
+                let mutable=self.mutable_life;
+                self.mutable_life=true;
+                let result=ct_selection::walk_type(self,ty,depth);
+                self.mutable_life=mutable;
+                self.headers.truncate(mark);
+                return result;
+            }
             if matches!(ty.kind,s::TypeKind::Tuple(_))
                 && (self.direct_type_argument || self.headers.contains(&std::ptr::from_ref(ty))) {
                 self.budget.node(ty.span,depth).map_err(|error|vec![error])?;
