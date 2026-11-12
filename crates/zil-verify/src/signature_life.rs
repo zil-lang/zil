@@ -467,6 +467,43 @@ fn relation_inner(
             }
             continue;
         }
+        // The allocation outcome retains the success owner's complete class
+        // identity even on an error return. Its port source proof remains in
+        // the independent SSA/store kernel; this is metadata equality only.
+        if let Type::ErrorUnion {
+            error,
+            result: success,
+        } = actual
+            && let Type::OwnedDyn { interface } = success.as_ref()
+            && let Some(owner) =
+                module.and_then(|m| m.dyn_interfaces.iter().find(|d| d.id == *interface))
+            && owner.context.is_some()
+        {
+            if error.as_ref() != &crate::dynamic_dispatch::create_error() {
+                return Err(invalid());
+            }
+            for local in 0..owner.retained_life.binder_count {
+                let row = c.classes.get(class).ok_or_else(invalid)?;
+                let mut path = if pointee {
+                    vec![LifeTypeProjection::Pointee]
+                } else {
+                    vec![]
+                };
+                path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)));
+                if row.position.base != base
+                    || row.position.path != path
+                    || row.position.class != local
+                {
+                    return Err(invalid());
+                }
+                class += 1;
+                visit(
+                    row.binder,
+                    if captures.is_some() { capture } else { !output },
+                )?;
+            }
+            continue;
+        }
         match actual {
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 let owner = module
