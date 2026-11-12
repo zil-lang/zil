@@ -248,9 +248,10 @@ impl Scope<'_> {
             DynTypePattern::Address {
                 lifetime, inner, ..
             } => {
-                if let Some(life) = lifetime {
-                    self.life(life, b)?;
-                }
+                let life = lifetime.as_ref().ok_or_else(|| {
+                    bad("complete original Address recipe has an unknown lifetime domain")
+                })?;
+                self.life(life, b)?;
                 self.ty(module, inner, depth + 1, b)?;
             }
             DynTypePattern::Tuple(fields) => {
@@ -431,6 +432,11 @@ impl Scope<'_> {
 }
 
 pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
+    if module.dyn_declarations.len() > b.limits.max_nodes {
+        return Err(limit(
+            "dynamic declaration inventory exceeds selected bound",
+        ));
+    }
     b.spend(module.dyn_declarations.len())?;
     for declaration in &module.dyn_declarations {
         dynamic_metadata::declaration(declaration, b)?;
@@ -494,6 +500,160 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
         for requirement in requirements {
             scope.obligation(module, requirement, 0, b)?;
         }
+        let associated = declaration
+            .associated_definitions
+            .as_ref()
+            .ok_or_else(|| bad("original associated definitions are Unknown"))?;
+        let mut seen_associated = std::collections::BTreeSet::new();
+        for row in associated {
+            b.spend(declaration.members.len().saturating_add(1))?;
+            let member = declaration
+                .members
+                .get(row.member as usize)
+                .ok_or_else(|| bad("original associated definition member is absent"))?;
+            if !seen_associated.insert(row.member) {
+                return Err(bad("duplicate original associated definition"));
+            }
+            match (&member.kind, &row.carrier, &row.value) {
+                (DynMemberKind::Type, None, value) => {
+                    if let Some(value) = value {
+                        let DynAssociatedValueRecipe::Type(ty) = value else {
+                            return Err(bad("associated type definition has a constant RHS"));
+                        };
+                        scope.ty(module, ty, 0, b)?;
+                    }
+                }
+                (DynMemberKind::Constant, Some(carrier), value) => {
+                    scope.ty(module, carrier, 0, b)?;
+                    if let Some(value) = value {
+                        let DynAssociatedValueRecipe::Constant { ty, value } = value else {
+                            return Err(bad("associated constant definition has a type RHS"));
+                        };
+                        scope.ty(module, ty, 0, b)?;
+                        scope.constant(module, value, 0, b)?;
+                    }
+                }
+                _ => return Err(bad("associated original member kind or carrier differs")),
+            }
+            if declaration.kind == DynDeclarationKind::Impl && row.value.is_none() {
+                return Err(bad("impl associated override has no original RHS"));
+            }
+            b.spend(row.requirements.len())?;
+            for requirement in &row.requirements {
+                scope.obligation(module, requirement, 0, b)?;
+            }
+        }
+        for (index, member) in declaration.members.iter().enumerate() {
+            b.spend(1)?;
+            if matches!(member.kind, DynMemberKind::Type | DynMemberKind::Constant)
+                && !seen_associated.contains(&(index as u32))
+            {
+                return Err(bad(
+                    "original declaration omits an associated member's requirements",
+                ));
+            }
+        }
+        let signatures = declaration
+            .method_signatures
+            .as_ref()
+            .ok_or_else(|| bad("original method signatures are Unknown"))?;
+        let mut seen_signatures = std::collections::BTreeSet::new();
+        for row in signatures {
+            b.spend(declaration.members.len().saturating_add(1))?;
+            let Some(DynMemberDeclaration {
+                kind: DynMemberKind::Method(kinds),
+                ..
+            }) = declaration.members.get(row.member as usize)
+            else {
+                return Err(bad("original method recipe selects a nonmethod member"));
+            };
+            if !seen_signatures.insert(row.member) {
+                return Err(bad("duplicate original method signature"));
+            }
+            let mut method = Scope {
+                declaration: &declaration.parameters,
+                method: kinds,
+                invocation: 0,
+                bound: vec![],
+                established_self: true,
+            };
+            method.signature(module, &row.signature, b)?;
+            for requirement in &row.requirements {
+                method.obligation(module, requirement, 0, b)?;
+            }
+        }
+        let definitions = declaration
+            .method_definitions
+            .as_ref()
+            .ok_or_else(|| bad("original method definitions are Unknown"))?;
+        let mut seen_definitions = std::collections::BTreeSet::new();
+        for row in definitions {
+            b.spend(declaration.members.len().saturating_add(1))?;
+            let Some(DynMemberDeclaration {
+                kind: DynMemberKind::Method(kinds),
+                ..
+            }) = declaration.members.get(row.member as usize)
+            else {
+                return Err(bad("original method definition selects a nonmethod member"));
+            };
+            if !seen_definitions.insert(row.member)
+                || row.scope
+                    != if declaration.kind == DynDeclarationKind::Trait {
+                        DynDefinitionScope::TraitDefault
+                    } else {
+                        DynDefinitionScope::ImplOverride
+                    }
+            {
+                return Err(bad(
+                    "original method definition scope is duplicated or mismatched",
+                ));
+            }
+            let mut method = Scope {
+                declaration: &declaration.parameters,
+                method: kinds,
+                invocation: 0,
+                bound: vec![],
+                established_self: true,
+            };
+            method.signature(module, &row.signature, b)?;
+            for requirement in &row.requirements {
+                method.obligation(module, requirement, 0, b)?;
+            }
+        }
+        for (index, member) in declaration.members.iter().enumerate() {
+            b.spend(1)?;
+            if matches!(member.kind, DynMemberKind::Method(_)) {
+                if declaration.kind == DynDeclarationKind::Trait
+                    && !seen_signatures.contains(&(index as u32))
+                {
+                    return Err(bad(
+                        "original trait omits a method signature or prerequisites",
+                    ));
+                }
+                if declaration.kind == DynDeclarationKind::Impl
+                    && !seen_definitions.contains(&(index as u32))
+                {
+                    return Err(bad(
+                        "original impl omits a method definition or prerequisites",
+                    ));
+                }
+            }
+        }
+        for signature in signatures {
+            if let Some(default) = signature.default_definition {
+                b.spend(definitions.len())?;
+                let mut rows = definitions.iter().filter(|row| {
+                    row.id == default
+                        && row.member == signature.member
+                        && row.scope == DynDefinitionScope::TraitDefault
+                });
+                if rows.next().is_none() || rows.next().is_some() {
+                    return Err(bad(
+                        "trait default link does not select its unique original definition",
+                    ));
+                }
+            }
+        }
         edges.push(targets);
     }
     // Traverse the original graph, before applications can disguise a growing
@@ -524,4 +684,137 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{ModuleId, NodeId};
+    fn declaration(index: u32) -> DynDeclaration {
+        DynDeclaration {
+            id: LifeDeclarationId {
+                module: ModuleId(0),
+                declaration: NodeId(index),
+                compiler: false,
+            },
+            identity: LifeDeclarationIdentity {
+                package: "witness-test".into(),
+                module_path: vec![],
+                declaration_path: vec![format!("Trait{index}")],
+                generation_path: vec![],
+            },
+            kind: DynDeclarationKind::Trait,
+            parameters: vec![LifeParameterKind::Type],
+            members: vec![],
+            self_pattern: None,
+            implemented_trait: None,
+            direct_supertraits: Some(vec![]),
+            requirements: Some(vec![]),
+            associated_definitions: Some(vec![]),
+            method_signatures: Some(vec![]),
+            method_definitions: Some(vec![]),
+        }
+    }
+    fn module() -> TypedModule {
+        let (mut module, _) = crate::tests::baseline();
+        module.dyn_declarations = vec![declaration(10), declaration(11)];
+        module
+    }
+    fn run(module: &TypedModule) -> Check<()> {
+        let limits = Limits::default();
+        let raw = check(module, &mut Budget::new(&limits));
+        let (_, plan) = crate::tests::baseline();
+        let bytes = zil_ir::wire::encode_module_candidate(module, &plan, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let wire = check(&decoded, &mut Budget::new(&limits));
+        assert_eq!(
+            raw.as_ref().map(|_| ()).map_err(|e| (&e.code, &e.message)),
+            wire.as_ref().map(|_| ()).map_err(|e| (&e.code, &e.message))
+        );
+        raw
+    }
+    #[test]
+    fn complete_original_super_graph_and_every_unused_premise_are_scoped() {
+        let mut module = module();
+        module.dyn_declarations[0].direct_supertraits = Some(vec![DynSelfPattern {
+            declaration: module.dyn_declarations[1].id,
+            arguments: vec![DynPatternActual::Type(DynTypePattern::Parameter(0))],
+        }]);
+        assert!(run(&module).is_ok());
+        module.dyn_declarations[0].requirements = Some(vec![DynObligation::Structural {
+            receiver: DynTypePattern::MethodParameter(0),
+            bound: DynStructuralBound::Copy,
+        }]);
+        assert_eq!(run(&module).unwrap_err().code, "E-VERIFY-DYN-WITNESS");
+        module.dyn_declarations[0].requirements = None;
+        assert!(run(&module).is_err());
+    }
+    #[test]
+    fn changing_type_actuals_cannot_disguise_a_growing_original_super_cycle() {
+        let mut module = module();
+        let id = module.dyn_declarations[0].id;
+        module.dyn_declarations[0].direct_supertraits = Some(vec![DynSelfPattern {
+            declaration: id,
+            arguments: vec![DynPatternActual::Type(DynTypePattern::OwnedStore(
+                Box::new(DynTypePattern::Parameter(0)),
+            ))],
+        }]);
+        assert!(run(&module).unwrap_err().message.contains("cycle"));
+        module.dyn_declarations[0].direct_supertraits = Some(vec![DynSelfPattern {
+            declaration: module.dyn_declarations[1].id,
+            arguments: vec![DynPatternActual::Type(DynTypePattern::Parameter(0))],
+        }]);
+        module.dyn_declarations[1].direct_supertraits = Some(vec![DynSelfPattern {
+            declaration: id,
+            arguments: vec![DynPatternActual::Type(DynTypePattern::Parameter(0))],
+        }]);
+        assert!(run(&module).unwrap_err().message.contains("cycle"));
+    }
+    #[test]
+    fn original_associated_carrier_and_full_formal_kind_remain_obligations() {
+        let mut module = module();
+        let trait_id = module.dyn_declarations[1].id;
+        module.dyn_declarations[1]
+            .members
+            .push(DynMemberDeclaration {
+                name: "Item".into(),
+                kind: DynMemberKind::Type,
+            });
+        module.dyn_declarations[1].associated_definitions = Some(vec![DynAssociatedDefinition {
+            member: 0,
+            carrier: None,
+            value: None,
+            requirements: vec![],
+        }]);
+        module.dyn_declarations[0].requirements = Some(vec![DynObligation::TypeEqual {
+            left: DynTypePattern::AssociatedProjection {
+                receiver: Box::new(DynTypePattern::Parameter(0)),
+                application: Box::new(DynSelfPattern {
+                    declaration: trait_id,
+                    arguments: vec![DynPatternActual::Type(DynTypePattern::Concrete(Type::I32))],
+                }),
+                member: 0,
+            },
+            right: DynTypePattern::Concrete(Type::I32),
+        }]);
+        assert!(run(&module).is_ok());
+        module.dyn_declarations[1]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[0]
+            .carrier = Some(DynTypePattern::Concrete(Type::U8));
+        assert!(run(&module).is_err());
+        module.dyn_declarations[1]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[0]
+            .carrier = None;
+        module.dyn_declarations[0].direct_supertraits = Some(vec![DynSelfPattern {
+            declaration: trait_id,
+            arguments: vec![DynPatternActual::Life(
+                DynLifePattern::DeclarationParameter(0),
+            )],
+        }]);
+        assert!(run(&module).is_err());
+    }
 }
