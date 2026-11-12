@@ -359,10 +359,37 @@ pub(super) fn check_definitions(
     }
     budget.spend(module.functions.len())?;
     for f in &module.functions {
+        // The intrinsic Task value ABI has no separate result-mode slot.
+        // This does not waive ordinary resource create/give contracts.
+        let inferred_task = if f.result_mode == PassingMode::Infer {
+            let owner = match &f.return_type {
+                ty @ Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. }) =>
+                {
+                    Some(ty)
+                }
+                Type::ErrorUnion { result, .. }
+                    if matches!(result.as_ref(), Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })) =>
+                {
+                    Some(result.as_ref())
+                }
+                _ => None,
+            };
+            if let Some(owner) = owner {
+                tasks::carrier(module, owner, Some(f.span), budget)?;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         match (&f.return_type, f.result_mode) {
-            (Type::Managed(_), PassingMode::Infer | PassingMode::Create | PassingMode::Give) => {}
-            (ty, PassingMode::Infer | PassingMode::Create | PassingMode::Give)
-                if errors::managed_success(ty) => {}
+            (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
+            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
+            (Type::Managed(_), PassingMode::Infer) if inferred_task => {}
+            (ty, PassingMode::Infer) if inferred_task && errors::managed_success(ty) => {}
             (Type::Desc(_), _) => {
                 return Err(unsupported(
                     "resource description returns require exported source and management contracts",
