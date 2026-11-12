@@ -3642,10 +3642,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 }
                             }
                         }
-                    } else if matches!(ty, Type::Package { .. }) {
-                        // The existing Package capture path requires explicit
-                        // ownership transfer and records FnMut environment use.
-                        // Its field address does not turn the Package into Copy.
+                    } else if matches!(stored::physical(&ty), Type::Package { .. }) {
+                        // A qualified owning Package uses the same actual
+                        // capture responsibility. Borrowing its head for a
+                        // helper marks mutable environment use, not Copy.
                         self.name(name, true, expression.span)?;
                     } else {
                         if !matches!(ty, Type::Address { mutable: true, .. }) {

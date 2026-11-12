@@ -5053,7 +5053,7 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in right.slots.values().chain(
-                                        (!right_held.targets.is_empty()).then_some(&right_held),
+                                        (!right_held.targets.is_empty()).then_some(right_held.as_ref()),
                                     ) {
                                         for x in &actual.pointer.targets {
                                             for y in &leaf.targets {
@@ -5067,7 +5067,7 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in actual.slots.values().chain(
-                                        (!held.targets.is_empty()).then_some(&held),
+                                        (!held.targets.is_empty()).then_some(held.as_ref()),
                                     ) {
                                         for x in &leaf.targets {
                                             for y in &right.pointer.targets {
