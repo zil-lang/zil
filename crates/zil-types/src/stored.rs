@@ -1042,7 +1042,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             }
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. })
+            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
                 || !path
                     .iter()
                     .all(|part| matches!(part, PlaceProjection::Field(_)))
@@ -1050,7 +1050,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         {
             return Err(unsupported(
                 span,
-                "exclusive stored holder requires direct nominal address slots",
+                "exclusive stored holder requires exact inline address slots",
             ));
         }
         if !classes.contains(&slot.binder) && slot.binder as usize != classes.len() {
