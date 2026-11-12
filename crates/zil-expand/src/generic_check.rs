@@ -4591,7 +4591,7 @@ impl Check<'_, '_, '_> {
                 })?
         } else {
             let store = self.expr(&arguments[0].value, state, None, true)?;
-            stores::element(&store)
+            stores::described_element(&store)
                 .cloned()
                 .ok_or_else(|| error(e.span, "Store primitive requires a Store description"))?
         };

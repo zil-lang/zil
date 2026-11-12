@@ -1102,7 +1102,7 @@ impl Engine<'_> {
             let store = self
                 .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
                 .ok_or_else(|| error(span, "Store primitive requires a known Store type"))?;
-            stores::element(&store)
+            stores::described_element(&store)
                 .cloned()
                 .ok_or_else(|| error(span, "Store primitive requires a Store description"))?
         };
