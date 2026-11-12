@@ -25,6 +25,10 @@ struct ZilNativeProductStats {
   uint64_t mir_key_bytes;
   uint64_t mir_snapshot_bytes;
   uint64_t mir_replay_bytes;
+  uint64_t mir_key_ns;
+  uint64_t mir_parse_ns;
+  uint64_t mir_restore_validate_ns;
+  uint64_t mir_capture_ns;
   uint64_t retained_bytes;
   uint64_t failed_replays;
 };

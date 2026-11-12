@@ -25,6 +25,10 @@ mod enabled {
         mir_key_bytes: u64,
         mir_snapshot_bytes: u64,
         mir_replay_bytes: u64,
+        mir_key_ns: u64,
+        mir_parse_ns: u64,
+        mir_restore_validate_ns: u64,
+        mir_capture_ns: u64,
         retained_bytes: u64,
         failed_replays: u64,
     }
@@ -47,6 +51,10 @@ mod enabled {
                 mir_key_bytes: value.mir_key_bytes,
                 mir_snapshot_bytes: value.mir_snapshot_bytes,
                 mir_replay_bytes: value.mir_replay_bytes,
+                mir_key_ns: value.mir_key_ns,
+                mir_parse_ns: value.mir_parse_ns,
+                mir_restore_validate_ns: value.mir_restore_validate_ns,
+                mir_capture_ns: value.mir_capture_ns,
                 retained_bytes: value.retained_bytes,
                 failed_replays: value.failed_replays,
                 ..Self::default()
@@ -299,12 +307,12 @@ mod enabled {
 
         #[test]
         fn native_stats_wire_matches_the_eighteen_u64_c_fields() {
-            assert_eq!(std::mem::size_of::<WireStats>(), 18 * 8);
+            assert_eq!(std::mem::size_of::<WireStats>(), 22 * 8);
             assert_eq!(
                 std::mem::align_of::<WireStats>(),
                 std::mem::align_of::<u64>()
             );
-            assert_eq!(std::mem::offset_of!(WireStats, failed_replays), 17 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, failed_replays), 21 * 8);
             fn assert_send_sync<T: Send + Sync>() {}
             assert_send_sync::<NativeWorkProducts>();
         }
