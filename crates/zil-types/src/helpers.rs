@@ -1339,7 +1339,8 @@ impl Builder<'_, '_> {
                 .filter_map(|(index, capture)| {
                     // Self containment was checked at the input boundary.
                     // Classify borrowed fields without cloning their type tree.
-                    ((matches!(capture.ty, Type::Managed(_)) && capture.moved)
+                    ((matches!(capture.ty, Type::Managed(_) | Type::OwnedDyn { .. })
+                        && capture.moved)
                         || (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
                             && !capture.borrowed))
                         .then_some(index as u32)

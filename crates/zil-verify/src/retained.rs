@@ -161,6 +161,8 @@ pub(super) fn check_claim(
             }
             closures::self_contained(module, input, budget)?;
             owning_signature(module, f, input, budget)?;
+        } else if let Type::OwnedDyn { interface } = local.ty {
+            dynamic_dispatch::type_owned(module, interface, budget)?;
         } else if matches!(local.ty, Type::Package { .. }) {
             packages::check_ordinary_type(module, &local.ty, Some(local.span), budget)?;
         } else if budget.inline_store_root(&local.ty)?
@@ -212,6 +214,9 @@ pub(super) fn check_claim(
         budget.spend(1)?;
         if matches!(ty, Type::Package { .. }) {
             packages::check_capture_type(module, ty, Some(f.span), budget)?;
+            cleanup.push(index as u32);
+        } else if let Type::OwnedDyn { interface } = ty {
+            dynamic_dispatch::type_owned(module, *interface, budget)?;
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
@@ -349,6 +354,10 @@ fn check_parameter_claim(
     for (index, ty) in definition.captures.iter().enumerate() {
         match ty {
             Type::Managed(_) => cleanup.push(index as u32),
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
+                cleanup.push(index as u32);
+            }
             Type::Package { .. } => {
                 packages::check_capture_type(module, ty, Some(f.span), budget)?;
                 cleanup.push(index as u32);

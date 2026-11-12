@@ -695,6 +695,9 @@ pub(super) fn self_contained(
         for ty in &definition.captures {
             match ty {
                 Type::Closure(child) => pending.push(*child),
+                Type::OwnedDyn { interface } if definition.kind == CallableKind::FnOnce => {
+                    dynamic_dispatch::type_owned(module, *interface, budget)?;
+                }
                 Type::Managed(_) | Type::Package { .. } => {}
                 ty if budget.inline_store_root(ty)?
                     && dynamic_store::inline_sum_capture(ty, budget)? =>

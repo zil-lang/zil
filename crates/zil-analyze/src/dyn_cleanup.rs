@@ -101,6 +101,24 @@ pub(super) fn bound<'a>(
     Ok(bound)
 }
 
+pub(super) fn owner_interface(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(module.dyn_interfaces.len(), WORK)?;
+    let interface = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.id == id)
+        .ok_or_else(|| bad("owned dyn capture interface is absent"))?;
+    bound(interface.owning_cleanup.as_ref(), budget)?;
+    if !interface.retained_life.ports.is_empty() || interface.retained_life.binder_count != 0 {
+        return Err(bad("closed owned dyn capture retains external ports"));
+    }
+    Ok(())
+}
+
 pub(super) fn prove(
     module: &TypedModule,
     ty: &Type,
