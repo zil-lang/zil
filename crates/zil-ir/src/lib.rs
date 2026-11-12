@@ -13,8 +13,12 @@ pub mod ct_wire;
 pub use closure_context::*;
 mod dynamic;
 mod dynamic_fingerprint;
+mod dynamic_recipes;
+mod dynamic_recipes_fingerprint;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
+pub use dynamic_recipes::*;
+use dynamic_recipes_fingerprint::*;
 mod program;
 pub mod wire;
 pub use program::*;
@@ -383,6 +387,7 @@ pub struct LifeNominalDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LifeNominalActual {
     Type(Type),
+    QualifiedType { ty: Type, life: StorageLifeShape },
     Const(Constant),
     /// The instance type's OWN qualified fixed scope, not an enclosing numeric
     /// class coincidentally having this ordinal. Outer maps explicitly compose.
