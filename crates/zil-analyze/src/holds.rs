@@ -2024,7 +2024,34 @@ fn infer_with_private(
                     )?;
                 }
                 let mut found = Roots::new();
-                if let Some((definition, arguments)) =
+                if budget.task_sources()
+                    && matches!(
+                        instruction.kind,
+                        InstructionKind::TakeCapture { .. }
+                            | InstructionKind::CallClosureOnce { .. }
+                    )
+                    && let Some(output) = instruction.result
+                    && matches!(&f.values[output.0 as usize],Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+                    && let Some(ports) = budget
+                        .task_retained_roots
+                        .get(f.id.0 as usize)
+                        .and_then(|rows| rows.get(output.0 as usize))
+                {
+                    let work = ports.iter().fold(1usize, |work, (path, roots)| {
+                        work.saturating_add(path.len()).saturating_add(roots.len())
+                    });
+                    budget.spend(work, "actual consumed Task frame retained roots")?;
+                    for roots in
+                        budget.task_retained_roots[f.id.0 as usize][output.0 as usize].values()
+                    {
+                        found.extend(roots.iter().map(|root| match root {
+                            HoldRoot::Parameter(index) => Root::Parameter(*index),
+                            HoldRoot::Capture(index) => Root::Capture(*index),
+                            HoldRoot::Local(local) => Root::Local(*local),
+                            HoldRoot::Static => Root::Static,
+                        }));
+                    }
+                } else if let Some((definition, arguments)) =
                     super::borrowed_fp::invocation_call(module, f, &instruction.kind)
                 {
                     for root in &summaries[definition.function.0 as usize] {
@@ -3979,10 +4006,25 @@ fn infer_module_inner(
                     }
                     for input in &contract.bindings {
                         budget.spend(1, "Task return actual input relation")?;
-                        if input.binder == result.binder
-                            && let zil_ir::StorageBase::Parameter(index) = input.position.base
-                        {
-                            retained_inputs.insert(index);
+                        if input.binder == result.binder {
+                            match input.position.base {
+                                zil_ir::StorageBase::Parameter(index) => {
+                                    retained_inputs.insert(HoldRoot::Parameter(index));
+                                }
+                                zil_ir::StorageBase::Capture(index)
+                                    if function
+                                        .environment
+                                        .and_then(|id| module.closures.get(id.0 as usize))
+                                        .is_some_and(|d| {
+                                            d.function == function.id
+                                                && super::stored_callables::task_result(d)
+                                                && d.captures.get(index as usize).is_some()
+                                        }) =>
+                                {
+                                    retained_inputs.insert(HoldRoot::Capture(index));
+                                }
+                                _ => {}
+                            }
                         }
                     }
                 }
@@ -4032,10 +4074,10 @@ fn infer_module_inner(
                         && !matches!(function.return_type, Type::MutexGuard { .. })
                         && !explicit_error
                         && (roots.roots.is_empty()
-                            || roots.roots.iter().any(|root| {
-                                !matches!(root, HoldRoot::Parameter(index)
-                                    if retained_inputs.contains(index))
-                            }))
+                            || roots
+                                .roots
+                                .iter()
+                                .any(|root| !retained_inputs.contains(root)))
                     {
                         return Err(bad(
                             "borrowed Task return exceeds its actual declared input ports",
@@ -4049,6 +4091,11 @@ fn infer_module_inner(
                             }
                             HoldRoot::Parameter(index) => {
                                 result.insert(Root::Parameter(*index));
+                            }
+                            HoldRoot::Capture(index)
+                                if retained_task_value(&function.return_type) =>
+                            {
+                                result.insert(Root::Capture(*index));
                             }
                             _ => {}
                         }
