@@ -112,7 +112,7 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
             .into(),
             entry: BlockId(0),
             span,
-        }],
+        }].into(),
     };
     let mut plan = CandidatePlan::empty_for(&module);
     plan.functions.push(FunctionPlan {

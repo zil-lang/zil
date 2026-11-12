@@ -114,7 +114,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                     schema_version: module.core.schema_version,
                     module_id: module.core.module_id,
                     source_fingerprint: module.core.source_fingerprint,
-                    functions,
+                    functions: functions.into(),
                     // The bounded copies describe types, not runtime cleanup.
                     // Runtime Drop bodies are not selected by a pure query; their
                     // names must not become unresolved executable dependencies.

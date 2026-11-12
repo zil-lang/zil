@@ -498,7 +498,7 @@ fn package_capture_repeatable_restoration_is_a_return_obligation_not_a_trap_obli
     }]
     .into();
     entry.entry = BlockId(0);
-    module.functions = vec![entry];
+    module.functions = vec![entry].into();
     module.closures[0].function = FunctionId(0);
     module.closures[0].kind = CallableKind::FnMut;
     module.closures[0].result = Type::Unit;

@@ -60,7 +60,7 @@ fn module() -> CoreModule {
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
-        functions: vec![function()],
+        functions: vec![function()].into(),
         aggregates: vec![],
         enums: vec![],
         unsupported: vec![],

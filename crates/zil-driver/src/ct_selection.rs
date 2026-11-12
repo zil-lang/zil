@@ -263,7 +263,7 @@ impl materialize::Materializer<'_, '_> {
                         })),
                     }],
                 },
-            }],
+            }].into(),
             aggregates: Vec::new(),
             enums: Vec::new(),
             unsupported: Vec::new(),
@@ -283,7 +283,7 @@ impl materialize::Materializer<'_, '_> {
             &compiler,
         )?;
         self.budget.execute(usage, span)?;
-        let [function] = evaluated.functions.as_slice() else {
+        let Some(function) = evaluated.functions.first().filter(|_| evaluated.functions.len() == 1) else {
             return Err(forbidden(
                 span,
                 "selection query produced an invalid function count",

@@ -1912,3 +1912,7 @@ mod reactive_query_tests;
 #[cfg(test)]
 #[path = "producer_reuse_tests.rs"]
 mod producer_reuse_tests;
+
+#[cfg(test)]
+#[path = "push_pipeline_tests.rs"]
+mod push_pipeline_tests;

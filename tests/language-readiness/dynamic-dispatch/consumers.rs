@@ -454,7 +454,7 @@ fn interface_only_owner_parameter_still_has_affine_debt() {
         .unwrap()
         .clone();
     relay.id = zil_ir::FunctionId(0);
-    module.functions = vec![relay];
+    module.functions = vec![relay].into();
     module.resources.clear();
     module.dyn_vtables.clear();
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
@@ -523,7 +523,7 @@ fn interface_only_owner_parameter_still_has_affine_debt() {
         .unwrap()
         .clone();
     consume.id = zil_ir::FunctionId(0);
-    without_table.functions = vec![consume];
+    without_table.functions = vec![consume].into();
     without_table.resources.clear();
     without_table.dyn_vtables.clear();
     let mut consume_plan = zil_analyze::analyze(&without_table, &Limits::default()).unwrap();

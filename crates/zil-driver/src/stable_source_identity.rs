@@ -383,7 +383,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: CURRENT,
             target: TargetProfile::host_llvm(),
-            functions,
+            functions: functions.into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],

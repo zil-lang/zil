@@ -175,7 +175,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"127 hand-filled local factory instances"),
         target: TargetProfile::host_llvm(),
-        functions: vec![helper, factory, entry],
+        functions: vec![helper, factory, entry].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             lending_captures: Vec::new(),

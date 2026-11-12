@@ -41,7 +41,7 @@ fn source_reverse_chain_exports_exact_origins_and_roundtrips_wire() {
     let module = typed(&source);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    for function in &module.functions[..96] {
+    for function in module.functions.range(0..96) {
         let returned = match function.blocks.last().unwrap().terminator {
             zil_ir::Terminator::Return(Some(value)) => value,
             _ => panic!("expected actual source return"),
