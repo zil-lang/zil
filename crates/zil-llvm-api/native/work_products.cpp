@@ -174,6 +174,19 @@ bool acyclic(const Function &F) {
   return Seen == F.size();
 }
 }
+// A world projection may inspect incoming instructions. Establish their
+// actual current owners first; a ConstantExpr or detached/foreign call is not
+// a representable caller, even if the subject body's printed IR is unchanged.
+bool incomingCallersHaveCurrentOwners(const Function &F) {
+  if (!F.getParent()) return false;
+  for (const User *U : F.users()) {
+    const auto *C = dyn_cast<CallBase>(U);
+    if (!C || C->getCalledOperand() != &F || !C->getParent()) return false;
+    const Function *Caller = C->getFunction();
+    if (!Caller || Caller->getParent() != F.getParent()) return false;
+  }
+  return true;
+}
 bool eligibleFunction(const Function &F) {
   if (F.isDeclaration() || F.isVarArg() || F.getCallingConv() != CallingConv::C ||
       !F.getReturnType()->isIntegerTy() || F.hasPersonalityFn() || F.hasGC() ||
@@ -250,14 +263,17 @@ bool eligibleFunction(const Function &F) {
   if (!ownedUseSequence(F, nullptr)) return admissionFailure(F, nullptr, "unbound-owned-use");
   return true;
 }
-std::string functionText(const Function &F) {
+std::string projectFunctionText(const Function &F, bool *EligibilityTypesBound) {
+  if (EligibilityTypesBound) *EligibilityTypesBound = false;
+  std::vector<uint32_t> Uses;
+  if (!ownedUseSequence(F, &Uses)) return {};
+  NameState Names = nameState(F);
+  if (Names.present < 0) return {};
+  bool CompleteTypeReads = true;
   std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true);
   OS << "\n; block-number-state " << F.getMaxBlockNumber() << ':' << F.getBlockNumberEpoch();
   for (const BasicBlock &B : F) OS << ':' << B.getNumber();
-  NameState Names = nameState(F);
   OS << "\n; value-name-state " << Names.present << ':' << Names.maximum << ':' << Names.counter;
-  std::vector<uint32_t> Uses;
-  if (!ownedUseSequence(F, &Uses)) return {};
   // Function::print writes attribute-group and metadata references without
   // their definitions. Bind the actual values, including nested MD payloads.
   OS << "\n; complete-function-attributes "; F.getAttributes().print(OS);
@@ -269,6 +285,19 @@ std::string functionText(const Function &F) {
   }
   uint64_t Ordinal = 0;
   for (const BasicBlock &B : F) for (const Instruction &I : B) {
+    if (EligibilityTypesBound) {
+      auto Identified = [](Type *T) {
+        const auto *ST = dyn_cast<StructType>(T); return ST && !ST->isLiteral();
+      };
+      // numeric() reads struct ELEMENT types. The printer may emit only a
+      // local identified type's name; do not infer that predicate from text.
+      // All other previously eligible aggregate values have literal integer
+      // fields. ExtractValue is the sole eligible instruction that can read
+      // an aggregate operand while producing a scalar rather than that type.
+      if (Identified(I.getType())) CompleteTypeReads = false;
+      if (const auto *E = dyn_cast<ExtractValueInst>(&I))
+        if (Identified(E->getAggregateOperand()->getType())) CompleteTypeReads = false;
+    }
     if (const auto *C = dyn_cast<CallBase>(&I)) if (!C->getAttributes().isEmpty()) {
       OS << "\n; complete-call-attributes " << Ordinal << ' ';
       C->getAttributes().print(OS);
@@ -283,8 +312,11 @@ std::string functionText(const Function &F) {
   OS << "\n; owned-use-sequence-v1\n";
   // A private resident byte projection, never LLVM source or a disk format.
   OS.write(reinterpret_cast<const char *>(Uses.data()), Uses.size() * sizeof(uint32_t));
-  OS << '\n'; return S;
+  OS << '\n';
+  if (EligibilityTypesBound) *EligibilityTypesBound = CompleteTypeReads;
+  return S;
 }
+std::string functionText(const Function &F) { return projectFunctionText(F, nullptr); }
 std::string declarationText(const Function &F) {
   std::string S; raw_string_ostream OS(S);
   F.print(OS, nullptr, false);
@@ -295,6 +327,8 @@ std::string declarationText(const Function &F) {
   return S;
 }
 std::string worldText(const Module &M, const Function *Subject, ZilNativeProductStats *Stats) {
+  if (Subject && (!incomingCallersHaveCurrentOwners(*Subject) || Subject->getParent() != &M))
+    return {};
   using PrintHeaders = int (*)(const void *, void *);
   static auto Print = reinterpret_cast<PrintHeaders>(dlsym(RTLD_DEFAULT, "ZilLLVMPrintModuleHeaders"));
   std::string S; raw_string_ostream OS(S);
@@ -322,7 +356,11 @@ std::string worldText(const Module &M, const Function *Subject, ZilNativeProduct
     for (const User *U : Subject->users())
       if (const auto *I = dyn_cast<Instruction>(U)) Callers.insert(I->getFunction());
     for (const Function &F : M)
-      if (Callers.count(&F)) { OS << "\n; incoming caller\n" << functionText(F); }
+      if (Callers.count(&F)) {
+        std::string Caller = functionText(F);
+        if (Caller.empty()) return {};
+        OS << "\n; incoming caller\n" << Caller;
+      }
     // User iteration order is observable to transformations. Bind the actual
     // outside-body use list as stable current IR positions, without retaining
     // historical Instruction/Use pointers.
@@ -557,8 +595,9 @@ bool restoreStageAnalyses(Function &F, FunctionAnalysisManager &AM, const Stage 
   return true;
 }
 
-bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats) {
-  std::string Output = functionText(F);
+bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats,
+                      std::string Output = {}) {
+  if (Output.empty()) Output = functionText(F);
   if (Output.empty()) return false;
   if (Output == P.Input) {
     // Snapshot cloning used to verify the transported body. There is no
@@ -680,6 +719,9 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   auto P = std::make_shared<Stage>();
   P->Path = path(R, F); P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
   P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
+  if (P->Input.empty() || P->World.empty()) {
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
   std::string Slot = P->Path;
   if (R.Prior && R.Prior->Config == R.Config) {
@@ -700,6 +742,28 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   ++R.Stats.optimizer_function_stage_executions;
   *Token = newPending(R, std::move(Slot), std::move(P)); return 0;
 }
+// Entry eligibility was freshly established before the original stage. A
+// complete current equality of every field it read is a producer proof, not a
+// Function* identity memo. Unknown/local-identified type domains still execute
+// the original predicate. Current owners/hidden projection state are checked
+// independently before equality can be used.
+bool projectAdmittedStageExit(const Module &M, const Function &F, const Stage &P,
+                             ZilNativeProductStats *Stats, std::string &Output,
+                             bool *ReusedEligibility = nullptr) {
+  if (ReusedEligibility) *ReusedEligibility = false;
+  if (!incomingCallersHaveCurrentOwners(F)) return false;
+  std::string World = worldText(M, &F, Stats);
+  if (World.empty() || World != P.World) return false;
+  bool TypeReadsBound = false;
+  Output = projectFunctionText(F, &TypeReadsBound);
+  if (Output.empty()) return false;
+  if (TypeReadsBound && Output == P.Input) {
+    if (ReusedEligibility) *ReusedEligibility = true;
+    return true;
+  }
+  return eligibleFunction(F);
+}
+
 void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, void *Token) {
   auto &R = *static_cast<Request *>(Context);
   auto It = R.PendingTokens.find(static_cast<Pending *>(Token));
@@ -713,11 +777,12 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   // An unsupported exit cannot be retained, regardless of body/world values.
   // Keep diagnostic-only pending tokens, but avoid their deep projections.
   if (!P->Product || R.Failed || !supportedAnalysisKeys(Exit)) return;
-  if (!eligibleFunction(F) || worldText(R.M, &F, &R.Stats) != P->Product->World) return;
+  std::string Output;
+  if (!projectAdmittedStageExit(R.M, F, *P->Product, &R.Stats, Output)) return;
   P->Product->ExitKeys = std::move(Exit);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
                      P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
-  if (!captureStageBody(*P->Product, F, R.Stats)) return;
+  if (!captureStageBody(*P->Product, F, R.Stats, std::move(Output))) return;
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
   retainStage(R, P->Slot, std::move(P->Product));
 }
@@ -1001,4 +1066,54 @@ extern "C" int ZilNativeProductsUnchangedStageCounterexample() {
   if (zil::restoreStageAnalyses(*F, Current, Corrupt, &Memo, Rebuilt, true) ||
       zil::functionText(*F) != P.Input || verifyModule(M, nullptr)) return 0;
   return 1;
+}
+
+extern "C" int ZilNativeProductsEligibilityProducerCounterexample() {
+  if (!zil::symbols().available) return 0;
+  LLVMContext Context; Module M("eligibility-producer", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  F->getArg(0)->setName("x");
+  IRBuilder<> FB(BasicBlock::Create(Context, "entry", F)); FB.CreateRet(F->getArg(0));
+  auto *Caller = Function::Create(FunctionType::get(I32, false), GlobalValue::ExternalLinkage, "caller", &M);
+  IRBuilder<> CB(BasicBlock::Create(Context, "entry", Caller));
+  auto *Call = CB.CreateCall(F, {CB.getInt32(7)}, "call"); CB.CreateRet(Call);
+  if (verifyModule(M, nullptr) || !zil::eligibleFunction(*F)) return 0;
+  zil::Stage P; P.Input = zil::functionText(*F); P.World = zil::worldText(M, F);
+  bool Reused = false; std::string Output;
+  if (P.Input.empty() || P.World.empty() ||
+      !zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || !Reused) return 0;
+  Call->setArgOperand(0, CB.getInt32(8));
+  if (zil::functionText(*F) != P.Input || !zil::eligibleFunction(*F) ||
+      zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || Reused) return 0;
+  Call->setArgOperand(0, CB.getInt32(7));
+  auto Names = zil::nameState(*F);
+  if (!zil::symbols().restoreNames(F, Names.present, Names.counter + uint32_t(1), Names.maximum) ||
+      !zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || Reused ||
+      !zil::symbols().restoreNames(F, Names.present, Names.counter, Names.maximum)) return 0;
+  if (!zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || !Reused) return 0;
+  auto *Address = ConstantExpr::getPtrToInt(F, Type::getInt64Ty(Context));
+  new GlobalVariable(M, Address->getType(), true, GlobalValue::ExternalLinkage, Address, "taken");
+  if (zil::incomingCallersHaveCurrentOwners(*F) ||
+      zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || Reused) return 0;
+  // Same official function/header text does NOT encode a body-only identified
+  // struct's elements. The producer proof must refuse that domain and run the
+  // original predicate, which rejects the hidden pointer field here.
+  auto BuildAggregate = [](LLVMContext &C, Module &Mod, bool PointerField) {
+    auto *Int = Type::getInt32Ty(C);
+    auto *Pair = StructType::create(C, "local.only");
+    Pair->setBody({Int, PointerField ? static_cast<Type *>(PointerType::getUnqual(C)) : Int});
+    auto *Fn = Function::Create(FunctionType::get(Int, {Int}, false), GlobalValue::ExternalLinkage, "aggregate", &Mod);
+    Fn->getArg(0)->setName("x"); IRBuilder<> B(BasicBlock::Create(C, "entry", Fn));
+    auto *Value = B.CreateInsertValue(UndefValue::get(Pair), Fn->getArg(0), {0}, "pair");
+    B.CreateRet(B.CreateExtractValue(Value, {0}, "value")); return Fn;
+  };
+  LLVMContext A, B; Module MA("identified-domain", A), MB("identified-domain", B);
+  auto *FA = BuildAggregate(A, MA, false); auto *FBad = BuildAggregate(B, MB, true);
+  if (verifyModule(MA, nullptr) || verifyModule(MB, nullptr) ||
+      !zil::eligibleFunction(*FA) || zil::eligibleFunction(*FBad)) return 0;
+  zil::Stage Identified; Identified.Input = zil::functionText(*FA); Identified.World = zil::worldText(MA, FA);
+  if (Identified.Input != zil::functionText(*FBad) || Identified.World != zil::worldText(MB, FBad) ||
+      zil::projectAdmittedStageExit(MB, *FBad, Identified, nullptr, Output, &Reused) || Reused) return 0;
+  return !verifyModule(M, nullptr);
 }
