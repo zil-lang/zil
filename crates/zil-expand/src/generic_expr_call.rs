@@ -1028,10 +1028,11 @@ impl Engine<'_> {
                             })
                             .collect::<R<Vec<_>>>()?
                     };
+                    let semantic_result=self.anonymous_call_result(function,&types,e.span)?;
                     match self.instantiate_inner(&target, types, e.span, true)? {
                         store_templates::Instantiation::Eager(instance) => {
                             callee.kind = ExprKind::Name(instance.clone());
-                            self.signature_result(&instance)?
+                            if semantic_result.is_some(){semantic_result}else{self.signature_result(&instance)?}
                         }
                         store_templates::Instantiation::Deferred { template, element } => {
                             self.apply_store_template(callee, function, template, element)?

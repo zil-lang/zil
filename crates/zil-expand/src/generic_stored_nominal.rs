@@ -1108,7 +1108,11 @@ impl<'a> Engine<'a> {
             .life_scope
             .iter()
             .position(|binder| binder == name)
-            .ok_or_else(|| error(span, "undeclared nominal lifetime actual"))?;
+            .ok_or_else(|| {
+                let mut diagnostic=error(span,"undeclared nominal lifetime actual");
+                diagnostic.notes.push(format!("actual {name:?} in lexical scope {:?}",self.life_scope));
+                diagnostic
+            })?;
         Ok(LexicalLife(
             u32::try_from(index).map_err(|_| error(span, "lifetime scope overflow"))?,
         ))

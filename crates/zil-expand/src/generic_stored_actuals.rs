@@ -531,6 +531,40 @@ impl Engine<'_> {
 }
 
 impl Engine<'_> {
+    /// A generated helper's hidden life names belong to its own declaration.
+    /// Rebuild this call's semantic result from its actual source substitution;
+    /// the independently checked Core header still carries the alpha-renamed
+    /// joint contract and establishes all real call permissions.
+    pub(super) fn anonymous_call_result(
+        &mut self,function:&Function,actuals:&[TypeRef],span:Span,
+    )->R<Option<TypeRef>>{
+        fn anonymous(ty:&TypeRef,in_tuple:bool)->bool{
+            match &ty.kind{
+                TypeKind::Group(inner)=>anonymous(inner,in_tuple),
+                TypeKind::Tuple(fields)=>fields.iter().any(|field|anonymous(field,true)),
+                TypeKind::Reference{lifetime:Some(_),..}=>in_tuple,
+                TypeKind::Named{args,..}=>args.iter().any(|arg|matches!(arg,GenericArg::Type(inner) if anonymous(inner,false))),
+                _=>false,
+            }
+        }
+        if !self.stored_nominals{return Ok(None)}
+        let mut selected=false;
+        for actual in actuals{self.budget.ty(actual)?;selected|=anonymous(actual,false);}
+        if !selected{return Ok(None)}
+        let Some(result)=&function.return_type else{return Ok(None)};
+        let mut substitution=BTreeMap::new();
+        let mut actuals=actuals.iter();
+        for parameter in &function.generics{
+            if matches!(parameter.kind,GenericParamKind::Lifetime){continue}
+            let actual=actuals.next().ok_or_else(||error(span,"anonymous call type argument arity differs"))?;
+            self.budget.text(&parameter.name,span)?;
+            self.budget.ty(actual)?;
+            substitution.insert(parameter.name.clone(),actual.clone());
+        }
+        if actuals.next().is_some(){return Err(error(span,"anonymous call has excess type arguments"))}
+        Ok(Some(enums::substituted(result,&substitution,&mut self.budget)?))
+    }
+
     pub(super) fn source_unification_scope(
         &mut self,
         env: &Env,
