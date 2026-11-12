@@ -275,7 +275,12 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
             CallKind::Direct => 0,
             CallKind::Suspend => 1,
         });
+        b.push(match f.resume_bound {
+            TaskResumeBound::Local => 0,
+            TaskResumeBound::Transfer => 1,
+        });
     } else {
+        assert_eq!(f.resume_bound, TaskResumeBound::Local);
         assert_eq!(
             f.call_kind,
             CallKind::Direct,
@@ -322,6 +327,7 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
         }
         b.push(u8::from(foreign.static_callbacks));
         if v32 {
+            b.push(u8::from(foreign.thread_driver_transfer));
             b.push(match foreign.scoped_callback {
                 None => 0,
                 Some(ScopedCallbackRole::Register) => 1,
@@ -528,9 +534,13 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             worker,
             arguments,
             port_bindings,
+        } | InstructionKind::TaskCreateOwned {
+            worker,
+            arguments,
+            port_bindings,
         } => {
             assert!(v32, "schema31 cannot represent general task creation");
-            b.push(128);
+            b.push(if matches!(i, InstructionKind::TaskCreateOwned { .. }) {151} else {128});
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
