@@ -3062,7 +3062,7 @@ pub fn main()->i32=>0",
                 assert_eq!(report.phase, Phase::Types);
                 assert_eq!(report.verification_runs, 0);
                 let work = report.function_type_work.as_ref().unwrap();
-                assert_eq!((work.body_key_executions, work.body_key_reuses), (21, 400));
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 420));
                 let producer = report.producer_work.as_ref();
                 if index == 9 {
                     assert_eq!(
@@ -3106,6 +3106,60 @@ pub fn main()->i32=>0",
                     );
                 }
             }
+            if label == "private" {
+                let work = report.function_type_work.as_ref().unwrap();
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 420));
+                assert_eq!((work.executed_functions, work.reused_functions), (5, 420));
+                assert_eq!(work.cfg_relocated_functions, 20);
+                let producer = report.producer_work.as_ref().unwrap();
+                assert_eq!(
+                    (
+                        producer.function_input_hashes,
+                        producer.function_input_reuses
+                    ),
+                    (1, 424)
+                );
+                assert_eq!(producer.function_input_text_comparisons, 21);
+                assert_eq!(producer.function_input_binding_hashes, 21);
+                let proof = report.verification_work.as_ref().unwrap();
+                assert_eq!(
+                    (proof.function_proofs_checked, proof.function_proofs_reused),
+                    (1, 422)
+                );
+                let legacy_options = CompileOptions {
+                    producer_reuse: false,
+                    semantic_cache: None,
+                    ..options.clone()
+                };
+                let mut fresh = CompilationSession::default();
+                let expected = fresh.compile_path(&path, &legacy_options);
+                assert_eq!(
+                    expected.status,
+                    ResultCategory::Success,
+                    "{}",
+                    expected.to_json()
+                );
+                assert_eq!(report.diagnostics, expected.diagnostics);
+                assert_eq!(report.source_files, expected.source_files);
+                let program = |session: &CompilationSession| {
+                    session
+                        .raw
+                        .values()
+                        .find_map(|raw| {
+                            if let RawSnapshot::ProjectTyped(owner) = raw
+                                && owner.module.source_fingerprint == report.input_fingerprint
+                            {
+                                Some(owner.program().clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap()
+                };
+                // All raw declarations, instruction/diagnostic spans and CFGs
+                // equal the actual fresh full pipeline, not just graph counters.
+                assert_eq!(program(&session), program(&fresh));
+            }
             if label == "positions" {
                 let work = report.function_type_work.as_ref().unwrap();
                 assert_eq!((work.executed_functions, work.reused_functions), (4, 421));
@@ -3120,7 +3174,7 @@ pub fn main()->i32=>0",
             }
             if label == "recovery" {
                 let work = report.function_type_work.as_ref().unwrap();
-                assert_eq!((work.body_key_executions, work.body_key_reuses), (21, 400));
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 420));
                 assert_eq!((work.executed_functions, work.reused_functions), (5, 420));
                 let publication = report.semantic_cache_publication.as_ref().unwrap();
                 assert_eq!(

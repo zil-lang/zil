@@ -327,7 +327,7 @@ struct SourceBinding {
     module: ModuleId,
     index: usize,
     version: Fingerprint,
-    producer: Option<zil_expand::ModuleRevision>,
+    producer: Option<zil_expand::FunctionInputRevision>,
 }
 #[derive(Clone, Default)]
 struct Projections {
@@ -347,7 +347,7 @@ struct ReactiveRequest<'a> {
 
 #[derive(Clone)]
 struct MemoEntry {
-    revision: zil_expand::ModuleRevision,
+    revision: zil_expand::FunctionInputRevision,
     context: Fingerprint,
     signature: Fingerprint,
     reads: FunctionFingerprints,
@@ -1089,7 +1089,7 @@ impl ProducerRequest<'_> {
                 };
                 let revision = self
                     .prepared
-                    .function_revision(module.core.module_id, &function.name);
+                    .function_input_revision(module.core.module_id, &function.name);
                 let signature = *context
                     .declarations
                     .get(&module.core.module_id)?
@@ -1251,7 +1251,7 @@ impl ReactiveRequest<'_> {
                 }
                 let producer = self
                     .prepared
-                    .function_revision(module.core.module_id, &function.name);
+                    .function_input_revision(module.core.module_id, &function.name);
                 let prior = self.state.bindings.get(&owner).and_then(|binding| {
                     if producer.is_some() && producer == binding.producer.as_ref() {
                         stats.producer_version_reuses += 1;
