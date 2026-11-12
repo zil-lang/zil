@@ -94,6 +94,8 @@ pub struct DynSlot {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynInterface {
+    /// Whole erased-owner cleanup upper bound; None is unknown.
+    pub owning_cleanup: Option<DynCleanupContract>,
     pub id: DynInterfaceId,
     pub application: DynTraitApplication,
     pub inherited: Vec<DynTraitApplication>,

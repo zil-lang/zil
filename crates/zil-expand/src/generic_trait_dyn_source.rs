@@ -1188,6 +1188,7 @@ impl Catalog {
                 });
             }
             result.push(DynInterface {
+                owning_cleanup: None,
                 id: self.interface_id(ordinal, budget, span)?,
                 application,
                 inherited,

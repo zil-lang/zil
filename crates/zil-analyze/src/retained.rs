@@ -21,6 +21,32 @@ pub(super) fn check_function(
         .callable_return_contract
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
+
+    let bindings = contract
+        .capture_sources
+        .as_ref()
+        .ok_or_else(|| bad("callable capture sources are unknown"))?;
+    budget.spend(
+        bindings.len().saturating_add(1),
+        "callable source binding inventory",
+    )?;
+    for binding in bindings {
+        budget.spend(
+            binding
+                .position
+                .path
+                .len()
+                .saturating_add(binding.sources.len())
+                .saturating_add(1),
+            "callable source binding paths",
+        )?;
+        for source in &binding.sources {
+            budget.spend(
+                source.path.len().saturating_add(1),
+                "callable actual source path",
+            )?;
+        }
+    }
     if contract.source != CallableReturnSource::Fresh {
         return super::forward::envelope(module, function, budget);
     }

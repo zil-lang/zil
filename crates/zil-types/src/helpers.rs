@@ -1346,6 +1346,7 @@ impl Builder<'_, '_> {
                 })
                 .collect();
             typed.callable_return_contract = Some(CallableReturnContract {
+                capture_sources: Some(Vec::new()),
                 source: CallableReturnSource::Parameter(parameter),
                 closure: role.closure,
                 kind: role.kind,

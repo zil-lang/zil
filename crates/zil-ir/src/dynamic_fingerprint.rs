@@ -83,6 +83,11 @@ pub(super) fn encode_dyn_slot(b: &mut impl FingerprintSink, value: &DynSlot) {
     encode_dyn_contract(b, &value.contract);
 }
 pub(super) fn encode_dyn_interface(b: &mut impl FingerprintSink, value: &DynInterface) {
+    b.push(u8::from(value.owning_cleanup.is_some()));
+    if let Some(cleanup) = &value.owning_cleanup {
+        encode_dyn_cleanup_contract(b, cleanup);
+    }
+
     encode_dyn_interface_id(b, &value.id);
     encode_dyn_trait_application(b, &value.application);
     encode_len(b, value.inherited.len());

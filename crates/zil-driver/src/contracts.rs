@@ -210,6 +210,7 @@ fn storage_life_json(life: &zil_ir::StorageLifeContract) -> String {
                     ContractProjection::Place(p) => place(p),
                     ContractProjection::RetainedPort(n) => format!("{{\"retained_port\":{n}}}"),
                     ContractProjection::RetainedClass(n) => format!("{{\"retained_class\":{n}}}"),
+                    ContractProjection::Capture(n) => format!("{{\"capture\":{n}}}"),
                 })
                 .collect::<Vec<_>>()
                 .join(",");
