@@ -1,0 +1,1004 @@
+{
+  "archive": {
+    "bytes": 26755535,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "e15256e64640edb7ddb39a4d77bfbe68bf8db4fb64b7d39693c7fc2d5e0768db"
+      },
+      {
+        "bytes": 1589711,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "4da9755fb7755a0a5550346ef08991022bebc27f2745663136fc9a264eb6efd1"
+      }
+    ],
+    "sha256": "53bce5b3cbc3c34d782002c7edf3105e66c0b1a379607c22357569ce0ef82665",
+    "tar_bytes": 45486080
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 26330184,
+        "mode": 493,
+        "path": "zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+        "sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8"
+      },
+      {
+        "bytes": 1963,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/V20-UNION.json",
+        "sha256": "113edc461c0aee366ad11e221584efdd0a435f5acf2412beb18186642181d965"
+      },
+      {
+        "bytes": 843745,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/checkpoint-cleanup-14/debug-full-retirement.json",
+        "sha256": "6d0f24d87157f713419b900105e0e1002dd4168475bf6ea262913cede8389e72"
+      },
+      {
+        "bytes": 589,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/checkpoint-cleanup-14/first-cache-retirement.json",
+        "sha256": "21935930a6496fde610cf926ada1150b4f76304ef25c776439f711463af7406a"
+      },
+      {
+        "bytes": 8193024,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/compiled-source-trees/794829fd3d586932934c6ac03a6e747562629a88.tar.gz",
+        "sha256": "66397027c020026a496740f09d2a2d4b575da2ad32f7b02ec5c517b8daafa72d"
+      },
+      {
+        "bytes": 8206832,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/compiled-source-trees/be64d90860353d05b60c8abb399b3e1602fd9e2a.tar.gz",
+        "sha256": "59c59f4679f42e223a13ae43924ab99ae42be1de03c4019c848dd90a078c7fa5"
+      },
+      {
+        "bytes": 6536,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/.task/point-to-point-handoff.md",
+        "sha256": "1a8cc70841ee5d6e2724f6b7141fc4968b2d780799d74355f01257b3d4420bed"
+      },
+      {
+        "bytes": 18392,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/README.md",
+        "sha256": "eb51d9123087598b64286066707fa8b168ddc18b4918408142e452038951e5a5"
+      },
+      {
+        "bytes": 33965,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/elf_instruction_quality.py",
+        "sha256": "970e332df89a7359d6e8653e9eceab0e2e818cfa8e869d7b49eb4a4b24a808a9"
+      },
+      {
+        "bytes": 5479,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-inline-refusal-review.json",
+        "sha256": "f3c05d0e36838b830c591c7384754f5d09c483986ed87e67a6da48933b69d4e0"
+      },
+      {
+        "bytes": 7422,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-late-closed-component-review.json",
+        "sha256": "f000b5f83d8d4506e8a4cec785d0eef380d01828aa890c37312696eea00d3e5c"
+      },
+      {
+        "bytes": 9024,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-mir-body-coverage-review.json",
+        "sha256": "39a8bf88d5298a867082400fcfaa728804813296c3cf7251d259655c0bf7a651"
+      },
+      {
+        "bytes": 3773,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-mir-header-component-review.json",
+        "sha256": "f475d7625b600a7960ef76c28eed7cb6f410be1cf58f8a85997dd8ab4af62600"
+      },
+      {
+        "bytes": 2048,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-closed-quality-tool-review.json",
+        "sha256": "730f4e32951b7797ceae1ab6f4b93d0b26e71968ab7bba713f80854ec576c0e5"
+      },
+      {
+        "bytes": 18984,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-negative-be64.json",
+        "sha256": "1a2696b4906cd12d1310f547eba93ace91619e3af5c971d5c29eceec1a27a818"
+      },
+      {
+        "bytes": 2472,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-negative-be64.md",
+        "sha256": "79290140575f8dc3247ce941f8d66c936ea06b14dfb194461a8021a98d87e4bc"
+      },
+      {
+        "bytes": 5564,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-profile14-negative-review.json",
+        "sha256": "523e2d40daef9f85aeea840596a1ccbac5ec75799ec33fab1cc67addc079a001"
+      },
+      {
+        "bytes": 12723,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-root-integration-review.json",
+        "sha256": "a43caf97be2bb903a3e65357732f8eca41008449cefdad3d363317f9aef479a8"
+      },
+      {
+        "bytes": 14747,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-zero-removals-actual-products.json",
+        "sha256": "df021031c7a8930ac7fba91d406b9d4b918d2279ab3269eb04158cf7e37ecd09"
+      },
+      {
+        "bytes": 1152,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-resource-recovery-14.json",
+        "sha256": "ecd628e410e0347e3ccc9330af77a80b3060791758264ab54735879b7e616b9d"
+      },
+      {
+        "bytes": 3617,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/late_closed_measure.py",
+        "sha256": "05c408483ba3b175e1d54f3f9f24d09f48993f697bbfd1938f0abf18f9ab4c01"
+      },
+      {
+        "bytes": 251828,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/results.json",
+        "sha256": "c087c817132765274db9f35c3d1601d2c785437adfc502f16f21655b34b5b5fd"
+      },
+      {
+        "bytes": 17320,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/test_elf_instruction_quality.py",
+        "sha256": "6c7ae8638de75188c2d0e580ec0710c9dff5e21005ae19ef8c1f7f126a0310e0"
+      },
+      {
+        "bytes": 7183,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/test_validate_push_profile.py",
+        "sha256": "41ad71d1aae58387ff53bbbacd64a383ab2fb8d203fc9e6deb1ad0bb5738cd29"
+      },
+      {
+        "bytes": 23479,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/validate_push_profile.py",
+        "sha256": "f9fc4aa7c2378ba1b53c7f31475c342c21e0c7cb4cee4ea4aaf2e9975098b9f5"
+      },
+      {
+        "bytes": 37977,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/reactive-query-graph/native_measure.py",
+        "sha256": "ef8549d94b532273caef40ad7fe32b7f920217922f572652c5e88e5f6ecaaa7c"
+      },
+      {
+        "bytes": 1674,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-partial-facts.json",
+        "sha256": "8529c5bc3b5b64ea9e649e8491bf9c7a620f2022a6ca47e15569d73ec619d2fa"
+      },
+      {
+        "bytes": 72165,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-original-full-inventory.json",
+        "sha256": "29bd75e9256168fe943ceba336dabf9cd99f3ef40a37b41f4e2549759de8a237"
+      },
+      {
+        "bytes": 32758,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/elf_instruction_quality.py",
+        "sha256": "db0fca17dfac64f7657abd655014cc491d2c3c25dd82fa428f999696d82cf5e4"
+      },
+      {
+        "bytes": 3617,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/late_closed_measure.py",
+        "sha256": "05c408483ba3b175e1d54f3f9f24d09f48993f697bbfd1938f0abf18f9ab4c01"
+      },
+      {
+        "bytes": 8696,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/manifest.json",
+        "sha256": "7deba77d687d81bdecb6fa66ef052a60961620a43d2e2d9247996836ac7a5133"
+      },
+      {
+        "bytes": 41057,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/matched_measure.py",
+        "sha256": "9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd"
+      },
+      {
+        "bytes": 37977,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/native_measure.py",
+        "sha256": "ef8549d94b532273caef40ad7fe32b7f920217922f572652c5e88e5f6ecaaa7c"
+      },
+      {
+        "bytes": 10836,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/native_workloads.py",
+        "sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964"
+      },
+      {
+        "bytes": 23318,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/push_counters.py",
+        "sha256": "27da107b2cd127bafc9829c9ae96c993f0b6da8d64dbb7b10d3626730f90d7c9"
+      },
+      {
+        "bytes": 467573,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/rows.jsonl",
+        "sha256": "590c0e262ebc81ee654ec517a961199fd10ad8e63bcddd93160d90d2cf33602e"
+      },
+      {
+        "bytes": 28253,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/rust_compare.py",
+        "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf"
+      },
+      {
+        "bytes": 2327,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/source-0-0-cold.json",
+        "sha256": "2a92b272acf6d2c93d4b31df9ba5967631205ca25c02dffadac4ef1f259e3804"
+      },
+      {
+        "bytes": 2005,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/source-0-1-prepare-cold.json",
+        "sha256": "9054d36414cf2e01eff8d0561f8f3a70606ba7fb5e46614e7c5a519a9d3f2a93"
+      },
+      {
+        "bytes": 365,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/payload-piece-plan.json",
+        "sha256": "2d1820713bde994647af0d45e72e18afa2aecd87f7cb1d0c168c0d9a34935e07"
+      },
+      {
+        "bytes": 23068,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-01.json",
+        "sha256": "0a478221042c03b66c6af1fe6168e2bfdc5dd963fc0227c8b0953675e5b47b81"
+      },
+      {
+        "bytes": 1048,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-02.json",
+        "sha256": "d4b7d4d101aad7d08318f801c315e32092ca91e78a907715a127f30c73fe333b"
+      },
+      {
+        "bytes": 11800,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-03.json",
+        "sha256": "f1083b72b5563696e87adad3d4ea16eb4117fd30ffabafb62ccdac2f8ba45c95"
+      },
+      {
+        "bytes": 8471,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/finalize_v20_metadata.py",
+        "sha256": "aaf01ace6249f97dd035344de5df29a98a1994af41f3dd69d67a24a702af3e7e"
+      },
+      {
+        "bytes": 6969,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v19.json",
+        "sha256": "de5e2b81c20c0cd17d4697487767759be140d99d7ab8d5a93bd9115fd7c7a7e1"
+      },
+      {
+        "bytes": 2846,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-01.json",
+        "sha256": "45c945003846a5caca0dcc686dcb94f6792f9f3a264a4a4aee2ec315bf992cce"
+      },
+      {
+        "bytes": 2843,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-02.json",
+        "sha256": "11f2325de8417832a2440ceea002bc1c4a0d6f5c4ec98292198b5b36c4232079"
+      },
+      {
+        "bytes": 2847,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-03.json",
+        "sha256": "73949242e2df97636847f57ad6b1b480185a39882cf59352f855933dcf81eea7"
+      },
+      {
+        "bytes": 3853,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/prepare_v20.py",
+        "sha256": "2987197151a91efb933002dabb8941b083367f849d79b458f37679ffd4af1454"
+      },
+      {
+        "bytes": 2192,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/retire_v20_piece.py",
+        "sha256": "2560b46123dc6a7aefc98e6c258fc8cdd33c71d38d491279b59b189bf002908e"
+      },
+      {
+        "bytes": 11075,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/run_v20_piece.py",
+        "sha256": "d3e3156a329b878a648ad6847894615c1e588f083bf6a596bc2401a734182c98"
+      },
+      {
+        "bytes": 16290,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/source-tool-build-bindings.json",
+        "sha256": "d1739e3a811b10ec145ac4982760627545790366c74ab97de34c3ff771164f8c"
+      },
+      {
+        "bytes": 33965,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/54682c776-elf_instruction_quality.py",
+        "sha256": "970e332df89a7359d6e8653e9eceab0e2e818cfa8e869d7b49eb4a4b24a808a9"
+      },
+      {
+        "bytes": 17320,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/54682c776-test_elf_instruction_quality.py",
+        "sha256": "6c7ae8638de75188c2d0e580ec0710c9dff5e21005ae19ef8c1f7f126a0310e0"
+      },
+      {
+        "bytes": 32758,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/b7aab23ba-elf_instruction_quality.py",
+        "sha256": "db0fca17dfac64f7657abd655014cc491d2c3c25dd82fa428f999696d82cf5e4"
+      },
+      {
+        "bytes": 14376,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/b7aab23ba-test_elf_instruction_quality.py",
+        "sha256": "badfd9d4e8f07e69c71f8d1256210a38efd687f39a84fc8a06d870dc4163469f"
+      },
+      {
+        "bytes": 4007,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/topmetadata-receipt.json",
+        "sha256": "aa91b78a455edf79a266c41701be274cfc9e0092d5ddbc6324d5655fdaa64568"
+      },
+      {
+        "bytes": 9644,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/unbuilt-MIR-header-source-only/2593672295676d37cf684cf357ffa0808730a808.patch",
+        "sha256": "c2fb225e667d3d3412d90dae770848ca50bdbdba3a48976e66030b5ea6ea65b2"
+      },
+      {
+        "bytes": 13138,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/unbuilt-MIR-header-source-only/4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f.patch",
+        "sha256": "3648df0678350f58f3f442506733f5f803978b49eae0ce2e49db199b9516970c"
+      },
+      {
+        "bytes": 1026,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-01-fresh-copy-retirement.json",
+        "sha256": "e2a6244e70849d37dc956f9d52d505f855ea1ed56d13b1ae5cf82b277e333280"
+      },
+      {
+        "bytes": 23774,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-01-scope.json",
+        "sha256": "872b572faf2b0b30d17d09360d550b8d8777871a92cb03c8a890e2eeb44e7828"
+      },
+      {
+        "bytes": 1025,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-02-fresh-copy-retirement.json",
+        "sha256": "5e1745b6606342f4f46f58294567b3abb6140d6ec7166c677b1a189adc60fa4b"
+      },
+      {
+        "bytes": 1568,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-02-scope.json",
+        "sha256": "f01bdea11f51ba6667044b2aa81d6afc2bb43d551531570433eec03d5aad6fd5"
+      },
+      {
+        "bytes": 1027,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-03-fresh-copy-retirement.json",
+        "sha256": "b9b05e919d2812a8f95bbe7987250d0aa43144bb223c2af8623413aeafa4f871"
+      },
+      {
+        "bytes": 12318,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-16/v20-03-scope.json",
+        "sha256": "d0376f2ae377696ce335b25764f8b515731d8c5250fa1d1dd7b25ef1ea82c091"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 4960,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.json",
+        "sha256": "2b5bbefed0a8569cfa12db2fa37c3b6cfa90d0f5fda6379d928dc41630c7e8d2"
+      },
+      {
+        "bytes": 2021,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.log",
+        "sha256": "127399225a85b7d88d73cc6a8d44566e6afd47000d040a27f5bdb6ec4e2ffa24"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-pack-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 296,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-pack-01.log",
+        "sha256": "ff11dd7b76c0a73e7137c4755603e38031ad2db3431b635d345e076506e05181"
+      },
+      {
+        "bytes": 26981,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-pack-command-01.json",
+        "sha256": "f4c373d753bc8e69f806d4b21f67b282afeea4fd534ba0b384387ea4ac1d72f2"
+      },
+      {
+        "bytes": 522,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-push-01.json",
+        "sha256": "45f593b229c87ae3cbb7d9521874a966e011658a07515c80e3403e0f43a15c75"
+      },
+      {
+        "bytes": 2846,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-01-recovery-01.json",
+        "sha256": "45c945003846a5caca0dcc686dcb94f6792f9f3a264a4a4aee2ec315bf992cce"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 5261,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.json",
+        "sha256": "30b85d8282a320dbaabc61ba1cb7124816ca7f79291f15c4c62b944a44c56686"
+      },
+      {
+        "bytes": 2126,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.log",
+        "sha256": "02f927598359e96b380ebea0686349dad5a89aed5c5c602898dca8577b181c47"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-pack-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 295,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-pack-01.log",
+        "sha256": "e8a584b0f7808af7d1ffe4ef114ce6b0af7dd6c18a69d97451cc5304cd519ce9"
+      },
+      {
+        "bytes": 2291,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-pack-command-01.json",
+        "sha256": "1c07a600d58d4e6a89875e240e5cc8e1d7855826a2c060a8e46364c97baa981e"
+      },
+      {
+        "bytes": 521,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-push-01.json",
+        "sha256": "e8424a692b015124e82d82622ae5509a1b3915db21d7e5e5233937da0bc71263"
+      },
+      {
+        "bytes": 2843,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-02-recovery-01.json",
+        "sha256": "11f2325de8417832a2440ceea002bc1c4a0d6f5c4ec98292198b5b36c4232079"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 5268,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.json",
+        "sha256": "7f8318c22758b56e795fe21f0be4b9f5ae855f5ba5874b73304d1c925c77287f"
+      },
+      {
+        "bytes": 2129,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.log",
+        "sha256": "51c6e3957f6bd89ec8f54e0c8cd316c740645c6c67e7115647483588952ee1d3"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-pack-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 297,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-pack-01.log",
+        "sha256": "31973e27d41e2bb2cd1d1c4f5b00368eb5c21fa1eb974b034485f0af61d662f6"
+      },
+      {
+        "bytes": 14709,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-pack-command-01.json",
+        "sha256": "43a240ce0410f388b315bdb178c9914b9cbb95120f08f784d8df14c1df56b46a"
+      },
+      {
+        "bytes": 523,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-push-01.json",
+        "sha256": "2b8e894200c434a4dabe2bd9966d8e6a84fe0f7254a3a3b722f68dcbd5193970"
+      },
+      {
+        "bytes": 2847,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v20-03-recovery-01.json",
+        "sha256": "73949242e2df97636847f57ad6b1b480185a39882cf59352f855933dcf81eea7"
+      },
+      {
+        "bytes": 3257,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-combined-components-gates-06.py",
+        "sha256": "66f993eefeeb0cae3adec7e1a30aca5358e10c40f3fb291925791916a2d83dd3"
+      },
+      {
+        "bytes": 3297,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-combined-components-gates-07.py",
+        "sha256": "a89630d6c6789fcb33ca8ac703f5af3b4862c92aa4191cd6c8c9c36d00204d83"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-15.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 758,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-15.json",
+        "sha256": "f4708b33f60e3cb9d1709832327bedeff8e144f2fed5cc4246ca7d21364627ef"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-fmt-15.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-16.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 859,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-16.json",
+        "sha256": "6bb4a59acfd07267dbd3dca433d5e0f4083a88f2ba9595f8b7e8d550f28bce3f"
+      },
+      {
+        "bytes": 2209,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-16.log",
+        "sha256": "a66fae05f36f25ae90c8c4aec66253644dc85095b3def5a0895d59807754aee8"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-17.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 857,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-17.json",
+        "sha256": "18e14537afc9d3a00266644372f3308a9ca2198403b71b959fa376f10a648fe7"
+      },
+      {
+        "bytes": 817,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-17.log",
+        "sha256": "76c3e22e2bcc06c0d1662e719997396bbe54835ce067e2af119c89f6c16dce8a"
+      },
+      {
+        "bytes": 1634,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14-command.json",
+        "sha256": "5da85b2b48e67dabd65d94c7ed5dba583cb15ddedaa063b80e95b4cf65cfd0fc"
+      },
+      {
+        "bytes": 2085,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14-controller.py",
+        "sha256": "82ddf042665d6152909b3e56780afa0abd382db1c47f318cb4241ff3d5a01e8b"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 869,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14.log",
+        "sha256": "891f264e794f5aabfcdc7a0d9d323eb8ab03df858d850f477ecd792dd19d83fc"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-16.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1423,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-16.json",
+        "sha256": "e207afbf4af85fdf974bd1cd2c26db0d2957df35bf774d1981e5e6ee2350ec50"
+      },
+      {
+        "bytes": 377,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-release-16.log",
+        "sha256": "01020723ca5b295f21221653f3d019661050e42447b5ab56545de03194e71a13"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 270,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-0.stdout",
+        "sha256": "f38194bf53324970c7389c885161f17185a2e7905bc391f838b2e83dcc3a4cbc"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 270,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-1.stdout",
+        "sha256": "f38194bf53324970c7389c885161f17185a2e7905bc391f838b2e83dcc3a4cbc"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 270,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-2.stdout",
+        "sha256": "f38194bf53324970c7389c885161f17185a2e7905bc391f838b2e83dcc3a4cbc"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 270,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-3.stdout",
+        "sha256": "f38194bf53324970c7389c885161f17185a2e7905bc391f838b2e83dcc3a4cbc"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 270,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-4.stdout",
+        "sha256": "f38194bf53324970c7389c885161f17185a2e7905bc391f838b2e83dcc3a4cbc"
+      },
+      {
+        "bytes": 2005,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01-controller.py",
+        "sha256": "9457501d79739cc0988198937ebb0c5143cdb563cf3078761e66166d1c9015d2"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 4588,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-cli-controls-01.json",
+        "sha256": "7108e1d8f335e626a2d9d7b9c7fa2236ddd7edfd8ff46233d566cea67aa5f309"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-machine-quality-tests-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 852,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-machine-quality-tests-01.json",
+        "sha256": "2134326e468bae9fe2b071c278a5488acfa16d75083a50e20919229f27ee7e27"
+      },
+      {
+        "bytes": 112,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-machine-quality-tests-01.log",
+        "sha256": "0fe5cb662bfff14a9884376c5dc9b13021e73aa15d1c18bc3ecfc2226a9f364f"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-native-tests-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 914,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-native-tests-01.json",
+        "sha256": "833b95a87edfd578e520c17374e276df8a06e1b91fd181be99185904c4d25a77"
+      },
+      {
+        "bytes": 571,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/late-closed-native-tests-01.log",
+        "sha256": "3f69e33fb41193e8733fdd4ee9587243f7e43727903ca72615929a882c2bc1ca"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-27.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 890,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-27.json",
+        "sha256": "fb1414e379922431bc51e19d8c02790449593027a38ca9965afa653d23b07266"
+      },
+      {
+        "bytes": 78441,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-27.log",
+        "sha256": "f4152f176f7045ac5f8b8816b9fe68c41a05c50f28a202ea05a6fd7be3b4a83b"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-14.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 860,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-14.json",
+        "sha256": "0252d296d2c9711e1d655494eb2a59397652dfaf78912cdd69a73f4f40ac9f7e"
+      },
+      {
+        "bytes": 26645,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-14.log",
+        "sha256": "60d83addbc199f9f9e4149cce3fef13b9e6e4d02afa4a2c84fbb322774af7ee8"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-17.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 855,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-17.json",
+        "sha256": "f3bdedd1d8dd20af1ddae866c861b4556a6a31c82221b01b8c909e2ee0cef738"
+      },
+      {
+        "bytes": 25850,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-17.log",
+        "sha256": "5621f4e3f0d8f0b80cd501e43278f117a3b61f5f5a4da9fd14a8886876d4833c"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-profile-qualifier-tests-03.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 849,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-profile-qualifier-tests-03.json",
+        "sha256": "56f135684af56558d09476a76a4f97482ec673bfbd893f3f7d65a55531d7e839"
+      },
+      {
+        "bytes": 105,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-profile-qualifier-tests-03.log",
+        "sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V20 complete failed-partial and gate checkpoint. Profile14 compiledsourcebe64d90860353d05b60c8abb399b3e1602fd9e2a/treeee5972a66a6e8baf1266d0dc307c4fba8dd2c23b/binaryf7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8 against main3ec. Original425/22file/CGU16/O2/jobs1 but candidate additionallylate-closed-executable+push-reuse+profile; SDK15. FAILED PARTIAL only4rows/24recordednative/controller1/alloldrowvalidFalse. Old recorded ELF/codegen identity allTrue does NOT satisfy new machine-quality zero-size-marker rule;16units report0removed. No complete34-row or270-row validator or performance acceptance claim. Entire original failedrun/source/DSO/ELF/oldtext/helper/controller evidence preserved. Frozen whole original file master is exact-disjoint-union authority; each fixed shard freshHTTPS full bytes/modes verified before master-matched local raw retirement. Gates06/07 include original Clippy16 failure101 and all successful followups/CLI5. Compiled794/be64 trees and immutable release16 separatelybound from tools/docs d6a7. SDK16/MIRheader futurecomponents are source-only/unbuilt by this checkpoint.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "documentation": "d6a7d3092db11d76e3142e12cbe5859a194789d3",
+      "failed_profile14": "be64d90860353d05b60c8abb399b3e1602fd9e2a"
+    }
+  },
+  "inventory_sha256": "f8b39602e0af743e43ccdb3d2010a0b4386866d5451a574696b1c89d0e1dbd00",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/binaries/be64d90860353d05b60c8abb399b3e1602fd9e2a/zil",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/V20-UNION.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/checkpoint-cleanup-14/debug-full-retirement.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/checkpoint-cleanup-14/first-cache-retirement.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/compiled-source-trees/794829fd3d586932934c6ac03a6e747562629a88.tar.gz",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/compiled-source-trees/be64d90860353d05b60c8abb399b3e1602fd9e2a.tar.gz",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/.task/point-to-point-handoff.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/README.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-inline-refusal-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-late-closed-component-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-mir-body-coverage-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-astra-mir-header-component-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-closed-quality-tool-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-negative-be64.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-negative-be64.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-profile14-negative-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-closed-root-integration-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-late-zero-removals-actual-products.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/full-push-resource-recovery-14.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/late_closed_measure.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/results.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/test_elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/test_validate_push_profile.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/incremental-demand/validate_push_profile.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/documentation-d6/tools/research/reactive-query-graph/native_measure.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-partial-facts.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-original-full-inventory.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/late_closed_measure.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/manifest.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/matched_measure.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/native_measure.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/native_workloads.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/push_counters.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/rows.jsonl",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/rust_compare.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/source-0-0-cold.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/failed-profile14-topmetadata/source-0-1-prepare-cold.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/payload-piece-plan.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-01.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-02.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/retirements/v20-03.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/finalize_v20_metadata.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v19.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-01.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-02.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/full-push-recovery-v20-03.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/prepare_v20.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/retire_v20_piece.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/small-evidence/run_v20_piece.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/source-tool-build-bindings.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/54682c776-elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/54682c776-test_elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/b7aab23ba-elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/tool-versions/b7aab23ba-test_elf_instruction_quality.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/topmetadata-receipt.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/unbuilt-MIR-header-source-only/2593672295676d37cf684cf357ffa0808730a808.patch",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/unbuilt-MIR-header-source-only/4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f.patch",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-01-fresh-copy-retirement.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-01-scope.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-02-fresh-copy-retirement.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-02-scope.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-03-fresh-copy-retirement.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-16/v20-03-scope.json",
+    "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-01-https-restore-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-01-pack-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-01-pack-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-01-pack-command-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-01-push-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-01-recovery-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-02-https-restore-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-02-pack-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-02-pack-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-02-pack-command-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-02-push-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-02-recovery-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-03-https-restore-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-03-pack-01.exit",
+    "zil-push-main/out/runs/full-push-archive-v20-03-pack-01.log",
+    "zil-push-main/out/runs/full-push-archive-v20-03-pack-command-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-03-push-01.json",
+    "zil-push-main/out/runs/full-push-archive-v20-03-recovery-01.json",
+    "zil-push-main/out/runs/full-push-combined-components-gates-06.py",
+    "zil-push-main/out/runs/full-push-combined-components-gates-07.py",
+    "zil-push-main/out/runs/full-push-fmt-15.exit",
+    "zil-push-main/out/runs/full-push-fmt-15.json",
+    "zil-push-main/out/runs/full-push-fmt-15.log",
+    "zil-push-main/out/runs/full-push-native-clippy-16.exit",
+    "zil-push-main/out/runs/full-push-native-clippy-16.json",
+    "zil-push-main/out/runs/full-push-native-clippy-16.log",
+    "zil-push-main/out/runs/full-push-native-clippy-17.exit",
+    "zil-push-main/out/runs/full-push-native-clippy-17.json",
+    "zil-push-main/out/runs/full-push-native-clippy-17.log",
+    "zil-push-main/out/runs/full-push-native-profile-14-command.json",
+    "zil-push-main/out/runs/full-push-native-profile-14-controller.py",
+    "zil-push-main/out/runs/full-push-native-profile-14.exit",
+    "zil-push-main/out/runs/full-push-native-profile-14.log",
+    "zil-push-main/out/runs/full-push-release-16.exit",
+    "zil-push-main/out/runs/full-push-release-16.json",
+    "zil-push-main/out/runs/full-push-release-16.log",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-0.stderr",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-0.stdout",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-1.stderr",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-1.stdout",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-2.stderr",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-2.stdout",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-3.stderr",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-3.stdout",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-4.stderr",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-4.stdout",
+    "zil-push-main/out/runs/late-closed-cli-controls-01-controller.py",
+    "zil-push-main/out/runs/late-closed-cli-controls-01.exit",
+    "zil-push-main/out/runs/late-closed-cli-controls-01.json",
+    "zil-push-main/out/runs/late-closed-machine-quality-tests-01.exit",
+    "zil-push-main/out/runs/late-closed-machine-quality-tests-01.json",
+    "zil-push-main/out/runs/late-closed-machine-quality-tests-01.log",
+    "zil-push-main/out/runs/late-closed-native-tests-01.exit",
+    "zil-push-main/out/runs/late-closed-native-tests-01.json",
+    "zil-push-main/out/runs/late-closed-native-tests-01.log",
+    "zil-push-main/out/runs/native-products-full-tests-27.exit",
+    "zil-push-main/out/runs/native-products-full-tests-27.json",
+    "zil-push-main/out/runs/native-products-full-tests-27.log",
+    "zil-push-main/out/runs/push-backend-library-tests-14.exit",
+    "zil-push-main/out/runs/push-backend-library-tests-14.json",
+    "zil-push-main/out/runs/push-backend-library-tests-14.log",
+    "zil-push-main/out/runs/push-driver-library-tests-17.exit",
+    "zil-push-main/out/runs/push-driver-library-tests-17.json",
+    "zil-push-main/out/runs/push-driver-library-tests-17.log",
+    "zil-push-main/out/runs/push-profile-qualifier-tests-03.exit",
+    "zil-push-main/out/runs/push-profile-qualifier-tests-03.json",
+    "zil-push-main/out/runs/push-profile-qualifier-tests-03.log"
+  ],
+  "source_root": "/workspace"
+}

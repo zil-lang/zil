@@ -1,0 +1,19 @@
+{
+  "archive_sha256": "53bce5b3cbc3c34d782002c7edf3105e66c0b1a379607c22357569ce0ef82665",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Shard of V20; restore all fixed shard commits in final union receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 48468,
+    "sha256": "777c4e30bfeba038fdce89a6d122e865dccc1d86c2c162c5f5d57b98da5c658b"
+  },
+  "schema": 1,
+  "scope": "V20 complete failed-partial and gate checkpoint. Profile14 compiledsourcebe64d90860353d05b60c8abb399b3e1602fd9e2a/treeee5972a66a6e8baf1266d0dc307c4fba8dd2c23b/binaryf7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8 against main3ec. Original425/22file/CGU16/O2/jobs1 but candidate additionallylate-closed-executable+push-reuse+profile; SDK15. FAILED PARTIAL only4rows/24recordednative/controller1/alloldrowvalidFalse. Old recorded ELF/codegen identity allTrue does NOT satisfy new machine-quality zero-size-marker rule;16units report0removed. No complete34-row or270-row validator or performance acceptance claim. Entire original failedrun/source/DSO/ELF/oldtext/helper/controller evidence preserved. Frozen whole original file master is exact-disjoint-union authority; each fixed shard freshHTTPS full bytes/modes verified before master-matched local raw retirement. Gates06/07 include original Clippy16 failure101 and all successful followups/CLI5. Compiled794/be64 trees and immutable release16 separatelybound from tools/docs d6a7. SDK16/MIRheader futurecomponents are source-only/unbuilt by this checkpoint.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "documentation": "d6a7d3092db11d76e3142e12cbe5859a194789d3",
+    "failed_profile14": "be64d90860353d05b60c8abb399b3e1602fd9e2a"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
