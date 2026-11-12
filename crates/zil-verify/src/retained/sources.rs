@@ -340,17 +340,29 @@ impl Trace<'_, '_> {
             })
         }))?;
         if self.cycles == cycles {
+            let width = match &q {
+                Query::Value(.., path) | Query::Local(.., path) => path.len().saturating_add(1),
+            };
+            self.budget
+                .spend(self.memo.len().saturating_add(1).saturating_mul(width))?;
             self.memo.insert(q, result.clone());
         }
         Ok(result)
     }
     fn join(&mut self, to: &mut Sources, from: Option<Sources>) -> Check<bool> {
         let Some(from) = from else { return Ok(false) };
-        self.budget
-            .spend(from.len().saturating_mul(to.len().saturating_add(1)))?;
-        self.budget.spend(from.iter().fold(0usize, |n, source| {
+        self.budget.spend(from.len().saturating_add(to.len()))?;
+        let from_width = from.iter().fold(0usize, |n, source| {
             n.saturating_add(source.path.len().saturating_add(1))
-        }))?;
+        });
+        let to_width = to.iter().fold(0usize, |n, source| {
+            n.saturating_add(source.path.len().saturating_add(1))
+        });
+        self.budget.spend(
+            from_width
+                .saturating_mul(to.len().saturating_add(1))
+                .saturating_add(to_width.saturating_mul(from.len())),
+        )?;
         to.extend(from);
         Ok(true)
     }
@@ -360,14 +372,14 @@ impl Trace<'_, '_> {
         local: LocalId,
         path: &[ContractProjection],
     ) -> Check<Option<Sources>> {
-        let Some(index) = f.parameters.iter().position(|p| *p == local) else {
-            return Ok(None);
-        };
         self.budget.spend(
             path.len()
                 .saturating_add(f.parameters.len())
                 .saturating_add(1),
         )?;
+        let Some(index) = f.parameters.iter().position(|p| *p == local) else {
+            return Ok(None);
+        };
         let source = StoragePosition {
             base: StorageBase::Parameter(index as u32),
             path: path.to_vec(),
@@ -724,12 +736,12 @@ pub(super) fn envelope(
     let mut input_closure = None;
     for local in &f.parameters {
         budget.spend(1)?;
-        if let Type::Closure(input) = f.locals[local.0 as usize].ty {
-            if input == id || input_closure.replace(input).is_some() {
-                return Err(invalid(
-                    "fresh callable factory requires one distinct grounded input environment",
-                ));
-            }
+        if let Type::Closure(input) = f.locals[local.0 as usize].ty
+            && (input == id || input_closure.replace(input).is_some())
+        {
+            return Err(invalid(
+                "fresh callable factory requires one distinct grounded input environment",
+            ));
         }
     }
     let (mut hold, mut call, mut writes) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());

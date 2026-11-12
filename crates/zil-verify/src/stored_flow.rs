@@ -1315,6 +1315,7 @@ pub(super) fn qualifications(
                     && !(b.task_borrowed_results && task_address::owner_instruction(f, &i.kind));
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
+                    && !returned_environment::borrowed_child(module, f, i, b)?
                     && !owned_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
@@ -1914,11 +1915,12 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     };
     // Callable output leaves use the separately body-proven Capture source
     // relation; this signature relation authenticates every actual input class.
-    let result = if matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some() {
-        &Type::Unit
-    } else {
-        &f.return_type
-    };
+    let result =
+        if matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some() {
+            &Type::Unit
+        } else {
+            &f.return_type
+        };
     check(
         module,
         &parameters,
@@ -2882,6 +2884,24 @@ fn step(
                     .ok_or_else(|| err("capture payload absent"))?,
                 b,
             )?;
+        }
+        InstructionKind::BorrowCapture { index, .. }
+            if returned_environment::borrowed_child(module, f, i, b)? =>
+        {
+            // The head loan protects the real inline child environment. Its
+            // external leaves retain their independent target permissions.
+            out = copy_payload(&state.captures[*index as usize], b)?;
+            b.spend(1)?;
+            out.address = Permission {
+                sources: vec![Source {
+                    retained_port: None,
+                    base: HoldRoot::Capture(*index),
+                    leaf: Vec::new(),
+                    inline: Vec::new(),
+                    heap_element: None,
+                }],
+                loans: Vec::new(),
+            };
         }
         InstructionKind::BorrowCapture {
             index,
@@ -5416,10 +5436,8 @@ fn check_with_mask(
             }
         }
     }
-    if mask.is_none() {
-        if !b.returned_environment_sources {
-            super::stored_callables::roles(module, graphs, b)?;
-        }
+    if mask.is_none() && !b.returned_environment_sources {
+        super::stored_callables::roles(module, graphs, b)?;
     }
     solve_check(module, graphs, plan, None, mask, b)
 }
