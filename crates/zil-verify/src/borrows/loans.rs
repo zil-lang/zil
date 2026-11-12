@@ -307,13 +307,12 @@ fn reconstruct(
         let loan = base + incoming.len() + offset;
         parameter_loans.insert((*position).clone(), loan);
         flow.mutable[loan] = **mode == StoredBorrowMode::ExclusiveAddress;
-        flow.roots[loan] = vec![if budget.task_borrowed_results {
-            match position.path.as_slice() {
-                [ContractProjection::RetainedPort(port)] => Root::ParameterPort(parameter, *port),
-                _ => Root::Parameter(parameter),
-            }
-        } else {
-            Root::Parameter(parameter)
+        // A retained data port is distinct from this same Task's stable head
+        // for every result type. The caller/constructor proof supplies its
+        // actual external root; result T cannot collapse the two positions.
+        flow.roots[loan] = vec![match position.path.as_slice() {
+            [ContractProjection::RetainedPort(port)] => Root::ParameterPort(parameter, *port),
+            _ => Root::Parameter(parameter),
         }];
         initial
             .entry(f.parameters[parameter as usize])
