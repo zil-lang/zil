@@ -279,6 +279,95 @@ fn leaves(
     }
     Ok(())
 }
+fn place_address(
+    f: &TypedFunction,
+    place: &StoragePosition,
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<Leaf> {
+    fee(b, place.path.len().saturating_add(1))?;
+    let StorageBase::Parameter(index) = place.base else {
+        return Err(failure("address-of source is not an actual input head"));
+    };
+    let input = f
+        .parameters
+        .get(index as usize)
+        .and_then(|id| f.locals.get(id.0 as usize))
+        .ok_or_else(|| failure("address-of input head is absent"))?;
+    let Type::Address { mutable, inner } = &input.ty else {
+        return Err(failure("address-of source has no actual borrowed head"));
+    };
+    let requested = match mode {
+        StoredBorrowMode::SharedAddress => false,
+        StoredBorrowMode::ExclusiveAddress if *mutable => true,
+        _ => return Err(failure("address-of source upgrades its actual head mode")),
+    };
+    let contract = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("address-of input has no complete signature relation"))?;
+    fee(b, contract.bindings.len())?;
+    let mut bindings = contract
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == place.base && row.position.path.is_empty());
+    let binding = bindings
+        .next()
+        .ok_or_else(|| failure("address-of head lifetime is Unknown"))?;
+    if bindings.next().is_some() {
+        return Err(failure("address-of head lifetime is ambiguous"));
+    }
+    let mut node = inner.as_ref();
+    let mut path = Vec::new();
+    for step in &place.path {
+        let ContractProjection::Place(PlaceProjection::Field(index)) = step else {
+            return Err(failure(
+                "address-of source crosses a non-inline field selector",
+            ));
+        };
+        node = match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.get(*index as usize).map(|(_, t)| t)
+            }
+            Type::Tuple(fields) => fields.get(*index as usize),
+            _ => None,
+        }
+        .ok_or_else(|| failure("address-of source is not an actual inline field"))?;
+        fee(b, path.len().saturating_add(1))?;
+        path.push(PlaceProjection::Field(*index));
+    }
+    if !node.is_b0_scalar() && *node != Type::Unit {
+        return Err(failure(
+            "address-of aggregate endpoint needs its complete domain proof",
+        ));
+    }
+    crate::dyn_metadata::ty(node, b)?;
+    fee(
+        b,
+        place
+            .path
+            .len()
+            .saturating_add(path.len())
+            .saturating_add(3),
+    )?;
+    Ok(Leaf {
+        position: place.clone(),
+        ty: Type::Address {
+            mutable: requested,
+            inner: Box::new(node.clone()),
+        },
+        mode,
+        binder: binding.binder,
+        target: Some(Target {
+            base: HoldRoot::Parameter(index),
+            stored: vec![],
+            retained_port: None,
+            place: path,
+            heap_element: None,
+            heap_parents: vec![],
+        }),
+    })
+}
 fn contract(
     module: &TypedModule,
     f: &TypedFunction,
@@ -369,22 +458,35 @@ fn contract(
         };
         let mut allowed = Vec::new();
         for atom in sources {
-            let source = crate::exact_storage_source(atom)?;
-            fee(
-                b,
-                inputs
-                    .len()
-                    .saturating_mul(source.path.len().saturating_add(1)),
-            )?;
-            let mut selected = inputs.iter().filter(|input| input.position == *source);
-            let input = selected.next().ok_or_else(|| {
-                failure("retained result source is not an actual typed input leaf")
-            })?;
-            if selected.next().is_some()
-                || input.mode != leaf.mode
-                || input.binder != leaf.binder
-                || input.ty != leaf.ty
-            {
+            let derived;
+            let input = match atom {
+                StorageSource::Exact(source) => {
+                    fee(
+                        b,
+                        inputs
+                            .len()
+                            .saturating_mul(source.path.len().saturating_add(1)),
+                    )?;
+                    let mut selected = inputs.iter().filter(|input| input.position == *source);
+                    let input = selected.next().ok_or_else(|| {
+                        failure("retained result source is not an actual typed input leaf")
+                    })?;
+                    if selected.next().is_some() {
+                        return Err(failure("retained source input leaf is ambiguous"));
+                    }
+                    input
+                }
+                StorageSource::PlaceAddress { place, mode } => {
+                    derived = place_address(f, place, *mode, b)?;
+                    &derived
+                }
+                _ => {
+                    return Err(failure(
+                        "retained source atom needs its actual view/static proof",
+                    ));
+                }
+            };
+            if input.mode != leaf.mode || input.binder != leaf.binder || input.ty != leaf.ty {
                 return Err(failure(
                     "retained result source changes full leaf, mode or actual signature class",
                 ));

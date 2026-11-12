@@ -52,6 +52,100 @@ impl<'a, 'b> Walk<'a, 'b> {
         }
         Ok(row.binder)
     }
+    fn inline_places(
+        &mut self,
+        ty: &Type,
+        base: StorageBase,
+        wanted: &Type,
+        mode: StoredBorrowMode,
+        binder: StorageBinder,
+        sources: &mut Vec<StorageSource>,
+    ) -> R<()> {
+        let Type::Address { mutable, inner } = ty else {
+            return Ok(());
+        };
+        let Type::Address {
+            mutable: output_mutable,
+            inner: output_inner,
+        } = wanted
+        else {
+            return Ok(());
+        };
+        if mode
+            != if *output_mutable {
+                StoredBorrowMode::ExclusiveAddress
+            } else {
+                StoredBorrowMode::SharedAddress
+            }
+            || *output_mutable && !mutable
+        {
+            return Ok(());
+        }
+        self.pay(self.contract.bindings.len())?;
+        let mut bindings = self
+            .contract
+            .bindings
+            .iter()
+            .filter(|row| row.position.base == base && row.position.path.is_empty());
+        let Some(row) = bindings.next() else {
+            return Ok(());
+        };
+        if bindings.next().is_some() || row.binder != binder {
+            return Ok(());
+        }
+        // An address-of place crosses only real inline fields. It never loads
+        // a stored reference or traverses an owned manager/pointer boundary.
+        let mut pending = vec![(inner.as_ref(), Vec::<ContractProjection>::new(), 0usize)];
+        while let Some((node, path, depth)) = pending.pop() {
+            self.pay(path.len().saturating_add(1))?;
+            if depth > self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "dyn inline place proposal depth exceeded",
+                    Some(self.span),
+                ));
+            }
+            inference::charge_type_snapshot(node, self.span, self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(output_inner, self.span, self.limits, self.left, 1)?;
+            if !path.is_empty()
+                && node == output_inner.as_ref()
+                && (node.is_b0_scalar() || *node == Type::Unit)
+            {
+                self.pay(path.len().saturating_add(1))?;
+                sources.push(StorageSource::PlaceAddress {
+                    place: StoragePosition {
+                        base,
+                        path: path.clone(),
+                    },
+                    mode,
+                });
+            }
+            match node {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    self.pay(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                    for (index, (_, child)) in fields.iter().enumerate().rev() {
+                        let mut selected = path.clone();
+                        selected.push(ContractProjection::Place(PlaceProjection::Field(
+                            index as u32,
+                        )));
+                        pending.push((child, selected, depth + 1));
+                    }
+                }
+                Type::Tuple(fields) => {
+                    self.pay(fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                    for (index, child) in fields.iter().enumerate().rev() {
+                        let mut selected = path.clone();
+                        selected.push(ContractProjection::Place(PlaceProjection::Field(
+                            index as u32,
+                        )));
+                        pending.push((child, selected, depth + 1));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
     fn ty(
         &mut self,
@@ -322,6 +416,16 @@ pub(super) fn propose<'a>(
                 walk.pay(source.path.len().saturating_add(1))?;
                 sources.push(StorageSource::Exact(source.clone()));
             }
+        }
+        for (index, local) in f.parameters.iter().enumerate() {
+            walk.inline_places(
+                &f.locals[local.0 as usize].ty,
+                StorageBase::Parameter(index as u32),
+                leaf,
+                mode,
+                binder,
+                &mut sources,
+            )?;
         }
         walk.pay(position.path.len().saturating_add(1))?;
         proposed.push(StorageSourceBinding { position, sources });

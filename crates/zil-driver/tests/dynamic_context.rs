@@ -558,3 +558,33 @@ fn borrowed_exclusive_factory_keeps_a_distinct_retained_lease_after_call() {
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
     assert_rejected(&decoded);
 }
+
+#[test]
+fn actual_inline_field_address_uses_an_explicit_place_address_source() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/field-address-factory.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "place-address");
+    let factory = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    assert!(
+        factory
+            .retained_return_sources
+            .as_ref()
+            .unwrap()
+            .iter()
+            .flat_map(|row| &row.sources)
+            .any(
+                |source| matches!(source,zil_ir::StorageSource::PlaceAddress{place,..}
+            if place.path==[zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(0))])
+            )
+    );
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
