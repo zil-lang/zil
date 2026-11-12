@@ -1,9 +1,9 @@
 {
   "purpose": "User-requested GitHub recovery checkpoints for all language construction branches; backup is not acceptance",
-  "verified_at": "2026-11-12T22:57:01.080864+08:00",
+  "verified_at": "2026-11-12T23:23:13.599582+08:00",
   "verification": "Each complete checkpoint SHA was read from its local worktree and compared with git ls-remote; matching or newer remote checkpoints include it. No force pushes.",
-  "source_branch_count": 22,
-  "goal_before": "2ece118b8e25f3b1d537495e23b9b34f657f9501",
+  "source_branch_count": 25,
+  "goal_before": "8fb2fe9c4560f3eabd62a887d6b183e79de928d5",
   "branches": [
     {
       "worktree": "/workspace/zil",
@@ -14,10 +14,18 @@
       "checkpoint_reachable": true
     },
     {
+      "worktree": "/workspace/zil-anonymous-integration",
+      "branch": "task/anonymous-integration",
+      "checkpoint": "f8944b8a906c7e763bc0db9ca25000fdd7e7e934",
+      "remote_sha": "f8944b8a906c7e763bc0db9ca25000fdd7e7e934",
+      "exact_at_read": true,
+      "checkpoint_reachable": true
+    },
+    {
       "worktree": "/workspace/zil-anonymous-tuple-verify",
       "branch": "task/anonymous-tuple-verify",
-      "checkpoint": "a0a279a3bcc85b0611aaa1be55e532f1767f7b09",
-      "remote_sha": "a0a279a3bcc85b0611aaa1be55e532f1767f7b09",
+      "checkpoint": "454c52bd0bd33918350748e4fb9d19266b8ac202",
+      "remote_sha": "454c52bd0bd33918350748e4fb9d19266b8ac202",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
@@ -34,6 +42,14 @@
       "branch": "task/borrowed-return-verify",
       "checkpoint": "1ac565da1e9de5cd9308440f000ba6a21f12b672",
       "remote_sha": "1ac565da1e9de5cd9308440f000ba6a21f12b672",
+      "exact_at_read": true,
+      "checkpoint_reachable": true
+    },
+    {
+      "worktree": "/workspace/zil-callable-return-scope",
+      "branch": "task/callable-return-scope",
+      "checkpoint": "9638fd52b3b9023595ac037fbfec2fb2a268aa15",
+      "remote_sha": "9638fd52b3b9023595ac037fbfec2fb2a268aa15",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
@@ -56,16 +72,16 @@
     {
       "worktree": "/workspace/zil-dyn",
       "branch": "task/language-dyn",
-      "checkpoint": "8de6e9298758f6a03c379cd670c87a37c9bf9068",
-      "remote_sha": "8de6e9298758f6a03c379cd670c87a37c9bf9068",
+      "checkpoint": "f458ec32656e8da3b284bae5fde4134e8003b07f",
+      "remote_sha": "f458ec32656e8da3b284bae5fde4134e8003b07f",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
     {
       "worktree": "/workspace/zil-dyn-context-verify",
       "branch": "task/dyn-context-verify",
-      "checkpoint": "69a20c0f360d7d2d11300c9c65909074a5f6a08c",
-      "remote_sha": "69a20c0f360d7d2d11300c9c65909074a5f6a08c",
+      "checkpoint": "2ce18d262292b8c4fe0f2ee2876c41c40656fe44",
+      "remote_sha": "2ce18d262292b8c4fe0f2ee2876c41c40656fe44",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
@@ -104,8 +120,8 @@
     {
       "worktree": "/workspace/zil-integration",
       "branch": "task/language-integration",
-      "checkpoint": "65d4122bd131b59e1a7cd774259ba7de1860afe6",
-      "remote_sha": "65d4122bd131b59e1a7cd774259ba7de1860afe6",
+      "checkpoint": "cfa1052f68e2467d87950a16e5a02cb2c22bfeef",
+      "remote_sha": "cfa1052f68e2467d87950a16e5a02cb2c22bfeef",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
@@ -114,6 +130,14 @@
       "branch": "task/language-iteration",
       "checkpoint": "97f89858ecb0ad4970c3bfb04570a29173a3f573",
       "remote_sha": "97f89858ecb0ad4970c3bfb04570a29173a3f573",
+      "exact_at_read": true,
+      "checkpoint_reachable": true
+    },
+    {
+      "worktree": "/workspace/zil-iteration-integration-fixes",
+      "branch": "task/iteration-integration-fixes",
+      "checkpoint": "f8944b8a906c7e763bc0db9ca25000fdd7e7e934",
+      "remote_sha": "f8944b8a906c7e763bc0db9ca25000fdd7e7e934",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
@@ -168,8 +192,8 @@
     {
       "worktree": "/workspace/zil-receiver-proof",
       "branch": "task/closure-receiver-proof",
-      "checkpoint": "c74a800bed77c698573540304a3f811857be17f1",
-      "remote_sha": "c74a800bed77c698573540304a3f811857be17f1",
+      "checkpoint": "0b23cc5c72802c634167c3d74988c9a0a4957eed",
+      "remote_sha": "0b23cc5c72802c634167c3d74988c9a0a4957eed",
       "exact_at_read": true,
       "checkpoint_reachable": true
     },
