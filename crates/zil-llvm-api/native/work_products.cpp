@@ -227,6 +227,7 @@ struct Stage {
   std::string Input, World, Path, Pipeline, Output, OutputText, EntryFacts, ExitFacts;
   Keys EntryKeys, ExitKeys;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
+  int OutputEmptyAssumptionState = -1;
   std::vector<unsigned> OutputBlockNumbers;
   PreservedAnalyses PA = PreservedAnalyses::none();
 };
@@ -373,6 +374,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
       !preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
       functionText(F) != P.OutputText) return false;
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
+  if (P.OutputEmptyAssumptionState >= 0 && !restoreEmptyAssumptionFacts(F, AM, P.OutputEmptyAssumptionState)) return false;
   std::string Facts;
   if (analysisKeys(AM, F) != P.ExitKeys || !analysisFacts(F, AM, P.ExitKeys, Facts) || Facts != P.ExitFacts) return false;
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
@@ -421,7 +423,7 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
-                     P->Product->ExitKeys, P->Product->ExitFacts)) return;
+                     P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputEmptyAssumptionState)) return;
   P->Product->OutputText = functionText(F);
   P->Product->OutputNextBlock = F.getMaxBlockNumber();
   P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();

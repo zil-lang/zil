@@ -13,9 +13,10 @@
 #include <dlfcn.h>
 namespace zil {
 bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
-                   const std::vector<const void *> &Keys, std::string &Out) {
+                   const std::vector<const void *> &Keys, std::string &Out, int *EmptyAssumptionState) {
   using namespace llvm;
   Out.clear();
+  if (EmptyAssumptionState) *EmptyAssumptionState = -1;
   // Refuse unknown result domains before serializing supported prefixes.
   for (const void *K : Keys)
     if (K != PassInstrumentationAnalysis::ID() && K != TargetIRAnalysis::ID() &&
@@ -65,6 +66,7 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
       static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMEmptyAssumptionState"));
       int State = GetState ? GetState(&AM, &F) : -1;
       if (State < 0) return false;
+      if (EmptyAssumptionState) *EmptyAssumptionState = State;
       OS << "assumptions:empty:" << State << '\n';
     } else if (K == LoopAnalysis::ID()) {
       auto *LI = AM.getCachedResult<LoopAnalysis>(F);
@@ -84,4 +86,10 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
   }
   return true;
 }
+bool restoreEmptyAssumptionFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM, unsigned State) {
+  using Restore = int (*)(void *, void *, unsigned);
+  static auto SetState = reinterpret_cast<Restore>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreEmptyAssumptionState"));
+  return SetState && SetState(&AM, &F, State);
+}
+
 }
