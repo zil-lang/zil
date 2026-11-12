@@ -419,6 +419,7 @@ struct Request {
   const Products *Prior;
   Products Next;
   ZilNativeProductStats Stats{};
+  AnalysisFactsMemo AnalysisMemo;
   bool Failed = false;
   unsigned Phase = 0;
   size_t ProductBytes = 0;
@@ -587,7 +588,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return Fail("empty-analysis-state-restore");
   std::string Facts;
   if (analysisKeys(AM, F) != P.ExitKeys) return Fail("exit-analysis-availability-order");
-  if (!analysisFacts(F, AM, P.ExitKeys, Facts)) return Fail("exit-analysis-domain");
+  if (!analysisFacts(F, AM, P.ExitKeys, Facts, nullptr, &R.AnalysisMemo)) return Fail("exit-analysis-domain");
   if (Facts != P.ExitFacts) {
     if (AnalysisDiagnostics) {
       size_t At = 0;
@@ -615,7 +616,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   Keys Entry = analysisKeys(AM, F);
   describeAnalyses(AM, F, "entry", Entry);
   std::string Facts;
-  if (!analysisFacts(F, AM, Entry, Facts)) {
+  if (!analysisFacts(F, AM, Entry, Facts, nullptr, &R.AnalysisMemo)) {
     if (AnalysisDiagnostics) *Token = newPending(R);
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
@@ -653,7 +654,7 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
-                     P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay)) return;
+                     P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
   for (const BasicBlock &B : F) for (const Instruction &I : B)
     if (const auto *Call = dyn_cast<CallBase>(&I)) {
       const Function *D = Call->getCalledFunction();
@@ -700,7 +701,14 @@ extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *P
   R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
   R->Previous = symbols().set(&R->Hooks); return R.release();
 }
-extern "C" void ZilNativeProductsSetPhase(void *P, unsigned Phase) { if (P) static_cast<zil::Request *>(P)->Phase = Phase; }
+extern "C" void ZilNativeProductsSetPhase(void *P, unsigned Phase) {
+  if (!P) return;
+  auto &R = *static_cast<zil::Request *>(P);
+  // LLVMRunPasses owns its FAM/factory. Drop all borrowed identity tokens
+  // before emission; a future second optimization invocation must also clear.
+  if (Phase != 1 || R.Phase == 1) R.AnalysisMemo.clear();
+  R.Phase = Phase;
+}
 extern "C" int ZilNativeProductsFailed(const void *P) { return P && static_cast<const zil::Request *>(P)->Failed; }
 extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int *Failed) {
   if (Failed) *Failed = 1;
