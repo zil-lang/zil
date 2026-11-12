@@ -111,6 +111,10 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativePackedStageEntryFilterCounterexample() -> c_int;
         #[cfg(test)]
+        fn ZilNativeStageEconomicsCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsStageAlwaysForTests(enabled: c_int) -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -291,6 +295,24 @@ mod enabled {
                 *self.stats = stats.into();
             }
         }
+    }
+
+    /// Explicit fixture override of optional economic refusal, not replay checks.
+    #[cfg(test)]
+    pub(crate) struct StageAlwaysGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for StageAlwaysGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore this same thread's prior fixture setting.
+            unsafe { ZilNativeProductsStageAlwaysForTests(self.0) };
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn stage_always_for_test() -> StageAlwaysGuard {
+        // SAFETY: newly constructed requests snapshot this explicit TLS hint.
+        // It only disables refusal; complete old admission/replay still runs.
+        let prior = unsafe { ZilNativeProductsStageAlwaysForTests(1) };
+        StageAlwaysGuard(prior, std::marker::PhantomData)
     }
 
     #[cfg(test)]
@@ -518,6 +540,13 @@ mod enabled {
         }
 
         #[test]
+        fn stage_economics_bounds_probes_and_keeps_original_nested_pipeline() {
+            // SAFETY: the fixture owns its real FPM/FAM/TLS scope and checks
+            // deterministic synthetic costs; it does not measure a workload.
+            assert_eq!(unsafe { ZilNativeStageEconomicsCounterexample() }, 1);
+        }
+
+        #[test]
         fn ir_scope_raii_records_returns_stops_and_nested_cleanup() {
             // SAFETY: the fixture uses only a deterministic fake monotonic
             // clock and local counters; it runs no compiler or wall benchmark.
@@ -589,6 +618,7 @@ pub(crate) use enabled::{Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
 pub(crate) use enabled::{
     analysis_diagnostics_for_test, fail_next_finish_for_test, machine_numbering_tests_for_test,
+    stage_always_for_test,
 };
 
 #[cfg(all(test, feature = "native-products", feature = "text-reference"))]

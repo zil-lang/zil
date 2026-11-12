@@ -67,6 +67,8 @@ public:
   ~IRScopeNS() { stop(); }
 };
 thread_local bool AnalysisDiagnostics = false;
+// Explicit scoped fixture control only; never enabled by a build configuration.
+thread_local bool StageAlwaysForTests = false;
 bool admissionFailure(const Function &F, const Instruction *I, const char *Reason) {
   if (AnalysisDiagnostics) {
     std::fprintf(stderr, "ZIL FPM admission %.*s: %s", static_cast<int>(F.getName().size()), F.getName().data(), Reason);
@@ -578,32 +580,115 @@ struct PackedStage : StageState {
   PackedStageStrings Text;
   size_t UnpackedBytes = 0, StoredBytes = 0;
 };
+// Economics is a refusal policy, never an alternative replay proof. Frozen
+// modes change only when a successful Products epoch is published.
+using EconomyClock = std::chrono::steady_clock;
+enum class EconomyMode : uint8_t { Probe, Reuse, Bypass };
+struct GroupEconomy {
+  EconomyMode Mode = EconomyMode::Probe;
+  uint8_t FreshSamples = 0, CaptureSamples = 0, HitSamples = 0;
+  uint64_t FreshMin = std::numeric_limits<uint64_t>::max();
+  uint64_t CaptureMax = 0, HitMax = 0, ReprobeEpoch = 0;
+};
+struct GroupRuntime {
+  GroupEconomy Learned;
+  EconomyMode Frozen = EconomyMode::Probe;
+  unsigned KeyAttempts = 0, Captures = 0, FreshTimes = 0, ConsecutiveMisses = 0;
+  bool Closed = false;
+};
 struct Products {
   std::string Config;
   std::map<std::string, std::shared_ptr<const PackedStage>> Stages;
   std::shared_ptr<const MachineProducts> Machine;
+  uint64_t SuccessfulEpoch = 0;
+  std::map<std::string, GroupEconomy> Economics;
 };
-struct Pending { std::string Slot; std::shared_ptr<Stage> Product; };
+struct Pending {
+  enum class Kind { TimeOnly, Capture, Diagnostic };
+  Kind Mode = Kind::Diagnostic;
+  std::string Slot;
+  std::shared_ptr<Stage> Product;
+  GroupRuntime *Group = nullptr; // stable Request-owned map node
+  bool SampleFresh = false, SuppressesChildren = false;
+  EconomyClock::time_point FreshStart{};
+  uint64_t ObserverAtStart = 0, EntryNS = 0;
+};
 struct Request {
-  Module &M; TargetMachine &TM; std::string Config;
+  Module &M; std::string Config;
   const Products *Prior;
   Products Next;
   ZilNativeProductStats Stats{};
   AnalysisFactsMemo AnalysisMemo;
   bool Failed = false;
+  const bool AlwaysForTests = StageAlwaysForTests;
   unsigned Phase = 0;
   size_t ProductBytes = 0, UnpackedProductBytes = 0;
+  size_t EconomyBytes = 0, PipelineHintBytes = 0;
+  std::map<std::string, GroupRuntime> Groups;
+  // Addresses here are only cheap economy hints within this Request. A PM
+  // address may be recycled: the actual replay Pipeline is ALWAYS reprinted.
+  std::map<const void *, std::string> PipelineHints;
+  unsigned SuppressNestedCache = 0, ObserverDepth = 0;
+  uint64_t ObserverNS = 0;
+  bool ObserverClockValid = true;
   std::map<Pending *, std::unique_ptr<Pending>> PendingTokens;
   std::vector<std::pair<unsigned, unsigned>> Path;
   std::map<std::string, unsigned> Occurrences;
   ZilLLVMFunctionProductHooks Hooks{};
   const ZilLLVMFunctionProductHooks *Previous = nullptr;
   std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> Machine{nullptr, nullptr};
-  Request(Module &M, TargetMachine &TM, std::string C, const Products *P)
-      : M(M), TM(TM), Config(std::move(C)), Prior(P) { Next.Config = Config; }
+  Request(Module &M, std::string C, const Products *P)
+      : M(M), Config(std::move(C)), Prior(P) {
+    Next.Config = Config;
+    uint64_t Old = P && P->Config == Config ? P->SuccessfulEpoch : 0;
+    Next.SuccessfulEpoch = Old == std::numeric_limits<uint64_t>::max() ? Old : Old + 1;
+  }
 };
-Pending *newPending(Request &R, std::string Slot = {}, std::shared_ptr<Stage> Product = {}) {
+uint64_t addEconomyNS(uint64_t A, uint64_t B) {
+  return B > std::numeric_limits<uint64_t>::max() - A
+             ? std::numeric_limits<uint64_t>::max() : A + B;
+}
+std::optional<uint64_t> elapsedEconomyNS(EconomyClock::time_point Start,
+                                       EconomyClock::time_point End) {
+  if (End <= Start) return std::nullopt;
+  auto N = std::chrono::duration_cast<std::chrono::nanoseconds>(End - Start).count();
+  if (N <= 0) return std::nullopt;
+  return static_cast<uint64_t>(N);
+}
+// Count the UNION of nested observer intervals. Summing inclusive intervals
+// would subtract a nested callback twice from a sampled original FPM runtime.
+class ObserverScope {
+  Request &R;
+  EconomyClock::time_point Start = EconomyClock::now();
+  bool Outer = false, Counted = false, Active = true;
+public:
+  ObserverScope(const ObserverScope &) = delete;
+  ObserverScope &operator=(const ObserverScope &) = delete;
+  explicit ObserverScope(Request &R) : R(R) {
+    if (R.ObserverDepth >= 64) { R.ObserverClockValid = false; return; }
+    Counted = true; Outer = R.ObserverDepth++ == 0;
+  }
+  void stop() {
+    if (!Active) return;
+    Active = false;
+    if (Counted) --R.ObserverDepth;
+    if (Outer) {
+      auto NS = elapsedEconomyNS(Start, EconomyClock::now());
+      if (!NS) R.ObserverClockValid = false;
+      else {
+        R.ObserverNS = addEconomyNS(R.ObserverNS, *NS);
+        if (R.ObserverNS == std::numeric_limits<uint64_t>::max()) R.ObserverClockValid = false;
+      }
+    }
+  }
+  ~ObserverScope() { stop(); }
+};
+Pending *newPending(Request &R, std::string Slot = {}, std::shared_ptr<Stage> Product = {},
+                    GroupRuntime *Group = nullptr, bool SampleFresh = false) {
+  if (R.PendingTokens.size() >= 128) return nullptr;
   auto P = std::make_unique<Pending>(); P->Slot = std::move(Slot); P->Product = std::move(Product);
+  P->Mode = P->Product ? Pending::Kind::Capture : Group ? Pending::Kind::TimeOnly : Pending::Kind::Diagnostic;
+  P->Group = Group; P->SampleFresh = SampleFresh;
   Pending *Raw = P.get(); R.PendingTokens.emplace(Raw, std::move(P)); return Raw;
 }
 // Optional resident products have a bounded encoded payload and slot count.
@@ -706,10 +791,137 @@ std::string pipeline(FunctionPassManager &PM) {
 }
 std::string path(Request &R, Function &F) {
   std::string P; raw_string_ostream OS(P);
-  OS << F.getName().size() << ':' << F.getName();
+  OS << "fpm-slot-v3/" << F.getName().size() << ':' << F.getName();
   for (auto E : R.Path) OS << '/' << E.first << ':' << E.second;
   OS.flush(); auto &N = R.Occurrences[P]; return P + "#" + std::to_string(N++);
 }
+// These are hard optional-cache bounds, not compiler work-budget changes.
+constexpr size_t MaxEconomyGroups = 128;
+constexpr size_t MaxEconomyBytes = 512 * 1024;
+constexpr size_t MaxPipelineHints = 128;
+constexpr size_t MaxPipelineHintBytes = 128 * 1024;
+constexpr unsigned PilotKeys = 2, PilotCaptures = 2, FreshSamplesPerRequest = 4;
+
+bool validEconomy(const GroupEconomy &P) {
+  return (P.Mode == EconomyMode::Probe || P.Mode == EconomyMode::Reuse ||
+          P.Mode == EconomyMode::Bypass) &&
+         (P.Mode == EconomyMode::Probe ||
+          (P.FreshSamples == 2 && P.CaptureSamples == 2 && P.HitSamples == 2)) &&
+         P.FreshSamples <= 2 && P.CaptureSamples <= 2 && P.HitSamples <= 2 &&
+         (!P.FreshSamples || (P.FreshMin && P.FreshMin != std::numeric_limits<uint64_t>::max())) &&
+         (!P.CaptureSamples || P.CaptureMax) && (!P.HitSamples || P.HitMax);
+}
+GroupRuntime beginEconomy(const GroupEconomy *Prior, uint64_t Epoch) {
+  GroupRuntime G;
+  if (Prior && validEconomy(*Prior)) G.Learned = *Prior;
+  if (G.Learned.Mode == EconomyMode::Bypass && Epoch >= G.Learned.ReprobeEpoch)
+    G.Learned = GroupEconomy();
+  G.Frozen = G.Learned.Mode;
+  return G;
+}
+bool sampleFresh(GroupRuntime &G) {
+  if (G.Frozen == EconomyMode::Bypass || G.FreshTimes >= FreshSamplesPerRequest) return false;
+  ++G.FreshTimes;
+  return true;
+}
+bool tryEconomyKey(GroupRuntime &G) {
+  if (G.Closed || G.Frozen == EconomyMode::Bypass) return false;
+  if (G.Frozen == EconomyMode::Probe && G.KeyAttempts >= PilotKeys) return false;
+  if (G.Frozen == EconomyMode::Probe) ++G.KeyAttempts;
+  return true;
+}
+bool tryEconomyCapture(GroupRuntime &G) {
+  if (G.Captures >= PilotCaptures) return false;
+  ++G.Captures; // failed admission does not refund the bounded opportunity
+  return true;
+}
+void economyMiss(GroupRuntime &G) {
+  G.ConsecutiveMisses = std::min(2U, G.ConsecutiveMisses + 1);
+  if (G.ConsecutiveMisses >= 2 && G.Frozen == EconomyMode::Reuse) G.Closed = true;
+}
+void economyHit(GroupRuntime &G, std::optional<uint64_t> NS) {
+  G.ConsecutiveMisses = 0;
+  if (!NS) return;
+  G.Learned.HitSamples = std::min<unsigned>(2, G.Learned.HitSamples + 1);
+  G.Learned.HitMax = std::max(G.Learned.HitMax, *NS);
+}
+void economyFresh(GroupRuntime &G, std::optional<uint64_t> NS) {
+  if (!NS) return;
+  G.Learned.FreshSamples = std::min<unsigned>(2, G.Learned.FreshSamples + 1);
+  G.Learned.FreshMin = std::min(G.Learned.FreshMin, *NS);
+}
+void economyCapture(GroupRuntime &G, uint64_t EntryNS, std::optional<uint64_t> CaptureNS) {
+  if (!EntryNS || !CaptureNS) return;
+  G.Learned.CaptureSamples = std::min<unsigned>(2, G.Learned.CaptureSamples + 1);
+  G.Learned.CaptureMax = std::max(G.Learned.CaptureMax, addEconomyNS(EntryNS, *CaptureNS));
+}
+GroupEconomy freezeEconomy(const GroupRuntime &G, uint64_t Epoch) {
+  auto P = G.Learned;
+  if (!validEconomy(P)) return GroupEconomy();
+  if (G.Frozen == EconomyMode::Bypass) return P;
+  if (P.FreshSamples < 2 || P.CaptureSamples < 2 || P.HitSamples < 2) {
+    P.Mode = EconomyMode::Probe;
+    return P;
+  }
+  // Compare without multiplication overflow. Saturation can only refuse a
+  // useful cache; it cannot grant permission to bypass any LLVM pass.
+  const bool WorthReuse = P.HitMax <= P.FreshMin / 2 &&
+      P.CaptureMax <= addEconomyNS(P.FreshMin - P.HitMax, P.FreshMin - P.HitMax);
+  P.Mode = WorthReuse ? EconomyMode::Reuse : EconomyMode::Bypass;
+  P.ReprobeEpoch = WorthReuse ? 0 : addEconomyNS(Epoch, 8);
+  return P;
+}
+std::string economyGroupKey(Request &R, FunctionPassManager &PM, const Function &F) {
+  auto It = R.PipelineHints.find(&PM);
+  std::string Printed;
+  const std::string *Hint;
+  if (It != R.PipelineHints.end()) Hint = &It->second;
+  else {
+    Printed = pipeline(PM);
+    Hint = &Printed;
+    if (R.PipelineHints.size() < MaxPipelineHints &&
+        Printed.size() <= MaxPipelineHintBytes - R.PipelineHintBytes) {
+      R.PipelineHintBytes += Printed.size();
+      Hint = &R.PipelineHints.emplace(&PM, Printed).first->second;
+    }
+  }
+  if (Hint->size() > MaxEconomyBytes / 2) return {};
+  uint64_t Count = F.getInstructionCount();
+  unsigned Bucket = 0;
+  while (Count > 1) { Count >>= 1; ++Bucket; }
+  std::string Key;
+  raw_string_ostream OS(Key);
+  OS << "fpm-economy-v1/" << Hint->size() << ':' << *Hint << "/bucket:" << Bucket;
+  for (auto E : R.Path) OS << '/' << E.first << ':' << E.second;
+  OS.flush();
+  return Key.size() <= MaxEconomyBytes / 2 ? Key : std::string();
+}
+GroupRuntime *economyGroup(Request &R, const std::string &Key) {
+  if (Key.empty()) return nullptr;
+  auto Found = R.Groups.find(Key);
+  if (Found != R.Groups.end()) return &Found->second;
+  size_t Bytes = sizeof(std::pair<const std::string, GroupEconomy>) + 4 * sizeof(void *);
+  if (R.Groups.empty()) Bytes += sizeof(R.Next.SuccessfulEpoch) + sizeof(R.Next.Economics);
+  if (!addStageBytes(Bytes, Key.size()) || R.Groups.size() >= MaxEconomyGroups ||
+      Bytes > MaxEconomyBytes - R.EconomyBytes ||
+      Bytes > MaxStageProductBytes - R.ProductBytes ||
+      Bytes > MaxStageProductBytes - R.UnpackedProductBytes) return nullptr;
+  const GroupEconomy *Prior = nullptr;
+  if (R.Prior && R.Prior->Config == R.Config) {
+    auto It = R.Prior->Economics.find(Key);
+    if (It != R.Prior->Economics.end()) Prior = &It->second;
+  }
+  auto G = beginEconomy(Prior, R.Next.SuccessfulEpoch);
+  R.EconomyBytes += Bytes; R.ProductBytes += Bytes; R.UnpackedProductBytes += Bytes;
+  R.Next.Economics.emplace(Key, G.Learned);
+  return &R.Groups.emplace(Key, std::move(G)).first->second;
+}
+void freezeEconomics(Request &R) {
+  for (const auto &E : R.Groups)
+    R.Next.Economics.at(E.first) = R.ObserverClockValid
+        ? freezeEconomy(E.second, R.Next.SuccessfulEpoch) : GroupEconomy();
+}
+
 // CloneFunctionInto preserves values/CFG but does not promise use-list order.
 // LLVM analyses and scheduling can observe that order. Transport only the
 // function-owned values; constants and symbol users remain current owners.
@@ -903,14 +1115,16 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
                             R.Stats.analysis_reconstructions, false)) return false;
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
 }
-int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
-  auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
-  auto &AM = *static_cast<FunctionAnalysisManager *>(Manager);
-  *Token = nullptr;
-  if (F.getParent() != &R.M || R.Phase != 1) return 0;
-  if (R.Failed) { *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1; }
-  // Unknown analysis domains can never authorize a product. Reject them
-  // before scanning this function's CFG, callers, owned uses or name map.
+// The wrapper measures after all entry locals have been destroyed. Successful
+// replay has no matching after callback in LLVM; it must leave NO pending token.
+int beforeStageImpl(Request &R, FunctionPassManager &PM, Function &F,
+                    FunctionAnalysisManager &AM, PreservedAnalyses &PA,
+                    void **Token, GroupRuntime **HitGroup, std::string Slot) {
+  if (R.Failed) { PA = PreservedAnalyses::none(); return 1; }
+  if (R.SuppressNestedCache) {
+    ++R.Stats.optimizer_function_stage_executions;
+    return 0; // sample the ORIGINAL nested pipeline, not a child replay
+  }
   Keys Entry = analysisKeys(AM, F);
   describeAnalyses(AM, F, "entry", Entry);
   if (!supportedAnalysisKeys(Entry)) {
@@ -918,41 +1132,100 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   IRScopeNS<> KeyTime(R.Stats.ir_key_ns);
-  if (!eligibleFunction(F)) { ++R.Stats.optimizer_function_stage_executions; return 0; }
-  // Bind actual supported result fields, not merely analysis names or IDs.
+  GroupRuntime *Group = R.AlwaysForTests ? nullptr : economyGroup(R, economyGroupKey(R, PM, F));
+  // Every refusal is ordinary execution. No missing/bad economic hint grants
+  // replay permission or changes PA, the original pass list, or FAM state.
+  if (!R.AlwaysForTests && !R.ObserverClockValid) {
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
+  if (!R.AlwaysForTests && (!Group || !tryEconomyKey(*Group))) {
+    if (Group && sampleFresh(*Group)) *Token = newPending(R, {}, {}, Group, true);
+    else if (AnalysisDiagnostics) *Token = newPending(R);
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
+  const bool Sample = Group && sampleFresh(*Group);
+  auto FreshWithoutCapture = [&]() {
+    if (Sample) *Token = newPending(R, {}, {}, Group, true);
+    else if (AnalysisDiagnostics) *Token = newPending(R);
+    ++R.Stats.optimizer_function_stage_executions;
+    return 0;
+  };
+  if (!eligibleFunction(F)) {
+    if (Group) economyMiss(*Group);
+    return FreshWithoutCapture();
+  }
   std::string Facts;
   if (!analysisFacts(F, AM, Entry, Facts, nullptr, &R.AnalysisMemo)) {
-    if (AnalysisDiagnostics) *Token = newPending(R);
-    ++R.Stats.optimizer_function_stage_executions; return 0;
+    if (Group) economyMiss(*Group);
+    return FreshWithoutCapture();
   }
   auto P = std::make_shared<Stage>();
-  std::string Slot = path(R, F);
-  P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
-  P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
+  // The address-indexed group Pipeline is ONLY an economic hint. This fresh
+  // complete Pipeline remains the original authoritative entry comparison.
+  P->Pipeline = pipeline(PM);
+  P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats);
+  P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
   if (P->Input.empty() || P->World.empty()) {
-    ++R.Stats.optimizer_function_stage_executions; return 0;
+    if (Group) economyMiss(*Group);
+    return FreshWithoutCapture();
   }
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
-  KeyTime.stop(); // Lookup/decode/replay are not key construction.
+  KeyTime.stop();
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
     if (It != R.Prior->Stages.end()) {
       Stage Old;
-      // A malformed/unavailable codec is an optional candidate miss. No IR or
-      // AM state has changed; the original stage still executes below.
       if (decodeStageCandidate(*It->second, *P, Old, R.Stats)) {
         if (!replay(R, F, AM, Old)) {
           R.Failed = true; ++R.Stats.failed_replays;
-          *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1;
+          PA = PreservedAnalyses::none(); return 1;
         }
         describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
-        *static_cast<PreservedAnalyses *>(PA) = Old.PA;
-        retainStage(R, Slot, It->second); ++R.Stats.optimizer_function_stage_reuses; return 1;
+        PA = Old.PA;
+        retainStage(R, Slot, It->second);
+        *HitGroup = Group;
+        ++R.Stats.optimizer_function_stage_reuses; return 1;
       }
     }
   }
+  if (Group) economyMiss(*Group); // absent Slot is an economic miss too
   ++R.Stats.optimizer_function_stage_executions;
-  *Token = newPending(R, std::move(Slot), std::move(P)); return 0;
+  if (R.AlwaysForTests || tryEconomyCapture(*Group))
+    *Token = newPending(R, std::move(Slot), std::move(P), Group, Sample);
+  else if (Sample) *Token = newPending(R, {}, {}, Group, true);
+  else if (AnalysisDiagnostics) *Token = newPending(R);
+  return 0;
+}
+int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
+  auto &R = *static_cast<Request *>(Context);
+  const auto Start = EconomyClock::now();
+  ObserverScope Observer(R);
+  auto &F = *static_cast<Function *>(IR);
+  *Token = nullptr;
+  if (F.getParent() != &R.M || R.Phase != 1) return 0;
+  // Advance every effective hook, even suppressed/unsupported/bypassed ones.
+  // Omitting a refused group would silently renumber later repeated Slots.
+  std::string Slot = path(R, F);
+  GroupRuntime *Hit = nullptr;
+  int Result = beforeStageImpl(R, *static_cast<FunctionPassManager *>(PM), F,
+      *static_cast<FunctionAnalysisManager *>(Manager),
+      *static_cast<PreservedAnalyses *>(PA), Token, &Hit, std::move(Slot));
+  Observer.stop();
+  auto EntryNS = elapsedEconomyNS(Start, EconomyClock::now());
+  if (!EntryNS) R.ObserverClockValid = false;
+  if (Hit && R.ObserverClockValid) economyHit(*Hit, EntryNS);
+  auto It = R.PendingTokens.find(static_cast<Pending *>(*Token));
+  if (It != R.PendingTokens.end()) {
+    auto &P = *It->second;
+    P.EntryNS = EntryNS.value_or(0);
+    if (P.SampleFresh) {
+      P.ObserverAtStart = R.ObserverNS;
+      P.FreshStart = EconomyClock::now();
+      P.SuppressesChildren = true;
+      ++R.SuppressNestedCache;
+    }
+  }
+  return Result;
 }
 // Entry eligibility was freshly established before the original stage. A
 // complete current equality of every field it read is a producer proof, not a
@@ -976,35 +1249,70 @@ bool projectAdmittedStageExit(const Module &M, const Function &F, const Stage &P
   return eligibleFunction(F);
 }
 
+// The caller has already erased the token and ended the original-pass sample.
+// TimeOnly cannot synthesize a missing entry after transformations have run.
+bool afterStageImpl(Request &R, Function &F, FunctionAnalysisManager &AM,
+                    const PreservedAnalyses &PA, Pending &P) {
+  if (R.Failed) return false;
+  if (P.Mode == Pending::Kind::TimeOnly) return false;
+  Keys Exit = analysisKeys(AM, F);
+  describeAnalyses(AM, F, "exit", Exit);
+  if (P.Mode != Pending::Kind::Capture || !P.Product || !supportedAnalysisKeys(Exit)) return false;
+  std::string Output;
+  if (!projectAdmittedStageExit(R.M, F, *P.Product, &R.Stats, Output)) return false;
+  P.Product->ExitKeys = std::move(Exit);
+  if (!analysisFacts(F, AM, P.Product->ExitKeys, P.Product->ExitFacts,
+                    &P.Product->OutputAnalysisReplay, &R.AnalysisMemo)) return false;
+  if (!captureStageBody(*P.Product, F, R.Stats, std::move(Output))) return false;
+  P.Product->PA = PA;
+  size_t Before = R.Next.Stages.size();
+  retainStage(R, P.Slot, std::move(P.Product));
+  return R.Next.Stages.size() > Before;
+}
 void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, void *Token) {
+  const auto End = EconomyClock::now(); // exclude THIS observer/capture from F
   auto &R = *static_cast<Request *>(Context);
+  ObserverScope Observer(R);
   IRScopeNS<> CaptureTime(R.Stats.ir_capture_ns);
   auto It = R.PendingTokens.find(static_cast<Pending *>(Token));
   if (It == R.PendingTokens.end()) return;
   auto P = std::move(It->second); R.PendingTokens.erase(It);
-  if (R.Failed) return;
-  auto &F = *static_cast<Function *>(IR);
-  auto &AM = *static_cast<FunctionAnalysisManager *>(Manager);
-  Keys Exit = analysisKeys(AM, F);
-  describeAnalyses(AM, F, "exit", Exit);
-  // An unsupported exit cannot be retained, regardless of body/world values.
-  // Keep diagnostic-only pending tokens, but avoid their deep projections.
-  if (!P->Product || R.Failed || !supportedAnalysisKeys(Exit)) return;
-  std::string Output;
-  if (!projectAdmittedStageExit(R.M, F, *P->Product, &R.Stats, Output)) return;
-  P->Product->ExitKeys = std::move(Exit);
-  if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
-                     P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
-  if (!captureStageBody(*P->Product, F, R.Stats, std::move(Output))) return;
-  P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
-  retainStage(R, P->Slot, std::move(P->Product));
+  if (P->SuppressesChildren) {
+    --R.SuppressNestedCache;
+    P->SuppressesChildren = false;
+    auto Elapsed = elapsedEconomyNS(P->FreshStart, End);
+    // ObserverNS is the union, so nested before/after callbacks are deducted
+    // once. All nested optional cache paths were suppressed during this FPM.
+    if (!R.Failed && P->Group && Elapsed && R.ObserverClockValid &&
+        R.ObserverNS >= P->ObserverAtStart) {
+      uint64_t ChildNS = R.ObserverNS - P->ObserverAtStart;
+      if (*Elapsed > ChildNS) economyFresh(*P->Group, *Elapsed - ChildNS);
+    }
+  }
+  const auto CaptureStart = End;
+  auto *Group = P->Group;
+  uint64_t EntryNS = P->EntryNS;
+  bool Captured = afterStageImpl(R, *static_cast<Function *>(IR),
+      *static_cast<FunctionAnalysisManager *>(Manager),
+      *static_cast<const PreservedAnalyses *>(PA), *P);
+  P.reset(); // include full pending/source cleanup in C, even on early refusal
+  if (Captured && Group && !R.Failed && R.ObserverClockValid)
+    economyCapture(*Group, EntryNS, elapsedEconomyNS(CaptureStart, EconomyClock::now()));
 }
 void enterPass(void *C, unsigned Kind, unsigned Index) {
-  auto &R = *static_cast<Request *>(C); R.Path.emplace_back(Kind, Index);
+  auto &R = *static_cast<Request *>(C);
+  std::optional<ObserverScope> Observer;
+  if (R.SuppressNestedCache) Observer.emplace(R);
+  R.Path.emplace_back(Kind, Index);
   if (Kind == 0) ++R.Stats.optimizer_module_pass_executions;
   if (Kind == 2) ++R.Stats.optimizer_cgscc_pass_executions;
 }
-void leavePass(void *C) { auto &P = static_cast<Request *>(C)->Path; if (!P.empty()) P.pop_back(); }
+void leavePass(void *C) {
+  auto &R = *static_cast<Request *>(C);
+  std::optional<ObserverScope> Observer;
+  if (R.SuppressNestedCache) Observer.emplace(R);
+  if (!R.Path.empty()) R.Path.pop_back();
+}
 int beforeMachineCallback(void *C, void *P, void *F, void *MMI) {
   auto &R = *static_cast<Request *>(C);
   return static_cast<Function *>(F)->getParent() == &R.M && R.Machine ? beforeMachine(*R.Machine, *static_cast<Pass *>(P), *static_cast<Function *>(F), *static_cast<MachineModuleInfo *>(MMI)) : 0;
@@ -1024,13 +1332,18 @@ void copyStats(Request &R, ZilNativeProductStats *Out) {
 extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *Prior, const char *C, size_t N) {
   using namespace zil;
   if (!M || !TM || !symbols().available || (!C && N)) return nullptr;
-  auto R = std::make_unique<Request>(*static_cast<Module *>(M), *static_cast<TargetMachine *>(TM), std::string(C ? C : "", N), static_cast<const Products *>(Prior));
+  auto R = std::make_unique<Request>(*static_cast<Module *>(M), std::string(C ? C : "", N), static_cast<const Products *>(Prior));
   R->Stats.available = 1;
-  R->Machine = createMachine(R->M, R->TM, R->Config,
+  R->Machine = createMachine(R->M, *static_cast<TargetMachine *>(TM), R->Config,
       R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed);
   if (!R->Machine) return nullptr;
   R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
   R->Previous = symbols().set(&R->Hooks); return R.release();
+}
+extern "C" int ZilNativeProductsStageAlwaysForTests(int Enabled) {
+  bool Previous = zil::StageAlwaysForTests;
+  zil::StageAlwaysForTests = Enabled != 0;
+  return Previous;
 }
 extern "C" void ZilNativeProductsSetPhase(void *P, unsigned Phase) {
   if (!P) return;
@@ -1045,13 +1358,14 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
   if (Failed) *Failed = 1;
   using namespace zil; std::unique_ptr<Request> R(static_cast<Request *>(P)); if (!R) return nullptr;
   symbols().set(R->Previous);
-  if (!R->PendingTokens.empty()) { R->Failed = true; ++R->Stats.failed_replays; }
+  if (!R->PendingTokens.empty() || R->SuppressNestedCache || R->ObserverDepth) { R->Failed = true; ++R->Stats.failed_replays; }
   if (R->Failed) { copyStats(*R, S); return nullptr; }
   if (R->Machine) R->Next.Machine = finishMachine(*R->Machine);
   if (R->Failed) {
     if (!R->Stats.failed_replays) ++R->Stats.failed_replays;
     copyStats(*R, S); return nullptr;
   }
+  freezeEconomics(*R);
   R->Stats.retained_bytes += R->ProductBytes;
   copyStats(*R, S);
   auto *Result = new Products(std::move(R->Next));
@@ -1586,4 +1900,162 @@ extern "C" int ZilNativePackedStageEntryFilterCounterexample() {
   Current = Original; Attempted = false;
   if (decodeStageCandidate(Broken, Current, Decoded, Stats, &Attempted) || !Attempted) return 0;
   return 1;
+}
+
+namespace zil {
+namespace {
+// Test passes deliberately run through the original patched FPM lifecycle.
+struct EconomyCountingPass : PassInfoMixin<EconomyCountingPass> {
+  unsigned *Count;
+  explicit EconomyCountingPass(unsigned &N) : Count(&N) {}
+  PreservedAnalyses run(Function &, FunctionAnalysisManager &) {
+    ++*Count;
+    return PreservedAnalyses::all();
+  }
+};
+struct EconomyNestedPass : PassInfoMixin<EconomyNestedPass> {
+  FunctionPassManager Inner;
+  explicit EconomyNestedPass(unsigned &N) { Inner.addPass(EconomyCountingPass(N)); }
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) { return Inner.run(F, AM); }
+};
+class EconomyTestHooks {
+  const ZilLLVMFunctionProductHooks *Previous;
+public:
+  explicit EconomyTestHooks(const ZilLLVMFunctionProductHooks &Hooks)
+      : Previous(symbols().set(&Hooks)) {}
+  ~EconomyTestHooks() { symbols().set(Previous); }
+};
+}
+}
+extern "C" int ZilNativeStageEconomicsCounterexample() {
+  using namespace zil;
+  if (!symbols().available) return 0;
+  GroupRuntime Cold = beginEconomy(nullptr, 1);
+  for (unsigned I = 0; I != 2; ++I) {
+    if (!tryEconomyKey(Cold) || !tryEconomyCapture(Cold)) return 0;
+    economyMiss(Cold); economyFresh(Cold, 200); economyCapture(Cold, 40, 60);
+  }
+  if (tryEconomyKey(Cold) || tryEconomyCapture(Cold) || Cold.Closed) return 0;
+  auto Pilot = freezeEconomy(Cold, 1);
+  if (Pilot.Mode != EconomyMode::Probe || Pilot.FreshSamples != 2 ||
+      Pilot.CaptureSamples != 2 || Pilot.HitSamples) return 0;
+  GroupRuntime Warm = beginEconomy(&Pilot, 2);
+  if (!tryEconomyKey(Warm)) return 0;
+  economyHit(Warm, 80);
+  if (!tryEconomyKey(Warm)) return 0;
+  economyHit(Warm, 90);
+  // Promotion is not visible to the rest of this invocation.
+  if (Warm.Frozen != EconomyMode::Probe || tryEconomyKey(Warm)) return 0;
+  auto Profitable = freezeEconomy(Warm, 2);
+  if (Profitable.Mode != EconomyMode::Reuse) return 0;
+  GroupRuntime Reuse = beginEconomy(&Profitable, 3);
+  economyMiss(Reuse);
+  if (!tryEconomyKey(Reuse) || Reuse.Closed) return 0;
+  economyHit(Reuse, 90); // a real hit resets the consecutive miss breaker
+  economyMiss(Reuse);
+  if (Reuse.Closed) return 0;
+  economyMiss(Reuse);
+  if (!Reuse.Closed || tryEconomyKey(Reuse)) return 0;
+  if (!tryEconomyCapture(Reuse) || !tryEconomyCapture(Reuse) || tryEconomyCapture(Reuse)) return 0;
+  for (unsigned I = 0; I != FreshSamplesPerRequest; ++I) if (!sampleFresh(Reuse)) return 0;
+  if (sampleFresh(Reuse)) return 0;
+  GroupRuntime Slow = Warm;
+  economyHit(Slow, 101); // just outside F >= 2H
+  auto Rejected = freezeEconomy(Slow, 2);
+  if (Rejected.Mode != EconomyMode::Bypass || Rejected.ReprobeEpoch != 10) return 0;
+  auto Wait = beginEconomy(&Rejected, 9);
+  if (tryEconomyKey(Wait) || sampleFresh(Wait) || Wait.Frozen != EconomyMode::Bypass) return 0;
+  auto Reprobe = beginEconomy(&Rejected, 10);
+  if (Reprobe.Frozen != EconomyMode::Probe || Reprobe.Learned.HitSamples || !tryEconomyKey(Reprobe)) return 0;
+  Slow = Warm; Slow.Learned.CaptureMax = 221; // C > 2(F-H) = 220
+  if (freezeEconomy(Slow, 2).Mode != EconomyMode::Bypass) return 0;
+  Slow = Warm; economyHit(Slow, std::numeric_limits<uint64_t>::max());
+  if (freezeEconomy(Slow, 2).Mode != EconomyMode::Bypass ||
+      addEconomyNS(std::numeric_limits<uint64_t>::max(), 1) != std::numeric_limits<uint64_t>::max()) return 0;
+  auto Invalid = Profitable; Invalid.HitSamples = 3;
+  if (beginEconomy(&Invalid, 3).Frozen != EconomyMode::Probe) return 0;
+  auto Before = Warm.Learned;
+  economyFresh(Warm, std::nullopt); economyHit(Warm, std::nullopt);
+  economyCapture(Warm, 0, 99);
+  if (Warm.Learned.FreshMin != Before.FreshMin || Warm.Learned.HitMax != Before.HitMax ||
+      Warm.Learned.CaptureMax != Before.CaptureMax) return 0;
+  auto Now = EconomyClock::now();
+  if (elapsedEconomyNS(Now, Now) || elapsedEconomyNS(Now, Now - std::chrono::nanoseconds(1))) return 0;
+
+  LLVMContext Context; Module M("economy", Context);
+  auto *F = Function::Create(FunctionType::get(Type::getInt32Ty(Context), false),
+                             GlobalValue::ExternalLinkage, "ordinary", &M);
+  IRBuilder<> B(BasicBlock::Create(Context, "entry", F)); B.CreateRet(B.getInt32(7));
+  Request Bounded(M, "config", nullptr);
+  for (size_t I = 0; I != MaxEconomyGroups; ++I)
+    if (!economyGroup(Bounded, "group:" + std::to_string(I))) return 0;
+  if (economyGroup(Bounded, "overflow") || Bounded.Groups.size() != MaxEconomyGroups ||
+      Bounded.Next.Economics.size() != MaxEconomyGroups ||
+      Bounded.ProductBytes != Bounded.EconomyBytes ||
+      Bounded.UnpackedProductBytes != Bounded.EconomyBytes) return 0;
+  Request Full(M, "config", nullptr);
+  Full.ProductBytes = MaxStageProductBytes;
+  if (economyGroup(Full, "no-room") || !Full.Groups.empty()) return 0;
+  Full.ProductBytes = 0; Full.UnpackedProductBytes = MaxStageProductBytes;
+  if (economyGroup(Full, "no-raw-room")) return 0;
+  Request PendingBound(M, "config", nullptr);
+  for (unsigned I = 0; I != 128; ++I) if (!newPending(PendingBound)) return 0;
+  if (newPending(PendingBound)) return 0;
+
+  // A TimeOnly parent runs both original passes. The nested FPM advances its
+  // Slot but has no cache key, replay, capture, policy row or pending token.
+  FunctionAnalysisManager AM;
+  AM.registerPass([] { return PassInstrumentationAnalysis(); });
+  AM.getResult<PassInstrumentationAnalysis>(*F);
+  unsigned OuterRan = 0, InnerRan = 0;
+  FunctionPassManager PM;
+  PM.addPass(EconomyCountingPass(OuterRan)); PM.addPass(EconomyNestedPass(InnerRan));
+  Request Current(M, "config", nullptr); Current.Phase = 1;
+  auto *TimeGroup = economyGroup(Current, economyGroupKey(Current, PM, *F));
+  if (!TimeGroup) return 0;
+  TimeGroup->KeyAttempts = PilotKeys;
+  Current.Hooks = {2, &Current, nullptr, enterPass, leavePass, beforeStage, afterStage, nullptr, requestFailedCallback};
+  {
+    EconomyTestHooks Hooks(Current.Hooks);
+    PM.run(*F, AM);
+  }
+  unsigned Slots = 0;
+  for (const auto &E : Current.Occurrences) {
+    if (E.first.find("fpm-slot-v3/") != 0) return 0;
+    Slots += E.second;
+  }
+  if (OuterRan != 1 || InnerRan != 1 || Slots != 2 || Current.Groups.size() != 1 ||
+      !Current.PendingTokens.empty() || Current.SuppressNestedCache || Current.ObserverDepth ||
+      !Current.Next.Stages.empty() || Current.Stats.ir_key_bytes || Current.Stats.ir_snapshot_bytes ||
+      Current.Stats.optimizer_function_stage_executions != 2 || Current.Failed) return 0;
+  // PM address reuse is only a potentially bad economic hint. The complete
+  // authorized Pipeline is still freshly printed after this hint is poisoned.
+  Current.PipelineHints[&PM] = "deliberately-wrong-economic-recipe";
+  if (pipeline(PM) == Current.PipelineHints.at(&PM)) return 0;
+
+  Products Parent; Parent.Config = "config"; Parent.SuccessfulEpoch = 1;
+  Parent.Economics.emplace("publication", Pilot);
+  Request WrongConfig(M, "changed-config", &Parent);
+  auto *ChangedGroup = economyGroup(WrongConfig, "publication");
+  if (!ChangedGroup || ChangedGroup->Learned.FreshSamples || WrongConfig.Next.SuccessfulEpoch != 1) return 0;
+  auto Publish = [&](bool Fail, bool Abort) {
+    auto R = std::make_unique<Request>(M, "config", &Parent);
+    auto *G = economyGroup(*R, "publication");
+    if (!G) return false;
+    *G = Warm;
+    R->Failed = Fail;
+    R->Previous = symbols().set(nullptr);
+    if (Abort) {
+      ZilNativeProductsAbort(R.release(), nullptr);
+      return Parent.Economics.at("publication").Mode == EconomyMode::Probe;
+    }
+    int Failed = -1;
+    auto *P = static_cast<Products *>(ZilNativeProductsFinish(R.release(), nullptr, &Failed));
+    std::unique_ptr<Products> Owned(P);
+    if (Fail) return !P && Failed == 1 && Parent.Economics.at("publication").Mode == EconomyMode::Probe;
+    return P && Failed == 0 && P->SuccessfulEpoch == 2 &&
+        P->Economics.at("publication").Mode == EconomyMode::Reuse &&
+        Parent.Economics.at("publication").Mode == EconomyMode::Probe;
+  };
+  return Publish(true, false) && Publish(false, true) && Publish(false, false) && !verifyModule(M, nullptr);
 }
