@@ -155,7 +155,7 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<bool> {
-        if matches!(name, "Task" | "Managed" | "OwnedDyn") || name == options::TASK_THREAD_SCOPE {
+        if matches!(name, "Task" | "Managed" | "OwnedDyn" | "Fn" | "FnMut" | "FnOnce") || name == options::TASK_THREAD_SCOPE {
             // The retained Task envelope is a builtin qualified carrier.
             // Its Context is checked by the Task header/recipe consumer.
             return Ok(false);
