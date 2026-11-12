@@ -359,3 +359,10 @@ fn original_named_result_scope_selects_the_real_same_typed_input() {
         );
     }
 }
+
+#[test]
+fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slots() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil");
+    let module=typed(text);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
