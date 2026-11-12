@@ -171,3 +171,89 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
         }
     }
 }
+
+#[test]
+fn equal_task_types_and_classes_keep_actual_source_identity_raw_and_wire() {
+    let text=SOURCE.replace("fn keep<life a>(give original:Task<i32,&'a mut i32>)", "fn keep<life a>(give original:Task<i32,&'a mut i32>,give second:Task<i32,&'a mut i32>)")
+        .replace("return move()=>drive(give original);", "return move()=>drive(give original)+drive(give second);")
+        .replace("var number=37;", "var number=37;var other=41;")
+        .replace("let callback=keep(give original);", "let otherTask=task_create(worker,&mut other)?;let callback=keep(give original,give otherTask);")
+        .replace("return answer-42;", "if other!=46{return 92;}return answer-88;");
+    let input = source(&text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(typed.closures[0].captures[0], typed.closures[0].captures[1]);
+    assert_eq!(
+        typed.closures[0]
+            .storage_life
+            .as_ref()
+            .unwrap()
+            .fixed_binder_count,
+        1
+    );
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let creator = typed
+        .functions
+        .iter()
+        .position(|f| f.callable_return_contract.is_some())
+        .unwrap();
+    for mutation in 0..4 {
+        let mut raw = typed.clone();
+        if mutation == 3 {
+            let captures = raw.functions[creator]
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find_map(|i| {
+                    if let zil_ir::InstructionKind::MakeClosure { captures, .. } = &mut i.kind {
+                        Some(captures)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            captures.swap(0, 1);
+        } else {
+            let rows = raw.functions[creator]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .capture_sources
+                .as_mut()
+                .unwrap();
+            match mutation {
+                0 => rows[0].sources = rows[1].sources.clone(),
+                1 => {
+                    rows.pop();
+                }
+                _ => {
+                    rows[0].position.path = vec![
+                        zil_ir::ContractProjection::Capture(1),
+                        zil_ir::ContractProjection::RetainedPort(0),
+                    ]
+                }
+            }
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze mutation {mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify mutation {mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire mutation {mutation}"
+        );
+    }
+}

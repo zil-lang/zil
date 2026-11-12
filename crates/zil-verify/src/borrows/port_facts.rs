@@ -650,6 +650,33 @@ fn produce(
                 .get(local)
                 .map_or(Ok(Carrier::default()), |row| project(row, &path, budget))
         }
+        InstructionKind::TakePackageField { local, index } => {
+            state.get(local).map_or(Ok(Carrier::default()), |row| {
+                project(
+                    row,
+                    &[ContractProjection::Place(PlaceProjection::Field(*index))],
+                    budget,
+                )
+            })
+        }
+        InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+            budget.spend(path.len())?;
+            let path = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            let mut result = project(&values[storage.0 as usize], &path, budget)?;
+            if let Some(row) = result.ports.get_mut(&Vec::new())
+                && let Some(mode) = mode(ty)
+            {
+                row.mode = mode;
+            }
+            // These are SSA origins, not an initialized-place claim. The
+            // independent stored permission ledger checks Take vacancy and
+            // authenticates every reborrow before this evidence is consumed.
+            Ok(result)
+        }
         InstructionKind::DescribeAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressSlice { address, .. }
@@ -764,8 +791,39 @@ fn transfer(
                 state.insert(*target, child);
             }
         }
+        InstructionKind::UnpackTuple { local, ref fields } => {
+            let source = state.remove(&local).unwrap_or_default();
+            budget.spend(fields.len())?;
+            for (index, target) in fields.iter().enumerate() {
+                let child = project(
+                    &source,
+                    &[ContractProjection::Place(PlaceProjection::Field(
+                        index as u32,
+                    ))],
+                    budget,
+                )?;
+                state.insert(*target, child);
+            }
+        }
+        InstructionKind::TakeVariantField { local, ref path }
+        | InstructionKind::TakeTupleField { local, ref path } => {
+            budget.spend(path.len())?;
+            let prefix = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            remove_selected(state, local, &prefix, budget)?;
+        }
+        InstructionKind::TakePackageField { local, index } => {
+            remove_selected(
+                state,
+                local,
+                &[ContractProjection::Place(PlaceProjection::Field(index))],
+                budget,
+            )?;
+        }
         InstructionKind::TakeLocal { local }
-        | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::DropEnum { local }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
@@ -774,6 +832,25 @@ fn transfer(
             state.remove(&local);
         }
         _ => {}
+    }
+    Ok(())
+}
+
+fn remove_selected(
+    state: &mut State,
+    local: LocalId,
+    prefix: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<()> {
+    if let Some(source) = state.get_mut(&local) {
+        cost(source, budget)?;
+        budget.spend(
+            source
+                .ports
+                .len()
+                .saturating_mul(prefix.len().saturating_add(1)),
+        )?;
+        source.ports.retain(|path, _| !path.starts_with(prefix));
     }
     Ok(())
 }

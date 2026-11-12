@@ -6504,8 +6504,11 @@ fn solve_check(
     if b.masked_stored_tasks() {
         b.spend(module.functions.len())?;
     }
+    // The owned-constructor failure lane also projects qualified input views.
+    // Its ordinary borrow overlay consumes this same independently solved
+    // physical source table, even when the module contains no Option result.
     let mut checked_option_sources = b
-        .store_option_results
+        .masked_stored_tasks()
         .then(|| Vec::with_capacity(module.functions.len()));
     let mut package_calls = if b.qualified_package_returns {
         b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>())?;

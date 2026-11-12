@@ -505,6 +505,18 @@ fn failure_native_matrix(
                         ..CompileOptions::default()
                     },
                 );
+                if report.status != ResultCategory::Success {
+                    let input = source(text);
+                    let ast = zil_syntax::parse(&input).into_result().unwrap();
+                    let core = zil_expand::expand(&input, &ast).unwrap();
+                    let typed = zil_types::check(
+                        &core,
+                        &zil_base::TargetProfile::default(),
+                        &zil_base::Limits::default(),
+                    )
+                    .unwrap();
+                    fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
+                }
                 assert_eq!(
                     report.status,
                     ResultCategory::Success,

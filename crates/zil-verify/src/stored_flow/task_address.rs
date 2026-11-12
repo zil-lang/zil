@@ -392,6 +392,72 @@ pub(super) fn source_relation(
         relation(f, StorageBase::Parameter(index), &source.leaf, b)
     }
 }
+fn captured_source_upper(
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    source: &Source,
+    b: &mut Budget,
+) -> Check<()> {
+    let Some(contract) = &f.callable_return_contract else {
+        return Ok(());
+    };
+    let Some((ContractProjection::Capture(capture), tail)) = path.split_first() else {
+        return Err(err(
+            "returned Task environment port omits its actual Capture selector",
+        ));
+    };
+    let rows = contract
+        .capture_sources
+        .as_ref()
+        .ok_or_else(|| err("returned Task environment source upper is Unknown"))?;
+    b.spend(
+        path.len().saturating_add(width(source)).saturating_add(
+            rows.iter()
+                .fold(0usize, |n, row| {
+                    n.saturating_add(row.position.path.len()).saturating_add(
+                        row.sources.iter().fold(1usize, |n, source| {
+                            n.saturating_add(source.path.len()).saturating_add(1)
+                        }),
+                    )
+                })
+                .saturating_mul(path.len().saturating_add(width(source)).saturating_add(1)),
+        ),
+    )?;
+    let upper = rows
+        .iter()
+        .find(|row| {
+            row.position.base == StorageBase::Capture(*capture) && row.position.path == tail
+        })
+        .ok_or_else(|| err("actual returned Task port has no capture source upper"))?;
+    let HoldRoot::Parameter(parameter) = source.base else {
+        return Err(err(
+            "returned Task capture depends on a non-input activation",
+        ));
+    };
+    let mut actual = source
+        .leaf
+        .iter()
+        .copied()
+        .map(ContractProjection::Place)
+        .collect::<Vec<_>>();
+    if let Some(origin) = &source.retained_port {
+        let PortOrigin::Task { carrier, port } = origin else {
+            return Err(err("Dyn dependency is not a Task source namespace"));
+        };
+        actual.extend_from_slice(carrier);
+        actual.push(ContractProjection::RetainedPort(*port));
+    }
+    let position = StoragePosition {
+        base: StorageBase::Parameter(parameter),
+        path: actual,
+    };
+    if !upper.sources.contains(&position) {
+        return Err(err(
+            "actual returned Task capture source exceeds its declared input upper",
+        ));
+    }
+    Ok(())
+}
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
@@ -402,9 +468,27 @@ pub(super) fn summarize(
     if !b.task_sources() {
         return Ok(());
     }
+    for (mut path, port, _) in carriers::paths(module, &f.return_type, b)? {
+        path.push(ContractProjection::RetainedPort(port));
+        b.spend(p.task_ports.iter().fold(path.len(), |n, (actual, _)| {
+            n.saturating_add(actual.len())
+                .saturating_add(path.len())
+                .saturating_add(1)
+        }))?;
+        if p.task_ports
+            .iter()
+            .find(|(actual, _)| actual == &path)
+            .is_none_or(|(_, permission)| permission.sources.is_empty())
+        {
+            // Bottom while the call fixed point is being reconstructed. A
+            // final missing port keeps this actual summary incomplete.
+            summary.complete = false;
+        }
+    }
     for (path, permission) in &p.task_ports {
         let upper = carriers::relation(module, f, StorageBase::Result, path, b)?;
         for source in &permission.sources {
+            captured_source_upper(f, path, source, b)?;
             if source.base != HoldRoot::Static && source_relation(module, f, source, b)? != upper {
                 return Err(err(
                     "returned Task port exceeds its declared external relation",
