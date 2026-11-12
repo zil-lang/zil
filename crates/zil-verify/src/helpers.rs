@@ -731,6 +731,12 @@ fn owned_dispatch(
     let [(_, id, borrowed, _)] = parameters else {
         return Ok(false);
     };
+    if claim.roles.len() != 1 {
+        return Err(bad(
+            function,
+            "owned dispatch requires one actual callable role",
+        ));
+    }
     let definition = closures::definition(module, *id, Some(function.span))?;
     if !definition.parameters.iter().any(owned_callbacks::root)
         && !owned_callbacks::root(&definition.result)
@@ -749,8 +755,17 @@ fn owned_dispatch(
     } else {
         false
     };
+    budget.spend(definition.parameters.len().saturating_add(1))?;
+    let borrowed_environment = *borrowed
+        && matches!(claim.roles[0].kind, CallableKind::Fn | CallableKind::FnMut)
+        && !definition
+            .parameters
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { .. }));
     if claim.roles.len() != 1
-        || (!borrowed_input_result && (*borrowed || claim.roles[0].kind != CallableKind::FnOnce))
+        || (!borrowed_input_result
+            && !borrowed_environment
+            && (*borrowed || claim.roles[0].kind != CallableKind::FnOnce))
         || !definition.lending_captures.is_empty()
     {
         return Err(bad(
