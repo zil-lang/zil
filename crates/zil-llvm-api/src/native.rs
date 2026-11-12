@@ -638,10 +638,19 @@ fn compile_input(
     // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
+    if let Some(timings) = attempt_timings.as_deref_mut() {
+        timings.emit_ns = emit_ns;
+    }
     check(cancelled)?;
     let completed_products = product_scope.take().and_then(products::Scope::finish);
     drop(product_scope);
-    if let Some((_, _, _, output)) = hook_state {
+    if let Some((_, _, failed, output)) = hook_state {
+        if *failed {
+            return Err(error(
+                ErrorKind::Emit,
+                "native product finalization failed; discard request",
+            ));
+        }
         *output = completed_products;
     }
     Ok((
@@ -909,5 +918,57 @@ mod native_product_tests {
         assert_eq!(stats.machine_function_reuses, 2);
         assert_eq!(stats.machine_function_executions, 0);
         assert_eq!(stats.fresh_context_fallbacks, 0);
+    }
+
+    #[test]
+    fn late_native_finish_failure_discards_the_object_and_retries_in_a_fresh_context() {
+        let source = module(42);
+        let (cold, _, products) = compile_products(&source, None);
+        assert_eq!(
+            cold.receipt.native_products.unwrap().available,
+            1,
+            "strict late-failure acceptance requires the audited extension DSO"
+        );
+        let products = products.expect("cold product");
+        let ordinary =
+            compile_module(&source, &config(), FunctionMerging::Disabled, &|| false).unwrap();
+        // Exercise each independent source of failure: the explicit Finish
+        // status and a replay-failure counter even if status wrongly says OK.
+        for counter_only in [false, true] {
+            let _injection = products::fail_next_finish_for_test(counter_only);
+            let (recovered, preflight, unpublished) = compile_products(&source, Some(&products));
+            assert!(
+                unpublished.is_none(),
+                "failed attempt must never publish native products"
+            );
+            let stats = recovered.receipt.native_products.unwrap();
+            assert_eq!(stats.available, 1);
+            assert_eq!(stats.fresh_context_fallbacks, 1);
+            if counter_only {
+                assert!(stats.failed_replays > 0);
+            }
+            assert!(stats.fallback_ns > 0);
+            assert!(recovered.receipt.total_ns >= stats.fallback_ns);
+            assert!(recovered.receipt.preflight_ns > 0);
+            assert!(recovered.receipt.optimize_ns > 0);
+            assert!(recovered.receipt.emit_ns > 0);
+            assert!(recovered.receipt.verify_before_after);
+            assert_eq!(recovered.bytes, ordinary.bytes);
+            assert!(
+                crate::validate_module_with_receipt(&source, Some(&preflight))
+                    .unwrap()
+                    .1
+            );
+        }
+        let (after, _, _) = compile_products(&source, Some(&products));
+        assert_eq!(
+            after
+                .receipt
+                .native_products
+                .unwrap()
+                .fresh_context_fallbacks,
+            0
+        );
+        assert_eq!(after.bytes, ordinary.bytes);
     }
 }
