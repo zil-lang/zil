@@ -9,6 +9,8 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
@@ -48,6 +50,7 @@ thread_local int MachineAlignmentTestMax = -1;
 thread_local bool MachineNumberingTests = false;
 thread_local bool MachineNumberingTestsRan = false;
 thread_local uint32_t MachineNumberingTestBits = 0;
+thread_local uint32_t MachineBundleTestBits = 0;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -426,6 +429,19 @@ void testMachineNumbering(llvm::MachineFunction &Current,
             MF.getBlockNumbered(0) == Fresh && MF.getNumBlockIDs() == 1 &&
             MF.getMaxAnalysisBlockNumber() == 1 && MF.getAnalysisBlockNumberEpoch() == 9 &&
             MF.getFunctionNumber() == 37 && DT.getNode(Fresh));
+  if (snapshotDomain(MF)) MachineBundleTestBits |= 1;
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  auto *Head = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::BUNDLE), llvm::DebugLoc(), true);
+  auto *Member = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  Fresh->push_back(Head); Fresh->push_back(Member);
+  Head->setFlag(llvm::MachineInstr::BundledSucc);
+  Member->setFlag(llvm::MachineInstr::BundledPred);
+  Member->setDeactivationSymbol(MF, &MF.getFunction());
+  if (std::distance(Fresh->begin(), Fresh->end()) == 1 &&
+      std::distance(Fresh->instr_begin(), Fresh->instr_end()) == 2 &&
+      !snapshotDomain(MF)) MachineBundleTestBits |= 2;
+  Member->setDeactivationSymbol(MF, nullptr);
+  if (snapshotDomain(MF)) MachineBundleTestBits |= 4;
 }
 
 bool providers(Snapshot &S) {
@@ -767,6 +783,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
   if (Enabled) {
     zil::MachineNumberingTestsRan = false;
     zil::MachineNumberingTestBits = 0;
+    zil::MachineBundleTestBits = 0;
   }
   return Old;
 }
@@ -779,4 +796,8 @@ extern "C" int ZilNativeProductsMachineAlignmentTest(int MaxBytes) {
   const int Old = zil::MachineAlignmentTestMax;
   if (MaxBytes >= -1) zil::MachineAlignmentTestMax = MaxBytes;
   return Old;
+}
+
+extern "C" uint32_t ZilNativeProductsMachineBundleTestResults() {
+  return zil::MachineBundleTestBits;
 }
