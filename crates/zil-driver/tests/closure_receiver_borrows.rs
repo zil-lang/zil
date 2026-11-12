@@ -1237,7 +1237,7 @@ fn constant_capture_cycles_require_a_real_literal_constructor() {
                 .enumerate()
                 .find_map(|(at, instruction)| {
                     matches!(instruction.kind, InstructionKind::ReadCapture { index: 0 })
-                        .then_some((bi, at, instruction.result.unwrap()))
+                        .then(|| (bi, at, instruction.result.unwrap()))
                 })
         })
         .unwrap();
