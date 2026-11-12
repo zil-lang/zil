@@ -243,6 +243,11 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       if (R.prior && R.prior->config == R.config) {
         auto Old = R.prior->functions.find(F.getName().str());
         llvm::errs() << "ZIL MIR lookup " << F.getName() << " old=" << (Old != R.prior->functions.end()) << " mf=" << bool(MMI.getMachineFunction(F)) << "\n";
+        if (Old != R.prior->functions.end()) {
+          llvm::errs() << "ZIL MIR binding input=" << (Old->second->input == C.recording->input) << " world=" << (Old->second->world == C.recording->world) << " pipeline=" << (Old->second->pipeline == C.recording->pipeline) << " first=" << (Old->second->firstMachine == C.recording->firstMachine) << "\n";
+          if (Old->second->input != C.recording->input) llvm::errs() << "ZIL MIR old input\n" << Old->second->input << "ZIL MIR current input\n" << C.recording->input;
+          if (Old->second->world != C.recording->world) llvm::errs() << "ZIL MIR old world\n" << Old->second->world << "ZIL MIR current world\n" << C.recording->world;
+        }
         if (Old != R.prior->functions.end() &&
             Old->second->input == C.recording->input &&
             Old->second->world == C.recording->world &&
