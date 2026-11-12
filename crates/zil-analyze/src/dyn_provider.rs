@@ -69,7 +69,7 @@ fn pattern_actual(
 ) -> CompileResult<()> {
     b.spend(1, WORK)?;
     let valid = match (pattern, actual) {
-        (DynPatternActual::LifeParameter(i), DynGenericActual::Life(_)) => {
+        (DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i)), DynGenericActual::Life(_)) => {
             implementation.parameters.get(*i as usize) == Some(&LifeParameterKind::Lifetime)
                 && table.actuals.get(*i as usize) == Some(actual)
         }
@@ -455,7 +455,7 @@ pub(super) fn declaration(
         }
         for (kind, actual) in kinds.iter().zip(&p.arguments) {
             match (kind, actual) {
-                (LifeParameterKind::Lifetime, DynPatternActual::LifeParameter(i)) => {
+                (LifeParameterKind::Lifetime, DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i))) => {
                     formal(d, *i, kind)?
                 }
                 (LifeParameterKind::Type, DynPatternActual::Type(t)) => tp(t, m, d, b, depth + 1)?,

@@ -981,6 +981,8 @@ impl Catalog {
                 owning |= reference.same(&self.interfaces[table.interface].reference);
             }
             output.push(zil_ir::CoreDynVtable {
+self_life: None,
+implementation_witnesses: None,
                 self_classes: {
                     budget.identity_work(table.self_classes.len(), span)?;
                     table.self_classes.clone()
@@ -1717,7 +1719,12 @@ impl Catalog {
                 pattern::pay(recipe, budget, span, 0)?;
             }
             result.push(DynDeclaration {
-                self_pattern: declaration.self_pattern.clone(),
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
+                self_pattern: declaration.self_pattern.clone().map(|p| zil_ir::DynTypePattern::Nominal(Box::new(p))),
                 implemented_trait: declaration.implemented_trait.clone(),
                 id: declaration_id(declaration.origin, origins, budget, span)?,
                 identity: identity.clone(),

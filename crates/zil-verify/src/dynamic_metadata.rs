@@ -377,10 +377,10 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
     let mut count = 0usize;
     pay(b, &mut count, cap, 2)?;
     let mut pending = Vec::new();
-    for root in [&declaration.self_pattern, &declaration.implemented_trait]
-        .into_iter()
-        .flatten()
-    {
+    if let Some(root) = &declaration.self_pattern {
+        pending.push(Node::Ty(root, 0));
+    }
+    if let Some(root) = &declaration.implemented_trait {
         pending.push(Node::Nominal(root, 0));
     }
     while let Some(node) = pending.pop() {
@@ -394,11 +394,18 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Actual(actual, depth) => {
                 match actual {
+                    DynPatternActual::Life(_) => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "persistent declaration life recipe is outside its original formal scope",
+                        ));
+                    }
                     DynPatternActual::Type(ty) => children.push(Node::Ty(ty, depth + 1)),
                     DynPatternActual::Const(value) => {
                         children.push(Node::Constant(value, depth + 1))
                     }
-                    DynPatternActual::LifeParameter(index) => {
+                    DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(index)) => {
                         if !matches!(
                             declaration.parameters.get(*index as usize),
                             Some(LifeParameterKind::Lifetime)
@@ -415,6 +422,17 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Constant(pattern, depth) => {
                 match pattern {
+                    DynConstPattern::MethodParameter(_)
+                    | DynConstPattern::Unary { .. }
+                    | DynConstPattern::Binary { .. }
+                    | DynConstPattern::Convert { .. }
+                    | DynConstPattern::AssociatedProjection { .. } => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "constant recipe requires a checked declaration specialization",
+                        ));
+                    }
                     DynConstPattern::Parameter(index) => {
                         if !matches!(
                             declaration.parameters.get(*index as usize),
@@ -436,6 +454,15 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
+                    DynTypePattern::SelfType
+                    | DynTypePattern::MethodParameter(_)
+                    | DynTypePattern::AssociatedProjection { .. } => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "Self recipe cannot be established by a receiver or projection claim",
+                        ));
+                    }
                     DynTypePattern::Concrete(node) => ty(node, b)?,
                     DynTypePattern::Parameter(index) => {
                         if !matches!(
@@ -453,11 +480,12 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     DynTypePattern::Address {
                         lifetime, inner, ..
                     } => {
-                        if lifetime.is_some_and(|index| {
-                            !matches!(
+                        if lifetime.is_some_and(|life| match life {
+                            zil_ir::DynLifePattern::DeclarationParameter(index) => !matches!(
                                 declaration.parameters.get(index as usize),
                                 Some(LifeParameterKind::Lifetime)
-                            )
+                            ),
+                            _ => true,
                         }) {
                             return Err(reject(
                                 "E-VERIFY-DYN-PATTERN",

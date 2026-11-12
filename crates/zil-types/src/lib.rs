@@ -82,6 +82,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    dyn_instance: Option<zil_ir::DynFunctionInstance>,
     retained_return_sources: Option<Vec<StorageSourceBinding>>,
     result_mode: PassingMode,
     storage_life: Option<StorageLifeContract>,
@@ -295,6 +296,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    dyn_instance: f.dyn_instance.clone(),
                     retained_return_sources: f.retained_return_sources.clone(),
                     storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
@@ -869,6 +871,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                dyn_instance: f.dyn_instance.clone(),
                 retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
@@ -3220,6 +3223,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function_id = pending.function;
             let function = CoreFunction {
                 source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3428,6 +3432,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            dyn_instance: None,
             retained_return_sources: None,
                 source_scope: None,
             storage_life,
@@ -4136,6 +4141,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
                 source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,

@@ -223,7 +223,7 @@ pub(super) fn pattern(root: Option<&DynSelfPattern>, b: &mut Budget) -> CompileR
             Node::Actual(value) => match value {
                 DynPatternActual::Type(value) => pending.push((Node::Ty(value), depth + 1)),
                 DynPatternActual::Const(value) => pending.push((Node::Const(value), depth + 1)),
-                DynPatternActual::LifeParameter(_) => {}
+                DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(_)) => {}
             },
             Node::Const(DynConstPattern::Value(Constant::WideString(units))) => {
                 let n = units.len();

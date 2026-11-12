@@ -980,6 +980,7 @@ fn evaluate_with_context(
         walker.scopes.push(scope);
         functions.push(CoreFunction {
             source_scope: f.source_scope.clone(),
+            dyn_instance: f.dyn_instance.clone(),
             retained_return_sources: f.retained_return_sources.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
@@ -3424,6 +3425,7 @@ mod tests {
             unsupported: vec![],
             functions: vec![CoreFunction {
                 source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3485,6 +3487,11 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
             self_pattern: None,
             implemented_trait: None,
             id: declaration,
@@ -3545,6 +3552,8 @@ mod tests {
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
+self_life: None,
+implementation_witnesses: None,
             self_classes: vec![],
             id: vtable,
             interface,

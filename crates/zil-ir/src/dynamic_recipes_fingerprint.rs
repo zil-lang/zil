@@ -236,8 +236,8 @@ pub(super) fn encode_dyn_contract_recipe(b: &mut impl FingerprintSink, value: &D
     }
 }
 pub(super) fn encode_dyn_definition_id(b: &mut impl FingerprintSink, value: &DynDefinitionId) {
-    encode_u32(b, &value.module.0);
-    encode_u32(b, &value.source.0);
+    encode_u32(b, (&value.module).0);
+    encode_u32(b, (&value.source).0);
 }
 pub(super) fn encode_dyn_definition_scope(
     b: &mut impl FingerprintSink,
@@ -376,6 +376,157 @@ pub(super) fn encode_dyn_implementation_witness(
     encode_len(b, (&value.associated).len());
     for item in &value.associated {
         encode_dyn_associated_resolution(b, item);
+    }
+}
+pub(super) fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, value: &DynSelfPattern) {
+    encode_declaration_id(b, &value.declaration);
+    encode_len(b, (&value.arguments).len());
+    for item in &value.arguments {
+        encode_dyn_pattern_actual(b, item);
+    }
+}
+pub(super) fn encode_dyn_pattern_actual(b: &mut impl FingerprintSink, value: &DynPatternActual) {
+    match value {
+        DynPatternActual::Type(value_0) => {
+            b.push(0);
+            encode_dyn_type_pattern(b, value_0);
+        }
+        DynPatternActual::Const(value_0) => {
+            b.push(1);
+            encode_dyn_const_pattern(b, value_0);
+        }
+        DynPatternActual::Life(value_0) => {
+            b.push(2);
+            encode_dyn_life_pattern(b, value_0);
+        }
+    }
+}
+pub(super) fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, value: &DynConstPattern) {
+    match value {
+        DynConstPattern::Value(value_0) => {
+            b.push(0);
+            encode_constant(b, value_0);
+        }
+        DynConstPattern::Parameter(value_0) => {
+            b.push(1);
+            encode_u32(b, *value_0);
+        }
+        DynConstPattern::MethodParameter(value_0) => {
+            b.push(2);
+            encode_u32(b, *value_0);
+        }
+        DynConstPattern::Unary { op, value, ty } => {
+            b.push(3);
+            b.push(*op as u8);
+            encode_dyn_const_pattern(b, value);
+            encode_dyn_type_pattern(b, ty);
+        }
+        DynConstPattern::Binary {
+            op,
+            left,
+            right,
+            ty,
+        } => {
+            b.push(4);
+            b.push(*op as u8);
+            encode_dyn_const_pattern(b, left);
+            encode_dyn_const_pattern(b, right);
+            encode_dyn_type_pattern(b, ty);
+        }
+        DynConstPattern::Convert { value, ty } => {
+            b.push(5);
+            encode_dyn_const_pattern(b, value);
+            encode_dyn_type_pattern(b, ty);
+        }
+        DynConstPattern::AssociatedProjection {
+            receiver,
+            application,
+            member,
+        } => {
+            b.push(6);
+            encode_dyn_type_pattern(b, receiver);
+            encode_dyn_self_pattern(b, application);
+            encode_u32(b, *member);
+        }
+    }
+}
+pub(super) fn encode_dyn_type_pattern(b: &mut impl FingerprintSink, value: &DynTypePattern) {
+    match value {
+        DynTypePattern::Concrete(value_0) => {
+            b.push(0);
+            encode_type(b, value_0);
+        }
+        DynTypePattern::Parameter(value_0) => {
+            b.push(1);
+            encode_u32(b, *value_0);
+        }
+        DynTypePattern::Nominal(value_0) => {
+            b.push(2);
+            encode_dyn_self_pattern(b, value_0);
+        }
+        DynTypePattern::Address {
+            mutable,
+            lifetime,
+            inner,
+        } => {
+            b.push(3);
+            b.push(u8::from(*mutable));
+            b.push(u8::from((lifetime).is_some()));
+            if let Some(item) = lifetime {
+                encode_dyn_life_pattern(b, item);
+            }
+            encode_dyn_type_pattern(b, inner);
+        }
+        DynTypePattern::Tuple(value_0) => {
+            b.push(4);
+            encode_len(b, (value_0).len());
+            for item in value_0 {
+                encode_dyn_type_pattern(b, item);
+            }
+        }
+        DynTypePattern::Array { element, length } => {
+            b.push(5);
+            encode_dyn_type_pattern(b, element);
+            encode_dyn_const_pattern(b, length);
+        }
+        DynTypePattern::Slice(value_0) => {
+            b.push(6);
+            encode_dyn_type_pattern(b, value_0);
+        }
+        DynTypePattern::Managed(value_0) => {
+            b.push(7);
+            encode_dyn_type_pattern(b, value_0);
+        }
+        DynTypePattern::Desc(value_0) => {
+            b.push(8);
+            encode_dyn_type_pattern(b, value_0);
+        }
+        DynTypePattern::OwnedStore(value_0) => {
+            b.push(9);
+            encode_dyn_type_pattern(b, value_0);
+        }
+        DynTypePattern::ErrorUnion { error, result } => {
+            b.push(10);
+            encode_dyn_type_pattern(b, error);
+            encode_dyn_type_pattern(b, result);
+        }
+        DynTypePattern::SelfType => {
+            b.push(11);
+        }
+        DynTypePattern::MethodParameter(value_0) => {
+            b.push(12);
+            encode_u32(b, *value_0);
+        }
+        DynTypePattern::AssociatedProjection {
+            receiver,
+            application,
+            member,
+        } => {
+            b.push(13);
+            encode_dyn_type_pattern(b, receiver);
+            encode_dyn_self_pattern(b, application);
+            encode_u32(b, *member);
+        }
     }
 }
 pub(super) fn encode_storage_source_binding(

@@ -192,7 +192,7 @@ impl Work<'_, '_> {
                 }
                 Node::Actual(DynPatternActual::Type(t)) => queue.push((Node::Ty(t), depth + 1)),
                 Node::Actual(DynPatternActual::Const(c)) => queue.push((Node::Const(c), depth + 1)),
-                Node::Actual(DynPatternActual::LifeParameter(_)) => {}
+                Node::Actual(DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(_))) => {}
                 Node::Const(DynConstPattern::Value(v)) => self.constant(v)?,
                 Node::Const(_) => {}
                 Node::Ty(t) => match t {

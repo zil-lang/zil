@@ -52,10 +52,26 @@ pub enum DynPatternActual {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynConstPattern {
     MethodParameter(u32),
-    Unary { op: UnaryOp, value: Box<DynConstPattern>, ty: Box<DynTypePattern> },
-    Binary { op: BinaryOp, left: Box<DynConstPattern>, right: Box<DynConstPattern>, ty: Box<DynTypePattern> },
-    Convert { value: Box<DynConstPattern>, ty: Box<DynTypePattern> },
-    AssociatedProjection { receiver: Box<DynTypePattern>, application: Box<DynSelfPattern>, member: u32 },
+    Unary {
+        op: UnaryOp,
+        value: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<DynConstPattern>,
+        right: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    Convert {
+        value: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    AssociatedProjection {
+        receiver: Box<DynTypePattern>,
+        application: Box<DynSelfPattern>,
+        member: u32,
+    },
     Value(Constant),
     Parameter(u32),
 }

@@ -45,6 +45,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(result: Type) -> Self {
         Self(TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

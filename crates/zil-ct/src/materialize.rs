@@ -506,6 +506,7 @@ mod tests {
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
             source_scope: None,
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: None,

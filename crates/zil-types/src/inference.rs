@@ -732,6 +732,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                dyn_instance: function.dyn_instance.clone(),
                 retained_return_sources: function.retained_return_sources.clone(),
                 storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
@@ -908,6 +909,7 @@ pub(super) fn snapshot_context_function(
     }
     Ok(CoreFunction {
         source_scope: function.source_scope.clone(),
+        dyn_instance: function.dyn_instance.clone(),
         retained_return_sources: function.retained_return_sources.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
@@ -5739,6 +5741,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             }];
                             parameters.extend(arguments);
                             return Ok(Term::Method(Rc::new(Signature {
+                                dyn_instance: None,
                                 retained_return_sources: None,
                                 storage_life: None,
                                 life: None,

@@ -1291,6 +1291,7 @@ mod tests {
             generation_path: vec![],
         };
         let entry = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -1339,6 +1340,7 @@ mod tests {
             span: Span::default(),
         };
         let caller = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -1387,6 +1389,11 @@ mod tests {
         TypedModule {
             dyn_declarations: vec![
                 DynDeclaration {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
                     self_pattern: None,
                     implemented_trait: None,
                     id: trait_id,
@@ -1399,6 +1406,11 @@ mod tests {
                     }],
                 },
                 DynDeclaration {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
                     self_pattern: None,
                     implemented_trait: Some(DynSelfPattern {
                         declaration: trait_id,
@@ -1448,6 +1460,8 @@ mod tests {
                 }],
             }],
             dyn_vtables: vec![DynVtable {
+self_life: None,
+implementation_witnesses: None,
                 self_classes: vec![],
                 id: table_id,
                 interface: interface_id,

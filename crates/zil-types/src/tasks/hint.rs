@@ -303,6 +303,7 @@ mod hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
+            dyn_instance: None,
             retained_return_sources: None,
             result_mode: PassingMode::Infer,
             storage_life: None,
@@ -325,6 +326,7 @@ mod hint_budget {
     fn function() -> CoreFunction {
         CoreFunction {
             source_scope: None,
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: None,

@@ -94,6 +94,7 @@ impl materialize::Materializer<'_, '_> {
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
                 source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
