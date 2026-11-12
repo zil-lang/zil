@@ -5244,7 +5244,13 @@ fn windows(
                         if write {
                             store_paths::writable(permission, &solution.loans, b)?;
                         }
-                        checks.check(permission, write, requirements, b)?;
+                        checks.check(permission, write, requirements, b).map_err(|error| {
+                            let counts = |id: usize| solution.values.get(id)
+                                .map(|payload| (payload.address.sources.len(), payload.store_description.sources.len()));
+                            error.with_note(format!("actual head operand {}: address={}, description={}; closedStore={}, maskedTask={}, replacements={}; first SSA rows {:?}/{:?}",
+                                value.0, actual.address.sources.len(), actual.store_description.sources.len(),
+                                b.ordinary_closed_stores, b.masked_stored_tasks(), b.replacements, counts(0), counts(1)))
+                        })?;
                         store_paths::record(head_accesses, permission, write, b)?;
                     }
                 }
