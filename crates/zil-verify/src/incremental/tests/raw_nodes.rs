@@ -69,6 +69,8 @@ fn attempt<'a>(
         ),
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
+        previous_resource_inventory: session.resource_inventory.as_ref(),
+        next_resource_inventory: None,
         next: BTreeMap::new(),
         next_empty_borrows: BTreeMap::new(),
         next_shapes: session.shapes.clone(),
@@ -114,6 +116,8 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     assert_eq!(stats.raw_shape_functions_reused, 1);
     assert_eq!(stats.raw_inventory_functions_reused, 15);
     assert_eq!(stats.raw_inventory_functions_checked, 1);
+    assert_eq!(stats.resource_inventory_functions_checked, 1);
+    assert_eq!(stats.resource_inventory_functions_reused, 15);
     assert!(stats.raw_shape_ranges_reused < 15);
     assert_ne!(
         initial.fingerprint(),
@@ -376,4 +380,91 @@ fn complete_delta_includes_append_delete_and_reorder_with_unchanged_candidate_ro
         fresh
     );
     assert_eq!(session.stats().raw_result_modes_checked, 1);
+}
+
+#[test]
+fn resource_entry_aggregate_replays_exact_work_and_original_short_balance() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert!(session.resource_inventory.is_some());
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(module.clone()),
+        plan: Arc::new(plan),
+    };
+    let work: usize = module
+        .functions
+        .iter()
+        .map(|f| f.locals.len() + f.values.len())
+        .sum();
+    for available in [work, work - 1, 0] {
+        let mut fresh = raw_budget(&limits, module.functions.len());
+        fresh.remaining = available;
+        let expected = module.functions.iter().try_fold(false, |owns, f| {
+            resources::raw_function_owns(f, &mut fresh).map(|value| owns || value)
+        });
+        let mut warm = raw_budget(&limits, module.functions.len());
+        warm.remaining = available;
+        let mut call = attempt(&session, &current, &limits);
+        let actual = call.check_resource_ownership(current.module(), &mut warm);
+        assert_eq!(expected, actual);
+        assert_eq!(fresh.remaining, warm.remaining);
+        if available == work {
+            assert_eq!(call.stats.resource_inventory_functions_reused, 2);
+            assert_eq!(call.stats.resource_inventory_ranges_reused, 1);
+            assert_eq!(call.stats.resource_inventory_functions_checked, 0);
+        }
+    }
+}
+
+#[test]
+fn resource_entry_raw_ownership_change_is_not_authorized_by_shared_candidate() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let mut changed = module.clone();
+    changed.functions[0].locals[0].ty = Type::OwnedDyn {
+        interface: DynInterfaceId(0),
+    };
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(changed),
+        plan: Arc::new(plan),
+    };
+    // This tests the raw gate alone, not module admission of the absent dyn
+    // definition. In full verification the actual definition is still required.
+    let mut fresh = raw_budget(&limits, 2);
+    let expected = current
+        .module()
+        .functions
+        .iter()
+        .try_fold(false, |owns, f| {
+            resources::raw_function_owns(f, &mut fresh).map(|value| owns || value)
+        });
+    let mut warm = raw_budget(&limits, 2);
+    let mut call = attempt(&session, &current, &limits);
+    assert_eq!(
+        call.check_resource_ownership(current.module(), &mut warm),
+        expected
+    );
+    assert_eq!(expected, Ok(true));
+    assert_eq!(fresh.remaining, warm.remaining);
+    assert_eq!(call.stats.resource_inventory_functions_checked, 1);
+    assert_eq!(call.stats.resource_inventory_functions_reused, 1);
+    assert!(verify(&mut session, current.module(), current.plan(), &limits).is_err());
+    // A failed module request cannot publish the tentative true predicate.
+    let mut restored = attempt(
+        &session,
+        &VerifiedInputs::SharedModule {
+            module: Arc::new(module.clone()),
+            plan: Arc::new(session.verified.as_ref().unwrap().plan().clone()),
+        },
+        &limits,
+    );
+    assert_eq!(
+        restored.check_resource_ownership(&module, &mut raw_budget(&limits, 2)),
+        Ok(false)
+    );
+    assert_eq!(restored.stats.resource_inventory_functions_reused, 2);
 }

@@ -14,6 +14,7 @@
 use super::*;
 pub(super) mod inventory;
 mod raw_tree;
+mod resource_inventory;
 pub(super) mod shapes;
 
 #[cfg(test)]
@@ -40,6 +41,9 @@ pub struct VerifyStats {
     pub raw_shape_ranges_reused: usize,
     pub raw_result_modes_checked: usize,
     pub raw_result_modes_reused: usize,
+    pub resource_inventory_functions_checked: usize,
+    pub resource_inventory_functions_reused: usize,
+    pub resource_inventory_ranges_reused: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -52,6 +56,7 @@ pub struct VerifySession {
     shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     shape_tree: Option<Arc<raw_tree::Node>>,
+    resource_inventory: Option<Arc<resource_inventory::Node>>,
     stats: VerifyStats,
 }
 
@@ -144,6 +149,8 @@ impl VerifySession {
             delta: None,
             previous_shape_tree: self.shape_tree.as_ref(),
             next_shape_tree: None,
+            previous_resource_inventory: self.resource_inventory.as_ref(),
+            next_resource_inventory: None,
             next: BTreeMap::new(),
             next_empty_borrows: BTreeMap::new(),
             next_shapes: self.shapes.clone(),
@@ -168,6 +175,7 @@ impl VerifySession {
                 next_shapes,
                 next_inventory,
                 next_shape_tree,
+                next_resource_inventory,
                 ..
             } = attempt;
             self.flows = Arc::new(next);
@@ -175,6 +183,7 @@ impl VerifySession {
             self.shapes = next_shapes;
             self.inventory = next_inventory;
             self.shape_tree = next_shape_tree;
+            self.resource_inventory = next_resource_inventory;
             self.verified = Some(verified.clone());
         }
         result
@@ -299,6 +308,8 @@ pub(super) struct Attempt<'a> {
     previous_inputs: Option<&'a VerifiedModule>,
     delta: Option<RawDelta>,
     previous_shape_tree: Option<&'a Arc<raw_tree::Node>>,
+    previous_resource_inventory: Option<&'a Arc<resource_inventory::Node>>,
+    next_resource_inventory: Option<Arc<resource_inventory::Node>>,
     next_shape_tree: Option<Arc<raw_tree::Node>>,
     next: BTreeMap<FunctionId, Arc<FlowReceipt>>,
     next_empty_borrows: BTreeMap<FunctionId, borrows::EmptyContext>,

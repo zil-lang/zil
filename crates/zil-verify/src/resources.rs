@@ -3333,6 +3333,15 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
+    check_module_with_reuse(module, graphs, budget, None)
+}
+
+pub(super) fn check_module_with_reuse(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<()> {
     let sum_proofs = sums::check_module(module, graphs, budget)?;
     budget.spend(module.closures.len())?;
     if module.resources.is_empty() && !budget.sums {
@@ -3350,14 +3359,12 @@ pub(super) fn check_module(
                     )
                 });
         }
-        for function in &module.functions {
-            budget.spend(function.locals.len().saturating_add(function.values.len()))?;
-            owning_entry |= function
-                .locals
-                .iter()
-                .map(|l| &l.ty)
-                .chain(&function.values)
-                .any(|ty| arrays::is_owned_type(ty) || package_storage(ty).is_some() || matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. })));
+        if let Some(reuse) = reuse {
+            owning_entry |= reuse.check_resource_ownership(module, budget)?;
+        } else {
+            for function in &module.functions {
+                owning_entry |= raw_function_owns(function, budget)?;
+            }
         }
         if !owning_entry {
             return Ok(());
@@ -3458,4 +3465,17 @@ pub(super) fn assert_public_helper_effect_independence(
             );
         }
     }
+}
+
+/// Exact original owning-entry predicate and fee, independent of declarations,
+/// callees and graphs. A false result only selects the existing resource gate;
+/// it proves no initialized slot, live owner, release or callee effect.
+pub(super) fn raw_function_owns(function: &TypedFunction, budget: &mut Budget) -> Check<bool> {
+    budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+    Ok(function
+        .locals
+        .iter()
+        .map(|l| &l.ty)
+        .chain(&function.values)
+        .any(|ty| arrays::is_owned_type(ty) || package_storage(ty).is_some() || matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))))
 }

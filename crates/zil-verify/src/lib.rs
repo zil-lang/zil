@@ -996,7 +996,7 @@ fn check_module(
         } else {
             stored_flow::check(module, &graphs, plan, &mut budget)?;
         }
-        borrows::check_module_with_reuse(module, plan, &graphs, &mut budget, reuse)?
+        borrows::check_module_with_reuse(module, plan, &graphs, &mut budget, reuse.as_deref_mut())?
     } else if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
@@ -1012,11 +1012,15 @@ fn check_module(
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
         borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
     } else {
-        borrows::check_module_with_reuse(module, plan, &graphs, &mut budget, reuse)?
+        borrows::check_module_with_reuse(module, plan, &graphs, &mut budget, reuse.as_deref_mut())?
     };
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
-    resources::check_module(module, &graphs, &mut budget)?;
+    if let Some(attempt) = reuse.as_deref_mut() {
+        resources::check_module_with_reuse(module, &graphs, &mut budget, Some(attempt))?;
+    } else {
+        resources::check_module(module, &graphs, &mut budget)?;
+    }
     registration::check_phase(module, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,

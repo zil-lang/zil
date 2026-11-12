@@ -9,6 +9,8 @@ fn attempt(session: &VerifySession) -> Attempt<'_> {
         previous_inventory: &session.inventory,
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
+        previous_resource_inventory: session.resource_inventory.as_ref(),
+        next_resource_inventory: None,
         delta: None,
         previous_inputs: session.verified.as_ref(),
         next: BTreeMap::new(),
