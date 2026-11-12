@@ -16,6 +16,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include <dlfcn.h>
 #include <map>
+#include <mutex>
 #include <set>
 #include <utility>
 #include <vector>
@@ -23,6 +24,37 @@
 namespace zil {
 namespace {
 using ID = const void *;
+thread_local bool MachineDiagnostics = false;
+void diagnose(const llvm::Function &F, llvm::StringRef Stage,
+              llvm::StringRef Detail = {}) {
+  if (!MachineDiagnostics) return;
+  std::string Message;
+  llvm::raw_string_ostream OS(Message);
+  OS << "ZIL machine replay: function=";
+  OS.write_escaped(F.getName());
+  OS << " stage=" << Stage;
+  if (!Detail.empty()) { OS << " detail="; OS.write_escaped(Detail); }
+  OS << '\n';
+  static std::mutex Lock;
+  std::lock_guard<std::mutex> Guard(Lock);
+  llvm::errs() << Message;
+}
+void diagnoseDifference(const llvm::Function &F, llvm::StringRef Expected,
+                        llvm::StringRef Current) {
+  if (!MachineDiagnostics) return;
+  size_t At = 0;
+  while (At < Expected.size() && At < Current.size() && Expected[At] == Current[At]) ++At;
+  const size_t Start = At > 96 ? At - 96 : 0;
+  std::string Detail;
+  llvm::raw_string_ostream OS(Detail);
+  OS << "offset=" << At << " expected_bytes=" << Expected.size()
+     << " current_bytes=" << Current.size() << " expected_window=";
+  OS.write_escaped(Expected.substr(Start, 768));
+  OS << " current_window=";
+  OS.write_escaped(Current.substr(Start, 768));
+  diagnose(F, "mir-text-difference", Detail);
+}
+
 struct TargetInfoAPI {
   void *(*clone)(void *);
   int (*restore)(void *, const void *);
@@ -323,18 +355,35 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           // Required to initialize the YAML cursor. This header is empty;
           // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
           auto EmptyHeader = Parser->parseIRModule();
-          if (!EmptyHeader || Parser->parseMachineFunctions(R.module, MMI)) {
+          if (!EmptyHeader) {
+            diagnose(F, "parse-header");
+            R.fail();
+          } else if (Parser->parseMachineFunctions(R.module, MMI)) {
+            diagnose(F, "parse-machine");
             R.fail();
           } else {
             auto *MF = MMI.getMachineFunction(F);
-            if (!MF || !targetInfoAPI().restore(MF, C.replay->targetInfo.get())) {
+            if (!MF) {
+              diagnose(F, "missing-current-machine-function");
+              R.fail();
+            } else if (!targetInfoAPI().restore(MF, C.replay->targetInfo.get())) {
+              diagnose(F, "restore-target-info");
               R.fail();
             } else {
               MF->getProperties() = C.replay->properties;
-              if (!snapshotDomain(*MF) ||
-                  !MF->verify(nullptr, "ZIL current MIR replay", nullptr, false) ||
-                  machineText(MMI, *MF) != C.replay->mir)
+              if (!snapshotDomain(*MF)) {
+                diagnose(F, "restored-snapshot-domain");
                 R.fail();
+              } else if (!MF->verify(nullptr, "ZIL current MIR replay", nullptr, false)) {
+                diagnose(F, "current-machine-verifier");
+                R.fail();
+              } else {
+                auto CurrentText = machineText(MMI, *MF);
+                if (CurrentText != C.replay->mir) {
+                  diagnoseDifference(F, C.replay->mir, CurrentText);
+                  R.fail();
+                }
+              }
             }
           }
           if (!R.failed) {
@@ -348,8 +397,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
   }
   if (C.replay &&
       (C.position() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.position()] == describe(P, true))))
+       !(C.replay->sequence[C.position()] == describe(P, true)))) {
+    diagnose(F, "before-machine-pass-sequence", P.getPassName());
     R.fail();
+  }
   if (R.failed) {
     C.skipped = &P;
     return 1;
@@ -401,8 +452,10 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   auto Step = describe(P, Machine);
   if (C.replay &&
       (C.position() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.position()] == Step)))
+       !(C.replay->sequence[C.position()] == Step))) {
+    diagnose(F, "after-legacy-pass-sequence", P.getPassName());
     R.fail();
+  }
   if (C.replay) {
     ++C.replayPosition;
   } else {
@@ -451,3 +504,9 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
   return Next;
 }
 } // namespace zil
+
+extern "C" int ZilNativeProductsMachineDiagnostics(int Enabled) {
+  const bool Old = zil::MachineDiagnostics;
+  zil::MachineDiagnostics = Enabled != 0;
+  return Old;
+}
