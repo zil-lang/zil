@@ -950,8 +950,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           R.stats.mir_key_ns += elapsedNS(KeyStart);
           KeyRecorded = true;
           {
-            // Pause around restoration, then resume for the original parser and
-            // empty-header destruction, so parse/restore timings do not overlap.
+            // mir_parse_ns is combined reconstruction time: tiny MIR header
+            // parsing, typed current MI/MBB/use-chain construction, and the
+            // parser/header destruction. It is not pure YAML parsing time.
+            // Pause around restoration/validation so these scopes do not overlap.
             ScopedNS ParseTime(R.stats.mir_parse_ns);
             auto Parser = llvm::createMIRParser(
                 llvm::MemoryBuffer::getMemBufferCopy(C.replay->mirHeader, "zil-current-machine-header"),
