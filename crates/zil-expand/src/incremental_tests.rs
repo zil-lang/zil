@@ -524,7 +524,9 @@ fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
     assert!(lower.lowering_demand.work > 0 && lower.lowering_demand.nodes > 0);
     let mut entries = session.entries.clone();
     let mut stats = ProducerStats::default();
+    let mut scalar_inventory = None;
     let mut reuse = Reuse {
+        scalar_inventory: &mut scalar_inventory,
         prior_entries: &session.entries,
         item_reuse: false,
         entries: &mut entries,
@@ -1299,4 +1301,176 @@ fn body_revision_separates_placement_without_hiding_generated_names() {
         initial.change_batch().namespace_context(),
         current.change_batch().namespace_context()
     );
+}
+
+#[test]
+fn scalar_inventory_is_shared_by_actual_consumers_across_body_and_position_edits() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    let mut input = [
+        parsed(
+            0,
+            "pub fn first(x:i32)->i32=>x+1; fn sibling(x:i32)->i32=>x+2;",
+        ),
+        parsed(1, "fn second(x:i32)->i32=>x+3;"),
+    ];
+    let cold = checked(&mut session, &input, &limits);
+    let inventory = session.scalar_inventory.clone().unwrap();
+    for text in [
+        "pub fn first(x:i32)->i32=>x+9; fn sibling(x:i32)->i32=>x+2;",
+        "pub fn first(x:i32)->i32 {let alias=x;return alias;} fn sibling(x:i32)->i32=>x+2;",
+        "\n\n pub fn first(x:i32)->i32 {let alias=x;return alias;} fn sibling(x:i32)->i32=>x+2;",
+    ] {
+        input[0] = parsed(0, text);
+        let current = checked(&mut session, &input, &limits);
+        assert!(Arc::ptr_eq(
+            &inventory,
+            session.scalar_inventory.as_ref().unwrap()
+        ));
+        assert!(Arc::ptr_eq(
+            &cold.modules[1].0.core,
+            &current.modules[1].0.core
+        ));
+        assert!(Arc::ptr_eq(&cold.modules[1].1, &current.modules[1].1));
+    }
+    // Real current raw IDs and map positions were compared against fresh above.
+    // An actual declaration change replaces the table, even with identical body.
+    input[0] = parsed(
+        0,
+        "fn renamed(x:i32)->i32=>x+9; fn sibling(x:i32)->i32=>x+2;",
+    );
+    checked(&mut session, &input, &limits);
+    assert!(!Arc::ptr_eq(
+        &inventory,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
+}
+
+#[test]
+fn scalar_inventory_errors_do_not_publish_and_current_budget_keeps_first_error() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    let input = [parsed(
+        0,
+        "fn first(x:i32)->i32=>x+1; fn second(x:i32)->i32=>x+2;",
+    )];
+    checked(&mut session, &input, &limits);
+    let inventory = session.scalar_inventory.clone().unwrap();
+    for text in [
+        "fn first(x:i32)->i32=>x+1; fn first(x:i32)->i32=>x+2;",
+        "fn i32(x:i32)->i32=>x;",
+    ] {
+        let current = [parsed(0, text)];
+        assert_eq!(
+            expand(&mut session, &current, &limits).err().unwrap(),
+            fresh(&current, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(
+            &inventory,
+            session.scalar_inventory.as_ref().unwrap()
+        ));
+    }
+    // Distinct entry allowances are current ledgers, not input identities.
+    // Exercise exact total work N and N-1 with relocated current diagnostics.
+    let current = [parsed(
+        0,
+        "\n fn first(x:i32)->i32=>x+11; fn second(x:i32)->i32=>x+2;",
+    )];
+    let allowance = |work| Limits {
+        max_analysis_steps: work,
+        ..limits.clone()
+    };
+    let mut low = 0;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if fresh(&current, &allowance(mid)).is_ok() {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    assert!(low > 0);
+    for work in [0, 1, low / 2, low - 1] {
+        let actual = expand(&mut session, &current, &allowance(work))
+            .err()
+            .unwrap();
+        assert_eq!(
+            actual,
+            fresh(&current, &allowance(work)).unwrap_err(),
+            "work={work}"
+        );
+        assert!(Arc::ptr_eq(
+            &inventory,
+            session.scalar_inventory.as_ref().unwrap()
+        ));
+    }
+    checked(&mut session, &current, &allowance(low));
+    assert!(Arc::ptr_eq(
+        &inventory,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
+    checked(&mut session, &input, &limits);
+    assert!(Arc::ptr_eq(
+        &inventory,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
+}
+
+#[test]
+fn scalar_inventory_rebinds_real_import_positions_target_and_nonledger_limits() {
+    let mut session = ExpandSession::default();
+    checked_import_bindings(&mut session, &import_binding_inputs(""));
+    let old = session.scalar_inventory.clone().unwrap();
+    checked_import_bindings(&mut session, &import_binding_inputs("\n\n"));
+    assert!(!Arc::ptr_eq(
+        &old,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
+
+    let input = [parsed(0, "fn f(x:i32)->i32=>x+1;")];
+    let mut session = ExpandSession::default();
+    let limits = Limits::default();
+    checked(&mut session, &input, &limits);
+    let old = session.scalar_inventory.clone().unwrap();
+    let current_limits = Limits {
+        max_values: limits.max_values + 1,
+        ..limits
+    };
+    checked(&mut session, &input, &current_limits);
+    assert!(!Arc::ptr_eq(
+        &old,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
+    let old = session.scalar_inventory.clone().unwrap();
+    let mut target = TargetProfile::default();
+    target.checked_arithmetic = !target.checked_arithmetic;
+    let aliases = BTreeMap::new();
+    let current = session
+        .expand_parsed(
+            &input,
+            &[vec![]],
+            &current_limits,
+            &target,
+            source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .unwrap();
+    let sources = input.iter().map(ParsedSource::source).collect::<Vec<_>>();
+    let syntax = input.iter().map(|p| &p.parsed().module).collect::<Vec<_>>();
+    let raw =
+        expand_program_with_limits_target(&sources, &syntax, &[vec![]], &current_limits, &target)
+            .unwrap();
+    for ((module, map), (raw_module, raw_map)) in current.modules.iter().zip(raw) {
+        assert_eq!(module, &raw_module);
+        assert_eq!(map.as_ref(), &raw_map);
+    }
+    assert!(!Arc::ptr_eq(
+        &old,
+        session.scalar_inventory.as_ref().unwrap()
+    ));
 }
