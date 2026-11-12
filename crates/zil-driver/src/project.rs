@@ -3161,7 +3161,63 @@ pub fn main()->i32=>0",
                 assert_eq!(program(&session), program(&fresh));
             }
             if label == "positions" {
+                let producer = report.producer_work.as_ref().unwrap();
+                assert_eq!(producer.environment_imports_changed, 1);
+                assert_eq!(
+                    (
+                        producer.function_input_hashes,
+                        producer.function_input_reuses
+                    ),
+                    (0, 425)
+                );
+                assert_eq!(producer.function_input_text_comparisons, 425);
+                assert_eq!(producer.function_input_binding_hashes, 425);
+                assert_eq!(
+                    (producer.lower_modules, producer.reused_lower_modules),
+                    (22, 0)
+                );
+                assert_eq!(producer.retained_normalized_items, 0);
+                assert_eq!(producer.retained_restored_modules, 0);
+                let materializer = report.materialization_work.as_ref().unwrap();
+                assert_eq!(
+                    (materializer.executed_modules, materializer.reused_modules),
+                    (22, 0)
+                );
+                let legacy_options = CompileOptions {
+                    producer_reuse: false,
+                    semantic_cache: None,
+                    ..options.clone()
+                };
+                let mut fresh = CompilationSession::default();
+                let expected = fresh.compile_path(&path, &legacy_options);
+                assert_eq!(
+                    expected.status,
+                    ResultCategory::Success,
+                    "{}",
+                    expected.to_json()
+                );
+                assert_eq!(report.diagnostics, expected.diagnostics);
+                assert_eq!(report.source_files, expected.source_files);
+                let program = |session: &CompilationSession| {
+                    session
+                        .raw
+                        .values()
+                        .find_map(|raw| {
+                            if let RawSnapshot::ProjectTyped(owner) = raw
+                                && owner.module.source_fingerprint == report.input_fingerprint
+                            {
+                                Some(owner.program().clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap()
+                };
+                // Current locations, declarations and the full CFG equal a
+                // real fresh pipeline despite preserved relative input tokens.
+                assert_eq!(program(&session), program(&fresh));
                 let work = report.function_type_work.as_ref().unwrap();
+                assert_eq!((work.body_key_executions, work.body_key_reuses), (0, 421));
                 assert_eq!((work.executed_functions, work.reused_functions), (4, 421));
                 let publication = report.semantic_cache_publication.as_ref().unwrap();
                 assert_eq!(

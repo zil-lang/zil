@@ -197,6 +197,60 @@ impl Environment {
             && self.target == current.target
             && self.context == current.context
     }
+
+    // This narrower comparison preserves only parser-bound function INPUT
+    // evidence, never Normalize/Restore/materialization receipts or old output.
+    // Every current function is still freshly lowered and then checked against
+    // the real prior/current declaration bytes, IDs and file before a relative
+    // input revision can survive. Exhaustive matching makes new environment or
+    // import fields require an explicit decision here.
+    fn function_inputs_compatible(&self, current: &Self) -> bool {
+        let Self {
+            sources,
+            headers,
+            imports,
+            limits,
+            target,
+            context,
+        } = self;
+        sources == &current.sources
+            && headers == &current.headers
+            && same_limit_domain(limits, &current.limits)
+            && target == &current.target
+            && context == &current.context
+            && imports.len() == current.imports.len()
+            && imports
+                .iter()
+                .zip(&current.imports)
+                .all(|(prior, current)| {
+                    prior.len() == current.len()
+                        && prior.iter().zip(current).all(|(prior, current)| {
+                            let CoreImport {
+                                alias,
+                                module,
+                                span,
+                            } = prior;
+                            let CoreImport {
+                                alias: current_alias,
+                                module: current_module,
+                                span: current_span,
+                            } = current;
+                            let Span {
+                                file,
+                                start: _,
+                                end: _,
+                            } = span;
+                            let Span {
+                                file: current_file,
+                                start: _,
+                                end: _,
+                            } = current_span;
+                            alias == current_alias
+                                && module == current_module
+                                && file == current_file
+                        })
+                })
+    }
 }
 impl ProducerStats {
     fn environment_change(&mut self, previous: Option<&Environment>, current: &Environment) {
@@ -493,13 +547,19 @@ impl ExpandSession {
             .as_ref()
             .is_none_or(|previous| !previous.compatible(&environment))
         {
+            let preserve_function_inputs = self
+                .environment
+                .as_ref()
+                .is_some_and(|previous| previous.function_inputs_compatible(&environment));
             for entry in entries.values_mut() {
                 entry.receipts.clear();
                 entry.normalized.clear();
                 entry.restored = None;
                 entry.lower = None;
                 entry.revision = ModuleRevision(Arc::new(()));
-                entry.functions.clear();
+                if !preserve_function_inputs {
+                    entry.functions.clear();
+                }
             }
         }
         if let Some(start) = context_clock {

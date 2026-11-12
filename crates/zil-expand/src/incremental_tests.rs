@@ -856,3 +856,178 @@ fn rewritten_and_captured_inputs_cannot_mint_relative_scalar_versions() {
         );
     }
 }
+
+fn checked_import_bindings(
+    session: &mut ExpandSession,
+    inputs: &[ParsedSource],
+) -> ProducedProgram {
+    let imports = vec![
+        vec![CoreImport {
+            alias: "dep".into(),
+            module: ModuleId(1),
+            span: inputs[0].parsed().module.items[0].span,
+        }],
+        vec![],
+    ];
+    let aliases = BTreeMap::from([(vec!["dep".into()], ModuleId(1))]);
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let current = session
+        .expand_parsed(
+            inputs,
+            &imports,
+            &limits,
+            &target,
+            source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .unwrap();
+    let sources = inputs.iter().map(ParsedSource::source).collect::<Vec<_>>();
+    let syntax = inputs
+        .iter()
+        .map(|p| &p.parsed().module)
+        .collect::<Vec<_>>();
+    let fresh =
+        expand_program_with_limits_target(&sources, &syntax, &imports, &limits, &target).unwrap();
+    assert_eq!(current.modules.len(), fresh.len());
+    for ((module, map), (expected, expected_map)) in current.modules.iter().zip(fresh) {
+        assert_eq!(*module, expected);
+        assert_eq!(map.as_ref(), &expected_map);
+    }
+    current.into_program(ModuleId(0), Fingerprint::ZERO).0
+}
+
+fn import_binding_inputs(prefix: &str) -> [ParsedSource; 2] {
+    [
+        parsed(
+            0,
+            &format!(
+                "{prefix}import dep; fn caller(x:i32)->i32{{if x<10{{return dep.f(x);}}else{{return x*2;}}}}"
+            ),
+        ),
+        parsed(
+            1,
+            &format!("{prefix}pub fn f(x:i32)->i32{{if x<10{{return x+3;}}else{{return x*4;}}}}"),
+        ),
+    ]
+}
+
+#[test]
+fn moved_import_diagnostics_keep_only_exact_function_input_versions() {
+    let mut session = ExpandSession::default();
+    session.set_cost_profiling(true);
+    let cold = checked_import_bindings(&mut session, &import_binding_inputs(""));
+    let current = checked_import_bindings(
+        &mut session,
+        &import_binding_inputs("// current positions\n\n"),
+    );
+    for (module, name) in [(ModuleId(0), "caller"), (ModuleId(1), "f")] {
+        assert_eq!(
+            cold.function_input_revision(module, name),
+            current.function_input_revision(module, name)
+        );
+        assert_ne!(
+            cold.function_revision(module, name),
+            current.function_revision(module, name)
+        );
+        assert_ne!(
+            cold.function_source_fingerprint(module, name),
+            current.function_source_fingerprint(module, name)
+        );
+    }
+    let work = session.last_stats();
+    assert_eq!(work.environment_imports_changed, 1);
+    assert_eq!(
+        (work.function_input_hashes, work.function_input_reuses),
+        (0, 2)
+    );
+    assert_eq!(work.function_input_text_comparisons, 2);
+    assert_eq!(work.function_input_binding_hashes, 2);
+    // No old position-bearing producer output or stage receipt survives.
+    assert_eq!(
+        (
+            work.normalize_modules,
+            work.restore_modules,
+            work.lower_modules
+        ),
+        (2, 2, 2)
+    );
+    assert_eq!(work.reused_lower_modules, 0);
+    assert_eq!(work.retained_normalized_items, 0);
+    assert_eq!(work.retained_restored_modules, 0);
+}
+
+#[test]
+fn function_input_environment_rejects_every_nearby_import_identity_change() {
+    let mut session = ExpandSession::default();
+    checked_import_bindings(&mut session, &import_binding_inputs(""));
+    let previous = session.environment.clone().unwrap();
+    let mut relocated = previous.clone();
+    relocated.imports[0][0].span.start += 20;
+    relocated.imports[0][0].span.end += 20;
+    assert!(!previous.compatible(&relocated));
+    assert!(previous.function_inputs_compatible(&relocated));
+    let mut changes = Vec::new();
+    let mut current = relocated.clone();
+    current.imports[0][0].alias = "other".into();
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.imports[0][0].module = ModuleId(2);
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.imports[0][0].span.file = FileId(9);
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.imports[0].clear();
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.imports.push(vec![]);
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.sources[0].1 = FileId(9);
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.sources[1].0 = ModuleId(2);
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.sources[1].2.push_str(".renamed");
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.headers[0][1].public = true;
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.context.push_str(":changed");
+    changes.push(current);
+    let mut current = relocated.clone();
+    current.target.checked_arithmetic = !current.target.checked_arithmetic;
+    changes.push(current);
+    macro_rules! changed_limit {
+        ($($field:ident),+ $(,)?) => { $(
+            let mut current = relocated.clone();
+            current.limits.$field += 1;
+            changes.push(current);
+        )+ };
+    }
+    changed_limit!(
+        max_source_bytes,
+        max_tokens,
+        max_functions,
+        max_blocks,
+        max_instructions,
+        max_locals,
+        max_values,
+        max_ct_steps,
+        max_call_depth
+    );
+    for current in changes {
+        assert!(!previous.compatible(&current));
+        assert!(
+            !previous.function_inputs_compatible(&current),
+            "{current:?}"
+        );
+    }
+}
