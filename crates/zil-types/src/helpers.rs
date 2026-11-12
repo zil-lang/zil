@@ -1041,10 +1041,7 @@ impl Builder<'_, '_> {
             }
         }
         if owned_state {
-            let mut work = self.limits.max_analysis_steps;
-            retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
-            self.closures
-                .snapshot(self.limits.max_analysis_steps - work, span)?;
+            self.closures.factory_self_contained(closure, span)?;
         }
         let pending = self
             .closures

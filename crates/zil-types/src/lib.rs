@@ -713,6 +713,7 @@ pub fn check(
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
+    let deferred_closed = std::mem::take(&mut closure_state.deferred_closed);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -766,6 +767,8 @@ pub fn check(
     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
+    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)
