@@ -70,13 +70,13 @@ pub(super) fn closed(
 fn add(
     ty: &Type,
     base: StorageBase,
-    capture: bool,
     life: &mut StorageLifeContract,
     module: &TypedModule,
     left: &mut usize,
     span: Span,
     limits: &Limits,
 ) -> R<bool> {
+    let capture = matches!(base, StorageBase::Capture(_));
     let mut binder = || -> R<StorageBinder> {
         let count = if capture {
             &mut life.fixed_binder_count
@@ -199,7 +199,6 @@ pub(super) fn populate(
                 complete &= add(
                     ty,
                     StorageBase::Parameter(index as u32),
-                    false,
                     &mut life,
                     module,
                     left,
@@ -212,7 +211,6 @@ pub(super) fn populate(
                 complete &= add(
                     ty,
                     StorageBase::Capture(index as u32),
-                    true,
                     &mut life,
                     module,
                     left,

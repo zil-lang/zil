@@ -2162,11 +2162,11 @@ fn static_child_node<'a>(
             ty = storage;
             continue;
         }
-        if let Type::Address { inner, .. } = ty {
-            if matches!(inner.as_ref(), Type::Closure(_)) {
-                ty = inner;
-                continue;
-            }
+        if let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Closure(_))
+        {
+            ty = inner;
+            continue;
         }
         let Some((first, tail)) = path.split_first() else {
             return Ok(None);
