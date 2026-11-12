@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "source": {
+    "commit": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "tree": "820566e4f05b4f017dcaa50c496ba1cd0f2d296b",
+    "production_commit": "b5e9c8843e4c20bfe66d23de3cfc3c356aacc796",
+    "files": [
+      {
+        "path": "crates/zil-llvm-api/native/work_products.cpp",
+        "sha256": "3bcce0104a5c00802b97bb1b89d94ef87ebf9f481bf1f19346c905bd293cdee5",
+        "git_blob": "0189d65523f1d33f91ab8c16f62c99d60a2db383"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/work_products.h",
+        "sha256": "b0a32ae940de99a97c4c4625c1dec833849541907014fa71a54acd8ade761e72",
+        "git_blob": "5d11e023e6dcd613219b32be3e064b9df86e85f0"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.cpp",
+        "sha256": "e19b624b3147b1ad67d504eb91cc42ccc58eda4984d1a4aa8e8aa08f98fdebe2",
+        "git_blob": "058ae37dfe9e533ebab67ae929a3f71cbef76cd0"
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.h",
+        "sha256": "26b779791ec6130e774a79ea7732afa38c645ba426bb5e5001a0eba621c7634a",
+        "git_blob": "48c9b0f7dc7da6bc1a5f5085cf8651a42371b773"
+      },
+      {
+        "path": "crates/zil-llvm-api/src/native/products.rs",
+        "sha256": "20d69f8c2b8c5e2482df185d3c18a6cca9e3774bc0114bd030f6f3073039df7c",
+        "git_blob": "9854bfbea8082e608be97e1ee43af53baac0dd79"
+      },
+      {
+        "path": "tools/research/incremental-demand/push_counters.py",
+        "sha256": "18c080c9f70ee21ee980c8282492c2ce71bb0d3712e167e27fd28ea8a88fd80f",
+        "git_blob": "f1659e0c76d088d17bf9779876eac71d9d1505e6"
+      },
+      {
+        "path": "tools/research/incremental-demand/matched_validate.py",
+        "sha256": "693cac422c302d37142f26639924a5707c69c18e687a1fbf5d42f0e03dcd78f0",
+        "git_blob": "8942dead26f896fbb6c86c7d366193dabad5c140"
+      },
+      {
+        "path": "tools/research/incremental-demand/test_matched_tools.py",
+        "sha256": "c98c01ca9e566853e993934505aa380cd2068543181b4396cc9006e411896ac8",
+        "git_blob": "eb0a455b5e31862c01c26fe1ab65bf674385d90d"
+      }
+    ],
+    "reviewed_production_cpp_header_blobs_unchanged_from_b5": {
+      "crates/zil-llvm-api/native/work_products.cpp": true,
+      "crates/zil-llvm-api/native/work_products.h": true,
+      "crates/zil-llvm-api/native/analysis_facts.cpp": true,
+      "crates/zil-llvm-api/native/analysis_facts.h": true
+    },
+    "test_timing": "Root native16 ran at b5 plus the two then-uncommitted Rust wrapper tests; bd commits those wrappers and docs afterwards. Do not represent native16 as an execution at HEAD bd. Final wrapper bindings and mandatory assertions were independently reviewed; named60-test log includes both."
+  },
+  "reviewer": "/root/audit; non-author of the reviewed stage deltas and tool delta3913. Earlier tool code6eb was authored by reviewer, so this is independent review of3913 only, not a claim of non-author review of the entire tool suite.",
+  "method": "Exact source/diff review and root raw-log inspection; one independent lightweight Python CargoCommandTests run. No Cargo/C++ compilation or compiler measurement.",
+  "verdict": {
+    "stage_scope": "accepted bounded source correctness checkpoint",
+    "tool_3913_scope": "accepted for current archived direct/symlink-resolved pinned-tool protocol; broader launcher forms explicitly limited",
+    "new_confirmed_production_blockers": [],
+    "whole_task": "in progress; no fullworkspace/425/current net speed acceptance"
+  },
+  "early_unknown_rejection": {
+    "proof": "The exact existing supportedAnalysisKeys allowlist is extracted and called both by original full analysisFacts and by stage admission before CFG/caller/name/world construction. Unknown entry declines optional reuse and original PM runs; unknown exit declines publication. Diagnostic-only tokens remain request-owned and are cleaned; actual original stage execution counters remain. No supported analysis field/domain is removed or widened.",
+    "negative": "Fresh FAM with no registered analyses plus unknown-tail/prefix exercises fail-before-result-touch and clears partial facts/state. This test is linked by a strict Rust assert1 and passes in root native16."
+  },
+  "unchanged_result_consumer": {
+    "capture": "Only exact current full functionText output==stored actual entry input, alongside already matched complete current world and supported entry/exit facts, sets BodyUnchanged. Current verifyFunction is retained cold. No bitcode snapshot, duplicate OutputText, old declaration map or BB transport payload is retained for that product.",
+    "hit": "beforeStage still matches full current input/world/pipeline occurrence/config/ordered entry keys+actual facts against the immutable prior product. verifyFunction(current) runs warm. Existing current Function, Values, use lists, hidden BB/VST state stay physically owned by this invocation; no old function owner is restored.",
+    "analysis_identity": "Only when the retained EntryKeys==ExitKeys and EntryFacts==ExitFacts, with the actual current entry matched immediately beforehand, are current analyses kept. No reliance on PA::all alone or analysis names. Actual current references/owners and supported mutable values stay intact.",
+    "analysis_transition": "Differing supported exit state uses original current registration checks, FAM.clear on the current function, current factories in exact order, sealed lazy-bit/DFS restore and complete actual exit facts equality. Corrupted exit facts reject even though function body is equal. Old PA is still returned through original PM invalidation/aggregation; supported state/quality checks are not dropped.",
+    "changed_body_path": "Existing bitcode/current clone, intrinsic declaration binding, output/hidden-state restoration and exact function/facts comparison remain. Complete native pre/post LLVMVerify and final object emission checks continue.",
+    "negative_and_identity_tests": "Actual RequireAnalysisPass<DominatorTreeAnalysis> introduces a current analysis without changing body, requires reconstruction; following exact identity retains the current DT object without reconstruction; current Arg/BB/terminator pointer identities stay exact; hidden name counter mutation changes key; corrupted exit facts fail. Strict wrappers keep all assertions."
+  },
+  "3913_tool_review": {
+    "problem": "Formal runner resolves requested logical cargo/rustc through bind_tool then invokes actual_path, while the older validator compared Cargo argv against the original logical string.",
+    "proof": "Validator now obtains actual path from archived successful resolution and actual -vV command receipts, verifies exact argv, exit0/not timed-out and raw stdout/stderr hashes, requested metadata, absolute/no-parent/NUL paths,64hex initial hashes and actual end hashes. Proxy resolution stdout must equal actual path. Actual Cargo argv is compared byte-for-byte with complete protocol using that exact actual_path; no argv0 wildcard or extra option accepted. Rustc resolution/version is checked too. Archive validation does not require original executables to remain on the recovery host.",
+    "independent_test": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_matched_tools.CargoCommandTests",
+      "working_directory": "tools/research/incremental-demand",
+      "passed": 3,
+      "failed": 0,
+      "duration_seconds": 0.025,
+      "scope": "Synthetic archive direct/proxy resolution, exactargv negative replacements/options and malformed/missing metadata/evidence; no compiler invocation."
+    },
+    "limitation": "Runner bind_tool may execute rustup_path while recording a different hardlink launcher_path, or canonicalize a symlink resolution stdout to a different actual path. The strict validator can false-reject those generalized launcher forms. Current pinned direct/symlink-to-rustup archives do not use that form; root explicitly defers broadening until a real fixture is needed. This is not an authorization to accept arbitrary launcher argv."
+  },
+  "root_validation": {
+    "logs": [
+      {
+        "name": "native-products-full-tests-16",
+        "executed_by": "root",
+        "log": {
+          "path": "out/runs/native-products-full-tests-16.log",
+          "sha256": "a5fea472b33b23723ea68f3756315cff6ab1d6505291584ec9313729bd249982",
+          "bytes": 68071
+        },
+        "summaries": [
+          "test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-16.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "full-push-native-clippy-04",
+        "executed_by": "root",
+        "log": {
+          "path": "out/runs/full-push-native-clippy-04.log",
+          "sha256": "e0367bdedff23feff51add75f790b54933998252453cac32c79ddf162162ab84",
+          "bytes": 445
+        },
+        "summaries": [],
+        "exit": {
+          "path": "out/runs/full-push-native-clippy-04.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      }
+    ],
+    "native16": {
+      "passed": 60,
+      "failed": 0,
+      "ignored": 0,
+      "new_tests_included": [
+        "unsupported_analysis_keys_reject_before_touching_any_results",
+        "unchanged_stage_keeps_body_owners_and_validates_current_analysis_exit"
+      ]
+    },
+    "strict_clippy": "native-clippy04 explicit exit0 read; exact strict command/features scope root-reported, not printed in raw log.",
+    "runtime_scope": "Complex fixture warm remains4 optimizer reuses/14 executions,26 analysis reconstructions,2MFreuses/250skips,0fallback; it still reports23540 replay bytes. Do not infer that this particular default fixture already benefits from BodyUnchanged from the60-test count. New C++ test exercises a real RequireDT stage; real425 cost evidence remains pending.",
+    "not_claimed": "Native16 is not a fresh full workspace gate and not an original-SDK independent final executable quality matrix."
+  },
+  "future_acceptance": [
+    "Use frozen bd binary/SDK receipts for actual425 stages/history and original-SDK quality oracles, retaining cold/broad negatives.",
+    "Measure eliminated snapshot/reconstruction work and total optimize/emission/wall; no hit-count-only speed claim.",
+    "Unknown analyses stay fresh. Module/CGSCC/full current preflight/LLVMVerify and original AsmPrinter/MC/link checks remain."
+  ],
+  "prior_receipts_preserved": [
+    "/tmp/full-push-sdk15-compact-review-addendum.json",
+    "/tmp/full-push-local-use-order-finding.json",
+    "/tmp/full-push-local-use-order-review-addendum.json"
+  ]
+}

@@ -6703,5 +6703,16 @@
     "tracked_Rust_reproducer_sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
     "archive": "out/evidence-archives/incremental-demand-final/evidence.tar.gz",
     "archive_manifest": "out/evidence-archives/incremental-demand-final/MANIFEST.json"
+  },
+  "latest_full_push_checkpoint": {
+    "compiler": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "measured_compiler": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "actual_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+    "full_results": "full-push-matched-433-raw-review.json",
+    "panorama": "full-push-panorama.md",
+    "status": "in_progress_not_complete_not_globally_faster_than_Rust",
+    "latest_compiler_verification": "native60_pass_strict_native_workspace_clippy_pass_tools38_pass_release06_pass_final_default_workspace_pending",
+    "raw_recovery": "full-push-recovery-v8.json; newer v9 archival in progress",
+    "historical_identity_above_is_not_current": true
   }
 }

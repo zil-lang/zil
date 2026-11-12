@@ -1,6 +1,6 @@
 # 增量编译：main 与 Rust 对照
 
-> **当前施工线：完整 push 与 LLVM 优化/发射增量**，分支 `research/full-push-native`，当前编译器检查点 `2f9ada6193401865043386be00b115eb8db81490`，实际 main 基线 `42f0396f36b2a36860ecb55371d436e4327877a4`。以下 900 的性能结果属于上一冻结版本，不能转记为新版本收益。新版本已接入实际 Types/Analyze/独立 Verify/Lower 消费者、持久函数表、增量发布及 LLVM 优化阶段/MIR 回放；`--push-reuse` 和 `native-products` 默认关闭。当前 425 函数 driver 历史控制 3 项、LLVM 接口 50 项、Types 91 项、Analyze 294 项通过；不同运行覆盖有重叠，不累加。LLVM v6 的实际首域回放已通过小型对象质量控制，但新识别的基本块编号/世代绑定缺口正在修复，不能称通用正确性或完整 LLVM 增量化验收。新 425 原生剖析、同参三方矩阵和完整 workspace 分组门待完成。完整测试两次因链接磁盘耗尽失败，原始日志保留；不以基础设施失败冒充通过。接续记录见 [.task/full-push-native.md](../../../.task/full-push-native.md)。
+> **当前施工线：完整 push 与 LLVM 优化/发射增量**，分支 `research/full-push-native`，新编译器检查点 `bd39660f2257f7deac093131ced8481a4d0b8a08`，main 实核 `42f0396f36b2a36860ecb55371d436e4327877a4`。完整六轮三方 check/O2 对照已在冻结源码433完成，见 [全部结果和边界](full-push-matched-433-raw-review.md)。O2 私有修改候选641ms/Rust704ms，多处898/970；冷编译、无修改、广泛修改、恢复仍落后，未实现整体拉开差距。双方请求CGU16/O2/jobs1，实际分区不同；ZIL resident与Cargo新进程、LLVM版本及检查保证不同。完整ELF逐字节相同；LLVM只允许严格第二行身份指纹注释值不同，其余完整字节相同。新删除性切片的native60/0/0、strict Clippy和工具38项通过，release06成功；真实负载净成本和最终默认完整workspace待验。全景、剩余冗余及实际消费者见 [全景审核](full-push-panorama.md)，[非作者复核](full-push-stable-stage-review.json)。研究开关默认关闭，未合main。原始证据v8已远端恢复核验；SDK14/15与新formal原始证据的v9归档正在进行。下文旧版本结果均保留为历史，不能转记为当前收益。
 
 > 最新冻结编译器 `900293cfd8afcd7118775e8165e1ec4f5266e3d7` 已完成真实私有编辑→CFG→Analyze→独立 Verify→机器 IR→CGU/对象→最终可执行文件的增量消费者接入。源码分支 `research/incremental-demand-continuation`，研究开关仍默认关闭，未合入 main。这里是限定域的实际全流程进展，中央 ReactiveGraph 仍只调度 BodyKey，全局工作和保守回退尚未消除。
 >
