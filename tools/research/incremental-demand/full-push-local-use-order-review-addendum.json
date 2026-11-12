@@ -1,0 +1,170 @@
+{
+  "schema": 1,
+  "reviewer": "non-author /root/audit",
+  "source_commit": "bcd08e699ecac93180ab1027ac1c47279e496acf",
+  "tree": "2230d6f6b84ae4cf6f4ca2344f96a602da3bec40",
+  "source_files": [
+    {
+      "path": "crates/zil-llvm-api/native/work_products.cpp",
+      "bytes": 38633,
+      "sha256": "6e71bd038e569c62136a05aae8ccf1cfa3b43a2f0caa162fb12e32a0fdcdbf3b"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/machine_products.cpp",
+      "bytes": 57790,
+      "sha256": "0b804949980b6cb9f74ccff5a3c189ce96ba234223455a2caf3560630f5a796b"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/llvm-function-products.patch",
+      "bytes": 28696,
+      "sha256": "42c1228120ab79eddacce32e55513e85824e65aa549cd340b607932c89f5bcab"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/llvm-function-products.json",
+      "bytes": 5793,
+      "sha256": "636d571bb08179e058ab625f652a374bd978ad3aa267516041231caa928303e5"
+    },
+    {
+      "path": "crates/zil-llvm-api/src/native/products.rs",
+      "bytes": 19153,
+      "sha256": "f3d1b42f2fa9e1c17c4e15940bb421295d2bb88f5536c433b3980c83ee027452"
+    }
+  ],
+  "prior_receipts_retained": [
+    {
+      "path": "/tmp/full-push-local-use-order-finding.json",
+      "sha256": "c4f35f78281aba4e3eb93d4fc4d985e387144a1e58b8a4146ba0c053afe5ee48"
+    },
+    {
+      "path": "/tmp/full-push-panorama-review.json",
+      "sha256": "fb85ec9e849aca7c74c570c47613b844a696e8e669edfa83cc7a809057c90ecc"
+    },
+    {
+      "path": "/tmp/full-push-typed-machine-pre-review.json",
+      "sha256": "1f9cd2bfdefc31232ec019a0e314391c976801b9a49a6ab6844d9632600b4e40"
+    }
+  ],
+  "method": "Read exact frozen new functions/diff and callers, fixed LLVM7a source and existing raw logs; only explicit small file hashes. No compiler/build/tests/benchmarks executed by reviewer.",
+  "verdict": {
+    "F12": "closed in this explicit admitted input projection",
+    "typed_machine_raw_probability": "accepted bounded exact raw projection, replacing previous effective-probability quotient",
+    "new_confirmed_blockers": [],
+    "scope": "Local owned-use input/output binding, unrepresentable incoming caller rejection, raw successor probability helper/typed capture/restore; does not constitute general LLVM state proof or completion of whole push/MC/link work.",
+    "whole_task": "still in progress; no speedup/full425 acceptance from these tests"
+  },
+  "F12_closure": {
+    "owned_sequence": "Stable IDs are assigned in complete current argument, BB, instruction layout order. The projection has total value count and per-value use count followed by ordered userID/operandNo pairs, distinguishing empty lists, boundaries and order without addresses. Counts are range-checked. Foreign/non-instruction users reject projection.",
+    "subject": "eligibleFunction requires valid actual naming map and owned sequence. FunctionText appends the binary resident sequence; subject entry/output compare both carry it. Existing local-use restoration from bitcode/current clone remains and output comparison now checks the restored actual sequence.",
+    "caller": "Every actual direct caller must belong to current module, have valid current naming state and pass the same owned-sequence schema before the subject is admitted. Unrepresentable caller cannot produce an accepted shared empty functionText key. Header/world and explicit subject incoming-use order remain separately bound.",
+    "hidden_blockaddress": "Every owned BB explicitly rejects hasAddressTaken. In LLVM23 BlockAddress stores a private BB pointer and zero Use operands, so ordinary owned-use traversal alone is insufficient. The new gate applies equally to subject and caller; test preserves the initial admissible caller then rejects both distinct hidden-address callers.",
+    "machine_input": "MIR inputDomain uses the same eligibleFunction; machine input/current capture uses the same functionText. Thus the same local-use omission is closed on that actual native-consumer path.",
+    "counterexample": "Root full12 runs the genuine reversed-use-order example: official Function::print(true) stays equal, new key differs, reversing back restores exact key. Caller hidden-address rejection test also passes. This is dependency differentiation, not a claimed end-to-end executable divergence experiment.",
+    "historical_failure": "Full11 54 pass/1 fail is retained. Its negative expected BlockAddress to appear in BB.uses; new explicit hasAddressTaken gate fixes the production omission and the unchanged strict expected-success assertion passes in full12."
+  },
+  "raw_probability_closure": {
+    "helper": "Same fixed DSO pure const getter checks requested Count==private Probs.size and non-null output for nonzero count before any write. It copies exact uint32 numerator values including UnknownN, no normalization/query mutation and no layout/vtable change. Null IR and wrong count reject without partial output writes.",
+    "consumer": "Typed capture stores has-probabilities separately and requests the exact raw vector size; restores ordered successors using BranchProbability::getRaw and addSuccessor, or addSuccessorWithoutProb for absent vector. Actual typed recapture re-reads the exact raw vector and compares full body state.",
+    "tests": "Existing typed scratch mask now includes single unknown edge whose effective answer is one yet raw sentinel must survive, successor-with-empty-probability-vector, and null/wrong-count output sentinel preservation. Original ownership/reconstruction/flags/ties/masks and full MIR equality/verifier remain.",
+    "remaining": "No fallback to an effective-only quotient; absent helper makes capture ineligible. Optional cache limits are logical payload bounds, not RSS."
+  },
+  "timer_scope_resolution": "Current machine_products.cpp explicitly documents mir_parse_ns as combined tiny-header parsing + typed MI/MBB/use-chain reconstruction + parser/header destruction. It remains separate from subsequent restore/validate scope; no pure-YAML comparison or net speed claim is made.",
+  "sdk": {
+    "path": "/workspace/.zil-environment/llvm-function-products-v14/build-receipt.json",
+    "sha256": "9d4128269d423f622f517f1f3138f4dae34a877172bd44131be641f3be203147",
+    "status": "Pass",
+    "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "patch_sha256": "42c1228120ab79eddacce32e55513e85824e65aa549cd340b607932c89f5bcab",
+    "hook_header_sha256": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9",
+    "library_from_receipt_not_rehashed": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v14/lib/libLLVM.so.23.1",
+      "sha256": "e0ad6d46d3af9515eaa48e7b5d77d340d1172503a73aaa01b8ee1b947c31af9d"
+    }
+  },
+  "root_executed_validation": {
+    "logs": [
+      {
+        "log": {
+          "path": "out/runs/native-products-full-tests-11.log",
+          "sha256": "c01d9de4214dfe06f62d08f1183959aae656336936c71cc19a1cfb173326d9a0",
+          "bytes": 67259
+        },
+        "summaries": [
+          "test result: FAILED. 54 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-11.exit",
+          "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+          "bytes": 4
+        },
+        "exit_code": 101
+      },
+      {
+        "log": {
+          "path": "out/runs/native-products-full-tests-12.log",
+          "sha256": "7ebf24e51b63b17e442d90cc7f145b23da2a6c101817fcd9c5a4fa44d06ee4b7",
+          "bytes": 66741
+        },
+        "summaries": [
+          "test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.45s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-12.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      }
+    ],
+    "latest_passed": 55,
+    "failed": 0,
+    "ignored": 0,
+    "complex_fixture_warm": {
+      "optimizer_stages_reused": 4,
+      "optimizer_stages_executed": 14,
+      "module_passes_executed": 33,
+      "cgscc_passes_executed": 16,
+      "analysis_reconstructions": 26,
+      "machine_functions_reused": 2,
+      "machine_functions_executed": 0,
+      "machine_pass_skips": 250,
+      "asm_printer_runs": 2,
+      "failed_replays": 0,
+      "fresh_context_fallbacks": 0
+    },
+    "oracle": "Unchanged complex cold/warm/ordinary complete object equality assertions and required nonzero native work counters. Ordinary reference uses this same patched DSO hooks disabled; not independent original SDK evidence.",
+    "performance_limit": "Scratch/fixture log times do not demonstrate end-to-end benefit. Current real425 profile and balanced matrix, cold/broad behavior and strict/full integrated gates remain separate."
+  },
+  "official_original_proof": [
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/lib/IR/AsmWriter.cpp",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/AsmWriter.cpp",
+      "local_file": "/tmp/llvm7a-audit-f12-AsmWriter.cpp",
+      "sha256": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
+      "bytes": 183128,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    },
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/lib/Transforms/InstCombine/InstructionCombining.cpp",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/InstCombine/InstructionCombining.cpp",
+      "local_file": "/tmp/llvm7a-audit-f12-InstructionCombining.cpp",
+      "sha256": "9df7af07a0cf705ad952e6364103103157e46870253e33bad437e38295da076e",
+      "bytes": 249354,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    },
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/include/llvm/Transforms/Utils/InstructionWorklist.h",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Transforms/Utils/InstructionWorklist.h",
+      "local_file": "/tmp/llvm7a-audit-f12-InstructionWorklist.h",
+      "sha256": "5242e37af036e5942acb2a665a77039d29cda8e28bc7b1c703b1faa11662bbe4",
+      "bytes": 4140,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    }
+  ],
+  "next": "Continue already-authorized measured cost reductions and actual-consumer propagation. Do not weaken current keys/quality checks to improve hit counts."
+}

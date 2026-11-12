@@ -64,6 +64,10 @@ NATIVE_WORK_SCOPE = (
     'Reuse in a discarded attempt is not work avoided by final compilation. '
     'Native receipt phase/total times and request wall include the full native fallback; '
     'request wall also includes all driver retries. MIR timers are scopes, not a partition of native total.'
+    ' In typed-body sources, mir_parse_ns includes tiny-header parsing, current typed MI/MBB/use-chain '
+    'construction and parser/header destruction; it is not pure YAML parsing. '
+    'mir_restore_validate_ns includes target/number/block state, typed recapture equality, domain, '
+    'MachineVerifier and full MIR equality. Compare timer definitions at each pinned compiler source.'
 )
 
 

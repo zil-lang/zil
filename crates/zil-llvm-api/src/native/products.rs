@@ -359,6 +359,7 @@ mod enabled {
 
         #[test]
         fn unmappable_incoming_caller_never_authorizes_callee_reuse() {
+            let _diagnostics = analysis_diagnostics_for_test();
             // SAFETY: the independent C++ fixture retains every LLVM owner
             // locally and returns only its complete counterexample outcome.
             let result = unsafe { ZilNativeProductsIncomingCallerCounterexample() };
