@@ -122,6 +122,10 @@ mod enabled {
         fn ZilNativeProductsMachineTypedBodyTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineFrameTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineFrameObservationResults() -> u32;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -177,6 +181,14 @@ mod enabled {
     // path is excluded. Remaining registers/frame indexes, scalars and value-only
     // containers are deeply copied; no LLVM Module/Context/Value/MachineInstr,
     // analysis result, MachineFunction or request/TLS owner crosses requests.
+    // Frame products own a complete MachineFrameInfo value assignment. Every
+    // StackObject Alloca is null; retained Save/Restore maps are cleared and
+    // production admits only final post-PEI empty maps. Owner-map scratch values
+    // retain only block ordinals and scalar CalleeSavedInfo. MMO values remove
+    // their PSV pointer and reject all IR/metadata owners; replay allocates them
+    // using current Stack/FixedStack PSV and the complete original FI table.
+    // CFI variants are deeply copied only with all labels/source locations null.
+    // No historical BB, MI or MCContext pointer survives these value products.
     // Restore reads this snapshot into a *current* MachineFunction; concurrent prior
     // readers do not mutate it. Arc keeps the independently owned snapshot alive
     // through every reader and the final DSO disposer releases it exactly once.
@@ -323,6 +335,14 @@ mod enabled {
             // SAFETY: same-thread read of explicit scratch checks after LLVM
             // returned. The mask contains no native owner or reuse authority.
             unsafe { ZilNativeProductsMachineTypedBodyTestResults() }
+        }
+        pub(crate) fn frame_results(&self) -> u32 {
+            // SAFETY: same-thread read of the completed scratch-only mask.
+            unsafe { ZilNativeProductsMachineFrameTestResults() }
+        }
+        pub(crate) fn frame_observations(&self) -> u32 {
+            // SAFETY: an observation mask contains no foreign owner or authority.
+            unsafe { ZilNativeProductsMachineFrameObservationResults() }
         }
     }
     #[cfg(test)]

@@ -61,7 +61,19 @@ fn products(
 }
 
 fn exercise(source: &str) {
+    let scope = products::machine_numbering_tests_for_test();
     let (cold, prior, cold_work) = products(source, None);
+    assert_eq!(
+        scope.frame_results(),
+        255,
+        "all complete-frame owner and rejection checks must execute"
+    );
+    let required = 1 | 4 | 8 | if source.contains(" uwtable {") { 2 } else { 0 };
+    assert_eq!(
+        scope.frame_observations() & required,
+        required,
+        "the actual AsmPrinter entry must observe frame objects, MMOs, saved registers and requested CFI"
+    );
     assert_eq!(cold_work.machine_function_executions, 2);
     assert_eq!(cold_work.machine_function_reuses, 0);
     assert!(cold_work.mir_snapshot_bytes > 0);
