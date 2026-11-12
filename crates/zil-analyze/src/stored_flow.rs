@@ -469,6 +469,9 @@ pub(super) struct Facts {
     pointer_values: Vec<Vec<HoldRoot>>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
+    // Actual external leaves of returned concrete environments. Each row
+    // keeps its original targets; caller substitution retains actual loans.
+    returned_environment: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
@@ -711,6 +714,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         f.values
             .len()
             .saturating_add(f.returned.len())
+            .saturating_add(f.returned_environment.len())
             .saturating_add(f.external_after.len())
             .saturating_add(f.apart.len()),
     )?;
@@ -747,7 +751,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             }
         }
     }
-    for (path, row) in &f.returned {
+    for (path, row) in f.returned.iter().chain(&f.returned_environment) {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
@@ -1547,7 +1551,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         byte_companion |= byte_queries::description(&f.locals[p.0 as usize].ty);
     }
-    if super::stored_callables::fixed_value(module, &f.return_type) {
+    if super::stored_callables::fixed_value(module, &f.return_type)
+        && f.callable_return_contract.is_none()
+    {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "captured Fixed environment escape needs its retained result target transfer",
@@ -1690,9 +1696,14 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         super::signature_life::function_relation
     };
+    let result = if f.callable_return_contract.is_some() {
+        &Type::Unit
+    } else {
+        &f.return_type
+    };
     check(
         &parameters,
-        &f.return_type,
+        result,
         c,
         f.callable_contract.is_some(),
         &module.closures,
@@ -2126,6 +2137,28 @@ fn environment_path(
     path.extend_from_slice(leaf);
     Ok(path)
 }
+fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if super::stored_callables::fixed_value(module, ty) {
+        return Ok(true);
+    }
+    if b.returned_borrowed_environments.is_empty() {
+        return Ok(false);
+    }
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    b.lookup(
+        b.returned_borrowed_environments.len(),
+        "actual returned environment identity lookup",
+    )?;
+    Ok(b.returned_borrowed_environments.contains(id))
+}
+
 fn seed_environment(
     module: &TypedModule,
     ty: &Type,
@@ -2144,7 +2177,7 @@ fn seed_environment(
         .closures
         .get(id.0 as usize)
         .ok_or_else(|| failure("environment parameter definition absent"))?;
-    if d.storage_life.is_none() {
+    if d.storage_life.is_none() && !b.returned_borrowed_environments.contains(id) {
         return Ok(());
     }
     fee(b, d.captures.len())?;
@@ -2371,7 +2404,7 @@ fn seed(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && d.storage_life.is_some()
+        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
@@ -2801,7 +2834,7 @@ fn transfer(
                     f.locals[local.0 as usize].ty,
                     Type::Address { mutable: true, .. }
                 )
-                || super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+                || environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || (b.stored_enum_addresses
                     && enum_address::signature(&f.locals[local.0 as usize].ty))
@@ -2892,7 +2925,7 @@ fn transfer(
                 place: Vec::new(),
                 heap_element: None,
             });
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)? {
                 ordered(b, state.locals.len(), 0)?;
                 if let Some(held) = state.locals.get(local) {
                     environment_merge(&mut out, held, b)?;
@@ -3226,6 +3259,18 @@ fn transfer(
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             task_address::call(summary, arguments, values, state, &mut out, b)?;
+            for (path, sources) in &summary.returned_environment {
+                let mut permission = Permission::default();
+                for source in sources {
+                    union(
+                        &mut permission,
+                        &substitute(source, arguments, values, state, b)?,
+                        b,
+                    )?;
+                }
+                fee(b, path.len())?;
+                environment_leaf(&mut out, path.clone(), &permission, b)?;
+            }
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -3338,7 +3383,8 @@ fn transfer(
             }
         }
         InstructionKind::MakeClosure { closure, captures }
-            if module.closures[closure.0 as usize].storage_life.is_some() =>
+            if module.closures[closure.0 as usize].storage_life.is_some()
+                || b.returned_borrowed_environments.contains(closure) =>
         {
             let mut complete = true;
             for (index, capture) in captures.iter().enumerate() {
@@ -3347,6 +3393,16 @@ fn transfer(
                     complete &= !actual.pointer.targets.is_empty();
                     let path = environment_path(index, &[], b)?;
                     environment_leaf(&mut out, path, &actual.pointer, b)?;
+                }
+                for (nested, permission) in &actual.environment {
+                    let path = environment_path(index, nested, b)?;
+                    complete &= !permission.targets.is_empty();
+                    environment_leaf(&mut out, path, permission, b)?;
+                }
+                for (nested, permission) in &actual.slots {
+                    let path = environment_path(index, nested, b)?;
+                    complete &= !permission.targets.is_empty();
+                    environment_leaf(&mut out, path, permission, b)?;
                 }
                 if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
                     for slot in &shape.slots {
@@ -4064,7 +4120,7 @@ fn reverse(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
@@ -4108,7 +4164,7 @@ fn reverse_bool(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+            if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
@@ -4711,10 +4767,11 @@ fn windows(
                         let receiver_held = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }
                             | InstructionKind::CallClosureMut { callee, .. }
-                                if super::stored_callables::fixed_value(
+                                if environment_value(
                                     module,
                                     &f.locals[callee.0 as usize].ty,
-                                ) =>
+                                    b,
+                                )? =>
                             {
                                 ordered(b, state.locals.len(), 0)?;
                                 state.locals.get(callee).map(|v| &v.held)
@@ -5038,6 +5095,7 @@ fn derive_cfg(
                 pointer_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
+                returned_environment: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
                 package_return_calls,
                 byte_reads: Vec::new(),
@@ -5172,6 +5230,34 @@ fn derive_cfg(
                     }
                     for (path, permission) in &value.slots {
                         add(path, permission)?;
+                    }
+                    if matches!(f.return_type, Type::Closure(_)) {
+                        for (path, permission) in &value.environment {
+                            ordered(b, actual.returned_environment.len(), path.len())?;
+                            fee(b, path.len().saturating_add(permission.targets.len()))?;
+                            let row = actual.returned_environment.entry(path.clone()).or_default();
+                            if permission.targets.is_empty() {
+                                return Err(failure(
+                                    "returned capture has no actual external target",
+                                ));
+                            }
+                            for target in &permission.targets {
+                                if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
+                                {
+                                    return Err(failure(
+                                        "returned environment retains activation-local storage",
+                                    ));
+                                }
+                                fee(
+                                    b,
+                                    target_width(target)
+                                        .saturating_mul(row.len().saturating_add(1)),
+                                )?;
+                                if !row.contains(target) {
+                                    row.push(target.clone());
+                                }
+                            }
+                        }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
                 }
@@ -5437,7 +5523,6 @@ pub(super) fn infer(
             continue;
         }
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
-            || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
                 && !(b.task_borrowed_results && f.call_kind == CallKind::Suspend)
         {
@@ -5525,7 +5610,9 @@ pub(super) fn infer(
                 )]);
             }
         }
-        if super::stored_callables::fixed_value(module, &f.return_type) {
+        if super::stored_callables::fixed_value(module, &f.return_type)
+            && f.callable_return_contract.is_none()
+        {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "captured Fixed environment escape needs its retained result target transfer",

@@ -40,6 +40,8 @@ pub(super) struct Budget {
     pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    // Schedules actual returned-environment transport; contracts grant no roots.
+    pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
@@ -143,6 +145,7 @@ impl Budget {
             affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
+            returned_borrowed_environments: BTreeSet::new(),
             replacement_functions: BTreeSet::new(),
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
@@ -1714,9 +1717,73 @@ pub(super) fn preflight(
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            // This precedes CandidatePlan::empty_for and module hashing. Raw
+            // source metadata must pay before encoding can walk its vectors.
+            if let Some(bindings) = &contract.capture_sources {
+                count(
+                    0,
+                    bindings.len(),
+                    limits.max_nodes,
+                    "returned capture source binding",
+                )?;
+                for binding in bindings {
+                    count(
+                        0,
+                        binding.position.path.len(),
+                        limits.max_call_depth,
+                        "returned capture position depth",
+                    )?;
+                    count(
+                        0,
+                        binding.sources.len(),
+                        limits.max_nodes,
+                        "returned capture source upper",
+                    )?;
+                    budget.input(
+                        binding
+                            .position
+                            .path
+                            .len()
+                            .saturating_add(binding.sources.len())
+                            .saturating_add(1),
+                        "returned capture source metadata",
+                    )?;
+                    for source in &binding.sources {
+                        count(
+                            0,
+                            source.path.len(),
+                            limits.max_call_depth,
+                            "returned capture source depth",
+                        )?;
+                        budget.input(
+                            source.path.len().saturating_add(1),
+                            "returned capture actual source metadata",
+                        )?;
+                    }
+                }
+            }
             // Scheduling only. retained::sources independently proves every
             // external leaf before any actual root/parent substitution.
-            budget.owning_address_captures |= contract.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
+            budget.owning_address_captures |= contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty());
+            if contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty())
+            {
+                budget.input(
+                    budget
+                        .returned_borrowed_environments
+                        .len()
+                        .saturating_add(1),
+                    "returned environment transport schedule",
+                )?;
+                budget
+                    .returned_borrowed_environments
+                    .insert(contract.closure);
+            }
             count(
                 0,
                 contract.lending_captures.len(),

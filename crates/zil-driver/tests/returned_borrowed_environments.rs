@@ -101,8 +101,22 @@ fn projected_multiple_sources_and_owned_capture_compose_across_modules() {
 fn typed_source(text: &str) -> zil_ir::TypedModule {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "source-proof.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand(&source, &syntax).unwrap();
-    zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    zil_types::check(&core, &target, &limits).unwrap()
 }
 #[test]
 fn analyze_reconstructs_sources_when_same_typed_operands_or_claims_are_forged() {
@@ -198,4 +212,58 @@ fn analyze_keeps_returned_capture_loans_until_the_actual_last_use() {
         let module = typed_source(&source);
         zil_analyze::analyze(&module, &Limits::default()).unwrap();
     }
+}
+
+const HOLDER_SOURCE: &str = r#"
+struct Holder<life a>{pointer:&'a i32}
+fn hold<life a>(pointer:&'a i32)->Holder<'a>{return Holder::<'a>{pointer:pointer}}
+fn make<life a>(holder:&Holder<'a>)->impl Fn()->i32{let pointer=holder.pointer;return move()=>*pointer}
+fn main()->i32{let n=41;let holder=hold(&n);let f=make(&holder);return f()-41}
+"#;
+#[test]
+fn analyze_returns_a_stored_leaf_with_its_actual_target_and_parent_loans() {
+    let module = typed_source(HOLDER_SOURCE);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    assert!(
+        plan.functions
+            .iter()
+            .flat_map(|f| &f.holds)
+            .any(|hold| !hold.roots.is_empty())
+    );
+}
+
+#[test]
+fn stored_factory_keeps_the_original_slot_target_after_later_replacement() {
+    let head = HOLDER_SOURCE.split("fn main").next().unwrap();
+    let body = "fn main()->i32{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;return f()-41}";
+    let module = typed_source(&format!("{head}{body}"));
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let bad = body.replace("return f()-41", "n=42;return f()-41");
+    let module = typed_source(&format!("{head}{bad}"));
+    let errors = zil_analyze::analyze(&module, &Limits::default())
+        .expect_err("returned environment still borrows the actual old slot target");
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.code == "E-ANALYZE-IR"
+                && d.message.contains("actual stored target/parent loan")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn analyze_transfers_real_owned_and_borrowed_fields_into_one_returned_environment() {
+    let source = r#"
+resource R{code:i32}
+package Mixed<life a>{manages owned:R;pointer:&'a i32}
+fn wrap<life a>(pointer:&'a i32)->Mixed<'a>{return Mixed::<'a>{owned:R{code:1},pointer:pointer}}
+fn make<life a>(holder:Mixed<'a>)->impl Fn()->i32{let pointer=holder.pointer;let owned=give holder.owned;return move()=>owned.code+*pointer}
+fn main()->i32{let n=41;let f=make(wrap(&n));return f()-42}
+"#;
+    let module = typed_source(source);
+    let factory = module.functions.iter().find(|f| f.name == "make").unwrap();
+    let contract = factory.callable_return_contract.as_ref().unwrap();
+    assert_eq!(contract.cleanup.len(), 1);
+    assert_eq!(contract.capture_sources.as_ref().unwrap().len(), 1);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }

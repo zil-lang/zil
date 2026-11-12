@@ -3272,6 +3272,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 ));
                             }
                         }
+                    } else if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                        // A resolved stored field can be represented by one
+                        // concrete graph node while `&value` has an Address
+                        // term. Compare their complete types, preserving mode.
+                        self.bind_term(&value_type, expected, statement.span)?;
                     } else {
                         self.unify(&target_type, &value_type, statement.span)?;
                     }
@@ -3793,10 +3798,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     term: Term::Scalar(variable),
                     ..
                 }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
-                && let Some(ty @ Type::Package { .. }) = self.graph.ty(*variable)?
+                && let Some(ty) = self.graph.ty(*variable)?
+                && matches!(stored::physical(&ty), Type::Package { .. })
             {
                 let field = aggregates::field(&ty, member, span)?.1;
-                if !matches!(field, Type::Managed(_)) {
+                if !matches!(field, Type::Managed(_)) && !packages::product::owned_supported(&field)
+                {
                     return Err(error(
                         "E-GIVE-TYPE",
                         span,
@@ -5233,7 +5240,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 term: Term::Scalar(variable),
                 ..
             }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
-            && let Some(ty @ Type::Package { .. }) = self.graph.ty(*variable)?
+            && let Some(ty) = self.graph.ty(*variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
         {
             self.owner_type(&ty, field_owner.as_ref(), object.span)?;
             matches!(
