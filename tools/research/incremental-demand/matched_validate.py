@@ -14,6 +14,7 @@ import statistics
 import sys
 
 import rust_compare as rc
+import push_counters as pc
 
 LABELS = rc.LABELS
 ARMS = ['baseline', 'candidate', 'rust']
@@ -69,7 +70,11 @@ def audit(out):
         check_blob(manifest['sources'][arm]['source_tree_inventory'])
         check_blob(manifest['sources'][arm]['worktree_diff'])
         require(manifest['binary_after_sha256'][arm]==manifest['binaries'][arm]['sha256'], 'binary changed during run')
-    require(manifest['sources']['baseline']['commit']=='99035931d358add0eaed6d4535035c38413701dd', 'wrong main pin')
+    pc.baseline_pin(manifest['sources']['baseline']['commit'], manifest['arguments']['baseline_source'])
+    extras = pc.candidate_flags(manifest['arguments'].get('candidate_extra_arg', []))
+    push = '--push-reuse' in extras
+    require(manifest.get('llvm_comparison_policy', pc.LLVM_RAW) == (pc.LLVM_PUSH if push else pc.LLVM_RAW), 'LLVM comparison policy differs from research flags')
+    require(manifest['sources']['candidate']['commit'] == manifest['arguments']['candidate_source'], 'candidate differs from explicit source pin')
     for name,tool in manifest['tools'].items():
         require(manifest['tools_after_sha256'][name]==tool['actual_sha256'], 'tool changed during run')
     require('58cf8f9c35b355199727627d07ae34a4e2846d67' in (out/'rustc-version'/'stdout.bin').read_text(), 'wrong rustc commit')
@@ -92,7 +97,7 @@ def audit(out):
             command=json.loads((out/f'block-{block:02d}'/arm/'command.json').read_text())['argv']
             require(command[0]==manifest['binaries'][arm]['path'] and command[1]==('check' if mode=='check' else 'build'), 'Zil binary or mode differs')
             require(command[command.index('--resident-capacity')+1]=='256' and command[command.index('--resident-reset-after')+1]=='4096' and '--semantic-cache' in command, 'resident cache/history changed')
-            require('--profile-compilation' not in command and '--incremental-o2' not in command, 'profile or alternate backend path in wall run')
+            pc.command_flags(command, arm, extras)
             if mode=='o2':
                 require(all(command[command.index(key)+1]==value for key,value in [('--backend','llvm-api'),('--opt','O2'),('--codegen-units','16'),('--codegen-jobs','1')]) and '--object-cache' in command, 'native settings differ')
         project=out/f'block-{block:02d}'/'rust-project'
@@ -109,8 +114,19 @@ def audit(out):
             require(all(left[k]==right[k] for k in ['status','phase','diagnostics','input_fingerprint','source_files','scalar_interfaces']), 'raw Zil reports disagree')
             if mode=='o2' and triplet[0]['request']!='error':
                 zil_rows=[r for r in triplet if r['arm']!='rust']
-                require(zil_rows[0]['executable']['sha256']==zil_rows[1]['executable']['sha256'] and zil_rows[0]['llvm']['sha256']==zil_rows[1]['llvm']['sha256'], 'main/candidate executable or LLVM content differs')
-                require(pair_receipt['executable_equal'] is True and pair_receipt['llvm_text_equal'] is True, 'native quality equality receipt missing')
+                require(zil_rows[0]['executable']['sha256']==zil_rows[1]['executable']['sha256'] and pair_receipt['executable_equal'] is True, 'main/candidate executable bytes differ')
+                raw_equal = zil_rows[0]['llvm']['sha256'] == zil_rows[1]['llvm']['sha256']
+                require(pair_receipt['llvm_text_equal'] is raw_equal, 'raw LLVM equality receipt differs')
+                if push:
+                    comparisons = []
+                    for row in zil_rows:
+                        check_blob(row['llvm'])
+                        comparison = pc.llvm_comparison_sha256((out / row['llvm']['archive']).read_bytes())
+                        require(comparison == row['llvm']['comparison_sha256_excluding_identity_comment'], 'LLVM comparison hash differs from archived bytes')
+                        comparisons.append(comparison)
+                    require(comparisons[0] == comparisons[1] and pair_receipt['raw_llvm_equal'] is raw_equal and pair_receipt['llvm_equal_excluding_identity_comment'] is True, 'LLVM differs outside the identity comment')
+                else:
+                    require(raw_equal, 'legacy LLVM full bytes differ')
     for row in rows:
         require(row['valid'] is True and row['mode']==mode, 'invalid row/mode')
         label,arm = row['request'],row['arm']
@@ -137,6 +153,8 @@ def audit(out):
             response=json.loads((directory/'response.json').read_text())
             require(response==row['resident'], 'resident raw response differs')
             report=response['report']
+            if arm == 'candidate' and '--push-reuse' in extras:
+                pc.inspect_report(report, mode=mode, cold=label == 'cold' and row['measured'])
             if label=='error':
                 errors=report['diagnostics']
                 require(report['status']=='SafeReject' and report['phase']=='types' and report['verification_runs']==0 and len(errors)==1, 'Zil error request accepted or wrong rejection')

@@ -18,6 +18,8 @@ from pathlib import Path
 import re
 import statistics
 
+import push_counters as pc
+
 ARMS = ('baseline', 'candidate', 'rust')
 CASES = ('cold', 'unchanged', 'private', 'multi', 'broad', 'restore', 'error', 'recovery')
 PARENTS = {case: ('error' if case == 'recovery' else 'private' if case == 'restore' else 'cold') for case in CASES if case != 'cold'}
@@ -31,6 +33,7 @@ SCOPES = [
     'Zil object hit/miss states are current compiler receipts. Rust same inode/device/mtime/content is physical carry-forward relative to the immediately preceding parent request, not rustc red-green query counters or proof of skipped optimization. Historical Rust sessions are excluded from current object counts.',
     'nm definitions are actual emitted object contents after optimization, not a complete source dependency graph. Equal bytes alone do not prove skipped work. Raw object hashes, full symbol tables, old sessions and all preparation requests remain in the raw evidence.',
     'Absent or null instrumentation is not a zero-work observation.',
+    'For explicit --push-reuse runs only, the structural Verify identity can change the strict second-line LLVM verified-fingerprint comment. Raw LLVM bytes/hashes and raw equality remain recorded; a separate comparison excludes only that hex64 value. All other LLVM bytes and complete ELF bytes must agree.',
     'This report compares this candidate only to the same-window main and Rust arms. It does not compare earlier candidates, attribute whole-pipeline timings to an isolated source slice, establish language parity or claim universally minimal work.',
 ]
 
@@ -73,6 +76,9 @@ def metrics(rows):
 def reuse(row):
     report = row.get('resident', {}).get('report', {})
     out = pick(report, ('status', 'phase', 'verification_runs', 'disk_cache', 'verification_work', 'backend_work'))
+    # Preserve unavailable receipts explicitly, without fabricated zero counters.
+    out['types_push_work'] = report.get('types_push_work')
+    out['lowering_work'] = report.get('lowering_work')
     if report:
         out['query_events'] = dict(collections.Counter(event['phase'] + ':' + event['disposition'] for event in report['query_events']))
         front = report.get('frontend_stats') or {}
@@ -85,6 +91,8 @@ def reuse(row):
         for group, fields in keys.items():
             stats = front.get(group)
             out[group] = pick(stats, fields) if stats is not None else None
+            if group == 'initialization' and stats is not None:
+                out[group].update({field: stats.get(field) for field in pc.FIELDS['initialization']})
             if group == 'function_types' and stats is not None:
                 out[group]['graph_executed'] = (stats.get('graph') or {}).get('executed')
         for name in ('function_cache_encoding', 'function_plan_encoding', 'function_cache_publication', 'semantic_cache_publication'):
@@ -206,7 +214,10 @@ def load_run(mode, run, validation, args):
     for name, tool in manifest['tools'].items():
         if tool['actual_sha256'] != manifest['tools_after_sha256'][name]:
             fail(f'{mode}: {name} tool changed within window')
+    extras = pc.candidate_flags(manifest['arguments'].get('candidate_extra_arg', []))
     for row in rows:
+        if row['arm'] == 'candidate' and '--push-reuse' in extras:
+            pc.inspect_report(row['resident']['report'], mode=mode, cold=row['request'] == 'cold' and row['measured'])
         fixture = manifest['fixture_identity'][row['request']]['rust' if row['arm'] == 'rust' else 'zil']
         if row['source']['identity_sha256'] != fixture:
             fail(f'{mode}: measured or named-parent source differs from the declared fixture')
@@ -214,6 +225,9 @@ def load_run(mode, run, validation, args):
         if inv and inv['object_count'] != len(inv['objects']):
             fail(f'{mode}: current inventory count disagrees with actual objects')
 
+    pc.baseline_pin(manifest['sources']['baseline']['commit'], manifest['arguments']['baseline_source'])
+    if args.expected_baseline_source and manifest['sources']['baseline']['commit'] != args.expected_baseline_source:
+        fail(f'{mode}: unexpected baseline source')
     if args.expected_candidate_source and manifest['sources']['candidate']['commit'] != args.expected_candidate_source:
         fail(f'{mode}: unexpected candidate source')
     if args.expected_candidate_binary and manifest['binaries']['candidate']['sha256'] != args.expected_candidate_binary:
@@ -259,10 +273,20 @@ def load_run(mode, run, validation, args):
         for row in rows:
             if row['arm'] in ('baseline', 'candidate') and row.get('executable'):
                 key = (row['block'], row['request_index'], row['request'], row['target_request'], row['measured'])
-                paired.setdefault(key, {})[row['arm']] = (row['executable']['sha256'], row['llvm']['sha256'])
-        if not paired or any(set(pair) != {'baseline', 'candidate'} or pair['baseline'] != pair['candidate'] for pair in paired.values()):
+                raw = row['llvm']['sha256']
+                comparison = raw
+                if '--push-reuse' in extras:
+                    data = (run / row['llvm']['archive']).read_bytes()
+                    if hashlib.sha256(data).hexdigest() != raw:
+                        fail('O2: changed raw LLVM archive')
+                    comparison = pc.llvm_comparison_sha256(data)
+                    if comparison != row['llvm']['comparison_sha256_excluding_identity_comment']:
+                        fail('O2: changed LLVM comparison receipt')
+                paired.setdefault(key, {})[row['arm']] = (row['executable']['sha256'], comparison, raw)
+        if not paired or any(set(pair) != {'baseline', 'candidate'} or pair['baseline'][:2] != pair['candidate'][:2] for pair in paired.values()):
             fail('O2: same-request main/candidate executable or LLVM text hash differs')
-        result['zil_codegen_equality'] = {'successful_pairs_including_named_parents': len(paired), 'executable_sha256_equal': True, 'llvm_text_sha256_equal': True, 'rust_byte_or_partition_equality_claimed': False}
+        raw_equal = all(pair['baseline'][2] == pair['candidate'][2] for pair in paired.values())
+        result['zil_codegen_equality'] = {'successful_pairs_including_named_parents': len(paired), 'executable_sha256_equal': True, 'raw_llvm_equal': raw_equal, 'llvm_equal_excluding_identity_comment': True if '--push-reuse' in extras else None, 'llvm_comparison_policy': pc.LLVM_PUSH if '--push-reuse' in extras else pc.LLVM_RAW, 'rust_byte_or_partition_equality_claimed': False}
         result['actual_unit_contents'] = content_summary(run, rows)
     return result, identities
 
@@ -304,6 +328,7 @@ def main():
     parser.add_argument('--check-validation', type=Path)
     parser.add_argument('--o2-validation', type=Path)
     parser.add_argument('--output-prefix', required=True, type=Path)
+    parser.add_argument('--expected-baseline-source', choices=pc.BASELINE_PINS)
     parser.add_argument('--expected-candidate-source')
     parser.add_argument('--expected-candidate-binary')
     parser.add_argument('--raw-archive-status', default='local raw evidence; pending remote archive')

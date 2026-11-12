@@ -22,8 +22,9 @@ import threading
 import time
 
 import rust_compare as rc
+import push_counters as pc
 
-MAIN = '99035931d358add0eaed6d4535035c38413701dd'
+MAIN = pc.MAIN
 RUST = '58cf8f9c35b355199727627d07ae34a4e2846d67'
 CARGO = '5f94df4789f005f9a352888e8355ffc645b7ed0e'
 ARMS = ['baseline', 'candidate', 'rust']
@@ -379,7 +380,7 @@ def main():
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--baseline-worktree', type=Path)
     parser.add_argument('--candidate-worktree', type=Path)
-    parser.add_argument('--baseline-source', default=MAIN, choices=[MAIN])
+    parser.add_argument('--baseline-source', default=MAIN, choices=pc.BASELINE_PINS)
     parser.add_argument('--candidate-source')
     parser.add_argument('--baseline-build-receipt', type=Path)
     parser.add_argument('--candidate-build-receipt', type=Path)
@@ -395,9 +396,10 @@ def main():
     if min(args.timeout, args.native_timeout, args.sample_ms, args.native_repetitions) <= 0:
         parser.error('timeouts, sample interval and repetitions must be positive')
     # These are the complete permitted research switches; no budget/backend/opt overrides.
-    allowed = {'--producer-reuse', '--reactive-queries'}
-    if not set(args.candidate_extra_arg) <= allowed:
-        parser.error('candidate extras must be research switches, never optimization/cache/budget overrides')
+    try:
+        pc.candidate_flags(args.candidate_extra_arg)
+    except ValueError as error:
+        parser.error(str(error))
     args.repo, args.out = args.repo.resolve(), args.out.resolve()
     args.out.mkdir(parents=True, exist_ok=False)
     archive = args.out / 'implementation'
@@ -405,7 +407,7 @@ def main():
     generator = args.repo / 'tools/research/reactive-query-graph/native_workloads.py'
     native_path = generator.with_name('native_measure.py')
     implementation = [Path(__file__), Path(rc.__file__), generator, native_path,
-                      Path(__file__).with_name('matched_validate.py')]
+                      Path(__file__).with_name('matched_validate.py'), Path(pc.__file__)]
     for path in implementation:
         shutil.copyfile(path, archive / path.name)
     # native_measure imports native_workloads by name; bind the archived copy.
@@ -429,6 +431,7 @@ def main():
                 'fixed': {'blocks': 6, 'requests': rc.LABELS, 'modules': 20, 'functions': 20, 'steps': 16,
                           'codegen_units_requested': 16, 'codegen_jobs': 1, 'native_opt': 'O2', 'cache': 'all', 'capacity': 256},
                 'implementation': {p.name: file_hash(archive/p.name) for p in implementation},
+                'llvm_comparison_policy': pc.LLVM_PUSH if '--push-reuse' in args.candidate_extra_arg else pc.LLVM_RAW,
                 'timing_policy': 'Sequential three-arm requests, six balanced arm permutations rotated per block/request. Zil resident send-to-response excludes startup; Rust full Cargo process includes startup. Source writes, object inventory and native execution occur outside request wall timing. No profiling. OS cache not flushed.',
                 'parent_policy': 'Every non-cold request is immediately preceded for all three arms by its validated named parent: recovery<-error, restore<-private, all others<-cold. Preparations retained and validated, no cache reset within block.',
                 'inventory_policy': 'Archive actual object bytes and defined symbol tables, Rust incremental metadata and inode/content/mtime observations; Zil current per-unit action-key/cache-state receipts. Hash equality is not proof of skipped work. No partition equivalence implied by requested CGU16.',
@@ -532,6 +535,8 @@ def main():
                                     before_publication = publication_state(publication_paths)
                                     result,response = workers[arm].request(leaf)
                                     report = response['report']
+                                    if arm == 'candidate' and '--push-reuse' in args.candidate_extra_arg:
+                                        pc.inspect_report(report, mode=args.mode, cold=current == 'cold' and measured)
                                     valid = set(report['source_files'].values()) == {str(source/name) for name in fixtures[current]['zil']}
                                     if current=='error':
                                         valid &= report['status']=='SafeReject' and report['phase']=='types' and report['verification_runs']==0 and zil_error(report,source,fixtures[current]['zil'])
@@ -548,6 +553,8 @@ def main():
                                         row['executable'] = preserve(args.out,program,'.elf')
                                         published_llvm[arm] = Path(report['artifacts']['llvm'])
                                         row['llvm'] = preserve(args.out,published_llvm[arm],'.ll')
+                                        if '--push-reuse' in args.candidate_extra_arg:
+                                            row['llvm']['comparison_sha256_excluding_identity_comment'] = pc.llvm_comparison_sha256((args.out / row['llvm']['archive']).read_bytes())
                                         row['inventory'] = zil_inventory(args,report,directory/arm/'objects')
                                         row['native'] = native_outcomes(args,workloads,program,current,leaf,env)
                                         row['valid'] &= all(r['valid'] for r in row['native'])
@@ -565,10 +572,14 @@ def main():
                             native_pair = args.mode=='o2' and current!='error'
                             executable_equal = zil_rows[0].get('executable',{}).get('sha256') == zil_rows[1].get('executable',{}).get('sha256') if native_pair else None
                             llvm_text_equal = zil_rows[0].get('llvm',{}).get('sha256') == zil_rows[1].get('llvm',{}).get('sha256') if native_pair else None
-                            pair_valid = equal and (not native_pair or (executable_equal and llvm_text_equal))
+                            push_pair = native_pair and '--push-reuse' in args.candidate_extra_arg
+                            llvm_excluding_identity_equal = (zil_rows[0]['llvm']['comparison_sha256_excluding_identity_comment'] == zil_rows[1]['llvm']['comparison_sha256_excluding_identity_comment']) if push_pair else None
+                            pair_valid = equal and (not native_pair or (executable_equal and (llvm_excluding_identity_equal if push_pair else llvm_text_equal)))
                             rc.save(leaf.parent/'pair-validation.json',{'valid':pair_valid,'request':current,'measured':measured,
                                                                       'semantics_equal':equal,'executable_equal':executable_equal,
-                                                                      'llvm_text_equal':llvm_text_equal})
+                                                                      'llvm_text_equal':llvm_text_equal,
+                                                                      'raw_llvm_equal':llvm_text_equal,
+                                                                      'llvm_equal_excluding_identity_comment':llvm_excluding_identity_equal})
                             if not pair_valid:
                                 raise ValueError('main/candidate current semantics or executable/LLVM content differ; raw evidence retained for diagnosis')
                             rows.extend(pair)
