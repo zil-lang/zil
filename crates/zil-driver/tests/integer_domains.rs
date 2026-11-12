@@ -704,7 +704,7 @@ fn result()->i32 {
 }
 "#;
     check(text);
-    native(text, Some("result"), b"", true);
+    native(text, Some("result"), b"0\n", true);
 }
 
 #[test]
