@@ -6,8 +6,8 @@
 
 整块冻结后统一门已完成：backend249、driver210（0失败/忽略）、strictClippy20、fmt18、release19通过；[确切源码/命令/日志](full-push-checkpoint-96f.json)、[源码独审](full-push-diagnostic-consumer-review.json)、[独立门核验](full-push-diagnostic-consumer-gates-review.json)。新断言检查实际旧片段地址被writer消费、完整fresh文本一致、历史根不变/单叶变化、重排/增删/重复名，以及跨64片窗口与所有写出错误。没有逐行反复构建，没有累加重叠测试。
 
-初控制器在driver运行中丢失工具连接，实际进程继续；完成的249/210子进程原日志/exit0被独立核实，原控制器exit保留unknown。之后仅接跑未执行的strict/fmt/release，新的持久控制器及工具实际exit0；不重跑已完成测试，也不把unknown改成0。首次事件和所有原日志待下一固定远端metadata保全。
+初控制器在driver运行中丢失工具连接，实际进程继续；完成的249/210子进程原日志/exit0被独立核实，原控制器exit保留unknown。之后仅接跑未执行的strict/fmt/release，新的持久控制器及工具实际exit0；不重跑已完成测试，也不把unknown改成0。首次事件和所有原日志已由下述v22固定远端metadata保全。
 
-此前profile15全部495files、SDK16完整156regularfiles与alias、源码及immutable17/18、所有首败/成功门和独审已在 [固定v21](full-push-recovery-v21.json) `902ed10db8cc7fe634de585fd3dabf4b7fd75096` 保全：8存储片+索引fresh HTTPS逐文件hash/模式，profile/SDK原manifest精确并集核验。SDK和immutable原位置保留，没有声称整份重新拼回后再运行qualifier/native。当前96门及binary仍本地，待后续metadata归档。
+此前profile15全部495files、SDK16完整156regularfiles与alias、源码及immutable17/18、所有首败/成功门和独审已在 [固定v21](full-push-recovery-v21.json) `902ed10db8cc7fe634de585fd3dabf4b7fd75096` 保全：8存储片+索引fresh HTTPS逐文件hash/模式，profile/SDK原manifest精确并集核验。SDK和immutable原位置保留，没有声称整份重新拼回后再运行qualifier/native。当前96门、不可变binary、完整源码及精确8f文档也已在 [固定v22](full-push-recovery-v22.json) `98dfcab311a22dae96f6e5ffac9cc0b83ce35118` 保全；单metadata36files/43134497B与index均fresh HTTPS全hash/模式核过，原binary路径/dev/inode保留，原controller未知状态不改。
 
 下一施工是实际机器输出组合树，避免 emit 将单函数已共享结果重新聚合为整Module后丢失身份，并让相同实际结果贯穿历史/诊断/CGU；复杂变换仍显式原路物化。LLVM另线由Astra按固定7a复核每块MI展开产品，当前函数头尾/CFI/布局不能略过，尚无实现验收或速度承诺；完整LLVM增量和全面领先Rust目标仍开放。

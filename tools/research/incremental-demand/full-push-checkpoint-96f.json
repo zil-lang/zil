@@ -210,6 +210,6 @@
   ],
   "raw_custody": {
     "profile15_SDK16_prior_gates": "fixed v21@902ed10db8cc7fe634de585fd3dabf4b7fd75096, fresh fullfilehash/mode/masterunion verified",
-    "current_96_gates_and_binary": "local out/runs and out/binaries, pending next fixed remote metadata archive"
+    "current_96_gates_and_binary": "Complete fixed v22@98dfcab311a22dae96f6e5ffac9cc0b83ce35118, singlemetadata36files/43134497B and index freshHTTPS fullfilehash/mode. Original binary path/dev/inode kept; controller unknown preserved; no new runtime execution."
   }
 }
