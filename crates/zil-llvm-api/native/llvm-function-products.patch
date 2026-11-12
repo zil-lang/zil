@@ -835,3 +835,28 @@
 @@ -45,0 +46,2 @@
 +  // Private native work-product projection; no class-layout or vtable change.
 +  LLVM_ABI void zilRunHeaders(const Module &M);
+--- a/llvm/lib/CodeGen/MIRPrinter.cpp
++++ b/llvm/lib/CodeGen/MIRPrinter.cpp
+@@ -179 +179 @@
+-                    const VirtRegMap *VRM) {
++                    const VirtRegMap *VRM, bool HeaderOnly = false) {
+@@ -238 +238 @@
+-  for (const auto &MBB : MF) {
++  if (!HeaderOnly) for (const auto &MBB : MF) {
+@@ -1104,0 +1105,16 @@
++
++// The fixed native-product client separately transports every admitted body
++// field and rejects body-owned metadata. Preserve the official COMPLETE YAML
++// header/converters; omit only printMBB, never normalize a header field.
++// Original printMIR callers keep HeaderOnly=false and their original bytes.
++extern "C" LLVM_ABI int ZilLLVMPrintMachineProductHeaderV1(
++    const void *MMI, const void *Machine, void *Stream) {
++  if (!MMI || !Machine || !Stream) return 0;
++  auto &Info = *static_cast<const llvm::MachineModuleInfo *>(MMI);
++  auto &MF = *static_cast<const llvm::MachineFunction *>(Machine);
++  if (Info.getMachineFunction(MF.getFunction()) != &MF) return 0;
++  printMF(*static_cast<llvm::raw_ostream *>(Stream),
++          [&](const llvm::Function &F) { return Info.getMachineFunction(F); },
++          MF, nullptr, true);
++  return 1;
++}

@@ -104,6 +104,7 @@ struct TargetInfoAPI {
   int (*readBlockProbabilities)(const void *, uint32_t *, uint64_t);
   int (*restoreBlockNumbers)(void *, unsigned, unsigned, unsigned,
                              const unsigned *, const unsigned *, uint64_t);
+  int (*printHeader)(const void *, const void *, void *);
   bool available() const {
     return clone && restore && dispose && printerID && hasBlockOwners && restoreBlockNumbers;
   }
@@ -119,7 +120,9 @@ const TargetInfoAPI &targetInfoAPI() {
           dlsym(RTLD_DEFAULT, "ZilLLVMReadMachineBlockProbabilities")),
       reinterpret_cast<int (*)(void *, unsigned, unsigned, unsigned,
                               const unsigned *, const unsigned *, uint64_t)>(
-          dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers"))};
+          dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers")),
+      reinterpret_cast<int (*)(const void *, const void *, void *)>(
+          dlsym(RTLD_DEFAULT, "ZilLLVMPrintMachineProductHeaderV1"))};
   return API;
 }
 struct PassStep {
@@ -295,6 +298,9 @@ struct BodyState {
 };
 struct Snapshot {
   std::string input, world, mir, mirHeader;
+  // mir is either the original full MIR oracle or this exact SDK's COMPLETE
+  // header. The latter uses the independently complete typed body as oracle.
+  bool headerOnly = false;
   BodyState body;
   frame::State frame;
   std::shared_ptr<const void> targetInfo;
@@ -914,6 +920,32 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
   // from MF.getFunction(), never from a parsed historical Module.
   llvm::printMIR(OS, MMI, MF);
   return Text;
+}
+
+// Canonical empty body spelling is identical for the SDK's header projection
+// and for the original full-printer fallback. Header bytes are never dropped.
+std::string emptyBodyHeader(llvm::StringRef Text) {
+  const size_t At = Text.find("\nbody:");
+  if (At == llvm::StringRef::npos) return {};
+  return Text.take_front(At).str() + "\nbody:             |\n\n...\n";
+}
+std::string machineHeader(const llvm::MachineModuleInfo &MMI,
+                          const llvm::MachineFunction &MF) {
+  if (!targetInfoAPI().printHeader) return {};
+  std::string Text;
+  llvm::raw_string_ostream OS(Text);
+  if (!targetInfoAPI().printHeader(&MMI, &MF, &OS)) return {};
+  return emptyBodyHeader(Text);
+}
+// CFI operands are rendered by dereferencing their complete frame table, not
+// just their index. Keep the active variant/value equality as an independent
+// replay check when the full textual body is replaced by typed equality.
+bool currentCFIEquals(const llvm::MachineFunction &MF, const frame::State &S) {
+  const auto &Current = MF.getFrameInstructions();
+  if (Current.size() != S.cfi.size()) return false;
+  for (size_t I = 0; I != Current.size(); ++I)
+    if (!frame::sameCFI(Current[I], S.cfi[I])) return false;
+  return true;
 }
 
 // This scratch manager uses LLVM's real per-instance AU interner without
@@ -1713,8 +1745,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                   diagnose(F, "current-machine-verifier");
                   R.fail();
                 } else {
-                  auto CurrentText = machineText(MMI, *MF);
-                  if (CurrentText != C.replay->mir) {
+                  auto CurrentText = C.replay->headerOnly ? machineHeader(MMI, *MF) : machineText(MMI, *MF);
+                  if ((C.replay->headerOnly && !currentCFIEquals(*MF, C.replay->frame)) ||
+                      CurrentText.empty() || CurrentText != C.replay->mir) {
                     diagnoseDifference(F, C.replay->mir, CurrentText);
                     R.fail();
                   }
@@ -1792,17 +1825,17 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             for (const auto *Pred : BB.predecessors()) State.predecessors.push_back(Pred->getNumber());
             C.recording->blockEmission.push_back(std::move(State));
           }
-          C.recording->mir = machineText(MMI, *MF);
-          // The fixed MIR writer emits the literal body as its final field.
-          // Preserve every header field verbatim, but let LLVM construct only
-          // the empty current MF/MRI/frame/target state. Instruction parsing is
-          // replaced by the typed, current-owner reconstruction above.
-          const auto BodyAt = C.recording->mir.find("\nbody:");
-          if (BodyAt == std::string::npos) {
-            R.discardRecording(C);
-            return 0;
+          // Only the fixed, closed typed domain may substitute body equality
+          // for the old full MIR body oracle. A missing/new capability keeps
+          // the complete original printer, retention, and replay comparison.
+          C.recording->mir = machineHeader(MMI, *MF);
+          C.recording->headerOnly = !C.recording->mir.empty();
+          if (!C.recording->headerOnly) C.recording->mir = machineText(MMI, *MF);
+          const std::string EmptyBody = C.recording->headerOnly ? C.recording->mir :
+              emptyBodyHeader(C.recording->mir);
+          if (EmptyBody.empty()) {
+            R.discardRecording(C); return 0;
           }
-          const std::string EmptyBody = C.recording->mir.substr(0, BodyAt) + "\nbody:             |\n\n...\n";
           C.recording->mirHeader = frame::headerForEmptyBody(EmptyBody, MF->getTarget(),
               !C.recording->frame.saves.empty() || !C.recording->frame.restores.empty());
           if (C.recording->mirHeader.empty()) {
