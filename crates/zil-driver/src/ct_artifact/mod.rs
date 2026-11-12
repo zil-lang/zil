@@ -17,7 +17,6 @@ mod render;
 mod scope_metadata;
 mod snapshot;
 mod source_index;
-#[cfg(test)]
 mod stage_inventory;
 mod type_ref;
 

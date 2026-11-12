@@ -8,7 +8,7 @@ use zil_expand::source_context::{
     DeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree, ModuleDeclarationOrigins,
     SourceTreeIdentity,
 };
-use zil_ir::ct_artifact::CtSymbolId;
+use zil_ir::ct_artifact::{CtStageIdentity, CtSymbolId, CtTypeNode, CtTypeRef};
 use zil_syntax::{ParseResult, ast as s};
 
 fn error(message: &str) -> Vec<Diagnostic> {
@@ -236,6 +236,65 @@ impl Collector<'_> {
 }
 
 impl FrozenCtStageInventory {
+    pub(super) fn identity(&self) -> CtStageIdentity {
+        CtStageIdentity {
+            source_fingerprint: self.source_fingerprint(),
+            epoch: self.epoch(),
+            committed_generation_fingerprint: self.committed_fingerprint(),
+            declaration_inventory_fingerprint: self.content_fingerprint(),
+        }
+    }
+
+    /// Resolve raw query Type occurrences in this exact immutable epoch.
+    /// A current materializer's pending symbol table is not a frozen subject.
+    pub(super) fn query_type(
+        &self,
+        graph: &CtTypeRef,
+        budget: &mut CtExecutionBudget,
+        limits: &Limits,
+    ) -> CompileResult<Fingerprint> {
+        budget.reserve_analysis_work(graph.nodes.len() as u64 + 129)?;
+        let mut dependencies = FingerprintBuilder::new();
+        dependencies.update(b"zil/ct-frozen-subject-source/v1\0");
+        if let Some(catalogue) = &graph.scoped_catalogue {
+            if catalogue.stage != self.identity() {
+                return Err(error(
+                    "query Type catalogue belongs to another source or generation epoch",
+                ));
+            }
+        }
+        for node in &graph.nodes {
+            if let CtTypeNode::Nominal { symbol, .. } = node {
+                let actual = self.declaration(symbol, budget, limits)?.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-PHASE-DEPENDENCY",
+                        None,
+                        "query subject is not committed in the current immutable generation epoch",
+                    )]
+                })?;
+                if actual.body().is_some()
+                    || !matches!(
+                        actual.item.kind,
+                        s::ItemKind::Aggregate(_)
+                            | s::ItemKind::Enum(_)
+                            | s::ItemKind::TypeAlias(_)
+                    )
+                {
+                    return Err(error(
+                        "nominal query subject is not an actual type declaration",
+                    ));
+                }
+                budget.reserve_analysis_work(38)?;
+                dependencies.update(&actual.content.0);
+                dependencies.update(&[u8::from(actual.public)]);
+                if let Some(origin) = actual.origin {
+                    dependencies.update(&origin.declaration.0.to_le_bytes());
+                }
+            }
+        }
+        Ok(dependencies.digest())
+    }
     /// Freeze one actual source/committed-generation epoch. No readiness bits
     /// are inferred from the existence of a declaration or an empty class list.
     pub(super) fn freeze(

@@ -41,6 +41,7 @@ pub(super) struct FrozenReadView<'a> {
     pub limits: &'a zil_base::Limits,
     pub target: &'a zil_base::TargetProfile,
     pub snapshot: &'a CtSnapshotRequest,
+    pub stage_inventory: Option<&'a super::stage_inventory::FrozenCtStageInventory>,
 }
 
 impl FrozenReadView<'_> {
@@ -2395,10 +2396,11 @@ impl FrozenReadView<'_> {
         output: &CtValue,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtQueryDependency> {
-        let bytes = 25u64.saturating_add((input.len() as u64).saturating_mul(32));
+        let bytes = 57u64.saturating_add((input.len() as u64).saturating_mul(64));
         budget.reserve_temporary_bytes(bytes)?;
         let mut subject = Vec::with_capacity(bytes as usize);
-        subject.extend_from_slice(b"zil/ct-query-subject/v1\0");
+        subject.extend_from_slice(b"zil/ct-query-subject/v2\0");
+        subject.extend_from_slice(&self.snapshot.fingerprint.0);
         subject.push(match kind {
             CtQueryKind::Shape => 1,
             CtQueryKind::Field => 2,
@@ -2407,6 +2409,13 @@ impl FrozenReadView<'_> {
         });
         for value in input {
             subject.extend_from_slice(&self.value_fingerprint(value, budget)?.0);
+            if let CtValue::Type(ty) = value {
+                if let Some(stage) = self.stage_inventory {
+                    subject.extend_from_slice(&stage.query_type(ty, budget, self.limits)?.0);
+                } else if ty.scoped_catalogue.is_some() {
+                    return Err(phase("scoped Type query has no frozen source stage"));
+                }
+            }
         }
         budget.reserve_analysis_work(subject.len() as u64)?;
         let subject_fingerprint = Fingerprint::of(&subject);
@@ -2869,6 +2878,27 @@ impl CtReadView for FrozenReadView<'_> {
         args: &[CtValue],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<(CtValue, CtQueryDependency)> {
+        if let Some(expected) = &self.snapshot.stage {
+            let stage = self
+                .stage_inventory
+                .ok_or_else(|| phase("query has no frozen source inventory"))?;
+            budget.reserve_analysis_work(129)?;
+            if stage.identity() != *expected {
+                return Err(phase(
+                    "query source inventory belongs to another generation epoch",
+                ));
+            }
+        }
+        // Resolve committed source occurrences before any query executes.
+        for value in args {
+            if let CtValue::Type(ty) = value {
+                if let Some(stage) = self.stage_inventory {
+                    stage.query_type(ty, budget, self.limits)?;
+                } else if ty.scoped_catalogue.is_some() {
+                    return Err(phase("scoped Type query has no frozen source inventory"));
+                }
+            }
+        }
         if !self.index.contains(requester)
             || !self.snapshot.requested_queries.contains(&kind)
             || !stage_allows(self.snapshot.ready, kind)

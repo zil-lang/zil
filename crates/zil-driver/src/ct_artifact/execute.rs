@@ -38,6 +38,9 @@ pub(super) struct Environment<'a> {
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
     dynamic_catalogue: Option<CtDynamicCatalogue>,
+    stage_inventory: Option<Arc<super::stage_inventory::FrozenCtStageInventory>>,
+    generation_epoch: u64,
+    snapshot_base_fingerprint: Fingerprint,
     pub impl_index: Option<ImplSnapshot>,
     shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
@@ -52,6 +55,43 @@ pub(super) struct Environment<'a> {
 }
 
 impl<'a> Environment<'a> {
+    fn freeze_stage_before_execution(&mut self) -> CompileResult<()> {
+        if self.stage_inventory.is_some() {
+            return Ok(());
+        }
+        self.require_source_origins()?;
+        let origins = self.source_origins.as_ref().ok_or_else(|| {
+            error(
+                "CT execution requires complete original source origins",
+                Span::default(),
+            )
+        })?;
+        self.budget.reserve_temporary_bytes(
+            std::mem::size_of::<super::stage_inventory::FrozenCtStageInventory>() as u64 + 32,
+        )?;
+        let inventory = super::stage_inventory::FrozenCtStageInventory::freeze(
+            self.source_fingerprint,
+            self.generation_epoch,
+            self.parsed,
+            Arc::clone(origins),
+            &self.generated_catalog,
+            &mut self.budget,
+            &self.limits,
+        )?;
+        let stage = inventory.identity();
+        self.budget.reserve_analysis_work(177)?;
+        let mut fingerprint = zil_base::FingerprintBuilder::new();
+        fingerprint.update(b"zil/ct-source-epoch-snapshot/v1\0");
+        fingerprint.update(&self.snapshot_base_fingerprint.0);
+        fingerprint.update(&stage.source_fingerprint.0);
+        fingerprint.update(&stage.epoch.to_le_bytes());
+        fingerprint.update(&stage.committed_generation_fingerprint.0);
+        fingerprint.update(&stage.declaration_inventory_fingerprint.0);
+        self.snapshot.fingerprint = fingerprint.digest();
+        self.snapshot.stage = Some(stage);
+        self.stage_inventory = Some(Arc::new(inventory));
+        Ok(())
+    }
     /// Bind only an actual complete immutable Core snapshot. The pure shape
     /// snapshot is intentionally insufficient: it omits traits and providers.
     #[cfg(test)]
@@ -82,7 +122,10 @@ impl<'a> Environment<'a> {
         expected.dynamic_catalogue = if let Some(catalogue) = &self.dynamic_catalogue {
             let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
             self.budget.reserve_temporary_bytes(cost)?;
-            Some(catalogue.clone())
+            let mut copied = catalogue.clone();
+            self.budget.reserve_analysis_work(129)?;
+            copied.stage = self.snapshot.stage.clone();
+            Some(copied)
         } else {
             None
         };
@@ -223,6 +266,9 @@ impl<'a> Environment<'a> {
             index,
             shape,
             dynamic_catalogue: None,
+            stage_inventory: None,
+            generation_epoch: 0,
+            snapshot_base_fingerprint: snapshot.fingerprint,
             impl_index,
             shape_failure,
             snapshot,
@@ -312,6 +358,15 @@ impl<'a> Environment<'a> {
         self.generated_catalog.trees.reserve_exact(1);
         self.generated_catalog.trees.push(tree);
         self.classify_definitions()?;
+        // The VM query that produced this emission has finished. Publish the
+        // next epoch only after parse/hygiene, unique declaration registration
+        // and actual generated CT-body validation all succeed. An error never
+        // supplies a query view of a partially committed source batch.
+        self.generation_epoch = self
+            .generation_epoch
+            .checked_add(1)
+            .ok_or_else(|| error("CT generation epoch overflow", span))?;
+        self.stage_inventory = None;
         Ok(row)
     }
 
@@ -747,6 +802,9 @@ impl<'a> Environment<'a> {
         source_site: Option<compiler::source_sites::SourceSite>,
         runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
+        // This retained source authority is outside invocation scratch and
+        // survives failed expression cleanup until the epoch commits.
+        self.freeze_stage_before_execution()?;
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
         let result = self.evaluate_data_inner(
@@ -1005,6 +1063,7 @@ impl<'a> Environment<'a> {
             limits: &selected_limits,
             target: self.target,
             snapshot: &self.snapshot,
+            stage_inventory: self.stage_inventory.as_deref(),
         };
         self.budget
             .reserve_analysis_work(source_bindings.calls.len() as u64)?;
@@ -1170,6 +1229,7 @@ impl<'a> Environment<'a> {
             limits: &self.limits,
             target: self.target,
             snapshot: &self.snapshot,
+            stage_inventory: self.stage_inventory.as_deref(),
         };
         let clone_charge = (ty.nodes.len() as u64).saturating_mul(96);
         self.budget.reserve_temporary_bytes(clone_charge)?;
@@ -1439,6 +1499,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let (result, receipt) = reader
@@ -1543,6 +1604,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let (result, _) = reader
@@ -1607,6 +1669,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
@@ -1724,6 +1787,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
@@ -1851,6 +1915,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_value = CtValue::Type(CtTypeRef {
@@ -1941,6 +2006,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let cursor = reader
@@ -2051,6 +2117,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let arg = CtValue::Type(CtTypeRef {
@@ -2179,6 +2246,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         assert_eq!(
@@ -2357,6 +2425,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         assert_eq!(
@@ -2428,6 +2497,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
         let i32_type = CtValue::Type(CtTypeRef {
@@ -2887,6 +2957,7 @@ fn identity(t:Type)->Type {return t}
             limits: &limits,
             target: &target,
             snapshot: &environment.snapshot,
+            stage_inventory: None,
         };
         let (value, usage) =
             zil_ct::evaluate_ct_artifact(&verified, &[], &reader, &mut environment.budget).unwrap();
