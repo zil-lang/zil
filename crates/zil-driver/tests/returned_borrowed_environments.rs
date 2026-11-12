@@ -280,6 +280,7 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
+        ("forward-lending", include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil").to_owned()),
         ("forward-borrowed", include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil").to_owned()),
         ("mutable-whole", include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil").to_owned()),
         ("two-addresses", SOURCE.to_owned()),
@@ -525,4 +526,19 @@ fn mutable_environment_raw_and_wire_reconstruct_both_slot_epochs() {
         assert_eq!(decoded.is_ok(),accepted,"Wire {target}/{after_call}: {decoded:?}");
         assert_eq!(zil_analyze::analyze(&changed,&Limits::default()).is_ok(),accepted);
     }
+}
+
+#[test]
+fn forwarded_lending_buffer_environments_preserve_real_lending_indices() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil");
+    let module=typed_source(source);
+    let helpers=module.functions.iter().filter(|f|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_)))).collect::<Vec<_>>();
+    assert_eq!(helpers.len(),2);
+    for helper in helpers {
+        let c=helper.callable_return_contract.as_ref().unwrap();
+        assert_eq!(c.lending_captures,[0]);
+        assert_eq!(c.cleanup,[0]);
+        assert_eq!(c.lending_captures,module.closures[c.closure.0 as usize].lending_captures);
+    }
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }

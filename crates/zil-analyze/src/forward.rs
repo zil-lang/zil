@@ -66,8 +66,8 @@ pub(super) fn envelope(
         || c.hold != claim.roles[0].hold
         || c.call != claim.roles[0].call
         || c.writes != claim.roles[0].writes
-        || !c.lending_captures.is_empty()
-        || !definition.lending_captures.is_empty()
+        || c.lending_captures != definition.lending_captures
+        || !definition.lending_captures.is_empty() && c.kind==CallableKind::FnOnce
 
     {
         return Err(bad(
