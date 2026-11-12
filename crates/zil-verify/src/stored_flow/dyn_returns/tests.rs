@@ -768,7 +768,7 @@ fn owned_inline_region_respects_selected_head_access_and_complete_leaf_type() {
         unreachable!()
     };
     *mutable = false;
-    *inner = Box::new(Type::I64);
+    **inner = Type::I64;
     assert!(
         !checked(&module, &f, &actual),
         "same machine width or outer mode does not replace complete leaf type"
