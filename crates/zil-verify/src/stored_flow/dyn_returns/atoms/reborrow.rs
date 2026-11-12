@@ -62,7 +62,14 @@ pub(super) fn resolve(
             "reborrow changes its full data Type or strengthens actual access",
         ));
     }
-    if !owned::plain(pointee, 0, b)? {
+    // A slice carries its actual bounds with the borrowed value. Its element
+    // still needs a complete class-free Type; this does not turn an unsized
+    // slice into an inline OwnedView directory or cross an element borrow.
+    let data_plain = match pointee.as_ref() {
+        Type::Slice(element) => owned::plain(element, 0, b)?,
+        pointee => owned::plain(pointee, 0, b)?,
+    };
+    if !data_plain {
         return Err(unsupported(
             "reborrow pointee requires a complete qualified occurrence map",
             None,
