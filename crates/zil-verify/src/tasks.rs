@@ -238,7 +238,7 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
         )?;
         for ty in &closure.captures {
             if retained_parameter(ty, budget)?
-                && !(closure.kind == CallableKind::FnOnce
+                && !(matches!(closure.kind, CallableKind::FnOnce | CallableKind::FnMut)
                     && closure.storage_life.is_some()
                     && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))
             {
@@ -325,7 +325,8 @@ fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<(
                     let captured = match &i.kind {
                         InstructionKind::MakeClosure { closure, .. } => {
                             module.closures.get(closure.0 as usize).is_some_and(|d| {
-                                d.kind == CallableKind::FnOnce && d.storage_life.is_some()
+                                matches!(d.kind, CallableKind::FnOnce | CallableKind::FnMut)
+                                    && d.storage_life.is_some()
                             }) && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
                         }
                         _ => false,
