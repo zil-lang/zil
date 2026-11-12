@@ -231,3 +231,23 @@ fn observing_nested_copy_fields_keeps_the_complete_parent_for_retry() {
         "AB84\n",
     );
 }
+
+#[test]
+fn observing_nested_managed_fields_keeps_the_complete_parent_for_retry() {
+    let source = r#"
+package Value{manages bytes:ByteBuffer;id:i32}
+package Entry{value:Value;key:i32}
+fn relay(entry:Entry)->Entry{return entry}
+fn result()->i32{
+ let bytes=bytes_new()
+ if !bytes_reserve(bytes,1)||!bytes_push(bytes,66u8){return 1}
+ var original=Entry{value:Value{bytes:give bytes,id:7},key:9}
+ let description=original.value.bytes
+ let old=i32(bytes_view(description)[0])
+ let retried=relay(original)
+ return old+retried.value.id+retried.key-16
+}
+fn main()->i32{return result()-66}
+"#;
+    native(source, 66);
+}
