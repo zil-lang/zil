@@ -33,7 +33,10 @@ pub(super) fn symbolic_parameter<'a>(
 
 pub(super) fn domain(ty: &TypeRef) -> R<&str> {
     match trait_bounds::plain(ty) {
-        Some(name @ ("bool" | "u8" | "u16" | "u64" | "usize" | "i32" | "i64")) => Ok(name),
+        Some(
+            name @ ("bool" | "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "u64" | "usize"
+            | "i32" | "i64"),
+        ) => Ok(name),
         _ => Err(unsupported(
             ty.span,
             "const parameter requires a supported target scalar domain",
@@ -97,14 +100,16 @@ pub(super) fn argument(
     }
 }
 
-fn integer(text: &str, span: Span) -> R<(u128, Option<&str>)> {
-    let (digits, suffix) = ["u16", "u8", "i32", "i64", "u64", "usize"]
-        .into_iter()
-        .find_map(|suffix| {
-            text.strip_suffix(suffix)
-                .map(|digits| (digits, Some(suffix)))
-        })
-        .unwrap_or((text, None));
+fn integer(text: &str, span: Span) -> R<(i128, Option<&str>)> {
+    let (digits, suffix) = [
+        "u16", "u8", "u32", "i8", "i16", "i32", "i64", "isize", "u64", "usize",
+    ]
+    .into_iter()
+    .find_map(|suffix| {
+        text.strip_suffix(suffix)
+            .map(|digits| (digits, Some(suffix)))
+    })
+    .unwrap_or((text, None));
     let digits = digits.replace('_', "");
     let (digits, radix) = if let Some(d) = digits.strip_prefix("0x") {
         (d, 16)
@@ -116,7 +121,7 @@ fn integer(text: &str, span: Span) -> R<(u128, Option<&str>)> {
         (digits.as_str(), 10)
     };
     let value =
-        u128::from_str_radix(digits, radix).map_err(|_| error(span, "invalid const integer"))?;
+        i128::from_str_radix(digits, radix).map_err(|_| error(span, "invalid const integer"))?;
     Ok((value, suffix))
 }
 
@@ -139,29 +144,61 @@ pub(super) fn normalize(
         (ExprKind::Literal(Literal::Bool(value)), "bool") => {
             ExprKind::Literal(Literal::Bool(*value))
         }
-        (ExprKind::Literal(Literal::Integer(text)), domain) if domain != "bool" => {
+        (kind, domain) if domain != "bool" => {
+            let (text, negative) = match kind {
+                ExprKind::Literal(Literal::Integer(text)) => (text, false),
+                ExprKind::Unary {
+                    op: UnaryOp::Negate,
+                    operand,
+                } => {
+                    budget.node(operand.span, 1)?;
+                    let ExprKind::Literal(Literal::Integer(text)) = &operand.kind else {
+                        return Err(error(
+                            actual.span,
+                            "const argument requires a closed scalar literal",
+                        ));
+                    };
+                    (text, true)
+                }
+                _ => {
+                    return Err(error(
+                        actual.span,
+                        "const argument requires a closed scalar literal",
+                    ));
+                }
+            };
             budget.text(text, actual.span)?;
             let (value, suffix) = integer(text, actual.span)?;
+            let value = if negative {
+                value
+                    .checked_neg()
+                    .ok_or_else(|| error(actual.span, "const integer magnitude overflow"))?
+            } else {
+                value
+            };
             if suffix.is_some_and(|suffix| suffix != domain) {
                 return Err(error(
                     actual.span,
                     "const argument type differs from its declared target domain",
                 ));
             }
-            let max = match domain {
-                "u8" => u8::MAX as u128,
-                "u16" => u16::MAX as u128,
-                "u64" => u64::MAX as u128,
-                "usize" => match budget.target_pointer_width {
-                    32 => u32::MAX as u128,
-                    64 => u64::MAX as u128,
-                    _ => return Err(unsupported(actual.span, "const usize target width")),
-                },
-                "i32" => i32::MAX as u128,
-                "i64" => i64::MAX as u128,
-                _ => unreachable!(),
+            let (signed, bits) = match domain {
+                "u8" => (false, 8),
+                "u16" => (false, 16),
+                "u32" => (false, 32),
+                "u64" => (false, 64),
+                "i8" => (true, 8),
+                "i16" => (true, 16),
+                "i32" => (true, 32),
+                "i64" => (true, 64),
+                "usize" | "isize" if matches!(budget.target_pointer_width, 32 | 64) => {
+                    (domain == "isize", u32::from(budget.target_pointer_width))
+                }
+                _ => return Err(unsupported(actual.span, "const scalar target width")),
             };
-            if value > max {
+            let minimum = if signed { -(1i128 << (bits - 1)) } else { 0 };
+            let maximum = (1i128 << (bits - u32::from(signed))) - 1;
+            if !(minimum..=maximum).contains(&value) {
                 return Err(error(
                     actual.span,
                     "const argument is outside its target integer domain",
@@ -205,6 +242,13 @@ pub(super) fn normalized_value(actual: &TypeRef, budget: &mut Budget<'_>) -> R<z
             Ok(match domain {
                 Some("u8") => zil_ir::Constant::U8(u8::try_from(value).map_err(|_| invalid())?),
                 Some("u16") => zil_ir::Constant::U16(u16::try_from(value).map_err(|_| invalid())?),
+                Some("u32") => zil_ir::Constant::U32(u32::try_from(value).map_err(|_| invalid())?),
+                Some("i8") => zil_ir::Constant::I8(i8::try_from(value).map_err(|_| invalid())?),
+                Some("i16") => zil_ir::Constant::I16(i16::try_from(value).map_err(|_| invalid())?),
+                Some("isize") => {
+                    zil_ir::Constant::Isize(i64::try_from(value).map_err(|_| invalid())?)
+                }
+
                 Some("u64") => zil_ir::Constant::U64(u64::try_from(value).map_err(|_| invalid())?),
                 Some("usize") => {
                     zil_ir::Constant::Usize(u64::try_from(value).map_err(|_| invalid())?)

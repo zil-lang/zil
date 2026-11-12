@@ -72,9 +72,13 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::U64
             | Type::Usize
@@ -206,13 +210,17 @@ impl Walker {
                 Constant::Unit
                 | Constant::Bool(_)
                 | Constant::I32(_)
+                | Constant::I8(_)
+                | Constant::I16(_)
+                | Constant::Isize(_)
                 | Constant::I64(_)
                 | Constant::F32(_)
                 | Constant::F64(_)
                 | Constant::U64(_)
                 | Constant::Usize(_)
                 | Constant::U8(_)
-                | Constant::U16(_),
+                | Constant::U16(_)
+                | Constant::U32(_),
             ) => {}
             _ => return Err(Stop::Unsupported),
         }

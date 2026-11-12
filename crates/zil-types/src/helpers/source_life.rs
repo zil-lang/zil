@@ -243,11 +243,15 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )

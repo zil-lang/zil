@@ -60,6 +60,10 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
             | "u64"
             | "usize"
             | "i32"
@@ -465,6 +469,10 @@ impl Resolver<'_, '_> {
                     || matches!(
                         path[0].as_str(),
                         "u8" | "u16"
+                            | "u32"
+                            | "i8"
+                            | "i16"
+                            | "isize"
                             | "u64"
                             | "usize"
                             | "f32"

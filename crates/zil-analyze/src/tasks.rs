@@ -299,7 +299,16 @@ fn fail(span: zil_base::Span, message: &str) -> Vec<Diagnostic> {
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
+        Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
     )
 }
 fn has_await(blocks: &[BasicBlock], budget: &mut Budget) -> CompileResult<bool> {
@@ -419,7 +428,11 @@ fn worker_one(
                         | Constant::Bool(_)
                         | Constant::U8(_)
                         | Constant::U16(_)
+                        | Constant::U32(_)
                         | Constant::I32(_)
+                        | Constant::I8(_)
+                        | Constant::I16(_)
+                        | Constant::Isize(_)
                         | Constant::I64(_)
                 ) | InstructionKind::Load(_)
                     | InstructionKind::Store { .. }

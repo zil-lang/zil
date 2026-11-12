@@ -421,7 +421,19 @@ fn scoped_shape(
             }
             if matches!(
                 name.as_str(),
-                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64" | "bool" | "void"
+                "u8" | "u16"
+                    | "u32"
+                    | "i8"
+                    | "i16"
+                    | "isize"
+                    | "u64"
+                    | "usize"
+                    | "i32"
+                    | "i64"
+                    | "f32"
+                    | "f64"
+                    | "bool"
+                    | "void"
             ) {
                 if !args.is_empty() {
                     return Err(error(ty.span, "scalar enum payload has type actuals"));
@@ -537,6 +549,10 @@ fn shape(
                 || matches!(
                     name.as_str(),
                     "u8" | "u16"
+                        | "u32"
+                        | "i8"
+                        | "i16"
+                        | "isize"
                         | "u64"
                         | "usize"
                         | "i32"
@@ -612,6 +628,10 @@ fn layout(
             if matches!(
                 name.as_str(),
                 "u8" | "u16"
+                    | "u32"
+                    | "i8"
+                    | "i16"
+                    | "isize"
                     | "u64"
                     | "usize"
                     | "i32"

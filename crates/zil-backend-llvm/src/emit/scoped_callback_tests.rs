@@ -271,6 +271,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             closures: &closures,
             resources: &[],
             intrinsics: &mut intrinsics,
+            foreign_adapters: &mut BTreeSet::new(),
+            machine_meter: &tasks::Meter::new(usize::MAX),
             text: m::Code::new(),
             temporary: 0,
             continuation: 0,

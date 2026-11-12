@@ -75,7 +75,11 @@ fn source_plan(source: &TypedFunction) -> Option<Plan> {
                     Type::Bool => 1,
                     Type::U8 => 8,
                     Type::U16 => 16,
+                    Type::U32 => 32,
                     Type::I32 => 32,
+                    Type::I8 => 8,
+                    Type::I16 => 16,
+                    Type::Isize => 64,
                     Type::I64 => 64,
                     _ => 0,
                 };

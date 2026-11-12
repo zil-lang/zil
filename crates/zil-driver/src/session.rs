@@ -1408,6 +1408,7 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
                     | Type::I64
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::ForeignHandle
                     | Type::CWideString
                     | Type::ForeignCallback { .. }

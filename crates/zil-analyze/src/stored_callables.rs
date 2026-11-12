@@ -11,11 +11,15 @@ pub(super) fn scalar(t: &Type) -> bool {
         Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::F32
             | Type::F64
     )
@@ -35,7 +39,16 @@ pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult
     let c_number = |ty: &Type| {
         matches!(
             ty,
-            Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64
+            Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
+                | Type::F32
+                | Type::F64
         )
     };
     let bytes = declaration.symbol.as_bytes();

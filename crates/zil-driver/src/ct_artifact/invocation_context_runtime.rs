@@ -313,9 +313,13 @@ impl FrozenInvocationContext {
                     match zil_types::parse_integer_literal(text, None, false, value.span)? {
                         zil_ir::Constant::U8(_) => CtScalarTy::U8,
                         zil_ir::Constant::U16(_) => CtScalarTy::U16,
+                        zil_ir::Constant::U32(_) => CtScalarTy::U32,
                         zil_ir::Constant::U64(_) => CtScalarTy::U64,
                         zil_ir::Constant::Usize(_) => CtScalarTy::Usize,
                         zil_ir::Constant::I32(_) => CtScalarTy::I32,
+                        zil_ir::Constant::I8(_) => CtScalarTy::I8,
+                        zil_ir::Constant::I16(_) => CtScalarTy::I16,
+                        zil_ir::Constant::Isize(_) => CtScalarTy::Isize,
                         zil_ir::Constant::I64(_) => CtScalarTy::I64,
                         _ => {
                             return Err(unsupported(

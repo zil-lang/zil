@@ -344,7 +344,11 @@ fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
         Constant::Bool(_) => Some(CtScalarTy::Bool),
         Constant::U8(_) => Some(CtScalarTy::U8),
         Constant::U16(_) => Some(CtScalarTy::U16),
+        Constant::U32(_) => Some(CtScalarTy::U32),
         Constant::I32(_) => Some(CtScalarTy::I32),
+        Constant::I8(_) => Some(CtScalarTy::I8),
+        Constant::I16(_) => Some(CtScalarTy::I16),
+        Constant::Isize(_) => Some(CtScalarTy::Isize),
         Constant::I64(_) => Some(CtScalarTy::I64),
         Constant::F32(_) => Some(CtScalarTy::F32),
         Constant::F64(_) => Some(CtScalarTy::F64),
@@ -359,7 +363,11 @@ fn ordinary_scalar(ty: CtScalarTy) -> Type {
         CtScalarTy::Bool => Type::Bool,
         CtScalarTy::U8 => Type::U8,
         CtScalarTy::U16 => Type::U16,
+        CtScalarTy::U32 => Type::U32,
         CtScalarTy::I32 => Type::I32,
+        CtScalarTy::I8 => Type::I8,
+        CtScalarTy::I16 => Type::I16,
+        CtScalarTy::Isize => Type::Isize,
         CtScalarTy::I64 => Type::I64,
         CtScalarTy::F32 => Type::F32,
         CtScalarTy::F64 => Type::F64,
@@ -371,7 +379,11 @@ fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
     let n = match value {
         CtValue::Scalar(Constant::U8(n)) => i128::from(*n),
         CtValue::Scalar(Constant::U16(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U32(n)) => i128::from(*n),
         CtValue::Scalar(Constant::I32(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I8(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I16(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::Isize(n)) => i128::from(*n),
         CtValue::Scalar(Constant::I64(n)) => i128::from(*n),
         CtValue::Scalar(Constant::U64(n) | Constant::Usize(n)) => i128::from(*n),
         _ => unreachable!("verified CT index is integer"),
@@ -730,6 +742,7 @@ fn value_matches_type(
     Ok(match (value, ty) {
         (CtValue::Scalar(c), CtTy::Scalar(t)) => {
             scalar_ty(c) == Some(*t)
+                && !matches!(c, Constant::Isize(v) if raw.target_pointer_width == 32 && i32::try_from(*v).is_err())
                 && !matches!(c, Constant::Usize(v) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX))
         }
         (CtValue::Text(v), CtTy::Text) => v.len() as u64 <= raw.budget.max_temporary_bytes,
@@ -1062,7 +1075,11 @@ fn int(value: &CtValue) -> i128 {
     match value {
         CtValue::Scalar(Constant::U8(v)) => i128::from(*v),
         CtValue::Scalar(Constant::U16(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::U32(v)) => i128::from(*v),
         CtValue::Scalar(Constant::I32(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I8(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I16(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::Isize(v)) => i128::from(*v),
         CtValue::Scalar(Constant::I64(v)) => i128::from(*v),
         CtValue::Scalar(Constant::U64(v) | Constant::Usize(v)) => i128::from(*v),
         _ => unreachable!("verified integer"),

@@ -2576,11 +2576,13 @@ impl<'a> Engine<'a> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, e.span)?;
-                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
-                    .into_iter()
-                    .find(|suffix| text.ends_with(suffix))
-                    .or(default_integer.then_some("i32"))
-                    .map(|suffix| named(suffix, e.span)))
+                Ok([
+                    "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+                ]
+                .into_iter()
+                .find(|suffix| text.ends_with(suffix))
+                .or(default_integer.then_some("i32"))
+                .map(|suffix| named(suffix, e.span)))
             }
             ExprKind::Literal(Literal::Float(text)) => {
                 self.budget.text(text, e.span)?;
@@ -2984,6 +2986,14 @@ impl<'a> Engine<'a> {
                     Some(named(
                         if text.ends_with("u8") {
                             "u8"
+                        } else if text.ends_with("u32") {
+                            "u32"
+                        } else if text.ends_with("i8") {
+                            "i8"
+                        } else if text.ends_with("i16") {
+                            "i16"
+                        } else if text.ends_with("isize") {
+                            "isize"
                         } else if text.ends_with("u16") {
                             "u16"
                         } else if text.ends_with("u64") {

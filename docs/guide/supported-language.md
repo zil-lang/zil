@@ -2,7 +2,7 @@
 
 状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
-当前有限拥有组合包括普通 POD、九种标量和完整 Copy Tuple/Array 的 Store、普通拥有父形状与自包含捕获。借入 dyn 支持固定标量/Unit 槽和共享/独占接收者。具体范围与限制如下。
+当前有限拥有组合包括普通 POD、十三种标量和完整 Copy Tuple/Array 的 Store、普通拥有父形状与自包含捕获。借入 dyn 支持固定标量/Unit 槽和共享/独占接收者。具体范围与限制如下。
 
 普通拥有 Package 可组合已支持的资源与多个外部共享/独占借入叶，支持嵌套 qualified 子 Package、槽替换及 `move_out` 后完整补回。各槽保留真实来源、父 loan、初始化状态与独立拥有清理；通用捕获及更广异步运输仍有边界。规则分别见[可变存储载体](../../spec/mutable-stored-holder.md)、[trait 合同](../../spec/trait-method-lending.md)和[affine Mutex](../../spec/affine-mutex.md)。[基础语言发布门](../../validation/language-release-gates.json)定义完整功能验收，不代表当前预览已达到1.0。
 
@@ -12,6 +12,8 @@
 
 拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
 
+普通整数包括 `u8/u16/u32/u64/usize/i8/i16/i32/i64/isize`；同型运算、checked 转换、显式 wrapping、目标位宽 CT、泛型 const 和聚合保留精确类型；完整整数和f32/f64进入已核 C参数/结果、地址Record与静态回调ABI。`isize` 与 `i64`、`usize` 与 `u64` 在 x64 上各同宽而类型不同。真实输入见[整数消费者](../../tests/integers/complete-domains.zil)及[C ABI消费者](../../tests/integers/ffi.zil)。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
@@ -20,7 +22,7 @@
 | 普通集合、文本与 I/O | 完整 POD Tuple/Array/Record/标量 Store；[可增长 POD HashMap 和 Copy Set](../../spec/pod-hash-collections.md)；有限完整 owning K/V 的 Entry 与按实际 KeyEq 查找的线性 Map；UTF8 String、排序、文件/流 I/O | 真实普通库、私有跨模块 Key、增长/rehash 准备失败保留、old Entry 转交、容量/分配失败返还责任、短写/EOF、四机器配置 | POD 哈希容器要求 Copy + StoreElement；owning Map 仍为线性查找；已准入 owning Package／字段的 Option 借入 get 保留真实 manager；一般 owning K/V 哈希与完整 Unicode 排版仍有缺口 |
 | trait 与泛型库 | Type/const/life、关联项与字段/别名投影、默认/泛型方法、静态关联函数；普通标量/Enum 与有限拥有 Package 的共享／独占 trait provider；`Store<Item>` manager 的普通拥有 Item lending；多 binder Entry/Map | 未用定义的义务、真实 nominal/provider 身份、完整实参、独立两核与原生；零资源 Package 仍执行 affine 消费检查 | 一般 blanket/约束方程、更广 owning lending 和开放泛型方法槽仍需完整证明，实例不能补上定义期缺失前提 |
 | 普通程序组合 | 真实跨模块程序中的集合更新、错误传播与明确资源责任；同一普通函数可组合借入结果Task、拥有Map的Option借出、结束借出后的插入与移动，支持直接匹配临时Task构造结果 | 固定Source、真实两来源分支、默认预算、完整stdout/退出值、calloc/realloc失败清理、独立raw/Wire与最近反例；各范围按精确源码验收 | 上述Task共享结果可来自多共享输入中声明结果类的真实外部来源；更广holder、捕获环境、借入结果及跨线程运输仍须逐一证明，有限同函数组合不关闭父能力 |
-| 固定共享地址数组 | 非零 `[&'a T;N]`、qualified Record／拥有 Package 的直接字段、常量及六种整数动态索引、普通 helper 参数/结果及共享视图复制 | 每 ordinal 的真实来源、两 life 非恒等映射、父 loan、逐根初始化、不同 upper 的局部读、Source/raw/Wire、四机器配置与精确预算 | `Field(i)` 经实际 Array/length/element 核对才是物理 ordinal；`Element` 仅类型元数据。动态读取先快照且保全候选；空数组、独占复制和更一般 mixed-upper 身份消费者仍有边界；见 [固定合同](../../spec/fixed-shared-address-array.md)和[动态合同](../../spec/dynamic-shared-address-array.md) |
+| 固定共享地址数组 | 非零 `[&'a T;N]`、qualified Record／拥有 Package 的直接字段、常量及十种整数动态索引、普通 helper 参数/结果及共享视图复制 | 每 ordinal 的真实来源、两 life 非恒等映射、父 loan、逐根初始化、不同 upper 的局部读、Source/raw/Wire、四机器配置与精确预算 | `Field(i)` 经实际 Array/length/element 核对才是物理 ordinal；`Element` 仅类型元数据。动态读取先快照且保全候选；空数组、独占复制和更一般 mixed-upper 身份消费者仍有边界；见 [固定合同](../../spec/fixed-shared-address-array.md)和[动态合同](../../spec/dynamic-shared-address-array.md) |
 | 可变借入存储 | 有限 Record/拥有 Package 的多个地址叶；嵌套 qualified 子 Package、槽替换与实际取走/补回 | 真实 Source、独立 raw/Wire、CFG hole/init、SSA 消费、构造 child loan、四机器配置与实际资源释放 | 多路径缺口不能靠复制或别名重载清除；可变捕获、任意嵌套载体及跨异步运输仍需各自证明 |
 | 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；多个共享输入中声明结果类的实际共享地址结果；无显式 Task/Poll 类型头的创建、轮询和跨模块 Direct worker；直接临时表达式匹配保留真实owner；显式 Task<Result,Context> helper 转交 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、raw/Wire 与四机器配置 | Ready 保留真实外部父 loan，Task Destroy 不撤销已导出的结果；frame-local 结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放；pub Suspend 跨模块导出仍受标量 SABI1 限制 |
 | 线程与同步 | 结构化线程、实际 pthread Mutex<T>/affine Guard、拥有 Package/Tuple/Enum/Array payload、明确来源的多输入 helper；i64/u64/usize 原子及强 CAS | 实际共享线程、逐输入来源、顺序合法矩阵、双后端 O0/O2、malloc/init 失败与逐元素一次清理 | Guard 不自动获得线程迁移或跨挂起资格；资源结构须满足实际同步清理与 Transfer/Share 证明 |

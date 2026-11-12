@@ -1265,7 +1265,11 @@ pub(super) const U16: u16 = 64;
 pub(super) const HANDLE: u16 = 128;
 pub(super) const U64: u16 = 256;
 pub(super) const USIZE: u16 = 512;
-pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
+pub(super) const U32: u16 = 4096;
+pub(super) const I8: u16 = 8192;
+pub(super) const I16: u16 = 16384;
+pub(super) const ISIZE: u16 = 32768;
+pub(super) const INTEGER: u16 = U8 | U16 | U32 | U64 | USIZE | I8 | I16 | I32 | I64 | ISIZE;
 pub(super) const F32: u16 = 1024;
 pub(super) const F64: u16 = 2048;
 pub(super) const FLOAT: u16 = F32 | F64;
@@ -1693,8 +1697,12 @@ impl Graph {
             Type::Bool => BOOL,
             Type::U8 => U8,
             Type::U16 => U16,
+            Type::U32 => U32,
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
+            Type::I8 => I8,
+            Type::I16 => I16,
+            Type::Isize => ISIZE,
             Type::I64 => I64,
             Type::F32 => F32,
             Type::F64 => F64,
@@ -2216,6 +2224,10 @@ impl Graph {
             BOOL => Some(Type::Bool),
             U8 => Some(Type::U8),
             U16 => Some(Type::U16),
+            U32 => Some(Type::U32),
+            I8 => Some(Type::I8),
+            I16 => Some(Type::I16),
+            ISIZE => Some(Type::Isize),
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
@@ -3804,6 +3816,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     INTEGER,
                     !text.ends_with("u8")
                         && !text.ends_with("u16")
+                        && !text.ends_with("u32")
+                        && !text.ends_with("i8")
+                        && !text.ends_with("i16")
+                        && !text.ends_with("isize")
                         && !text.ends_with("i32")
                         && !text.ends_with("i64")
                         && !text.ends_with("u64")
@@ -3814,6 +3830,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 if text.ends_with("u16") {
                     self.graph.bind(variable, &Type::U16, span)?;
+                }
+                if text.ends_with("u32") {
+                    self.graph.bind(variable, &Type::U32, span)?;
+                }
+                if text.ends_with("i8") {
+                    self.graph.bind(variable, &Type::I8, span)?;
+                }
+                if text.ends_with("i16") {
+                    self.graph.bind(variable, &Type::I16, span)?;
+                }
+                if text.ends_with("isize") {
+                    self.graph.bind(variable, &Type::Isize, span)?;
                 }
                 if text.ends_with("i32") {
                     self.graph.bind(variable, &Type::I32, span)?;

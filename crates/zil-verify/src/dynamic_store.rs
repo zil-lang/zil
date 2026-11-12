@@ -13,7 +13,11 @@ fn scalar_name(element: &Type) -> Option<&'static str> {
         Type::Bool => "bool",
         Type::U8 => "u8",
         Type::U16 => "u16",
+        Type::U32 => "u32",
         Type::I32 => "i32",
+        Type::I8 => "i8",
+        Type::I16 => "i16",
+        Type::Isize => "isize",
         Type::I64 => "i64",
         Type::U64 => "u64",
         Type::Usize => "usize",
@@ -84,9 +88,12 @@ fn pod_layout(
         Type::Unit => (0, 1, false),
         Type::Bool | Type::U8 => (1, 1, true),
         Type::U16 => (2, 2, true),
+        Type::U32 => (4, 4, true),
+        Type::I8 => (1, 1, true),
+        Type::I16 => (2, 2, true),
         Type::I32 | Type::F32 => (4, 4, true),
         Type::I64 | Type::U64 | Type::F64 => (8, 8, true),
-        Type::Usize => {
+        Type::Usize | Type::Isize => {
             let width = u64::from(profile.pointer_width / 8);
             (width, width, true)
         }
@@ -892,6 +899,10 @@ fn layout(
         Type::Unit => (0, 1),
         Type::Bool | Type::U8 => (1, 1),
         Type::U16 => (2, 2),
+        Type::U32 => (4, 4),
+        Type::I8 => (1, 1),
+        Type::I16 => (2, 2),
+        Type::Isize => (8, 8),
         Type::I32 | Type::F32 => (4, 4),
         Type::I64
         | Type::U64

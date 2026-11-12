@@ -510,7 +510,11 @@ pub(super) fn hint_type(
         | Type::Bool
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::U64
@@ -764,9 +768,13 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
             Type::Unit
                 | Type::Bool
                 | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
                 | Type::I64
                 | Type::U8
                 | Type::U16
+                | Type::U32
                 | Type::F32
                 | Type::U64
                 | Type::Usize
@@ -2782,6 +2790,14 @@ impl<'a> Walker<'a> {
                 .and_then(Option::as_ref),
             CoreExprKind::Integer(n) => Some(if n.ends_with("u8") {
                 &Type::U8
+            } else if n.ends_with("u32") {
+                &Type::U32
+            } else if n.ends_with("i8") {
+                &Type::I8
+            } else if n.ends_with("i16") {
+                &Type::I16
+            } else if n.ends_with("isize") {
+                &Type::Isize
             } else if n.ends_with("u16") {
                 &Type::U16
             } else if n.ends_with("i64") {
@@ -2815,7 +2831,11 @@ impl<'a> Walker<'a> {
                 if !n.ends_with("i32")
                     && !n.ends_with("i64")
                     && !n.ends_with("u8")
-                    && !n.ends_with("u16") =>
+                    && !n.ends_with("u16")
+                    && !n.ends_with("u32")
+                    && !n.ends_with("i8")
+                    && !n.ends_with("i16")
+                    && !n.ends_with("isize") =>
             {
                 Ok(None)
             }
@@ -2966,7 +2986,11 @@ fn scalar_hints(
         let hint = match &expression.kind {
             CoreExprKind::Integer(text) if text.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(text) if text.ends_with("u16") => Some(Type::U16),
+            CoreExprKind::Integer(text) if text.ends_with("u32") => Some(Type::U32),
             CoreExprKind::Integer(text) if text.ends_with("i32") => Some(Type::I32),
+            CoreExprKind::Integer(text) if text.ends_with("isize") => Some(Type::Isize),
+            CoreExprKind::Integer(text) if text.ends_with("i16") => Some(Type::I16),
+            CoreExprKind::Integer(text) if text.ends_with("i8") => Some(Type::I8),
             CoreExprKind::Integer(text) if text.ends_with("i64") => Some(Type::I64),
             CoreExprKind::Integer(text) if text.ends_with("u64") => Some(Type::U64),
             CoreExprKind::Integer(text) if text.ends_with("usize") => Some(Type::Usize),
@@ -3230,6 +3254,14 @@ fn integer(
         (s, Type::U64)
     } else if let Some(s) = clean.strip_suffix("usize") {
         (s, Type::Usize)
+    } else if let Some(s) = clean.strip_suffix("u32") {
+        (s, Type::U32)
+    } else if let Some(s) = clean.strip_suffix("i8") {
+        (s, Type::I8)
+    } else if let Some(s) = clean.strip_suffix("i16") {
+        (s, Type::I16)
+    } else if let Some(s) = clean.strip_suffix("isize") {
+        (s, Type::Isize)
     } else if let Some(s) = clean.strip_suffix("u16") {
         (s, Type::U16)
     } else if let Some(s) = clean.strip_suffix("u8") {
@@ -3239,6 +3271,14 @@ fn integer(
             clean.as_str(),
             if expected == Some(&Type::U8) {
                 Type::U8
+            } else if expected == Some(&Type::U32) {
+                Type::U32
+            } else if expected == Some(&Type::I8) {
+                Type::I8
+            } else if expected == Some(&Type::I16) {
+                Type::I16
+            } else if expected == Some(&Type::Isize) {
+                Type::Isize
             } else if expected == Some(&Type::U16) {
                 Type::U16
             } else if expected == Some(&Type::U64) {
@@ -3277,7 +3317,13 @@ fn integer(
     };
     match ty {
         Type::U8 => u8::try_from(value).map(Constant::U8).map_err(|_| error()),
+        Type::I8 => i8::try_from(value).map(Constant::I8).map_err(|_| error()),
+        Type::I16 => i16::try_from(value).map(Constant::I16).map_err(|_| error()),
+        Type::Isize => i64::try_from(value)
+            .map(Constant::Isize)
+            .map_err(|_| error()),
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| error()),
+        Type::U32 => u32::try_from(value).map(Constant::U32).map_err(|_| error()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| error()),
         Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error()),
         Type::Usize => u64::try_from(value)

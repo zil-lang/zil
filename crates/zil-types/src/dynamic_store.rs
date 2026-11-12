@@ -126,7 +126,11 @@ pub(super) fn scalar_element(ty: &Type) -> bool {
         Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
@@ -167,6 +171,10 @@ pub(super) fn pod_element(ty: &Type) -> bool {
             Type::Unit => (0, 1),
             Type::Bool | Type::U8 => (1, 1),
             Type::U16 => (2, 2),
+            Type::U32 => (4, 4),
+            Type::I8 => (1, 1),
+            Type::I16 => (2, 2),
+            Type::Isize => (8, 8),
             Type::I32 | Type::F32 => (4, 4),
             Type::I64 | Type::U64 | Type::Usize | Type::F64 => (8, 8),
             Type::Record { fields: ts, .. } if ts.iter().all(|(_, ty)| ty.is_copy_value()) => {
@@ -513,7 +521,11 @@ pub(super) fn definition_name(element: &Type) -> String {
         Type::Bool => "bool",
         Type::U8 => "u8",
         Type::U16 => "u16",
+        Type::U32 => "u32",
         Type::I32 => "i32",
+        Type::I8 => "i8",
+        Type::I16 => "i16",
+        Type::Isize => "isize",
         Type::I64 => "i64",
         Type::U64 => "u64",
         Type::Usize => "usize",

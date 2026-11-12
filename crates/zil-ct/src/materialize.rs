@@ -17,10 +17,14 @@ pub(super) fn scalar(c: Constant) -> CoreExprKind {
         Constant::Bool(v) => CoreExprKind::Bool(v),
         Constant::U8(v) => CoreExprKind::Integer(format!("{v}u8")),
         Constant::U16(v) => CoreExprKind::Integer(format!("{v}u16")),
+        Constant::U32(v) => CoreExprKind::Integer(format!("{v}u32")),
         Constant::NullHandle | Constant::NullWideString | Constant::WideString(_) => {
             unreachable!("independent CT whitelist excludes foreign constants")
         }
         Constant::I32(v) => CoreExprKind::Integer(format!("{v}i32")),
+        Constant::I8(v) => CoreExprKind::Integer(format!("{v}i8")),
+        Constant::I16(v) => CoreExprKind::Integer(format!("{v}i16")),
+        Constant::Isize(v) => CoreExprKind::Integer(format!("{v}isize")),
         Constant::I64(v) => CoreExprKind::Integer(format!("{v}i64")),
         Constant::U64(v) => CoreExprKind::Integer(format!("{v}u64")),
         Constant::Usize(v) => CoreExprKind::Integer(format!("{v}usize")),

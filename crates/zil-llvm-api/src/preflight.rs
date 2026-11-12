@@ -91,12 +91,15 @@ fn identifier(s: &str) -> bool {
 }
 fn attrs(a: &[Attr], ty: Option<&Ty>) -> Result<()> {
     let mut seen = BTreeSet::new();
+    if a.contains(&Attr::ZeroExt) && a.contains(&Attr::SignExt) {
+        return fail("conflicting integer ABI extension attributes");
+    }
     for x in a {
         if !seen.insert(x.name()) {
             return fail("duplicate machine ABI attribute");
         }
         match (x, ty) {
-            (Attr::ZeroExt, Some(Ty::Int(1 | 8 | 16 | 32 | 64))) => {}
+            (Attr::ZeroExt | Attr::SignExt, Some(Ty::Int(1 | 8 | 16 | 32 | 64))) => {}
             (Attr::NonLazyBind | Attr::NoInline, None) => {}
             _ => return fail("attribute is invalid for its machine ABI position"),
         }
@@ -1431,5 +1434,18 @@ mod dominance_interval_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod signed_abi_attribute_tests {
+    use super::*;
+    #[test]
+    fn integer_extension_requires_an_integer_and_one_sign_policy() {
+        assert!(attrs(&[Attr::SignExt], Some(&Ty::Int(8))).is_ok());
+        assert!(attrs(&[Attr::SignExt], Some(&Ty::Int(16))).is_ok());
+        assert!(attrs(&[Attr::SignExt], Some(&Ty::F32)).is_err());
+        assert!(attrs(&[Attr::SignExt], None).is_err());
+        assert!(attrs(&[Attr::ZeroExt, Attr::SignExt], Some(&Ty::Int(8))).is_err());
     }
 }

@@ -157,11 +157,15 @@ fn lower_view_with_budget(
                     Type::Unit
                         | Type::Bool
                         | Type::I32
+                        | Type::I8
+                        | Type::I16
+                        | Type::Isize
                         | Type::I64
                         | Type::U64
                         | Type::Usize
                         | Type::U8
                         | Type::U16
+                        | Type::U32
                         | Type::F32
                         | Type::F64
                 )
@@ -173,11 +177,15 @@ fn lower_view_with_budget(
                 Type::Unit
                     | Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::F32
                     | Type::F64
             );
@@ -361,7 +369,7 @@ fn lower_view_with_budget(
             target,
             functions: &module.functions,
             closures: &module.closures,
-            layouts: std::borrow::Cow::Owned(scalar_layouts()),
+            layouts: std::borrow::Cow::Owned(scalar_layouts_for_width(target.pointer_width)),
         },
         sum_budget,
     ))
@@ -616,6 +624,9 @@ fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This
 /// table describes storage; Boolean arithmetic still uses LLVM's `i1` values.
 pub fn scalar_layouts() -> Vec<ScalarLayout> {
+    scalar_layouts_for_width(64)
+}
+fn scalar_layouts_for_width(pointer_width: u16) -> Vec<ScalarLayout> {
     vec![
         ScalarLayout {
             ty: Type::Unit,
@@ -656,6 +667,26 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
             ty: Type::U16,
             size: 2,
             alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::U32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::I8,
+            size: 1,
+            alignment: 1,
+        },
+        ScalarLayout {
+            ty: Type::I16,
+            size: 2,
+            alignment: 2,
+        },
+        ScalarLayout {
+            ty: Type::Isize,
+            size: u32::from(pointer_width / 8),
+            alignment: u32::from(pointer_width / 8),
         },
         ScalarLayout {
             ty: Type::ForeignHandle,
@@ -891,6 +922,10 @@ mod tests {
                 (8, 8),
                 (1, 1),
                 (2, 2),
+                (4, 4),
+                (1, 1),
+                (2, 2),
+                (8, 8),
                 (8, 8),
                 (8, 8)
             ]

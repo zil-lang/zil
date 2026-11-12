@@ -32,7 +32,11 @@ fn shape(ty: &Type, descriptor: bool, left: &mut usize, span: Span) -> R<bool> {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
