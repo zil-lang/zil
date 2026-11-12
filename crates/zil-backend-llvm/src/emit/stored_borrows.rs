@@ -691,8 +691,14 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::ByteBufferPush { buffer, value } => vec![*buffer, *value],
         InstructionKind::ByteBufferTruncate { buffer, length } => vec![*buffer, *length],
         InstructionKind::ExtractIndex { aggregate, index } => vec![*aggregate, *index],
-        InstructionKind::UpdateField { aggregate, value, .. } => vec![*aggregate, *value],
-        InstructionKind::UpdateIndex { aggregate, index, value } => vec![*aggregate, *index, *value],
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        } => vec![*aggregate, *value],
+        InstructionKind::UpdateIndex {
+            aggregate,
+            index,
+            value,
+        } => vec![*aggregate, *index, *value],
         InstructionKind::ReadAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressField { address, .. }

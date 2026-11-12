@@ -18,32 +18,35 @@ fn pure_nominal_value(ty: &Type) -> bool {
 // The enclosing signature must name every domain at its physical Field path.
 // Admission of the actual nominal instances and all stored leaves is a
 // separate module/body proof; this only selects the shared value directory.
-fn shared_compound(ty: &Type) -> bool {
-    shared_compound_inner(ty, false)
+fn scoped_compound(ty: &Type) -> bool {
+    scoped_compound_inner(ty, false)
 }
-fn shared_compound_inner(ty: &Type, qualified: bool) -> bool {
+fn scoped_compound_inner(ty: &Type, qualified: bool) -> bool {
     match ty {
         Type::BorrowedStorage { storage, life } => {
-            life.slots
-                .iter()
-                .all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
-                && shared_compound_inner(storage, true)
+            life.slots.iter().all(|slot| {
+                matches!(
+                    slot.mode,
+                    StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                )
+            }) && scoped_compound_inner(storage, true)
         }
-        Type::Address { mutable: false, .. } => qualified,
+        Type::Address { .. } => qualified,
+        Type::Managed(payload) => payload.is_copy_value(),
         Type::Tuple(fields) => fields
             .iter()
-            .all(|field| shared_compound_inner(field, qualified)),
+            .all(|field| scoped_compound_inner(field, qualified)),
         Type::Record { fields, .. } => fields
             .iter()
-            .all(|(_, field)| shared_compound_inner(field, qualified)),
-        Type::Array { element, .. } => shared_compound_inner(element, qualified),
+            .all(|(_, field)| scoped_compound_inner(field, qualified)),
+        Type::Array { element, .. } => scoped_compound_inner(element, qualified),
         Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
             fields
                 .iter()
-                .all(|field| shared_compound_inner(field, qualified))
+                .all(|field| scoped_compound_inner(field, qualified))
         }),
         Type::ErrorUnion { error, result } => {
-            shared_compound_inner(error, qualified) && shared_compound_inner(result, qualified)
+            scoped_compound_inner(error, qualified) && scoped_compound_inner(result, qualified)
         }
         other => other.is_copy_value(),
     }
@@ -574,7 +577,7 @@ fn relation_inner(
             Type::Array { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
                 if pure_array_value(actual)
                     || super::stored_flow::enum_address::signature(actual)
-                    || matches!(actual, Type::Tuple(_)) && shared_compound(actual) =>
+                    || matches!(actual, Type::Tuple(_)) && scoped_compound(actual) =>
             {
                 let mut path = if pointee {
                     vec![LifeTypeProjection::Pointee]

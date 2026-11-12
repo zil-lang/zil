@@ -144,6 +144,17 @@ pub(super) mod option_address;
 mod retained;
 mod task_address;
 mod task_failure;
+pub(super) fn borrowed_product_child(ty: &Type, b: &mut Budget) -> Check<bool> {
+    compound::borrowed_child(ty, b)
+}
+pub(super) fn compound_operation(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    compound::operation(f, i, b)
+}
+
 pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
     if !b.task_failure_carriers {
         return Ok(false);
@@ -1506,6 +1517,7 @@ pub(super) fn qualifications(
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
+                    && !compound::operation(f, i, b)?
                     && !dyn_closed::operation(module, f, i, b)?
                     && !dyn_ports::operation(module, f, i, b)?
                     && !dyn_ports::wrapper(module, f, i, b)?
@@ -2926,6 +2938,13 @@ fn step(
         None
     };
     match &i.kind {
+        InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
+            compound::unpack(*local, fields, state, b)?;
+        }
+        InstructionKind::DropTuple { local } if compound::operation(f, i, b)? => {
+            state.locals[local.0 as usize] = Payload::default();
+            clear_local_holes(state, *local, b)?;
+        }
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
@@ -3465,7 +3484,7 @@ fn step(
                 }
             }
         }
-        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
@@ -6164,6 +6183,7 @@ fn check_with_mask(
     b: &mut Budget,
 ) -> Check<()> {
     let mixed_package = b.stored_package_instance;
+    let compound_profile = compound::profile(module, b)?;
     let closed_dyn_profile = dyn_closed::related_resources(module, b)?;
     let owned_byte_profile = mask.is_none()
         && !mixed_package
@@ -6176,6 +6196,7 @@ fn check_with_mask(
             && !b.masked_stored_tasks()
             && !owned_byte_profile
             && !closed_dyn_profile
+            && !compound_profile
         {
             super::stored_owned::module(module, b)?;
         }
@@ -6234,6 +6255,7 @@ fn check_with_mask(
                 && !b.masked_stored_tasks()
                 && !byte_value
                 && !closed_dyn_value
+                && !compound_profile
             {
                 super::stored_owned::value_type(ty, b)?;
             }

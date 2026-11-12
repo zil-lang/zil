@@ -1468,6 +1468,20 @@ fn check_with(
                         }
                     }
                     InstructionKind::UnpackTuple { local, fields }
+                        if super::stored_flow::compound_operation(f, i, b)? =>
+                    {
+                        for (index, target) in fields.iter().enumerate() {
+                            link_projection(
+                                &f.locals[local.0 as usize].ty,
+                                &locals[local.0 as usize],
+                                &locals[target.0 as usize],
+                                LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                    InstructionKind::UnpackTuple { local, fields }
                         if super::stored_flow::failure_unpack(f, i, b)? =>
                     {
                         let parent_shape = shape(&f.locals[local.0 as usize].ty)
@@ -1776,7 +1790,8 @@ fn check_with(
                             b,
                         )?;
                     }
-                    InstructionKind::MakeAggregate { fields } => {
+                    InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakeOwnedTuple { fields } => {
                         if let Some(out) = out
                             && !out.array_elements.is_empty()
                         {

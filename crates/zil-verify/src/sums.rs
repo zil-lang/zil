@@ -147,6 +147,11 @@ pub(super) fn check_type_for(
         {
             continue;
         }
+        if stored_flow::borrowed_product_child(ty, budget)? {
+            // Physical Record/Tuple storage has address leaves and no owners.
+            // Its affine loans are proven by stored_flow, never by Copy debt.
+            continue;
+        }
         if stored_flow::failure_shape(ty, budget)? {
             let Type::BorrowedStorage { storage, .. } = ty else {
                 unreachable!()
