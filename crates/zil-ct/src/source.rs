@@ -1245,8 +1245,11 @@ impl<'a> Walker<'a> {
         if !core.closure_life_contexts.is_empty()
             || !core.aggregate_templates.is_empty()
             || !core.aggregate_applications.is_empty()
-            || core.functions.iter().any(|f| f.callable_return.as_ref()
-                .is_some_and(|bound| bound.life.is_some() || bound.source_life.is_some()))
+            || core.functions.iter().any(|f| {
+                f.callable_return
+                    .as_ref()
+                    .is_some_and(|bound| bound.life.is_some() || bound.source_life.is_some())
+            })
         {
             let metadata_limits = Limits {
                 max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
@@ -1336,6 +1339,7 @@ impl<'a> Walker<'a> {
                     contract,
                     self.limits.max_nodes,
                     self.limits.max_call_depth,
+                    self.work_left,
                 )
                 .ok_or_else(|| {
                     vec![Diagnostic::limit(
@@ -3972,11 +3976,21 @@ mod tests {
         );
         let limits = Limits::default();
         let (_, usage) = evaluate_source_constants_with_usage(&input, &target, &limits).unwrap();
-        let exact = Limits { max_nodes: usage.nodes, ..limits.clone() };
+        let exact = Limits {
+            max_nodes: usage.nodes,
+            ..limits.clone()
+        };
         evaluate_source_constants(&input, &target, &exact).unwrap();
-        let below = Limits { max_nodes: usage.nodes - 1, ..limits.clone() };
-        assert!(evaluate_source_constants(&input, &target, &below).unwrap_err().iter()
-            .any(|d| d.code == "E-RESOURCE-LIMIT"));
+        let below = Limits {
+            max_nodes: usage.nodes - 1,
+            ..limits.clone()
+        };
+        assert!(
+            evaluate_source_constants(&input, &target, &below)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        );
         evaluate_source_constants(&input, &target, &exact).unwrap();
         // CT transports untrusted proposals; no runtime semantic admission is asserted.
         let mut deep = input.clone();

@@ -1206,7 +1206,7 @@ pub(super) fn charge_returned_snapshot(
 }
 fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
     let work =
-        callable_return_metadata_work(bound, budget.limits.max_nodes, budget.limits.max_call_depth)
+        callable_return_metadata_work(bound, budget.limits.max_nodes, budget.limits.max_call_depth, budget.work)
             .ok_or_else(|| {
                 Diagnostic::limit(
                     Phase::Types,

@@ -212,7 +212,7 @@ fn storage_life_json(life: &zil_ir::StorageLifeContract) -> String {
             StorageBase::Parameter(n) => format!("{{\"parameter\":{n}}}"),
             StorageBase::Capture(n) => format!("{{\"capture\":{n}}}"),
             StorageBase::Result => "\"result\"".into(),
-        StorageBase::Receiver => "\"receiver\"".into(),
+            StorageBase::Receiver => "\"receiver\"".into(),
         }
     }
     fn binder(binder: StorageBinder) -> String {

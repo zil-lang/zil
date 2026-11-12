@@ -1961,6 +1961,7 @@ pub(super) fn preflight(
                     life,
                     limits.max_nodes,
                     limits.max_call_depth,
+                    budget.remaining(),
                 )
                 .ok_or_else(|| bad("callable return relation exceeds bounds"))?;
                 budget.input(work, "callable return relation")?;

@@ -91,7 +91,7 @@ pub(super) fn check_claim(
     if let Some(c) = &f.callable_return_contract {
         if let Some(life) = &c.life {
             let work =
-                storage_relation_metadata_work(life, limits.max_nodes, limits.max_call_depth)
+                storage_relation_metadata_work(life, limits.max_nodes, limits.max_call_depth, budget.remaining)
                     .ok_or_else(|| limit("callable return relation exceeds bounds"))?;
             budget.spend(work)?;
             return Err(bad(

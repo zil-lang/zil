@@ -99,6 +99,7 @@ pub fn storage_relation_metadata_work(
     life: &StorageLifeContract,
     max_nodes: usize,
     max_depth: usize,
+    remaining_work: usize,
 ) -> Option<usize> {
     let rows = life.bindings.len().checked_add(life.classes.len())?;
     if rows > max_nodes
@@ -107,9 +108,11 @@ pub fn storage_relation_metadata_work(
     {
         return None;
     }
-    let mut work = rows.checked_mul(8)?.checked_add(4)?;
-    work = work.checked_add(life.fixed_binder_count as usize)?;
-    work = work.checked_add(life.invocation_binder_count as usize)?;
+    let add = |work: usize, cost: usize| work.checked_add(cost).filter(|n| *n <= remaining_work);
+    // Reserve all row visits before inspecting any row payload.
+    let mut work = add(0, rows.checked_mul(8)?.checked_add(4)?)?;
+    work = add(work, life.fixed_binder_count as usize)?;
+    work = add(work, life.invocation_binder_count as usize)?;
     for depth in life
         .bindings
         .iter()
@@ -119,7 +122,7 @@ pub fn storage_relation_metadata_work(
         if depth > max_depth {
             return None;
         }
-        work = work.checked_add(depth.checked_mul(2)?)?;
+        work = add(work, depth.checked_mul(2)?)?;
     }
     Some(work)
 }
@@ -132,10 +135,12 @@ pub fn callable_return_metadata_work(
     bound: &CoreCallableReturn,
     max_nodes: usize,
     max_depth: usize,
+    remaining_work: usize,
 ) -> Option<usize> {
+    let add = |work: usize, cost: usize| work.checked_add(cost).filter(|n| *n <= remaining_work);
     let mut work = 0usize;
     if let Some(life) = &bound.life {
-        work = storage_relation_metadata_work(life, max_nodes, max_depth)?;
+        work = storage_relation_metadata_work(life, max_nodes, max_depth, remaining_work)?;
     }
     if let Some(context) = &bound.source_life {
         for count in [
@@ -148,18 +153,16 @@ pub fn callable_return_metadata_work(
             if count > max_nodes {
                 return None;
             }
-            work = work.checked_add(count.checked_mul(8)?.checked_add(1)?)?;
+            work = add(work, count.checked_mul(8)?.checked_add(1)?)?;
         }
-        work = work
-            .checked_add(context.identity.package.len())?
-            .checked_add(8)?;
+        work = add(work, context.identity.package.len().checked_add(8)?)?;
         for text in context
             .identity
             .module_path
             .iter()
             .chain(&context.identity.declaration_path)
         {
-            work = work.checked_add(text.len())?.checked_add(1)?;
+            work = add(work, text.len().checked_add(1)?)?;
         }
         for row in &context.fixed {
             let depth = match &row.input.position {
@@ -169,7 +172,7 @@ pub fn callable_return_metadata_work(
             if depth > max_depth {
                 return None;
             }
-            work = work.checked_add(depth.checked_mul(2)?)?;
+            work = add(work, depth.checked_mul(2)?)?;
         }
     }
     Some(work)

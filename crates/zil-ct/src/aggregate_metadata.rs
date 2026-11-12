@@ -219,11 +219,18 @@ pub fn preflight_core_metadata(
         }
     }
     for function in &core.functions {
-        let Some(bound) = &function.callable_return else { continue };
-        if bound.life.is_none() && bound.source_life.is_none() { continue; }
-        let work = callable_return_metadata_work(bound, limits.max_nodes, limits.max_call_depth)
+        let Some(bound) = &function.callable_return else {
+            continue;
+        };
+        if bound.life.is_none() && bound.source_life.is_none() {
+            continue;
+        }
+        let work = callable_return_metadata_work(bound, limits.max_nodes, limits.max_call_depth, w.work)
             .ok_or_else(|| quota(Some(function.span)))?;
-        w.work = w.work.checked_sub(work).ok_or_else(|| quota(Some(function.span)))?;
+        w.work = w
+            .work
+            .checked_sub(work)
+            .ok_or_else(|| quota(Some(function.span)))?;
         w.node(0, Some(function.span))?;
         if let Some(life) = &bound.life {
             for binding in &life.bindings {
@@ -238,10 +245,17 @@ pub fn preflight_core_metadata(
         if let Some(context) = &bound.source_life {
             w.node(0, Some(function.span))?;
             // Strings and vector indices have already been reserved in work.
-            for _ in context.identity.module_path.iter().chain(&context.identity.declaration_path) {
+            for _ in context
+                .identity
+                .module_path
+                .iter()
+                .chain(&context.identity.declaration_path)
+            {
                 w.node(1, Some(function.span))?;
             }
-            for _ in &context.identity.generation_path { w.node(1, Some(function.span))?; }
+            for _ in &context.identity.generation_path {
+                w.node(1, Some(function.span))?;
+            }
             for formal in &context.parameters {
                 w.node(1, Some(function.span))?;
                 if let LifeParameterKind::Const(ty) = formal {
