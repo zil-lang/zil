@@ -270,14 +270,30 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 "{label}: keep unchanged module products"
             );
             assert_eq!(work.cloned_source_map_entries, 0, "{label}: shared maps");
-            let changed_declarations = if changed_modules == 1 { 2u64 } else { 6 };
+            // Shared item consumers copy only bindings that actually change:
+            // equal-width edits change leaf alone; width shifts move value;
+            // IO's last emit changes while its three preceding items stay put.
+            let (changed_declarations, retained_items) = match label {
+                "equal-width" => (1u64, 1u64),
+                "wide-private" => (2, 0),
+                "wide-multi" => (3, 3),
+                _ => unreachable!("fixed source edit cases"),
+            };
             assert_eq!(
                 work.normalized_item_deep_clones, changed_declarations,
                 "{label}: no unchanged declaration may create a mutable Normalize body"
             );
             assert_eq!(
-                work.restored_module_deep_clones, changed_modules,
-                "{label}: no unchanged module may deep-clone its Restore input"
+                work.restored_module_deep_clones, 0,
+                "{label}: real shared-item consumption never materializes a full Restore Module"
+            );
+            assert_eq!(
+                work.restored_item_deep_clones, changed_declarations,
+                "{label}: only current changed item bindings receive mutable Restore bodies"
+            );
+            assert_eq!(
+                work.retained_restored_items, retained_items,
+                "{label}: unchanged items inside a changed module retain their real AST owner"
             );
             assert_eq!(
                 work.retained_normalized_items,
