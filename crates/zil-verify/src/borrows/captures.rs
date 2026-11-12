@@ -368,7 +368,13 @@ pub(super) fn reconstruct_roots(
                             arguments,
                         } => {
                             row = super::returned::instantiate(
-                                module, f, *function, arguments, ordinary, Some(&values), budget,
+                                module,
+                                f,
+                                *function,
+                                arguments,
+                                ordinary,
+                                Some(&values),
+                                budget,
                             )?;
                         }
                         // Retained fields without external source leaves contain independently

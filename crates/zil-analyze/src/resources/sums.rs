@@ -50,10 +50,13 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             }
         }
         if let Type::BorrowedStorage { storage, .. } = ty
-            && crate::stored_flow::failure_shape(ty, budget)? {
+            && crate::stored_flow::failure_shape(ty, budget)?
+        {
             return walk(module, storage, budget, true);
         }
-        if scoped && matches!(ty, Type::Address { .. }) { return Ok((false, false)); }
+        if scoped && matches!(ty, Type::Address { .. }) {
+            return Ok((false, false));
+        }
         match package_storage(ty) {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {

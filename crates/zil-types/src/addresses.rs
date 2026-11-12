@@ -132,12 +132,17 @@ impl Builder<'_, '_> {
             Type::Enum { .. } => owned_shapes::enumeration(ty),
             ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
-            Type::Closure(id) => self.owned_closure(ty)
-                || self.closures.pending[id.0 as usize].captures.iter().any(|capture| {
-                    (capture.borrowed && capture.written)
-                        || matches!(capture.ty,Type::Address{mutable:true,..})
-                            && (capture.moved || capture.written)
-                }),
+            Type::Closure(id) => {
+                self.owned_closure(ty)
+                    || self.closures.pending[id.0 as usize]
+                        .captures
+                        .iter()
+                        .any(|capture| {
+                            (capture.borrowed && capture.written)
+                                || matches!(capture.ty, Type::Address { mutable: true, .. })
+                                    && (capture.moved || capture.written)
+                        })
+            }
             _ => false,
         }
     }

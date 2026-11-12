@@ -1583,13 +1583,21 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             // Actual capture shape schedules the independent resource ledger;
             // a qualifier wrapper never removes a physical owning ticket.
-            budget.owning_environment_captures |= matches!(super::resources::package_storage(ty),Type::Managed(_)|Type::Package{..}|Type::Closure(_)|Type::OwnedDyn{..});
-            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
+            budget.owning_environment_captures |= matches!(
+                super::resources::package_storage(ty),
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+            );
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
                 super::resources::product::admit_owned(module, ty, budget)?;
-                budget.owning_environment_captures=true;
-                if matches!(ty,Type::BorrowedStorage{life,..} if life.binder_count>0) && closure.storage_life.is_none() {
-                    return Err(bad("qualified owning capture omits its actual Fixed class domain"));
+                budget.owning_environment_captures = true;
+                if matches!(ty,Type::BorrowedStorage{life,..} if life.binder_count>0)
+                    && closure.storage_life.is_none()
+                {
+                    return Err(bad(
+                        "qualified owning capture omits its actual Fixed class domain",
+                    ));
                 }
                 if closure.kind == zil_ir::CallableKind::Fn
                     && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress))

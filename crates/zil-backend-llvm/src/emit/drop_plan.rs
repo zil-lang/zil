@@ -16,14 +16,6 @@ fn scoped_debt(ty: &Type) -> bool {
         _ => false,
     }
 }
-fn scoped_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    match ty {
-        Type::Address { .. } | Type::Desc(_) => true,
-        Type::Tuple(fields) => fields.iter().all(|t| scoped_value_type(t, resources)),
-        Type::Package { fields, .. } => fields.iter().all(|(_, t)| scoped_value_type(t, resources)),
-        _ => value_type(ty, resources),
-    }
-}
 pub(super) fn owned_sum(ty: &Type) -> bool {
     if let Type::BorrowedStorage { storage, .. } = ty {
         return matches!(storage.as_ref(), Type::Tuple(_)) && scoped_debt(storage);
@@ -477,10 +469,6 @@ fn plan(
         }
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
-        Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
-        Type::BorrowedStorage { storage, .. } => {
-            return plan(storage, resources, budget, depth + 1);
-        }
         Type::Managed(_) => return link(ty, resources, budget, depth),
         Type::Package { fields, .. } | Type::Record { fields, .. } => {
             return product_plan(
