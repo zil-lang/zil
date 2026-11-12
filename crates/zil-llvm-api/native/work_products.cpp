@@ -466,7 +466,20 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   std::string Facts;
   if (analysisKeys(AM, F) != P.ExitKeys) return Fail("exit-analysis-availability-order");
   if (!analysisFacts(F, AM, P.ExitKeys, Facts)) return Fail("exit-analysis-domain");
-  if (Facts != P.ExitFacts) return Fail("exit-analysis-facts");
+  if (Facts != P.ExitFacts) {
+    if (AnalysisDiagnostics) {
+      size_t At = 0;
+      while (At < Facts.size() && At < P.ExitFacts.size() && Facts[At] == P.ExitFacts[At]) ++At;
+      auto Fragment = [At](const std::string &S) {
+        size_t Start = At > 120 ? At - 120 : 0;
+        return S.substr(Start, 320);
+      };
+      std::fprintf(stderr, "ZIL FPM facts-difference %.*s offset=%zu expected-bytes=%zu actual-bytes=%zu\nEXPECTED [%s]\nACTUAL [%s]\n",
+          static_cast<int>(F.getName().size()), F.getName().data(), At,
+          P.ExitFacts.size(), Facts.size(), Fragment(P.ExitFacts).c_str(), Fragment(Facts).c_str());
+    }
+    return Fail("exit-analysis-facts");
+  }
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
 }
 int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
