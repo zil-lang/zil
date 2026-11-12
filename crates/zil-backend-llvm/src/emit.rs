@@ -203,8 +203,8 @@ pub(crate) fn lower_view_with_session(
         if let Some(output) = session.reuse_machine(verified, lir, whole_options, remaining_work) {
             return Ok(output);
         }
-        // A miss never retains a historical whole-module/helper product. A
-        // failed request cannot publish its partially constructed replacement.
+        // A miss invalidates the active identity; completed bounded raw epochs
+        // remain candidates. Failure cannot publish a partial replacement.
         session.discard_machine();
     }
     dyn_dispatch::reserve(verified.module(), verified.limits(), &mut remaining_work)?;

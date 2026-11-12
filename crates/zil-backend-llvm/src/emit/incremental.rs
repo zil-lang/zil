@@ -12,21 +12,59 @@ pub(crate) use whole::with_initial_work;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Session {
-    context: Option<Context>,
-    entries: BTreeMap<FunctionId, Arc<Entry>>,
+    context: Option<Arc<Context>>,
+    entries: EntryTable,
     pub(crate) hits: usize,
     pub(crate) misses: usize,
     pub(crate) source_projection_traversals: usize,
     pub(crate) source_projection_instruction_visits: usize,
     pub(crate) source_projection_reuses: usize,
     context_identity: Arc<()>,
-    pub(crate) products: Vec<(Arc<()>, Arc<()>)>,
+    pub(crate) products: Arc<Vec<(Arc<()>, Arc<()>)>>,
     pub(crate) eligible: bool,
-    admitted: BTreeMap<FunctionId, Vec<FunctionId>>,
-    whole_machine: Option<Arc<whole::MachineProduct>>,
+    admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
+    machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
     pub(crate) reused_machine_module: bool,
     pub(crate) whole_machine_input_functions_compared: usize,
 }
+/// Sparse immutable entry leaves. Context changes rebuild the ID inventory;
+/// body edits replace only their tree paths. Publishing or checkpointing an
+/// epoch clones roots, never the complete entry map or body products.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct EntryTable {
+    indices: Arc<BTreeMap<FunctionId, usize>>,
+    values: zil_ir::PersistentVec<Option<Arc<Entry>>>,
+}
+impl EntryTable {
+    fn for_functions(functions: &zil_ir::PersistentVec<TypedFunction>) -> Self {
+        Self {
+            indices: Arc::new(
+                functions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| (f.id, i))
+                    .collect(),
+            ),
+            values: std::iter::repeat_with(|| None)
+                .take(functions.len())
+                .collect(),
+        }
+    }
+    fn get(&self, id: &FunctionId) -> Option<&Arc<Entry>> {
+        self.values.get(*self.indices.get(id)?)?.as_ref()
+    }
+    fn insert(&mut self, id: FunctionId, entry: Arc<Entry>) {
+        self.values.replace(self.indices[&id], Some(entry));
+    }
+    fn retain_admitted(&mut self, admitted: &BTreeMap<FunctionId, Vec<FunctionId>>) {
+        for (id, index) in self.indices.iter() {
+            if !admitted.contains_key(id) && self.values[*index].is_some() {
+                self.values.replace(*index, None);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Context {
     target: TargetProfile,
@@ -223,15 +261,15 @@ impl Session {
         scalar_policy: bool,
         copy_plans: &large_copy_abi::Plans,
     ) -> bool {
-        // Any rebuilding of the per-function identity starts a new epoch.
-        self.whole_machine = None;
+        // Rebuild only the active identity; successful historical epochs are
+        // immutable and are published separately after complete emission.
         self.hits = 0;
         self.misses = 0;
         self.source_projection_traversals = 0;
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;
         self.eligible = false;
-        self.products.clear();
+        self.products = Arc::new(Vec::new());
         // The source fingerprint is diagnostic identity; the function consumer
         // reads the exact CFG plus the following complete current inventories.
         // Exhaustive matching makes new module domains require a new audit.
@@ -311,9 +349,9 @@ impl Session {
                 ],
             },
         };
-        if self.context.as_ref() != Some(&context) {
-            self.entries.clear();
-            self.context = Some(context);
+        if self.context.as_deref() != Some(&context) {
+            self.entries = EntryTable::for_functions(lir.functions);
+            self.context = Some(Arc::new(context));
             self.context_identity = Arc::new(());
         }
         let functions = lir
@@ -321,45 +359,47 @@ impl Session {
             .iter()
             .map(|f| (f.id, f))
             .collect::<BTreeMap<_, _>>();
-        self.admitted = lir
-            .functions
-            .iter()
-            .filter_map(|function| {
-                if verified.task_worker_ids().contains(&function.id)
-                    || verified.is_suspend(function.id)
-                    || verified.is_task_export(function.id)
-                    || verified.task_ownership(function.id).is_some()
-                    || !scalar_abi(function.id, copy_plans)
-                    || copy_plans
-                        .values
-                        .get(&function.id)
-                        .is_some_and(|values| !values.is_empty())
-                    || copy_plans
-                        .indirect
-                        .range((function.id, ValueId(0))..=(function.id, ValueId(u32::MAX)))
-                        .next()
-                        .is_some()
-                {
-                    return None;
-                }
-                let callees = eligible(function, self.entries.get(&function.id).map(Arc::as_ref))?;
-                if !callees.iter().all(|id| {
-                    functions.get(id).is_some_and(|callee| {
-                        callee.environment.is_none()
-                            && callee.call_kind == zil_ir::CallKind::Direct
-                            && scalar(&callee.return_type)
-                            && callee
-                                .parameters
-                                .iter()
-                                .all(|id| scalar(&callee.locals[id.0 as usize].ty))
-                            && scalar_abi(callee.id, copy_plans)
-                    })
-                }) {
-                    return None;
-                }
-                Some((function.id, callees))
-            })
-            .collect();
+        self.admitted = Arc::new(
+            lir.functions
+                .iter()
+                .filter_map(|function| {
+                    if verified.task_worker_ids().contains(&function.id)
+                        || verified.is_suspend(function.id)
+                        || verified.is_task_export(function.id)
+                        || verified.task_ownership(function.id).is_some()
+                        || !scalar_abi(function.id, copy_plans)
+                        || copy_plans
+                            .values
+                            .get(&function.id)
+                            .is_some_and(|values| !values.is_empty())
+                        || copy_plans
+                            .indirect
+                            .range((function.id, ValueId(0))..=(function.id, ValueId(u32::MAX)))
+                            .next()
+                            .is_some()
+                    {
+                        return None;
+                    }
+                    let callees =
+                        eligible(function, self.entries.get(&function.id).map(Arc::as_ref))?;
+                    if !callees.iter().all(|id| {
+                        functions.get(id).is_some_and(|callee| {
+                            callee.environment.is_none()
+                                && callee.call_kind == zil_ir::CallKind::Direct
+                                && scalar(&callee.return_type)
+                                && callee
+                                    .parameters
+                                    .iter()
+                                    .all(|id| scalar(&callee.locals[id.0 as usize].ty))
+                                && scalar_abi(callee.id, copy_plans)
+                        })
+                    }) {
+                        return None;
+                    }
+                    Some((function.id, callees))
+                })
+                .collect(),
+        );
         // A partial function cache cannot certify equality of current generated
         // helpers, runtimes, tables or worker machines. Keep that old proof's
         // entire closed scalar domain, independently of per-function admission.
@@ -374,14 +414,18 @@ impl Session {
             && verified.task_interfaces().is_empty()
             && !verified.uses_scalar_tasks()
             && !verified.uses_retained_registration();
-        // Exactly one current epoch; neither deleted nor unsupported functions
-        // retain historical machine values.
-        self.entries.retain(|id, _| self.admitted.contains_key(id));
+        // The active entry table contains only current admitted functions.
+        // Historical closed scalar epochs remain isolated behind complete input binding.
+        self.entries.retain_admitted(&self.admitted);
         !self.admitted.is_empty()
     }
     pub(crate) fn identity(&self) -> Option<crate::incremental::ScalarIdentity> {
-        self.eligible
-            .then(|| (self.context_identity.clone(), self.products.clone()))
+        self.eligible.then(|| {
+            (
+                self.context_identity.clone(),
+                self.products.as_ref().clone(),
+            )
+        })
     }
     pub(super) fn lower<F, R>(
         &mut self,
@@ -466,7 +510,7 @@ impl Session {
             // even though this function itself has no task operations.
             reserve_current()?;
             self.hits += 1;
-            self.products
+            Arc::make_mut(&mut self.products)
                 .push((entry.output_identity.clone(), entry.source_identity.clone()));
             return Ok(entry.output.as_ref().clone());
         }
@@ -488,8 +532,7 @@ impl Session {
                 _ => false,
             })
             .map_or_else(|| Arc::new(()), |old| old.source_identity.clone());
-        self.products
-            .push((output_identity.clone(), source_identity.clone()));
+        Arc::make_mut(&mut self.products).push((output_identity.clone(), source_identity.clone()));
         self.entries.insert(
             function.id,
             Arc::new(Entry {
