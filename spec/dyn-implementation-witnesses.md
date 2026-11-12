@@ -230,3 +230,41 @@ classes, phantom positions or opaque classes, nor creates a Static binder. A
 structural check may retain pending static obligations, but actual constructors,
 writes and returns must independently establish each required static source
 before a complete usable proof is published.
+
+Intrinsic origins in scoped substitution
+
+A verifier-private lifetime term carries both an origin in a complete actual
+intrinsic domain and its current lexical image. These are separate facts. For
+an actual `P2` whose original nominal argument 0 selects intrinsic class 0 and
+argument 1 selects intrinsic class 1, the full receiver can have images
+`[Fixed(0), Fixed(0)]`. Matching `impl<a,b> ... for P<a,b>` binds a to receiver
+intrinsic 0 and b to receiver intrinsic 1. The public ordered Life actuals check
+the two images; they do not replace those origins with one class.
+
+Substitution of a fresh nominal recipe partitions by the established intrinsic
+terms. In the preceding scope, RHS `P<a,b>` is P2, while RHS `P<a,a>` is P1.
+A catalogue may resolve only the resulting complete declaration, ordered actuals
+and intrinsic shape key. It cannot select the first same-image or same-layout
+instance. Conversely, if actual P1 maps both original nominal arguments to its
+one intrinsic class, a and b have the same term and RHS `P<a,b>` is P1. Different
+formal names do not create different origins. A repeated Self pattern `P<a,a>`
+cannot match P2 just because both outer images are equal.
+
+These terms survive implemented-trait substitution into trait formals, defaults,
+supers, associated definitions and query keys. A default never reconstructs them
+from the trait application's image vector. `SelfType` and a whole Type actual
+preserve their complete type value and its intrinsic domain rather than applying
+a fresh nominal construction. Actual complete parent-to-child class rows may
+identify child origins; equal images, `to_context`, header embedding images or
+an outlives relation alone may not do so. Multiple same-typed occurrences retain
+their actual occurrence paths.
+
+A FunctionInstance rebuilds the corresponding origin relations independently
+from its own complete receiver, actual header occurrences and original scoped
+signature before checking `header_embedding`. It cannot borrow an implementation
+witness's private substitution as proof of the function header. Where no actual
+Self, Type actual, application or header occurrence anchors a required origin,
+the result is Unknown, not a fresh self-asserted origin ordinal. Any future
+selector must point from an original declaration or method formal to a real
+receiver/Type-actual semantic path and intrinsic class; it cannot point into the
+RHS that it is meant to prove.
