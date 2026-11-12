@@ -7137,6 +7137,18 @@ fn derive_cfg(
                         .returned_enum_variants
                         .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
+                        if f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::constant_result) {
+                            if value.pointer.targets.is_empty() || value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                return Err(failure("constant callable result retains a nonconstant target"));
+                            }
+                            for parent in ancestry(&value.pointer.loans,&loans,b)? {
+                                let loan=&loans[parent];
+                                fee(b,loan.targets.len().saturating_add(1))?;
+                                if loan.receiver_head || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
+                                    return Err(failure("constant callable result retains an activation or receiver parent loan"));
+                                }
+                            }
+                        }
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;
@@ -7169,18 +7181,6 @@ fn derive_cfg(
                     };
                     if matches!(f.return_type, Type::Address { .. }) {
                         add(&Vec::new(), &value.pointer)?;
-                        if f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::constant_result) {
-                            if value.pointer.targets.is_empty() || value.pointer.targets.iter().any(|target|target.base!=HoldRoot::Static) {
-                                return Err(failure("constant callable result retains a nonconstant target"));
-                            }
-                            for parent in ancestry(&value.pointer.loans,&loans,b)? {
-                                let loan=&loans[parent];
-                                fee(b,loan.targets.len().saturating_add(1))?;
-                                if loan.receiver_head || loan.targets.is_empty() || loan.targets.iter().any(|target|target.base!=HoldRoot::Static) {
-                                    return Err(failure("constant callable result retains an activation or receiver parent loan"));
-                                }
-                            }
-                        }
                     }
                     for (path, permission) in &value.slots {
                         add(path, permission)?;
