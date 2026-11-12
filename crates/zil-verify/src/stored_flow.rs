@@ -6498,6 +6498,7 @@ fn check_with_mask(
             && !owned_byte_profile
             && !closed_dyn_profile
             && !compound_profile
+            && !b.ordinary_closed_stores
         {
             super::stored_owned::module(module, b)?;
         }
@@ -6550,6 +6551,7 @@ fn check_with_mask(
         {
             type_work(ty, &b.limits.clone(), b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
+            let closed_store_value = closed_stores::value(module, ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
             if !module.resources.is_empty()
@@ -6558,6 +6560,7 @@ fn check_with_mask(
                 && !b.masked_stored_tasks()
                 && !byte_value
                 && !closed_dyn_value
+                && !closed_store_value
                 && !compound_profile
             {
                 super::stored_owned::value_type(ty, b)?;
@@ -6573,6 +6576,7 @@ fn check_with_mask(
                 false
             };
             if !(byte_value
+                || closed_store_value
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)

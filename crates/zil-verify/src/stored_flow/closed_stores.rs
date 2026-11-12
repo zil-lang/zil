@@ -61,3 +61,24 @@ pub(super) fn carrier_operation(
     crate::dynamic_store::check_carrier(module, ty, Some(i.span), b)?;
     Ok(true)
 }
+
+pub(super) fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if !b.ordinary_closed_stores {
+        return Ok(false);
+    }
+    let root = match ty {
+        Type::Address { inner, .. } | Type::Desc(inner) => inner.as_ref(),
+        _ => ty,
+    };
+    if !pure_copy::ordinary_owned_fields(vec![(root, 0)], b)? {
+        return Ok(false);
+    }
+    // Descriptions must actually describe one authenticated Store owner.
+    if matches!(ty, Type::Desc(_)) {
+        if crate::dynamic_store::element(ty).is_none() {
+            return Ok(false);
+        }
+        crate::dynamic_store::check_carrier(module, ty, None, b)?;
+    }
+    Ok(true)
+}
