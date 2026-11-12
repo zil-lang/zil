@@ -28,7 +28,7 @@ fn anchor(
             if position.base != StorageBase::Parameter(input.parameter) {
                 return Err(invalid(f.span, "return-bound borrow selects a different input"));
             }
-            spend(left, header.bindings.len().saturating_add(position.path.len()), f.span)?;
+            spend(left, header.bindings.len().saturating_mul(position.path.len().saturating_add(1)), f.span)?;
             let mut matches = header.bindings.iter().filter(|r| r.position == *position);
             let found = matches.next().map(|r| r.binder);
             if matches.next().is_some() { return Err(invalid(f.span,"ambiguous actual creator borrow row")); }
@@ -38,7 +38,7 @@ fn anchor(
             if position.base != StorageBase::Parameter(input.parameter) {
                 return Err(invalid(f.span, "return-bound class selects a different input"));
             }
-            spend(left, header.classes.len().saturating_add(position.path.len()), f.span)?;
+            spend(left, header.classes.len().saturating_mul(position.path.len().saturating_add(1)), f.span)?;
             let mut matches = header.classes.iter().filter(|r| r.position == *position);
             let found = matches.next().map(|r| r.binder);
             if matches.next().is_some() { return Err(invalid(f.span,"ambiguous actual creator class row")); }
@@ -57,6 +57,7 @@ pub(crate) fn populate(
     module: &mut TypedModule,
     bounds: &BTreeMap<FunctionId, CoreCallableReturn>,
     left: &mut usize,
+    limits:&Limits,
 ) -> R<()> {
     let mut updates = Vec::new();
     for (id,bound) in bounds {
@@ -65,6 +66,7 @@ pub(crate) fn populate(
             continue;
         };
         let f=module.functions.get(id.0 as usize).ok_or_else(||invalid(Span::default(),"return bound has no actual creator"))?;
+        inference::charge_returned_value_snapshot(bound,f.span,limits,left)?;
         let returned=f.callable_return_contract.as_ref().ok_or_else(||invalid(f.span,"return bound has no actual returned environment"))?;
         let d=module.closures.get(returned.closure.0 as usize).ok_or_else(||invalid(f.span,"returned environment definition is absent"))?;
         let actual=d.storage_life.as_ref().ok_or_else(||invalid(f.span,"return bound requires the full actual environment class domain"))?;

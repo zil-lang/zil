@@ -98,3 +98,52 @@ fn consuming_capture_transfers_the_taken_capability_into_the_actual_external_slo
     let bad=text.replace(" let result=", " b=23;let result=");
     assert!(zil_analyze::analyze(&typed(&bad),&Limits::default()).is_err());
 }
+
+#[test]
+fn exclusive_stored_field_reborrow_keeps_the_actual_holder_receiver_region() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/captured-exclusive-holder-short-view.zil");
+    let module=typed(text);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let bad=text.replace("let second=*pointer", "let other=f();let second=*pointer+*other");
+    assert!(zil_analyze::analyze(&typed(&bad),&Limits::default()).is_err());
+    let mut bad=module.clone();
+    let definition=&mut bad.closures[0];
+    let life=definition.storage_life.as_mut().unwrap();
+    life.bindings.iter_mut().find(|row|row.position.base==StorageBase::Result).unwrap().binder=StorageBinder::Fixed(1);
+    bad.functions[definition.function.0 as usize].storage_life=Some(life.clone());
+    assert!(zil_analyze::analyze(&bad,&Limits::default()).is_err(),"an exclusive stored-slot reborrow cannot recover its full Fixed class");
+}
+
+#[test]
+fn public_return_life_keeps_extra_capture_classes_and_rejects_raw_relabeling() {
+    let limits=Limits::default();
+    for text in [
+        include_str!("../../../tests/fixtures/returned-owning-holders/captured-holder-fixed-data-result.zil"),
+        include_str!("../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"),
+    ] {
+        let mut module=typed(text);
+        let factory=module.functions.iter().position(|f|f.name=="make").unwrap();
+        let id=module.functions[factory].callable_return_contract.as_ref().unwrap().closure;
+        let mut expected=module.closures[id.0 as usize].storage_life.clone().unwrap();
+        expected.bindings.retain(|row|!matches!(row.position.base,StorageBase::Capture(_)));
+        expected.classes.retain(|row|!matches!(row.position.base,StorageBase::Capture(_)));
+        module.functions[factory].callable_return_contract.as_mut().unwrap().life=Some(expected);
+        let claim=zil_analyze::analyze(&module,&limits).unwrap();
+        let wire=zil_ir::wire::encode_module_candidate(&module,&claim,&limits).unwrap();
+        let (decoded,_)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+        zil_analyze::analyze(&decoded,&limits).unwrap();
+        for attack in 0..3 {
+            let mut bad=module.clone();
+            let expected=bad.functions[factory].callable_return_contract.as_mut().unwrap().life.as_mut().unwrap();
+            match attack {
+                0=>expected.fixed_binder_count-=1,
+                1=>expected.bindings.iter_mut().find(|row|row.position.base==StorageBase::Result).unwrap().binder=StorageBinder::Fixed(0),
+                _=>expected.bindings.retain(|row|row.position.base!=StorageBase::Result),
+            }
+            assert!(zil_analyze::analyze(&bad,&limits).is_err());
+            let wire=zil_ir::wire::encode_module_candidate(&bad,&claim,&limits).unwrap();
+            let (decoded,_)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+            assert!(zil_analyze::analyze(&decoded,&limits).is_err());
+        }
+    }
+}
