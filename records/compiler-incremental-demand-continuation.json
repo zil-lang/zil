@@ -837,13 +837,13 @@
       "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
     },
     "full_push_native": {
-      "read_goal": "ded56ee971b0eed6706321483d7205f77fc3a80c",
+      "read_goal": "5dc485da8b59431e75a102bdbbc553677f3f0df9",
       "branch": "research/full-push-native",
-      "checkpoint": "8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec",
+      "checkpoint": "7c86653443be9d57e2d6632776a304dd57c8ad08",
       "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
       "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
       "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
-      "implemented": "真实persistent Core/Typed/plan/LIR函数树与结构化身份；Expand封闭变化批次、Types实际差量CFG、Analyze实际计划patch、独立Verify raw义务树/资源入口/foreign选择、Lower当前proof差量准入；driver显式--push-reuse默认false接线，LLVM局部扩展DSO已构建但enabled产品消费者尚未验收",
+      "implemented": "实际push消费者、稳定函数树/签名读边、当前独立Verify/Lower、差量发布；完整Types/Analyze历史owner恢复；LLVM实际优化stage和MIR消费者、完整IR/MBB编号恢复、失败全context重试、4个成功native epoch有界历史。默认关闭，未合main；通用全LLVM增量与总目标未验收。",
       "checks": {
         "integration_base": "workspace all-targets llvm-api check passed",
         "middle_crates_tests": {
@@ -860,10 +860,11 @@
           "ignored": 0
         },
         "overlap": "前面的105/424测试与1588重叠，不累加",
-        "driver_actual_425": "2 actual driver tests pass; private edit/current semantic restore with fresh complete oracle. Subsequent integrated run03 fixed panic and adjacent invalidation regressions; remaining old item-work assertion corrected, full workspace retry in progress.",
+        "driver_actual_425": "3 current driver private/restore/broad-history tests passed at 2f9. New pre-CT consumer integration after7c in progress, not included.",
         "latest_verify": "646 library tests passed through bd21; next exact raw_nodes run04 23/23 passed including symbol-header obligation; overlap not summed.",
-        "latest_compile": "workspace all-targets llvm-api check09 passed; whole workspace test01 failed at link due ENOSPC, raw preserved; retry02 running, no acceptance claimed",
-        "measurement_tools": "23 light tests passed; full actual ZIL/Cargo argv binding, strict diagnostic identity comment normalization only, full raw LLVM/ELF still retained"
+        "latest_compile": "Full workspace tests01 and02 both failed during linking due ENOSPC; original logs retained. Disk-bounded all-tests runner prepared, rejects changed compiler+tools/llvm inputs; full final gate pending.",
+        "measurement_tools": "32 lightweight tests passed after actual per-arm mapped LLVM DSO binding; original main SDK and modified candidate SDK are separated and archived.",
+        "native": "LLVMAPI50 passed at2f9/v6; overlapping native five not summed. V8 six native consumer tests passed incl original complex scalar failure reproducer. Backend15 native-related passed incl3 history tests. Each exact run/source recorded, not a full final workspace pass."
       },
       "llvm_extension": {
         "base_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
@@ -881,7 +882,38 @@
         "recovery": "fresh HTTPS retrieval and full file/part verification passed; receipt source85c68a5c5",
         "scope": "Intermediate consumer tests including failures and pinned upstream sources through 4d90; later tests/native work need next archive. Original lost old-environment raw not recovered."
       },
-      "handoff": "https://github.com/zil-lang/zil/blob/8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec/.task/full-push-native.md"
+      "handoff": "https://github.com/zil-lang/zil/blob/8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec/.task/full-push-native.md",
+      "diagnostic_v8": {
+        "source": "7c86653443be9d57e2d6632776a304dd57c8ad08",
+        "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-03",
+        "requests": 34,
+        "measured": 18,
+        "native_executions": 180,
+        "valid_all": true,
+        "successful_elf_pairs_equal": 15,
+        "private": {
+          "wall_ms": 625.635479,
+          "optimizer_groups_reused": 0,
+          "machine_functions_executed": 3,
+          "machine_functions_reused": 39,
+          "machine_passes_skipped": 4875,
+          "fresh_fallbacks": 0
+        },
+        "limits": "One block diagnostic; candidate-only profiling because main lacks flag. No matched timing ratio or Rust claim. All nine scenarios incl positions and named parents retained. Unknown LLVM analyses still fresh; richer emission state under review."
+      },
+      "raw_v6": {
+        "remote_ref": "archive/source-history",
+        "commit": "a4f8736df4095948ae12413fc9bbd8f2c7df7b72",
+        "path": "research/incremental-demand-full-push-20261112-v6",
+        "parts": 5,
+        "archive_bytes": 111707138,
+        "raw_bytes": 430060812,
+        "files": 1181,
+        "sha256": "cdc900c6f23022e0fbc855cfbd47c88816fe9235887a368d6d7fbd928731960d",
+        "fresh_https_restore_verified": true,
+        "scope": "Through425v6 diagnostic / exact MIR failure, SDKv6/v7 actual runtime DSOs; newer v8/history runs not in this archive. Old lost environment raw remains unavailable."
+      },
+      "open": "全LLVM优化实际analysisfacts和localstack准入、MIR未序列化emit字段/重放成本、pre-CT三列访客冗余、完整workspace/clippy/fmt、同参六轮main/candidate/Rust检查及native正式矩阵；结果不佳继续施工，未终态。"
     }
   }
 }
