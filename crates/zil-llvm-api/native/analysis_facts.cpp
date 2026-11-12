@@ -29,7 +29,8 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
         K != PostDominatorTreeAnalysis::ID() && K != AssumptionAnalysis::ID() &&
         K != LoopAnalysis::ID() && K != ShouldNotRunFunctionPassesAnalysis::ID() &&
         K != BasicAA::ID() && K != ScopedNoAliasAA::ID() && K != TypeBasedAA::ID() &&
-        K != LastRunTrackingAnalysis::ID() && K != OptimizationRemarkEmitterAnalysis::ID()) return false;
+        K != LastRunTrackingAnalysis::ID() && K != OptimizationRemarkEmitterAnalysis::ID() &&
+        K != ModuleAnalysisManagerFunctionProxy::ID() && K != AAManager::ID()) return false;
   raw_string_ostream OS(Out);
   // Preserve result-list order: dependencies and lazy availability can observe
   // it. The enclosing product separately binds exact IR, BB numbering, globals,
@@ -98,6 +99,17 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
       if (State < 0) return false;
       if (ReplayState) ReplayState->noOptionTracking = State;
       OS << "last-run:no-options-instcombine:" << State << '\n';
+    } else if (K == ModuleAnalysisManagerFunctionProxy::ID()) {
+      using Get = int (*)(void *, void *);
+      static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMModuleProxyProductState"));
+      int State = GetState ? GetState(&AM, &F) : -1;
+      if (State < 0) return false;
+      OS << "module-proxy:current-fam:empty-deferred:local-empty-profile:" << State << '\n';
+    } else if (K == AAManager::ID()) {
+      using Get = int (*)(void *, void *);
+      static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMLocalAAAggregateProductState"));
+      if (!GetState || !GetState(&AM, &F)) return false;
+      OS << "aa:actual-default-factory:current-local-3:ordered-dependencies\n";
     } else if (K == BasicAA::ID()) {
       using Get = int (*)(void *, void *);
       static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMBasicAAProductState"));
