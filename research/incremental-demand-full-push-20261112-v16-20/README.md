@@ -1,0 +1,5 @@
+# Full push evidence v16-20
+
+V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.
+
+Use `python3 restore_https.py FULL_ARCHIVE_COMMIT --receipt RECEIPT_JSON` at the complete fixed commit. Fresh HTTPS only; every part/archive digest and restored file twice plus exact modes verified. Restore all V16 shard fixed commits named by the final recovery receipt for the complete checkpoint. No old66archiveparts need restoration; all Git objects remain.
