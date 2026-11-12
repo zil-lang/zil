@@ -531,7 +531,7 @@ fn whole_machine_native_cold_unchanged_edit_failure_recovery_match_fresh_llvm_an
 }
 
 #[test]
-fn whole_machine_post_binding_option_error_clears_the_pending_product() {
+fn whole_machine_post_binding_option_error_preserves_only_completed_history() {
     let current = fixture(42, TargetProfile::host_llvm(), &Limits::default());
     let raw = lir(&current);
     let mut session = crate::emit::incremental::Session::default();
@@ -573,7 +573,7 @@ fn whole_machine_post_binding_option_error_clears_the_pending_product() {
         restored,
         lower(&current, &raw, EntryPoint::None, false, false, 1, None).unwrap()
     );
-    assert!(!session.reused_machine_module);
+    assert!(session.reused_machine_module);
     lower(
         &current,
         &raw,
@@ -585,4 +585,204 @@ fn whole_machine_post_binding_option_error_clears_the_pending_product() {
     )
     .unwrap();
     assert!(session.reused_machine_module);
+}
+
+fn history_fixture(first: i64, sibling: i64) -> VerifiedModule {
+    let initial = fixture(first, TargetProfile::host_llvm(), &Limits::default());
+    let mut module = initial.module().clone();
+    module.functions[1].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I64(sibling));
+    recheck(module, &Limits::default())
+}
+
+#[test]
+fn whole_machine_history_restores_function_entries_and_downstream_identity_together() {
+    for scalar in [false, true] {
+        let mut session = crate::emit::incremental::Session::default();
+        let mut cold_identity = None;
+        let mut broad_identity = None;
+        for (index, (first, sibling)) in [(42, 99), (100, 200), (42, 99), (43, 99)]
+            .into_iter()
+            .enumerate()
+        {
+            let current = history_fixture(first, sibling);
+            let raw = lir(&current);
+            let actual = lower(
+                &current,
+                &raw,
+                EntryPoint::None,
+                scalar,
+                false,
+                1,
+                Some(&mut session),
+            )
+            .unwrap();
+            let fresh = lower(&current, &raw, EntryPoint::None, scalar, false, 1, None).unwrap();
+            assert_eq!(actual, fresh);
+            assert_eq!(session.reused_machine_module, index == 2);
+            let identity = session.identity().unwrap();
+            match index {
+                0 => {
+                    cold_identity = Some(identity);
+                    assert_eq!(session.misses, 2);
+                }
+                1 => {
+                    broad_identity = Some(identity);
+                    assert_eq!(session.misses, 2);
+                }
+                2 => {
+                    assert_eq!((session.hits, session.misses), (0, 0));
+                    assert!(crate::incremental::same_identity(
+                        &identity,
+                        cold_identity.as_ref().unwrap()
+                    ));
+                    assert!(
+                        !crate::incremental::same_identity(
+                            &identity,
+                            broad_identity.as_ref().unwrap()
+                        ),
+                        "restoring cold machine must never authorize broad transform/partition products"
+                    );
+                }
+                3 => assert_eq!(
+                    (session.hits, session.misses),
+                    (1, 1),
+                    "the old parent's entries, not broad entries, must feed the next private edit"
+                ),
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+#[test]
+fn whole_machine_history_has_four_successful_lru_epochs_and_checkpoint_isolation() {
+    let mut session = crate::emit::incremental::Session::default();
+    let run = |value, session: &mut crate::emit::incremental::Session| {
+        let current = history_fixture(value, 99);
+        let raw = lir(&current);
+        let actual = lower(
+            &current,
+            &raw,
+            EntryPoint::None,
+            false,
+            false,
+            1,
+            Some(session),
+        )
+        .unwrap();
+        let fresh = lower(&current, &raw, EntryPoint::None, false, false, 1, None).unwrap();
+        assert_eq!(actual, fresh);
+    };
+    for value in [42, 43, 44, 45] {
+        run(value, &mut session);
+    }
+    let mut checkpoint = session.clone();
+    run(42, &mut session);
+    assert!(
+        session.reused_machine_module,
+        "the fourth retained epoch remains available"
+    );
+    run(46, &mut session);
+    run(42, &mut session);
+    assert!(
+        session.reused_machine_module,
+        "a true LRU hit promotes the old parent"
+    );
+    run(43, &mut session);
+    assert!(
+        !session.reused_machine_module,
+        "the fifth distinct epoch evicts the least recent"
+    );
+    run(43, &mut checkpoint);
+    assert!(
+        checkpoint.reused_machine_module,
+        "pending publication cannot mutate checkpoint roots"
+    );
+    // A failed caller-owned transaction must not replace the successful epoch.
+    let mut pending = checkpoint.clone();
+    let current = history_fixture(900, 901);
+    let raw = lir(&current);
+    let bad = EntryPoint::ReturnValue(FunctionId(900));
+    let failure = lower(&current, &raw, bad, false, false, 1, Some(&mut pending));
+    assert!(failure.is_err());
+    assert_eq!(failure, lower(&current, &raw, bad, false, false, 1, None));
+    run(43, &mut checkpoint);
+    assert!(checkpoint.reused_machine_module);
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn whole_machine_native_history_restore_and_next_private_edit_match_fresh_outputs() {
+    let directory = TestDirectory::new();
+    let mut options = BuildOptions::new(directory.0.join("program"));
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.incremental_o2 = true;
+    options.codegen.units = 2;
+    options.object_cache = Some(directory.0.join("objects"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut session = BackendSession::default();
+    for (index, (first, sibling)) in [(42, 99), (100, 200), (42, 99), (43, 99)]
+        .into_iter()
+        .enumerate()
+    {
+        let current = history_fixture(first, sibling);
+        let raw = lir(&current);
+        let mut actual = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &options,
+            &|| false,
+            None,
+            Some(&mut session),
+        )
+        .unwrap();
+        actual.commit_object_cache();
+        assert_eq!(session.summary().reused_machine_module, index == 2);
+        if index == 2 {
+            assert_eq!(
+                (
+                    session.summary().lowered_functions,
+                    session.summary().reused_functions
+                ),
+                (0, 0)
+            );
+            assert!(
+                !session.summary().reused_machine_transforms,
+                "the last transformed product belongs to broad, not the restored cold epoch"
+            );
+        } else if index == 3 {
+            assert_eq!(
+                (
+                    session.summary().lowered_functions,
+                    session.summary().reused_functions
+                ),
+                (1, 1)
+            );
+        }
+        let mut fresh_options = options.clone();
+        fresh_options.object_cache = None;
+        let fresh = build_view_with_cancellation_and_session(
+            &current,
+            &raw.as_view(),
+            &fresh_options,
+            &|| false,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(&actual.llvm_ir).unwrap(),
+            fs::read(&fresh.llvm_ir).unwrap()
+        );
+        assert_eq!(
+            fs::read(&actual.executable).unwrap(),
+            fs::read(&fresh.executable).unwrap()
+        );
+        let run = Command::new(&actual.executable).output().unwrap();
+        assert!(run.status.success());
+        assert_eq!(run.stdout, format!("{first}\n").as_bytes());
+        assert!(run.stderr.is_empty());
+    }
 }

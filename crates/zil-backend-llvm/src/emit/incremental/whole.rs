@@ -100,7 +100,29 @@ pub(super) struct MachineProduct {
     spent: usize,
     machine: m::Module,
     collected: bool,
+    epoch: LowerEpoch,
 }
+
+/// Raw function and downstream-identity roots from exactly this successful
+/// machine product. Restoring only `machine` would leave the preceding request's
+/// transform/partition identity live and could substitute a different module.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LowerEpoch {
+    context: Option<Arc<Context>>,
+    entries: EntryTable,
+    context_identity: Arc<()>,
+    products: Arc<Vec<(Arc<()>, Arc<()>)>>,
+    admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
+}
+
+// A count bound, not a byte/RSS budget: retain at most four successful immutable
+// raw epochs. Bodies and machine items share their existing owners; no complete
+// serialization or entry/header clone is performed to publish or restore one.
+// No-session calls consume none of this history. The driver clears the complete
+// BackendSession only after a successful native request disables producer reuse;
+// its existing checkpoint prevents failed/cancelled native builds from committing
+// either these roots or any later transform/partition work.
+const MACHINE_HISTORY_EPOCHS: usize = 4;
 
 // This first complete-result slice deliberately retains the original closed
 // scalar domain. In particular no helper/worker/ownership result is inferred
@@ -150,39 +172,61 @@ impl Session {
         options: WholeOptions,
         before: usize,
     ) -> Option<(m::Module, bool, usize)> {
-        let product = self.whole_machine.as_ref()?;
-        if !self.eligible
-            || reference_planner()
-            || product.options != options
-            || product.limits != *verified.limits()
-            || product.before != before
-            || !product.module.matches(verified.module())
-            || product.layouts.as_slice() != lir.layouts.as_ref()
-            || product.functions.len() != lir.functions.len()
-            || !checked_scalar_domain(verified)
-        {
+        if self.machine_history.is_empty() || reference_planner() {
             return None;
         }
-        if !product.functions.ptr_eq(lir.functions) {
-            for (previous, current) in product.functions.iter().zip(lir.functions) {
-                self.whole_machine_input_functions_compared += 1;
-                if previous != current {
-                    return None;
+        for index in 0..self.machine_history.len() {
+            let product = self.machine_history[index].clone();
+            if product.options != options
+                || product.limits != *verified.limits()
+                || product.before != before
+                || !product.module.matches(verified.module())
+                || product.layouts.as_slice() != lir.layouts.as_ref()
+                || product.functions.len() != lir.functions.len()
+            {
+                continue;
+            }
+            if !product.functions.ptr_eq(lir.functions) {
+                let mut equal = true;
+                for (previous, current) in product.functions.iter().zip(lir.functions) {
+                    self.whole_machine_input_functions_compared += 1;
+                    if previous != current {
+                        equal = false;
+                        break;
+                    }
+                }
+                if !equal {
+                    continue;
                 }
             }
+            // Exact current initial ledger and full limits, not a renewed budget.
+            // All current metadata and bind_lir checks ran before this lookup.
+            let Some(remaining) = before.checked_sub(product.spent) else {
+                continue;
+            };
+            if !checked_scalar_domain(verified) {
+                return None;
+            }
+            let mut machine = product.machine.clone();
+            machine.fingerprint = verified.fingerprint().to_hex();
+            self.context = product.epoch.context.clone();
+            self.entries = product.epoch.entries.clone();
+            self.context_identity = product.epoch.context_identity.clone();
+            self.products = product.epoch.products.clone();
+            self.admitted = product.epoch.admitted.clone();
+            self.eligible = true;
+            self.machine_history.remove(index);
+            self.machine_history.push_front(product.clone());
+            self.reused_machine_module = true;
+            return Some((machine, product.collected, remaining));
         }
-        // Exact current initial ledger and full limits, not a renewed budget.
-        // A mismatching/insufficient start always executes the original planner
-        // and preserves its particular first failure and diagnostic location.
-        let remaining = before.checked_sub(product.spent)?;
-        let mut machine = product.machine.clone();
-        machine.fingerprint = verified.fingerprint().to_hex();
-        self.reused_machine_module = true;
-        Some((machine, product.collected, remaining))
+        None
     }
 
     pub(in crate::emit) fn discard_machine(&mut self) {
-        self.whole_machine = None;
+        // A failing miss must not expose a stale transform/partition identity.
+        // Completed historical epochs are unchanged; no partial one is added.
+        self.eligible = false;
     }
 
     pub(in crate::emit) fn remember_machine(
@@ -199,7 +243,7 @@ impl Session {
         let Some(spent) = before.checked_sub(output.2) else {
             return;
         };
-        self.whole_machine = Some(Arc::new(MachineProduct {
+        let product = Arc::new(MachineProduct {
             module: ModuleInput::new(verified.module()),
             functions: lir.functions.clone(),
             layouts: lir.layouts.to_vec(),
@@ -209,7 +253,16 @@ impl Session {
             spent,
             machine: output.0.clone(),
             collected: output.1,
-        }));
+            epoch: LowerEpoch {
+                context: self.context.clone(),
+                entries: self.entries.clone(),
+                context_identity: self.context_identity.clone(),
+                products: self.products.clone(),
+                admitted: self.admitted.clone(),
+            },
+        });
+        self.machine_history.push_front(product);
+        self.machine_history.truncate(MACHINE_HISTORY_EPOCHS);
     }
 }
 
