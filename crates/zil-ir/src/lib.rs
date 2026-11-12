@@ -2483,9 +2483,10 @@ pub struct CandidatePlan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FunctionPlan {
     pub function: FunctionId,
-    pub blocks: Vec<BlockPlan>,
+    /// Immutable raw rows shared with their producer; mutation isolates by COW.
+    pub blocks: SharedVec<BlockPlan>,
     /// Dense ValueId order; sorted unique roots. Raw claims, independently checked.
-    pub holds: Vec<ValueHold>,
+    pub holds: SharedVec<ValueHold>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValueHold {
