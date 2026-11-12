@@ -135,10 +135,13 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
   for (const auto *Text : {&S.input, &S.world, &S.mir}) N = boundedAdd(N, Text->size());
   // Reserve the full inverse table, including dead-ID holes, that replay
-  // reconstructs. A tiny live-block vector must not authorize a huge table.
-  if (S.blockIDCapacity > MaxMachinePayload / sizeof(llvm::MachineBasicBlock *))
-    return MaxMachinePayload + 1;
-  N = boundedAdd(N, size_t(S.blockIDCapacity) * sizeof(llvm::MachineBasicBlock *));
+  // reconstructs, and the analysis-number span used by fresh graph analyses.
+  // A tiny live-block vector must not authorize either huge sparse domain.
+  for (unsigned Span : {S.blockIDCapacity, S.nextAnalysisNumber}) {
+    if (Span > MaxMachinePayload / sizeof(llvm::MachineBasicBlock *))
+      return MaxMachinePayload + 1;
+    N = boundedAdd(N, size_t(Span) * sizeof(llvm::MachineBasicBlock *));
+  }
   for (const auto *Numbers : {&S.blockNumbers, &S.analysisNumbers})
     for (unsigned Number : *Numbers) { (void)Number; N = boundedAdd(N, sizeof(unsigned)); }
   N = boundedAdd(N, stepsPayload(S.pipeline));
