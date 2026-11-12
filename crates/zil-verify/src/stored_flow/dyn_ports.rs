@@ -612,7 +612,7 @@ pub(super) fn transfer(
                 Some(DynResultSource::Value) => {}
                 Some(DynResultSource::Borrow { sources, .. }) => {
                     for atom in sources {
-                        let source=crate::exact_storage_source(atom)?;
+                        let source = crate::exact_storage_source(atom)?;
                         join_permission(
                             &mut out.address,
                             &slot_source(module, f, source, &args, values, state, b)?,
@@ -657,7 +657,7 @@ pub(super) fn transfer(
                 }
                 let mut permission = Permission::default();
                 for atom in &binding.sources {
-                    let source=crate::exact_storage_source(atom)?;
+                    let source = crate::exact_storage_source(atom)?;
                     join_permission(
                         &mut permission,
                         &slot_source(module, f, source, &args, values, state, b)?,

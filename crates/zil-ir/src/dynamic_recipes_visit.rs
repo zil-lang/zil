@@ -103,6 +103,9 @@ enum Work<'a> {
     W76(&'a String, usize),
     W77(&'a Option<DynLifePattern>, usize),
     W78(&'a Vec<DynTypePattern>, usize),
+    W79(&'a Vec<StorageSource>, usize),
+    W80(&'a StorageSource, usize),
+    W81(&'a StoredBorrowMode, usize),
 }
 fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V::Error> {
     let mut pending = vec![first];
@@ -430,7 +433,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
             }
             Work::W22(value, nesting) => {
                 visitor.node(nesting)?;
-                pending.push(Work::W26(&value.sources, nesting + 1));
+                pending.push(Work::W79(&value.sources, nesting + 1));
                 pending.push(Work::W20(&value.position, nesting + 1));
             }
             Work::W23(value, nesting) => {
@@ -533,7 +536,7 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                         mutable: field_mutable,
                     } => {
                         pending.push(Work::W25(field_mutable, nesting + 1));
-                        pending.push(Work::W26(field_sources, nesting + 1));
+                        pending.push(Work::W79(field_sources, nesting + 1));
                     }
                 }
             }
@@ -832,6 +835,54 @@ fn visit<V: DynRecipeVisitor>(first: Work<'_>, visitor: &mut V) -> Result<(), V:
                     pending.push(Work::W8(item, nesting));
                 }
             }
+            Work::W79(value, nesting) => {
+                visitor.rows(value.len(), nesting)?;
+                for item in value.iter().rev() {
+                    pending.push(Work::W80(item, nesting));
+                }
+            }
+            Work::W80(value, nesting) => {
+                visitor.node(nesting)?;
+                match value {
+                    StorageSource::Exact(field_value_0) => {
+                        pending.push(Work::W20(field_value_0, nesting + 1));
+                    }
+                    StorageSource::PlaceAddress {
+                        place: field_place,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W81(field_mode, nesting + 1));
+                        pending.push(Work::W20(field_place, nesting + 1));
+                    }
+                    StorageSource::OwnedView {
+                        head: field_head,
+                        leaf: field_leaf,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W81(field_mode, nesting + 1));
+                        pending.push(Work::W1(field_leaf, nesting + 1));
+                        pending.push(Work::W20(field_head, nesting + 1));
+                    }
+                    StorageSource::ReborrowedLeaf {
+                        source: field_source,
+                        head: field_head,
+                    } => {
+                        pending.push(Work::W20(field_head, nesting + 1));
+                        pending.push(Work::W20(field_source, nesting + 1));
+                    }
+                    StorageSource::Static {
+                        leaf: field_leaf,
+                        mode: field_mode,
+                    } => {
+                        pending.push(Work::W81(field_mode, nesting + 1));
+                        pending.push(Work::W1(field_leaf, nesting + 1));
+                    }
+                }
+            }
+            Work::W81(value, nesting) => {
+                let _ = value;
+                visitor.node(nesting)?;
+            }
         }
     }
     Ok(())
@@ -1095,6 +1146,15 @@ impl DynRecipeMetadata for StorageSourceBinding {
         nesting: usize,
     ) -> Result<(), V::Error> {
         visit(Work::W22(self, nesting), visitor)
+    }
+}
+impl DynRecipeMetadata for StorageSource {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visit(Work::W80(self, nesting), visitor)
     }
 }
 impl DynRecipeMetadata for DynGenericActual {

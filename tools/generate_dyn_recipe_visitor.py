@@ -4,11 +4,12 @@ root=Path(__file__).resolve().parents[1] / 'crates/zil-ir/src'
 g=runpy.run_path(str(Path(__file__).with_name('generate_dyn_recipes.py')))
 items=dict(g['items'])
 items.update({
+'StorageSource':('enum',[('Exact','tuple',[('value_0','StoragePosition')]),('PlaceAddress','struct',[('place','StoragePosition'),('mode','StoredBorrowMode')]),('OwnedView','struct',[('head','StoragePosition'),('leaf','Type'),('mode','StoredBorrowMode')]),('ReborrowedLeaf','struct',[('source','StoragePosition'),('head','StoragePosition')]),('Static','struct',[('leaf','Type'),('mode','StoredBorrowMode')])]),
 'DynGenericActual':('enum',[('Type','tuple',[('value_0','Type')]),('Const','tuple',[('value_0','Constant')]),('Life','tuple',[('value_0','StorageBinder')]),('QualifiedType','tuple',[('value_0','DynTypeValue')])]),
 'DynTraitApplication':('struct',[('declaration','LifeDeclarationId'),('actuals','Vec<DynGenericActual>')]),
 'DynMember':('struct',[('application','DynTraitApplication'),('ordinal','u32')]),
 'DynCallAccess':('struct',[('reads','Vec<StoragePosition>'),('writes','Vec<StoragePosition>')]),
-'DynResultSource':('enum',[('Value','unit',[]),('Create','unit',[]),('Give','unit',[]),('Borrow','struct',[('sources','Vec<StoragePosition>'),('mutable','bool')])]),
+'DynResultSource':('enum',[('Value','unit',[]),('Create','unit',[]),('Give','unit',[]),('Borrow','struct',[('sources','Vec<StorageSource>'),('mutable','bool')])]),
 'DynThreadRequirements':('struct',[('transfer','bool'),('share','bool')]),
 })
 header='''//! Shared structural visitor for raw recipe accounting, never semantic proof.

@@ -141,11 +141,30 @@ fn source_atom_json(source: &zil_ir::StorageSource) -> String {
     use zil_ir::StorageSource;
     let quoted = |value: &dyn std::fmt::Debug| super::json_string(&format!("{value:?}"));
     match source {
-        StorageSource::Exact(position) => format!("{{\"exact\":{}}}", source_position_json(position)),
-        StorageSource::PlaceAddress {place,mode} => format!("{{\"place_address\":{},\"mode\":{}}}",source_position_json(place),quoted(mode)),
-        StorageSource::OwnedView {head,leaf,mode} => format!("{{\"owned_view\":{{\"head\":{},\"leaf\":{},\"mode\":{}}}}}",source_position_json(head),quoted(leaf),quoted(mode)),
-        StorageSource::ReborrowedLeaf {source,head} => format!("{{\"reborrowed_leaf\":{{\"source\":{},\"head\":{}}}}}",source_position_json(source),source_position_json(head)),
-        StorageSource::Static {leaf,mode} => format!("{{\"static\":{{\"leaf\":{},\"mode\":{}}}}}",quoted(leaf),quoted(mode)),
+        StorageSource::Exact(position) => {
+            format!("{{\"exact\":{}}}", source_position_json(position))
+        }
+        StorageSource::PlaceAddress { place, mode } => format!(
+            "{{\"place_address\":{},\"mode\":{}}}",
+            source_position_json(place),
+            quoted(mode)
+        ),
+        StorageSource::OwnedView { head, leaf, mode } => format!(
+            "{{\"owned_view\":{{\"head\":{},\"leaf\":{},\"mode\":{}}}}}",
+            source_position_json(head),
+            quoted(leaf),
+            quoted(mode)
+        ),
+        StorageSource::ReborrowedLeaf { source, head } => format!(
+            "{{\"reborrowed_leaf\":{{\"source\":{},\"head\":{}}}}}",
+            source_position_json(source),
+            source_position_json(head)
+        ),
+        StorageSource::Static { leaf, mode } => format!(
+            "{{\"static\":{{\"leaf\":{},\"mode\":{}}}}}",
+            quoted(leaf),
+            quoted(mode)
+        ),
     }
 }
 

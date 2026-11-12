@@ -257,13 +257,32 @@ impl<'a> SourceProgramContext<'a> {
 fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
     let mut storage_nodes = 0;
     let mut storage_work = limits.max_analysis_steps;
-    if let Some(scope)=&function.source_scope {
-        let (nodes,work)=core_function_scope_metadata_cost(scope,limits.max_nodes,limits.max_call_depth,storage_work)
-            .ok_or_else(||vec![Diagnostic::limit(Phase::Ct,"function source scope exceeds metadata bounds",Some(function.span))])?;
-        storage_nodes=nodes;
-        storage_work=storage_work.checked_sub(work).ok_or_else(||vec![Diagnostic::limit(Phase::Ct,"function source scope exceeds work budget",Some(function.span))])?;
+    if let Some(scope) = &function.source_scope {
+        let (nodes, work) = core_function_scope_metadata_cost(
+            scope,
+            limits.max_nodes,
+            limits.max_call_depth,
+            storage_work,
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds metadata bounds",
+                Some(function.span),
+            )]
+        })?;
+        storage_nodes = nodes;
+        storage_work = storage_work.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds work budget",
+                Some(function.span),
+            )]
+        })?;
         for formal in &scope.parameters {
-            if let LifeParameterKind::Const(ty)=formal {hint_type(ty,0,&mut storage_nodes,&mut storage_work,limits)?;}
+            if let LifeParameterKind::Const(ty) = formal {
+                hint_type(ty, 0, &mut storage_nodes, &mut storage_work, limits)?;
+            }
         }
     }
     if let Some(storage) = &function.storage_life {
@@ -3487,11 +3506,11 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+            direct_supertraits: None,
+            requirements: None,
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             self_pattern: None,
             implemented_trait: None,
             id: declaration,
@@ -3552,8 +3571,8 @@ method_definitions: None,
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
-self_life: None,
-implementation_witnesses: None,
+            self_life: None,
+            implementation_witnesses: None,
             self_classes: vec![],
             id: vtable,
             interface,

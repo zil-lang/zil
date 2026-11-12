@@ -3,7 +3,8 @@
 use super::*;
 use zil_base::Limits;
 use zil_ir::{
-    PlaceProjection, StorageLifeContract, StorageLifeShape, StoragePosition, StorageSource, StoredBorrowLoad, TypedModule,
+    PlaceProjection, StorageLifeContract, StorageLifeShape, StoragePosition, StorageSource,
+    StoredBorrowLoad, TypedModule,
 };
 
 fn exhausted() -> Vec<Diagnostic> {
@@ -19,16 +20,31 @@ fn pay(work: &mut usize, n: usize) -> CompileResult<()> {
 }
 fn source_metadata(source: &StorageSource, work: &mut usize, limits: &Limits) -> CompileResult<()> {
     let position = |position: &StoragePosition, work: &mut usize| {
-        if position.path.len()>limits.max_call_depth { return Err(exhausted()); }
+        if position.path.len() > limits.max_call_depth {
+            return Err(exhausted());
+        }
         pay(work, position.path.len().saturating_add(1))
     };
-    pay(work,1)?;
+    pay(work, 1)?;
     match source {
-        StorageSource::Exact(value) => position(value,work),
-        StorageSource::PlaceAddress {place,..} => {position(place,work)?;pay(work,1)},
-        StorageSource::OwnedView {head,leaf,..} => {position(head,work)?;pay(work,1)?;type_work(leaf,work,limits,0)},
-        StorageSource::ReborrowedLeaf {source,head} => {position(source,work)?;position(head,work)},
-        StorageSource::Static {leaf,..} => {pay(work,1)?;type_work(leaf,work,limits,0)},
+        StorageSource::Exact(value) => position(value, work),
+        StorageSource::PlaceAddress { place, .. } => {
+            position(place, work)?;
+            pay(work, 1)
+        }
+        StorageSource::OwnedView { head, leaf, .. } => {
+            position(head, work)?;
+            pay(work, 1)?;
+            type_work(leaf, work, limits, 0)
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            position(source, work)?;
+            position(head, work)
+        }
+        StorageSource::Static { leaf, .. } => {
+            pay(work, 1)?;
+            type_work(leaf, work, limits, 0)
+        }
     }
 }
 pub(super) fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
@@ -221,7 +237,12 @@ pub(super) fn reserve_callable_metadata(
             super::static_utf8::reserve_dyn_instance(instance, limits, work)?;
         }
 
-        for rows in function.retained_return_sources.iter().chain(function.callable_return_contract.iter().filter_map(|contract|contract.capture_sources.as_ref())) {
+        for rows in function.retained_return_sources.iter().chain(
+            function
+                .callable_return_contract
+                .iter()
+                .filter_map(|contract| contract.capture_sources.as_ref()),
+        ) {
             pay(work, rows.len().saturating_add(1))?;
             for row in rows {
                 pay(

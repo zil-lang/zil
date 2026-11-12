@@ -8,7 +8,11 @@ use zil_ir::*;
 pub(crate) fn exact_storage_source(source: &StorageSource) -> Result<&StoragePosition, Diagnostic> {
     match source {
         StorageSource::Exact(position) => Ok(position),
-        _ => Err(Diagnostic::unsupported(Phase::Types, "source atom requires an independent region consumer", None)),
+        _ => Err(Diagnostic::unsupported(
+            Phase::Types,
+            "source atom requires an independent region consumer",
+            None,
+        )),
     }
 }
 mod addresses;
@@ -3432,7 +3436,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function = CoreFunction {
             dyn_instance: None,
             retained_return_sources: None,
-                source_scope: None,
+            source_scope: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,

@@ -2014,7 +2014,7 @@ pub(super) fn preflight(
                         "callable source paths",
                     )?;
                     for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom)?;
+                        let source = crate::exact_storage_source(atom)?;
                         count(
                             0,
                             source.path.len(),

@@ -62,12 +62,21 @@ use zil_ir::*;
 pub(crate) fn exact_storage_source(source: &StorageSource) -> CompileResult<&StoragePosition> {
     match source {
         StorageSource::Exact(position) => Ok(position),
-        _ => Err(vec![Diagnostic::unsupported(Phase::Analyze, "source atom requires an independent region consumer", None)]),
+        _ => Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "source atom requires an independent region consumer",
+            None,
+        )]),
     }
 }
-pub(crate) fn exact_storage_sources_contain(sources: &[StorageSource], position: &StoragePosition) -> CompileResult<bool> {
-    let mut present=false;
-    for source in sources { present |= exact_storage_source(source)? == position; }
+pub(crate) fn exact_storage_sources_contain(
+    sources: &[StorageSource],
+    position: &StoragePosition,
+) -> CompileResult<bool> {
+    let mut present = false;
+    for source in sources {
+        present |= exact_storage_source(source)? == position;
+    }
     Ok(present)
 }
 

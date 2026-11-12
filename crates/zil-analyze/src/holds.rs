@@ -2471,7 +2471,7 @@ fn infer_with_private(
                             {
                                 for binding in bindings {
                                     for atom in &binding.sources {
-                                        let source=crate::exact_storage_source(atom)?;
+                                        let source = crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut found,
                                             &factory_source_roots(

@@ -80,6 +80,8 @@ enum Write<'a> {
     K76(&'a String, usize),
     K77(&'a Option<DynLifePattern>, usize),
     K78(&'a Vec<DynTypePattern>, usize),
+    K79(&'a Vec<StorageSource>, usize),
+    K80(&'a StorageSource, usize),
 }
 #[derive(Clone, Copy)]
 enum Kind {
@@ -162,6 +164,8 @@ enum Kind {
     K76,
     K77,
     K78,
+    K79,
+    K80,
 }
 enum Read {
     Start(Kind, usize),
@@ -224,6 +228,7 @@ enum Value {
     K74(Box<UnaryOp>),
     K75(Box<BinaryOp>),
     K76(String),
+    K80(Box<StorageSource>),
 }
 impl Writer<'_> {
     fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> {
@@ -671,7 +676,7 @@ impl Writer<'_> {
                 }
                 Write::K22(value, depth) => {
                     self.dyn_recipe_node(depth)?;
-                    pending.push(Write::K26(&value.sources, depth + 1));
+                    pending.push(Write::K79(&value.sources, depth + 1));
                     pending.push(Write::K20(&value.position, depth + 1));
                 }
                 Write::K23(value, depth) => {
@@ -1080,6 +1085,16 @@ impl Writer<'_> {
                     for item in value.iter().rev() {
                         pending.push(Write::K8(item, depth));
                     }
+                }
+                Write::K79(value, depth) => {
+                    self.count(value.len(), self.limits.max_nodes)?;
+                    for item in value.iter().rev() {
+                        pending.push(Write::K80(item, depth));
+                    }
+                }
+                Write::K80(value, depth) => {
+                    let _ = depth;
+                    self.storage_source(value, depth)?;
                 }
             }
         }
@@ -1505,7 +1520,7 @@ impl Reader<'_> {
                     Kind::K22 => {
                         self.dyn_recipe_node(depth)?;
                         pending.push(Read::Finish(kind, 0, 2));
-                        pending.push(Read::Start(Kind::K26, depth + 1));
+                        pending.push(Read::Start(Kind::K79, depth + 1));
                         pending.push(Read::Start(Kind::K20, depth + 1));
                     }
                     Kind::K23 => {
@@ -1951,6 +1966,17 @@ impl Reader<'_> {
                         for _ in 0..count {
                             pending.push(Read::Start(Kind::K8, depth));
                         }
+                    }
+                    Kind::K79 => {
+                        let count = self.count(self.limits.max_nodes, 1)?;
+                        pending.push(Read::Finish(kind, 0, count));
+                        for _ in 0..count {
+                            pending.push(Read::Start(Kind::K80, depth));
+                        }
+                    }
+                    Kind::K80 => {
+                        let _ = depth;
+                        values.push(Value::K80(Box::new(self.storage_source(depth)?)));
                     }
                 },
                 Read::Finish(kind, tag, count) => {
@@ -2538,7 +2564,7 @@ impl Reader<'_> {
                                     Value::Rows(rows) => rows
                                         .into_iter()
                                         .map(|item| match item {
-                                            Value::K20(value) => *value,
+                                            Value::K80(value) => *value,
                                             _ => unreachable!("recipe field grammar"),
                                         })
                                         .collect(),
@@ -3038,6 +3064,10 @@ impl Reader<'_> {
                             Value::Optional(Some(Box::new(fields.next().expect("optional field"))))
                         }
                         Kind::K78 => {
+                            let _ = tag;
+                            Value::Rows(fields.collect())
+                        }
+                        Kind::K79 => {
                             let _ = tag;
                             Value::Rows(fields.collect())
                         }

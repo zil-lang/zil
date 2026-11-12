@@ -723,7 +723,7 @@ fn interface_fingerprint(
                     .saturating_add(binding.sources.len())
                     .saturating_add(1);
                 for atom in &binding.sources {
-                    let source=crate::exact_storage_source(atom).map_err(|error|vec![error])?;
+                    let source = crate::exact_storage_source(atom).map_err(|error| vec![error])?;
                     work = work.saturating_add(source.path.len()).saturating_add(1);
                 }
             }

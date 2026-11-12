@@ -333,7 +333,10 @@ pub(super) fn check_summary(
                     .map_or(1, |binding| binding.sources.len())
                     .saturating_mul(actual.path.len().saturating_add(1)),
             )?;
-            if !match upper { Some(binding)=>crate::exact_storage_sources_contain(&binding.sources,&actual)?, None=>false } {
+            if !match upper {
+                Some(binding) => crate::exact_storage_sources_contain(&binding.sources, &actual)?,
+                None => false,
+            } {
                 return Err(err(
                     "environment source claim omits an actual stored target input",
                 ));

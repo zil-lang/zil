@@ -415,7 +415,10 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
                 ContractProjection::Capture(0),
                 ContractProjection::Place(PlaceProjection::Field(0)),
             ],
-        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+        }])
+        .into_iter()
+        .map(zil_ir::StorageSource::Exact)
+        .collect(),
     }]);
     let retained = RetainedLifeShape {
         binder_count: 1,

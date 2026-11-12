@@ -301,7 +301,10 @@ fn receiver_after_sources_have_independent_bytes_and_preserve_before_selectors()
                 requires: None,
                 guarantees: Some(vec![DynGuarantee::StorageSources(StorageSourceBinding {
                     position: old.clone(),
-                    sources: (vec![old, next]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+                    sources: (vec![old, next])
+                        .into_iter()
+                        .map(zil_ir::StorageSource::Exact)
+                        .collect(),
                 })]),
                 hold: None,
                 call: None,

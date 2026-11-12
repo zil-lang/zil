@@ -39,6 +39,7 @@ enum Work<'a> {
     StorageBinder(&'a StorageBinder),
     DynGenericActual(&'a DynGenericActual),
     StoragePosition(&'a StoragePosition),
+    StorageSource(&'a StorageSource),
     DynCallAccess(&'a DynCallAccess),
     DynResultSource(&'a DynResultSource),
     DynResumeBound(&'a DynResumeBound),
@@ -64,6 +65,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::StorageBinder(value) => encode_storage_binder(b, value),
             Work::DynGenericActual(value) => encode_dyn_generic_actual(b, value),
             Work::StoragePosition(value) => encode_storage_position(b, value),
+            Work::StorageSource(value) => encode_storage_source(b, value),
             Work::DynCallAccess(value) => encode_dyn_call_access(b, value),
             Work::DynResultSource(value) => encode_dyn_result_source(b, value),
             Work::DynResumeBound(value) => encode_dyn_resume_bound(b, value),
@@ -620,7 +622,7 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             },
             Work::StorageSourceBinding(value) => {
                 for item in value.sources.iter().rev() {
-                    pending.push(Work::StoragePosition(item));
+                    pending.push(Work::StorageSource(item));
                 }
                 pending.push(Work::Length(value.sources.len()));
                 pending.push(Work::StoragePosition(&value.position));

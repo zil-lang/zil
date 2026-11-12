@@ -991,7 +991,12 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                     base: StorageBase::Capture(*index),
                     path: tail.to_vec(),
                 },
-                sources: origins.inputs.iter().cloned().map(StorageSource::Exact).collect(),
+                sources: origins
+                    .inputs
+                    .iter()
+                    .cloned()
+                    .map(StorageSource::Exact)
+                    .collect(),
             });
         }
         contract.capture_sources = Some(bindings);
@@ -1493,7 +1498,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             continue;
                         }
                         for atom in &row.sources {
-                            let source=crate::exact_storage_source(atom)?;
+                            let source = crate::exact_storage_source(atom)?;
                             let key = if pointed_classes > 0 && class > 0 {
                                 let StorageBase::Parameter(input) = source.base else {
                                     return Err(unsupported(

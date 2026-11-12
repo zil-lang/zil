@@ -1536,7 +1536,10 @@ impl Catalog {
                         .push(zil_ir::DynGuarantee::StorageSources(
                             zil_ir::StorageSourceBinding {
                                 position: position.clone(),
-                                sources: after_sources.into_iter().map(zil_ir::StorageSource::Exact).collect(),
+                                sources: after_sources
+                                    .into_iter()
+                                    .map(zil_ir::StorageSource::Exact)
+                                    .collect(),
                             },
                         ));
                     contract

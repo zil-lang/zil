@@ -56,6 +56,7 @@ existing={
  'StorageBinder':('storage_binder','encode_storage_binder'), 'DynTypePattern':('dyn_type_pattern','encode_dyn_type_pattern'),
  'DynConstPattern':('dyn_const_pattern','encode_dyn_const_pattern'), 'DynSelfPattern':('dyn_self_pattern','encode_dyn_self_pattern'),
  'DynGenericActual':('dyn_generic_actual','encode_dyn_generic_actual'), 'StoragePosition':('storage_position','encode_storage_position'),
+ 'StorageSource':('storage_source','encode_storage_source'),
  'DynCallAccess':('dyn_call_access','encode_dyn_call_access'), 'DynResultSource':('dyn_result_source','encode_dyn_result_source'),
  'DynResumeBound':('dyn_resume_bound','encode_dyn_resume_bound'), 'DynThreadRequirements':('dyn_thread_requirements','encode_dyn_thread_requirements'),
  'PassingMode':('dyn_passing_mode','encode_dyn_passing_mode'), 'CallKind':('dyn_call_kind','encode_dyn_call_kind'),
@@ -63,7 +64,7 @@ existing={
  'DynTraitApplication':('dyn_trait_application','encode_dyn_trait_application'), 'DynMember':('dyn_member','encode_dyn_member'),
  'Constant':('constant','encode_constant')}
 # Reusable value binding codec belongs to the new recipe transport too.
-items['StorageSourceBinding']=('struct',[('position','StoragePosition'),('sources','Vec<StoragePosition>')])
+items['StorageSourceBinding']=('struct',[('position','StoragePosition'),('sources','Vec<StorageSource>')])
 def gen(t,e,mode,level=0):
  t=t.strip();i='    '*level
  if t.startswith('Box<'):
@@ -92,7 +93,7 @@ def gen(t,e,mode,level=0):
  if t in items:
   method=snake(t)
   return f'self.{method}({e}, depth + 1)?;' if mode=='w' else f'encode_{method}(b, {e});' if mode=='f' else f'self.{method}(depth + 1)?'
- method,fp=existing[t];depth=t in ('Type','DynTypePattern','DynConstPattern','DynSelfPattern')
+ method,fp=existing[t];depth=t in ('Type','DynTypePattern','DynConstPattern','DynSelfPattern','StorageSource')
  return f'self.{method}({e}{", depth + 1" if depth else ""})?;' if mode=='w' else f'{fp}(b, {e});' if mode=='f' else f'self.{method}({"depth + 1" if depth else ""})?'
 def body(name,kind,values,mode):
  if kind=='struct':

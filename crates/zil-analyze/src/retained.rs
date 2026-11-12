@@ -109,7 +109,7 @@ pub(super) fn check_function(
             "callable source binding paths",
         )?;
         for atom in &binding.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source.path.len().saturating_add(1),
                 "callable actual source path",
