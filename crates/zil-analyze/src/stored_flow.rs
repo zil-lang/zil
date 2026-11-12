@@ -8060,7 +8060,7 @@ fn actual_instructions(
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "instruction is outside the actual stored profile, including in unreachable blocks",
+                    format!("instruction is outside the actual stored profile, including in unreachable blocks in {}: {:?}", f.name, i.kind),
                     Some(i.span),
                 )]);
             }

@@ -29,9 +29,6 @@ pub(super) fn ordinary_owned_union(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.masked_stored_tasks() {
-        return Ok(false);
-    }
     let union = match &i.kind {
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
             if value_type(
@@ -646,6 +643,7 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Co
             | Type::U32
             | Type::F32
             | Type::F64
+            | Type::ForeignHandle
             | Type::ByteBuffer => {}
             _ => return Ok(false),
         }
