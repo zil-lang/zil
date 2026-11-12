@@ -680,6 +680,11 @@ fn zero_debt_environment(
                 if definition.id != *id {
                     return Err(error("cleanup environment identity differs"));
                 }
+                // FnOnce carries its independent consume-or-drop obligation,
+                // even when none of its captured fields needs a destructor.
+                if definition.kind == CallableKind::FnOnce {
+                    return Ok(false);
+                }
                 budget.spend(
                     definition.captures.len(),
                     "actual cleanup capture inventory",

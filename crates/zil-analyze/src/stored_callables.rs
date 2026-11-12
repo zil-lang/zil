@@ -79,8 +79,7 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
 fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
-    d.storage_life.is_none()
-        && d.lending_captures.is_empty()
+    d.lending_captures.is_empty()
         && d.kind != CallableKind::FunctionPointer
         && matches!(
             d.result,

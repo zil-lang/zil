@@ -214,7 +214,7 @@ impl Walk<'_> {
         Ok(())
     }
     fn function(&mut self) -> R<Vec<(usize, &'static [u8])>> {
-        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Unknown retained result sources.
+        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0, 0])]; // No dynamic instance; unknown retained result sources.
         self.absent()?; // Direct CallKind.
         insertions.push((self.pos, &[0])); // Local resume bound.
         self.absent()?; // StorageLifeContract.
@@ -234,7 +234,9 @@ impl Walk<'_> {
             for _ in 0..5 {
                 self.words()?;
             }
-            insertions.push((insertion, &[1, 0, 0, 0, 0])); // Some(empty).
+            // Unknown callable return life, then known-empty capture sources.
+            // Neither absence is a proof of an empty semantic life domain.
+            insertions.push((insertion, &[0, 1, 0, 0, 0, 0]));
         }
         if self.tag(1)? == 1 {
             self.callable()?;

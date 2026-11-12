@@ -321,7 +321,11 @@ fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None);
         let exact = defaults.max_analysis_steps - budget.remaining();
         if matches!(write, Write::AfterLast) {
-            assert_eq!(exact, 1291, "ordinary scalar capture keeps its old work");
+            assert_eq!(
+                exact,
+                1291 + 4 * module.functions.len(),
+                "raw function discriminants are prepaid before hashing"
+            );
         }
         let limits = Limits {
             max_analysis_steps: exact,
@@ -660,7 +664,7 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
                 (false, false) => 2387,
                 (true, false) => 2202,
                 (_, true) => 2560,
-            }
+            } + 4 * module.functions.len()
         );
         let bytes = zil_ir::wire::encode_module_candidate(
             &module,

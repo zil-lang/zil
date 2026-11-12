@@ -125,6 +125,12 @@ pub(super) fn shared_enum_observation(
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    // A concrete callback may carry captured Fixed classes entirely outside
+    // its physical parameter types. Select its actual header/CFG proof even
+    // for Unit/scalar results; selection itself grants no captured permission.
+    if f.environment.is_some() && f.storage_life.is_some() {
+        return Ok(true);
+    }
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
@@ -4986,7 +4992,7 @@ fn transfer(
         InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
             let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
             for (index,field) in fields.iter().enumerate(){
-                let mut child=Value{slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?,..Value::default()};
+                let mut child=Value { slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?, ..Value::default() };
                 if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
                     // A summary may still be empty in this fixed-point iteration.
                     // Final address uses and returns independently demand real
@@ -7630,6 +7636,7 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    b.stored_completed_functions = None;
     byte_queries::authenticate(module, b)?;
     dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
@@ -7897,6 +7904,12 @@ pub(super) fn infer(
         result.push(rows);
     }
     b.store_option_targets = option_targets;
+    // Publish coverage only after complete actual instruction, header,
+    // source/loan, summary substitution and required responsibility checks.
+    fee(b, module.functions.len())?;
+    b.stored_completed_functions = Some((0..module.functions.len()).map(|index| {
+        b.composition_stored.is_empty() || b.composition_stored[index]
+    }).collect());
     Ok(result)
 }
 
@@ -8929,10 +8942,12 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(&m.functions[0].values[8], Type::Desc(payload)
+            if matches!(payload.as_ref(), Type::Record { .. })));
+        // A Record resource description is weak in the public Hold table.
+        // The real head and retirement are still checked by every negative
+        // below, including the actual Drop moved before its last ReadDesc.
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -9012,7 +9027,7 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            12_246,
+            12_296,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
