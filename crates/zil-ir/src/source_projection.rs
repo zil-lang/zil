@@ -6,6 +6,14 @@
 use crate::*;
 use zil_base::Limits;
 
+/// Complete actual module scope snapshots, not certificates. An unresolved
+/// closure/interface is deliberately different from an explicit empty domain.
+/// Kernels must recover these scopes from their own actual module inventory.
+#[derive(Clone, Copy, Default)]
+pub struct ScopeCandidates<'a> {
+    pub closures: &'a [ClosureDefinition],
+    pub interfaces: &'a [DynInterface],
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Projection {
     pub ty: Type,
@@ -24,6 +32,7 @@ struct Fuel<'a> {
     limits: &'a Limits,
     remaining: &'a mut usize,
     nodes: usize,
+    scopes: ScopeCandidates<'a>,
 }
 impl Fuel<'_> {
     fn pay(&mut self, count: usize) -> Result<()> {
@@ -46,6 +55,87 @@ impl Fuel<'_> {
             return Err(ProjectionError::Limit);
         }
         self.pay(count.saturating_add(1))
+    }
+    fn contract(&mut self, life: &StorageLifeContract) -> Result<()> {
+        self.domain(life.fixed_binder_count)?;
+        self.domain(life.invocation_binder_count)?;
+        for row in &life.bindings {
+            self.pay(row.position.path.len().saturating_add(3))?;
+        }
+        for row in &life.classes {
+            self.pay(row.position.path.len().saturating_add(4))?;
+        }
+        Ok(())
+    }
+    fn actuals(&mut self, actuals: &[DynGenericActual], depth: usize) -> Result<()> {
+        for actual in actuals {
+            self.pay(1)?;
+            if let DynGenericActual::Type(ty) = actual {
+                self.ty(ty, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+    fn scopes(&mut self) -> Result<()> {
+        if self.scopes.closures.len() > self.limits.max_nodes
+            || self.scopes.interfaces.len() > self.limits.max_nodes
+        {
+            return Err(ProjectionError::Limit);
+        }
+        let mut closures = std::collections::BTreeSet::new();
+        for definition in self.scopes.closures {
+            self.pay(closures.len().saturating_add(1).ilog2() as usize + 5)?;
+            if !closures.insert(definition.id) {
+                return Err(ProjectionError::Invalid);
+            }
+            for ty in definition
+                .captures
+                .iter()
+                .chain(&definition.parameters)
+                .chain(std::iter::once(&definition.result))
+            {
+                self.ty(ty, 0)?;
+            }
+            if let Some(life) = &definition.storage_life {
+                self.contract(life)?;
+            }
+            self.pay(definition.lending_captures.len().saturating_add(4))?;
+        }
+        let mut interfaces = std::collections::BTreeSet::new();
+        for interface in self.scopes.interfaces {
+            self.pay(interfaces.len().saturating_add(1).ilog2() as usize + 4)?;
+            if !interfaces.insert(interface.id) {
+                return Err(ProjectionError::Invalid);
+            }
+            self.retained(&interface.retained_life, 0)?;
+            self.actuals(&interface.application.actuals, 0)?;
+            for parent in &interface.inherited {
+                self.pay(1)?;
+                self.actuals(&parent.actuals, 0)?;
+            }
+            for member in &interface.associated_types {
+                self.pay(1)?;
+                self.actuals(&member.member.application.actuals, 0)?;
+                self.ty(&member.ty, 0)?;
+            }
+            for member in &interface.associated_constants {
+                self.pay(2)?;
+                self.actuals(&member.member.application.actuals, 0)?;
+                self.ty(&member.ty, 0)?;
+            }
+            for slot in &interface.slots {
+                self.pay(1)?;
+                self.actuals(&slot.member.application.actuals, 0)?;
+                self.actuals(&slot.actuals, 0)?;
+                for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                    self.ty(ty, 0)?;
+                }
+                if let Some(life) = &slot.storage_life {
+                    self.contract(life)?;
+                }
+            }
+        }
+        Ok(())
     }
     fn rows(
         &mut self,
@@ -205,13 +295,84 @@ fn physical_child(ty: &Type, step: PlaceProjection) -> Option<&Type> {
         _ => None,
     }
 }
-fn scope(ty: &Type) -> Option<u32> {
+fn intrinsic_scope(ty: &Type) -> Option<u32> {
     match ty {
         Type::BorrowedStorage { life, .. } => Some(life.binder_count),
         Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
             Some(retained_life.binder_count)
         }
         _ => None,
+    }
+}
+fn scope(ty: &Type, fuel: &mut Fuel<'_>, depth: usize) -> Result<Option<u32>> {
+    if let Some(count) = intrinsic_scope(ty) {
+        return Ok(Some(count));
+    }
+    match ty {
+        Type::Closure(id) => {
+            fuel.node(depth)?;
+            let definitions = fuel.scopes.closures;
+            for definition in definitions {
+                fuel.pay(1)?;
+                if definition.id != *id {
+                    continue;
+                }
+                if let Some(life) = &definition.storage_life {
+                    return Ok(Some(life.fixed_binder_count));
+                }
+                // Legacy closure entries have no free class domain only when
+                // every actual capture and signature type is closed. Direct
+                // signature addresses are invocation-local, not captures.
+                for capture in &definition.captures {
+                    closed(capture, fuel, depth + 1)?;
+                }
+                for ty in definition
+                    .parameters
+                    .iter()
+                    .chain(std::iter::once(&definition.result))
+                {
+                    signature_closed(ty, fuel, depth + 1)?;
+                }
+                return Ok(Some(0));
+            }
+            Err(ProjectionError::UnknownScope)
+        }
+        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+            let interfaces = fuel.scopes.interfaces;
+            for actual in interfaces {
+                fuel.pay(1)?;
+                if actual.id == *interface {
+                    return Ok(Some(actual.retained_life.binder_count));
+                }
+            }
+            Err(ProjectionError::UnknownScope)
+        }
+        Type::Registration { environment } | Type::AsyncRegistration { environment } => {
+            // Registration requires its actual environment. Zero classes say
+            // nothing about ClosedEnvironment, no-future, or synchronous Drop.
+            if !matches!(environment.as_ref(), Type::Closure(_)) {
+                return Err(ProjectionError::UnknownScope);
+            }
+            match scope(environment, fuel, depth + 1)? {
+                Some(0) => Ok(Some(0)),
+                Some(_) => Err(ProjectionError::Invalid),
+                None => Err(ProjectionError::UnknownScope),
+            }
+        }
+        _ => Ok(None),
+    }
+}
+fn signature_closed(ty: &Type, fuel: &mut Fuel<'_>, depth: usize) -> Result<()> {
+    fuel.node(depth)?;
+    match ty {
+        Type::Address { inner, .. } => closed(inner, fuel, depth + 1),
+        Type::Tuple(fields) => {
+            for field in fields {
+                signature_closed(field, fuel, depth + 1)?;
+            }
+            Ok(())
+        }
+        _ => closed(ty, fuel, depth + 1),
     }
 }
 fn retained_class(
@@ -277,7 +438,7 @@ fn discover(
     physical: bool,
 ) -> Result<()> {
     fuel.node(depth)?;
-    if let Some(count) = scope(ty) {
+    if let Some(count) = scope(ty, fuel, depth + 1)? {
         for class in 0..count {
             add(classes, retained_class(life, logical, class, fuel)?, fuel)?;
         }
@@ -419,6 +580,13 @@ fn discover(
 }
 fn closed(ty: &Type, fuel: &mut Fuel<'_>, depth: usize) -> Result<()> {
     fuel.node(depth)?;
+    if let Some(count) = scope(ty, fuel, depth + 1)? {
+        return if count == 0 {
+            Ok(())
+        } else {
+            Err(ProjectionError::UnknownScope)
+        };
+    }
     match ty {
         Type::Unit
         | Type::Bool
@@ -470,13 +638,32 @@ pub fn project(
     limits: &Limits,
     remaining: &mut usize,
 ) -> Result<Projection> {
+    project_with_scopes(
+        parent,
+        prefix,
+        ScopeCandidates::default(),
+        limits,
+        remaining,
+    )
+}
+/// Use only complete snapshots of actual module definitions. This optional
+/// inventory supplies missing semantic domains, never roots or access rights.
+pub fn project_with_scopes(
+    parent: &Type,
+    prefix: &[PlaceProjection],
+    scopes: ScopeCandidates<'_>,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> Result<Projection> {
     let mut fuel = Fuel {
         limits,
         remaining,
         nodes: 0,
+        scopes,
     };
     fuel.ty(parent, 0)?;
     fuel.pay(prefix.len())?;
+    fuel.scopes()?;
     project_paid(parent, prefix, &mut fuel)
 }
 fn project_paid(
@@ -490,7 +677,7 @@ fn project_paid(
     };
     let mut selected = storage.as_ref();
     for (index, step) in prefix.iter().enumerate() {
-        if index > 0 && scope(selected).is_some() {
+        if index > 0 && intrinsic_scope(selected).is_some() {
             let mapping_path = prefix[..index]
                 .iter()
                 .copied()
@@ -516,7 +703,7 @@ fn project_paid(
         .copied()
         .map(LifeTypeProjection::Place)
         .collect::<Vec<_>>();
-    if let Some(count) = scope(selected) {
+    if let Some(count) = scope(selected, fuel, 0)? {
         let mut parent_classes = Vec::new();
         for class in 0..count {
             parent_classes.push(retained_class(life, &logical, class, fuel)?);
@@ -839,6 +1026,216 @@ mod tests {
         assert_eq!(
             project(&parent, &[p(1)], &Limits::default(), &mut 10000),
             Err(ProjectionError::UnknownScope)
+        );
+    }
+    fn closure(
+        id: u32,
+        captures: Vec<Type>,
+        storage_life: Option<StorageLifeContract>,
+    ) -> ClosureDefinition {
+        ClosureDefinition {
+            id: ClosureId(id),
+            function: FunctionId(id),
+            captures,
+            parameters: vec![],
+            result: Type::Unit,
+            storage_life,
+            kind: CallableKind::FnMut,
+            lending_captures: vec![],
+        }
+    }
+    fn registration_parent() -> Type {
+        Type::BorrowedStorage {
+            storage: Box::new(Type::Tuple(vec![Type::Tuple(vec![
+                Type::Managed(Box::new(Type::AsyncRegistration {
+                    environment: Box::new(Type::Closure(ClosureId(0))),
+                })),
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+            ])])),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot {
+                    path: vec![p(0), p(1)],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        }
+    }
+    #[test]
+    fn actual_closed_closure_snapshot_supplies_empty_registration_scope() {
+        let parent = registration_parent();
+        assert_eq!(
+            project(&parent, &[p(0)], &Limits::default(), &mut 10000),
+            Err(ProjectionError::UnknownScope)
+        );
+        let definitions = [closure(0, vec![Type::I32], None)];
+        let scopes = ScopeCandidates {
+            closures: &definitions,
+            interfaces: &[],
+        };
+        let mut left = 10000;
+        let projected =
+            project_with_scopes(&parent, &[p(0)], scopes, &Limits::default(), &mut left).unwrap();
+        assert_eq!(projected.parent_classes, vec![0]);
+        assert!(
+            matches!(projected.ty,Type::BorrowedStorage{life,..} if life.binder_count==1 && life.slots.len()==1)
+        );
+        let cost = 10000 - left;
+        assert_eq!(
+            project_with_scopes(
+                &parent,
+                &[p(0)],
+                scopes,
+                &Limits::default(),
+                &mut (cost - 1)
+            ),
+            Err(ProjectionError::Limit)
+        );
+        assert!(
+            project_with_scopes(
+                &parent,
+                &[p(0)],
+                scopes,
+                &Limits::default(),
+                &mut cost.clone()
+            )
+            .is_ok()
+        );
+    }
+    #[test]
+    fn unscoped_borrowed_capture_and_duplicate_snapshots_cannot_become_empty() {
+        let parent = registration_parent();
+        let borrowed = [closure(
+            0,
+            vec![Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }],
+            None,
+        )];
+        assert_eq!(
+            project_with_scopes(
+                &parent,
+                &[p(0)],
+                ScopeCandidates {
+                    closures: &borrowed,
+                    interfaces: &[]
+                },
+                &Limits::default(),
+                &mut 10000
+            ),
+            Err(ProjectionError::UnknownScope)
+        );
+        let duplicates = [closure(0, vec![], None), closure(0, vec![], None)];
+        assert_eq!(
+            project_with_scopes(
+                &parent,
+                &[p(0)],
+                ScopeCandidates {
+                    closures: &duplicates,
+                    interfaces: &[]
+                },
+                &Limits::default(),
+                &mut 10000
+            ),
+            Err(ProjectionError::Invalid)
+        );
+        let cycle = [closure(0, vec![Type::Closure(ClosureId(0))], None)];
+        assert!(matches!(
+            project_with_scopes(
+                &parent,
+                &[p(0)],
+                ScopeCandidates {
+                    closures: &cycle,
+                    interfaces: &[]
+                },
+                &Limits {
+                    max_call_depth: 16,
+                    ..Limits::default()
+                },
+                &mut 10000
+            ),
+            Err(ProjectionError::Limit)
+        ));
+    }
+    #[test]
+    fn complete_closure_domain_keeps_leafless_classes_and_never_becomes_registration_zero() {
+        let definitions = [closure(
+            0,
+            vec![rich()],
+            Some(StorageLifeContract {
+                fixed_binder_count: 2,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                classes: vec![
+                    SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Capture(0),
+                            path: vec![],
+                            class: 0,
+                        },
+                        binder: StorageBinder::Fixed(0),
+                    },
+                    SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Capture(0),
+                            path: vec![],
+                            class: 1,
+                        },
+                        binder: StorageBinder::Fixed(1),
+                    },
+                ],
+            }),
+        )];
+        let scopes = ScopeCandidates {
+            closures: &definitions,
+            interfaces: &[],
+        };
+        let parent = Type::BorrowedStorage {
+            storage: Box::new(Type::Tuple(vec![Type::Tuple(vec![Type::Closure(
+                ClosureId(0),
+            )])])),
+            life: StorageLifeShape {
+                binder_count: 2,
+                slots: vec![],
+                retained: vec![
+                    StorageRetainedBinding {
+                        path: vec![l(0), l(0)],
+                        class: 0,
+                        binder: 1,
+                    },
+                    StorageRetainedBinding {
+                        path: vec![l(0), l(0)],
+                        class: 1,
+                        binder: 0,
+                    },
+                ],
+                nominal_arguments: vec![],
+            },
+        };
+        let projected =
+            project_with_scopes(&parent, &[p(0)], scopes, &Limits::default(), &mut 10000).unwrap();
+        assert_eq!(projected.parent_classes, vec![1, 0]);
+        let Type::BorrowedStorage { life, .. } = projected.ty else {
+            panic!()
+        };
+        assert_eq!(life.binder_count, 2);
+        assert_eq!(life.retained.len(), 2);
+        assert_eq!(
+            project_with_scopes(
+                &registration_parent(),
+                &[p(0)],
+                scopes,
+                &Limits::default(),
+                &mut 10000
+            ),
+            Err(ProjectionError::Invalid)
         );
     }
 }
