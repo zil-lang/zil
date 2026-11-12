@@ -114,6 +114,7 @@ fn build_native_products(out: &std::path::Path) {
     for header in [
         "work_products.h",
         "machine_products.h",
+        "machine_frame_products.h",
         "analysis_facts.h",
         "packed_stage.h",
         "zil_llvm_work_products_hooks.h",
