@@ -1332,8 +1332,14 @@ fn head_role_survives_a_summary_even_when_the_forwarder_upper_is_exact() {
         &mut b,
     )
     .unwrap();
-    assert_eq!(summary.dyn_ports.0[0].1.head_sources, [head.clone()]);
-    assert_eq!(summary.dyn_ports.0[0].1.permission.sources, [data.clone()]);
+    assert_eq!(
+        summary.dyn_ports.0[0].1.head_sources.as_slice(),
+        std::slice::from_ref(&head)
+    );
+    assert_eq!(
+        summary.dyn_ports.0[0].1.permission.sources.as_slice(),
+        std::slice::from_ref(&data)
+    );
     assert!(summary.dyn_ports.0[0].1.permission.loans.is_empty());
     wrapper.retained_return_sources.as_mut().unwrap()[0].sources =
         vec![StorageSource::Exact(StoragePosition {
