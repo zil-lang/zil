@@ -5,6 +5,41 @@ use super::*;
 use crate::stored_types::LexicalLife;
 use zil_ir::*;
 
+/// Only named code-signature classes select a declared return bridge. Elided
+/// results retain body inference: a zero-argument borrowed result may be a
+/// copied Fixed capture or a short receiver view, which Source cannot guess.
+pub(crate) fn named_life(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
+    use crate::ct_selection::Visitor;
+    struct Find<'a, 'b> {
+        budget: &'a mut Budget<'b>,
+        found: bool,
+    }
+    impl Visitor for Find<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            self.found |= matches!(
+                &ty.kind,
+                TypeKind::Reference {
+                    lifetime: Some(_),
+                    ..
+                }
+            ) || matches!(&ty.kind,TypeKind::Named{args,..} if args.iter().any(|arg|matches!(arg,GenericArg::Lifetime(_))));
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut find = Find {
+        budget,
+        found: false,
+    };
+    find.ty(ty, 0).map_err(|mut errors| errors.remove(0))?;
+    Ok(find.found)
+}
+
 pub(crate) struct Produced {
     pub(crate) origin: origins::Origin,
     pub(crate) scope: CoreFunctionSourceScope,
@@ -76,7 +111,7 @@ impl Engine<'_> {
         let Some((kind, arguments, result)) = callable::opaque_signature(ty) else {
             return Ok(());
         };
-        if self.life_scope.is_empty() {
+        if self.life_scope.is_empty() || !named_life(ty, &mut self.budget)? {
             return Ok(());
         }
         let origin = self.current_origin.ok_or_else(|| {
@@ -401,6 +436,16 @@ mod tests {
         );
         assert!(function.life.is_none());
         assert!(function.storage_life.is_some());
+    }
+    #[test]
+    fn elided_result_keeps_actual_body_inference() {
+        let module =
+            core("fn make<life a>(value:&'a i32)->impl Fn()->&i32{return ()=>value}fn main(){}")
+                .unwrap();
+        let f = module.functions.iter().find(|f| f.name == "make").unwrap();
+        let bound = f.callable_return.as_ref().unwrap();
+        assert!(bound.life.is_none());
+        assert!(bound.source_life.is_none());
     }
     #[test]
     fn return_selection_does_not_erase_unused_input_or_swap_same_abi_lives() {
