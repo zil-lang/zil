@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "b225683ad3d91527f14daed454d57b20fb716de26667f450edfea433eea99a56",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv12 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 146873,
+    "sha256": "73f0c4d0c359527eb16ac7d082541cc4a70a1a500f166de381954c4939227165"
+  },
+  "schema": 1,
+  "scope": "V12batchA: complete244c release08 immutable binary/build receipt and native21/strictClippy08/fmt07/tools40 successful gates; complete original425 default08 diagnostic raw including CAS, runtime DSO/maps, all34requests/180native/15fullELF+strictLLVMpairs, scopes and current inventories; controller08 read-only CLI-option failure retained; bounded negative-filter review; parentv11 recovery receipts. Candidate source244c5bdbd73db14a9ab06e86ee75a67afd5f1e52/binarya30da5b3d686b094d439036a4a602efe4167b6c7b6bd9f28e2ff88d8b1c68709; baseline3ec7/1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405. Candidate-only profiling and policy-specific native partitions do not establish formal speed, cross-policy ratios or Rust parity. Original scopes/negative results retained. No new compiler/native execution during archive/recovery; old66parts remain dematerialized and original raw is untouched.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
