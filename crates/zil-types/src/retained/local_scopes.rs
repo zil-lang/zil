@@ -2,7 +2,7 @@
 //! Targets and region compatibility are reconstructed by the two kernels.
 use super::*;
 
-fn closed(
+pub(super) fn closed(
     ty: &Type,
     module: &TypedModule,
     left: &mut usize,
