@@ -19,7 +19,8 @@ import subprocess
 import sys
 import time
 
-from native_measure import Worker, digest, pair_validation, report_summary, validate_response
+from native_measure import (Worker, digest, pair_validation, report_summary, validate_response,
+                            llvm_environment, runtime_environment, bind_runtime_libraries)
 from native_workloads import snapshot, write_snapshot
 
 
@@ -130,20 +131,20 @@ def unique_snapshot(cold, index):
     return files
 
 
-def fresh_check(binary, source, directory, timeout, files, expected):
+def fresh_check(binary, source, directory, timeout, files, expected, env):
     command = [str(binary), 'check', str(source / 'main.zil'), '--json']
     start = time.perf_counter_ns()
     try:
-        result = subprocess.run(command, capture_output=True, timeout=timeout)
+        result = subprocess.run(command, capture_output=True, timeout=timeout, env=env)
     except subprocess.TimeoutExpired as error:
         (directory / 'stdout.json').write_bytes(error.stdout or b'')
         (directory / 'stderr.log').write_bytes(error.stderr or b'')
-        save(directory / 'execution.json', {'command': command, 'exit_code': None, 'timeout': True,
+        save(directory / 'execution.json', {'command': command, 'environment': runtime_environment(env), 'exit_code': None, 'timeout': True,
              'valid': False, 'wall_ms_excluded_from_resident_latency': (time.perf_counter_ns() - start) / 1e6})
         raise
     (directory / 'stdout.json').write_bytes(result.stdout)
     (directory / 'stderr.log').write_bytes(result.stderr)
-    execution = {'command': command, 'exit_code': result.returncode,
+    execution = {'command': command, 'environment': runtime_environment(env), 'exit_code': result.returncode,
                  'wall_ms_excluded_from_resident_latency': (time.perf_counter_ns() - start) / 1e6}
     save(directory / 'execution.json', execution)
     if result.returncode != 0:
@@ -185,6 +186,8 @@ def memory_summary(rows):
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
+    parser.add_argument('--baseline-llvm-library-path', type=Path, required=True)
+    parser.add_argument('--candidate-llvm-library-path', type=Path, required=True)
     parser.add_argument('--source-sha', required=True)
     parser.add_argument('--producer-reuse', action='store_true',
                         help='enable identical sealed producer reuse in both arms (B versus C)')
@@ -231,11 +234,17 @@ def main():
     calls = sum(len(re.findall(r'\b[A-Za-z_]\w*\s*\(', text)) for text in cold.values()) - declared
     node_bound = args.max_graph_nodes or (1 + 3 * declared)
     edge_bound = args.max_graph_edges or (3 * declared + calls)
+    environments = {arm: llvm_environment(getattr(args, arm + '_llvm_library_path'))
+                    for arm in ('baseline', 'candidate')}
+    for arm, env in environments.items():
+        setattr(args, arm + '_llvm_library_path', Path(env['LD_LIBRARY_PATH']))
     binary_hash = digest(args.binary)
     for name in ('native_long_session.py', 'native_measure.py', 'native_workloads.py'):
         (args.out / name).write_bytes(Path(__file__).with_name(name).read_bytes())
     manifest = {
         'arguments': {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
+        'arm_runtime_environments': {arm: runtime_environment(env) for arm, env in environments.items()},
+        'runtime_policy': 'Explicit per-arm LLVM directories; actual resident maps + DSO bytes archived outside request timing, final hash recaptured. Fresh oracle uses the explicit baseline environment. Archiving may warm OS file cache.',
         'binary_sha256': binary_hash, 'source_sha_supplied_by_runner': args.source_sha,
         'script_sha256': digest(Path(__file__)),
         'generator_sha256': digest(Path(__file__).with_name('native_workloads.py')),
@@ -271,7 +280,9 @@ def main():
                 command.append('--producer-reuse')
             if arm == 'candidate':
                 command.append('--reactive-queries')
-            workers[arm] = Worker(command, directory, args.timeout, args.sample_ms)
+            workers[arm] = Worker(command, directory, args.timeout, args.sample_ms, environments[arm], args.out)
+            bind_runtime_libraries(manifest, arm, workers[arm].runtime)
+            save(args.out / 'manifest.json', manifest)
             if workers[arm].ready.get('capacity_entries') != args.capacity or workers[arm].ready.get('reset_after') != 4096:
                 raise ValueError('resident startup did not honor capacity/reset configuration')
         for index in range(args.edits + 1):
@@ -346,7 +357,7 @@ def main():
             if index in manifest['fresh_legacy_indices']:
                 directory = args.out / 'fresh-legacy' / name
                 directory.mkdir(parents=True)
-                check = fresh_check(args.binary, source, directory, args.timeout, files, pair[0]['resident']['report'])
+                check = fresh_check(args.binary, source, directory, args.timeout, files, pair[0]['resident']['report'], environments['baseline'])
                 checks.append({'index': index, **check})
             save(evidence / 'pair-validation.json', {'valid': True, 'index': index, 'fresh_legacy_checked': index in manifest['fresh_legacy_indices']})
             save(args.out / 'checkpoint.json', {'last_completed_index': index, 'valid_resident_rows': len(rows),
@@ -366,7 +377,13 @@ def main():
             final_files = {str(path.relative_to(source)): path.read_text() for path in sorted(source.rglob('*.zil'))}
             write_snapshot(args.out / 'snapshots' / 'final', final_files)
         for arm, worker in workers.items():
-            worker.close()
+            try:
+                if worker.p.poll() is None and not worker.failed:
+                    worker.finalize_runtime()
+            except (OSError, ValueError) as error:
+                errors.append(f'{arm} runtime finalization: {error}')
+            finally:
+                worker.close()
             if worker.p.returncode != 0:
                 errors.append(f'{arm} resident exit {worker.p.returncode}')
     expected_rows = 2 * (args.edits + 1)

@@ -8,6 +8,7 @@ matched runner separately checks current Verify, diagnostics and native output.
 import argparse
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -120,6 +121,46 @@ def inspect_commands(run, manifest):
             command_flags(command, arm, extras, binary=manifest['binaries'][arm]['path'],
                           mode=manifest['arguments']['mode'],
                           source=original_block / 'source' / 'main.zil', work=original_block / arm)
+
+
+def inspect_runtime_environments(manifest):
+    """Validate declared paths without consulting the original host after restore."""
+    if manifest.get('runtime_binding_schema') != 'per-arm-resident-llvm-v1':
+        raise ValueError('explicit per-arm resident LLVM binding is missing')
+    environments = manifest['arm_runtime_environments']
+    for arm in ('baseline', 'candidate'):
+        env = environments[arm]
+        path = env['LD_LIBRARY_PATH']
+        if (type(path) is not str or not Path(path).is_absolute() or '..' in Path(path).parts
+                or ':' in path or env['ZIL_LLVM_LIB_DIR'] != path
+                or manifest['arguments'][arm + '_llvm_library_path'] != path
+                or env.get('LD_PRELOAD') or env.get('LD_AUDIT')):
+            raise ValueError('arm LLVM environment differs from its explicit declared directory')
+    return environments
+
+
+def inspect_runtime_receipt(receipt, environment, pid, out, check_blob, parse_mappings):
+    """Bind archived mapped files to kernel identities and the declared arm env."""
+    if (receipt['schema'] != 'resident-llvm-maps-v1' or receipt['environment'] != environment
+            or type(pid) is not int or pid <= 0 or receipt['pid'] != pid):
+        raise ValueError('resident LLVM receipt PID/environment binding differs')
+    check_blob(receipt['maps'])
+    mappings = parse_mappings((Path(out) / receipt['maps']['archive']).read_bytes())
+    dsos = receipt['llvm_dsos']
+    identities = [{key: item[key] for key in ('path', 'device', 'inode')} for item in dsos]
+    if not mappings or identities != mappings:
+        raise ValueError('archived LLVM DSO list differs from actual mapped files')
+    directory = Path(environment['LD_LIBRARY_PATH'])
+    for item in dsos:
+        resolved = Path(item['resolved_path'])
+        stamp = item['file_stamp']
+        if (not resolved.is_absolute() or '..' in resolved.parts or not resolved.is_relative_to(directory)
+                or len(stamp) != 5 or any(type(value) is not int or value < 0 for value in stamp)
+                or [os.major(stamp[0]), os.minor(stamp[0])] != item['device']
+                or stamp[1] != item['inode'] or stamp[2] != item['bytes']):
+            raise ValueError('LLVM DSO namespace/device/inode/size binding differs')
+        check_blob(item)
+    return dsos
 
 
 def llvm_comparison_sha256(data):
