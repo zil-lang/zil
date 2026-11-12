@@ -1,0 +1,152 @@
+{
+  "task": "G10.5.1.15",
+  "status": "Research continuation implemented and reviewed; general point-to-point and Rust parity gates remain open",
+  "read_goal": "ee7fcd1a229799f1146c4dbdee822d6c9f8ff269",
+  "source": "e91d16480d5e31c620d2b776245973c24329840f",
+  "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
+  "branch": "research/incremental-demand-continuation",
+  "actual_main": "99035931d358add0eaed6d4535035c38413701dd",
+  "report": "https://github.com/zil-lang/zil/blob/ff81e07961077613907ce4d3b9cf650defccfd1d/tools/research/incremental-demand/continuation-results.md",
+  "change": "Immutable per-function raw Wire fragments eliminate publication clones and unchanged-function serialization; exact Limits and current Verify preserved. Private diagnostic:1 serialized/420 reused.",
+  "checks": {
+    "workspace_lib": 1660,
+    "ir_types": 167,
+    "cross_function_borrows": 119,
+    "cli": 24,
+    "note": "overlapping scopes not summed; strict Clippy/fmt/release pass; full workspace integration not claimed"
+  },
+  "matched": {
+    "check": {
+      "rows": 270,
+      "measured": 144,
+      "native_executions": 0,
+      "median_ms": {
+        "cold": {
+          "baseline": 705.368,
+          "candidate": 614.553,
+          "rust": 1191.861
+        },
+        "unchanged": {
+          "baseline": 95.135,
+          "candidate": 88.967,
+          "rust": 12.603
+        },
+        "private": {
+          "baseline": 525.229,
+          "candidate": 219.641,
+          "rust": 181.541
+        },
+        "multi": {
+          "baseline": 667.417,
+          "candidate": 229.866,
+          "rust": 182.26
+        },
+        "broad": {
+          "baseline": 885.313,
+          "candidate": 665.53,
+          "rust": 1032.55
+        },
+        "restore": {
+          "baseline": 99.221,
+          "candidate": 91.415,
+          "rust": 222.902
+        },
+        "error": {
+          "baseline": 447.796,
+          "candidate": 324.639,
+          "rust": 189.436
+        },
+        "recovery": {
+          "baseline": 769.808,
+          "candidate": 368.503,
+          "rust": 197.808
+        }
+      }
+    },
+    "o2": {
+      "rows": 270,
+      "measured": 144,
+      "native_executions": 2808,
+      "median_ms": {
+        "cold": {
+          "baseline": 5450.814,
+          "candidate": 5233.819,
+          "rust": 5911.73
+        },
+        "unchanged": {
+          "baseline": 492.442,
+          "candidate": 545.379,
+          "rust": 12.774
+        },
+        "private": {
+          "baseline": 1457.723,
+          "candidate": 1109.342,
+          "rust": 574.611
+        },
+        "multi": {
+          "baseline": 1642.752,
+          "candidate": 1293.706,
+          "rust": 1008.242
+        },
+        "broad": {
+          "baseline": 5064.452,
+          "candidate": 5095.876,
+          "rust": 5575.605
+        },
+        "restore": {
+          "baseline": 530.22,
+          "candidate": 496.2,
+          "rust": 451.872
+        },
+        "error": {
+          "baseline": 321.959,
+          "candidate": 284.245,
+          "rust": 229.189
+        },
+        "recovery": {
+          "baseline": 1546.42,
+          "candidate": 1236.616,
+          "rust": 516.243
+        }
+      }
+    }
+  },
+  "controls": "6 blocks, eight named-parent requests, same requested CGU16/O2/jobs1; actual membership different;78 ELF/LLVM identical Zil pairs; independent result review accepted",
+  "negative": "O2 unchanged regresses, broad neutral. Whole branch vs main, not isolated slice attribution. Old CGU16/256 cross-language ratios remain withdrawn. First native runner namespace failure retained.",
+  "limits": "Whole-project phase key/dependencies, BodyKey-only graph, module revision granularity, source/CFG work, full persistence bytes/hash/write, machineIR/text/partition/preflight and link remain. No all-live-checkpoint strict cache byte bound claimed. No default flag change or main merge.",
+  "raw": {
+    "status": "remote_pushed_and_independently_recovered_verified",
+    "repository": "https://github.com/zil-lang/zil.git",
+    "ref": "archive/source-history",
+    "commit": "64f88e6a21b637a45192726b88c0a0ff1fb8a329",
+    "path": "research/incremental-demand-20261112/",
+    "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+    "archive_bytes": 222791765,
+    "parts": 9,
+    "recovery_receipt": "continuation-recovery.json",
+    "restored_validations": {
+      "check": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 8
+      },
+      "o2": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 352
+      }
+    }
+  },
+  "review_files": [
+    "continuation-review.json",
+    "continuation-review-namespace-addendum.json",
+    "continuation-results-review.json",
+    "continuation-recovery.json"
+  ]
+}
