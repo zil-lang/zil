@@ -292,8 +292,12 @@ pub(super) fn validate(
                         .values
                         .get(value.0 as usize)
                         .ok_or_else(|| err("constant result has no actual return payload"))?;
-                    let permission = leaf(payload, &path, b)?
-                        .ok_or_else(|| err("constant result has no actual return occurrence"))?;
+                    let permission = if path.is_empty() {
+                        &payload.address
+                    } else {
+                        leaf(payload, &path, b)?
+                            .ok_or_else(|| err("constant result has no actual return occurrence"))?
+                    };
                     observe(permission, solution, &nodes, b)?;
                 }
             }
