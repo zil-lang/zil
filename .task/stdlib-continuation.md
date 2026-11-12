@@ -1,0 +1,11 @@
+# Temporary stdlib continuation
+
+Baseline main 99035931d, branch task/language-stdlib. Read AGENTS and frozen goal/workflow 76e78c618bbe715eaebc666341f0e5f0ebefbfaa. No schema changes made.
+
+Written, not yet validated: lib/std/owning_hash_map.zil, owning_hash_set.zil, appended u64 text APIs in int.zil; driver stdlib registration; new crates/zil-driver/tests/owning_hash_collections.rs. Hash lookup is open-addressed with borrowed KeyEq/KeyHash trait dispatch; entries retain full owning K/V. Rehash builds independent buckets and does entries reserve last, before infallible field commit. Take/replacement use existing store.remove, so deletion is O(capacity) and may allocate suffix preparation; failure returns complete incoming entry, keeps old map. Can optimize only after actual owned swap/take path exists. No linear lookup fallback, no growing history table.
+
+First test command running unified exec session 9899, process cargo 5883 (parent flock 5233); log out/runs/owning-hash-first.log. Command locks /workspace/.zil-env/language-build.lock and exports target-language-stdlib, features llvm-api. First full target build underway. No test result claimed. Do not start another heavy build outside same flock. Next inspect log, diagnose expected generic bound/import or source borrow failures, then run native collision/growth/set and u64 test.
+
+Still untouched: buffer io wrappers; float text (needs correctly rounded roundtrip implementation, existing libc ABI supports scalar f64 but varargs unspecified); graph bounded generation storage and cross-graph identity; general user-state protocols. Existing graph tickets are graph-relative, history grows without bound. Language lacks evident process-unique ordinary-lib ID source/static global; explicit lifetime handles pin graph preventing structural mutation. Need actual design, no fake unique caller integer, no random uniqueness promise. Root notified G6 general protocol needs syntax/IR/schema coordination if required now.
+
+Need add allocator fault/native cleanup and raw/Wire ownership counterexamples to hashmap before candidate acceptance; existing tests/owning_map.rs and growing_hash_collections.rs are templates. Docs spec to add after actual semantics validated. Remove this temporary task note before integration.
