@@ -40,6 +40,7 @@ struct Plan {
     place_meta: Option<partial_places::Meta>,
     tagged_locals: Option<Vec<usize>>,
     address_replacement_tags: bool,
+    owned_creation: bool,
 }
 impl Plan {
     fn cleanup(flow: &Flow<'_>, b: &mut Budget) -> Check<()> {
@@ -68,6 +69,7 @@ impl Plan {
             place_meta: flow.place_meta,
             tagged_locals: flow.tagged_locals,
             address_replacement_tags: flow.address_replacement_tags,
+            owned_creation: flow.owned_creation,
         }
     }
     fn flow<'a>(
@@ -89,6 +91,7 @@ impl Plan {
             place_meta: self.place_meta,
             tagged_locals: self.tagged_locals,
             address_replacement_tags: self.address_replacement_tags,
+            owned_creation: self.owned_creation,
             tag_cache: (self.partial && indexed_invalidation(b))
                 .then(|| RefCell::new(tag_cache::Cache::new(f))),
         }

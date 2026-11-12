@@ -9,12 +9,20 @@ struct Fact {
     sites: BTreeMap<Path, BTreeSet<(usize, ValueId)>>,
 }
 impl Fact {
+    fn work(&self) -> usize {
+        self.sites.iter().fold(1usize, |work, (path, sites)| {
+            work.saturating_add(path.len())
+                .saturating_add(sites.len())
+                .saturating_add(1)
+        })
+    }
+    fn snapshot(&self, b: &mut Budget) -> CompileResult<Self> {
+        b.spend(self.work(), "Task actual-origin fact snapshot")?;
+        Ok(self.clone())
+    }
     fn join(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
         b.spend(
-            self.sites
-                .len()
-                .saturating_add(other.sites.len())
-                .saturating_add(1),
+            self.work().saturating_mul(2).saturating_add(other.work()),
             "Task migration construction facts",
         )?;
         let old = self.clone();
@@ -120,12 +128,20 @@ impl Proof<'_> {
             self.activations.len().saturating_add(inputs.len()),
             "Task migration activation",
         )?;
-        if let Some(index) = self
-            .activations
-            .iter()
-            .position(|a| a.function == function && a.inputs == inputs)
-        {
-            return Ok(index);
+        for (index, a) in self.activations.iter().enumerate() {
+            self.budget.spend(1, "Task activation function match")?;
+            if a.function == function {
+                self.budget.spend(
+                    a.inputs
+                        .iter()
+                        .chain(&inputs)
+                        .fold(0usize, |n, fact| n.saturating_add(fact.work())),
+                    "Task actual activation input comparison",
+                )?;
+                if a.inputs == inputs {
+                    return Ok(index);
+                }
+            }
         }
         let f = &self.module.functions[function.0 as usize];
         if self.solving.len() >= self.budget.helper_depth {
@@ -161,7 +177,8 @@ impl Proof<'_> {
                 self.activations[index].locals[local.0 as usize] = self.activations[index]
                     .inputs
                     .get(position)
-                    .cloned()
+                    .map(|fact| fact.snapshot(self.budget))
+                    .transpose()?
                     .unwrap_or(Fact {
                         unknown: true,
                         ..Fact::default()
@@ -180,7 +197,8 @@ impl Proof<'_> {
                         .spend(1, "Task migration forward construction")?;
                     match &i.kind {
                         InstructionKind::Store { local, value } => {
-                            let source = self.activations[index].values[value.0 as usize].clone();
+                            let source = self.activations[index].values[value.0 as usize]
+                                .snapshot(self.budget)?;
                             changed |= self.activations[index].locals[local.0 as usize]
                                 .join(&source, self.budget)?;
                         }
@@ -196,7 +214,8 @@ impl Proof<'_> {
                         }
                         InstructionKind::UnpackTuple { local, fields }
                         | InstructionKind::UnpackVariant { local, fields, .. } => {
-                            let source = self.activations[index].locals[local.0 as usize].clone();
+                            let source = self.activations[index].locals[local.0 as usize]
+                                .snapshot(self.budget)?;
                             for (position, field) in fields.iter().enumerate() {
                                 if relevant(
                                     self.module,
@@ -270,7 +289,8 @@ impl Proof<'_> {
                         | InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local }
                         | InstructionKind::DescribeLocal { local } => {
-                            fact = self.activations[index].locals[local.0 as usize].clone()
+                            fact = self.activations[index].locals[local.0 as usize]
+                                .snapshot(self.budget)?
                         }
                         InstructionKind::TakeTupleField { local, path }
                         | InstructionKind::TakeVariantField { local, path } => {
@@ -314,7 +334,8 @@ impl Proof<'_> {
                         }
                         InstructionKind::ReborrowAddress { address: value, .. }
                         | InstructionKind::DescribeAddress { address: value } => {
-                            fact = self.activations[index].values[value.0 as usize].clone()
+                            fact = self.activations[index].values[value.0 as usize]
+                                .snapshot(self.budget)?
                         }
                         InstructionKind::WithScopedThread { argument, .. } => {
                             fact = self.activations[index].values[argument.0 as usize].prefix(
@@ -368,8 +389,11 @@ impl Proof<'_> {
                             } else {
                                 let inputs = arguments
                                     .iter()
-                                    .map(|v| self.activations[index].values[v.0 as usize].clone())
-                                    .collect();
+                                    .map(|v| {
+                                        self.activations[index].values[v.0 as usize]
+                                            .snapshot(self.budget)
+                                    })
+                                    .collect::<CompileResult<_>>()?;
                                 let callee = self.solve(*function, inputs)?;
                                 let live =
                                     super::super::drop_sync::reachable_blocks(target, self.budget)?;
@@ -398,7 +422,94 @@ impl Proof<'_> {
         self.solving.remove(&function);
         Ok(index)
     }
+    fn caller_inputs(
+        &mut self,
+        function: FunctionId,
+        visiting: &mut BTreeSet<FunctionId>,
+    ) -> CompileResult<Vec<Vec<Fact>>> {
+        let target = &self.module.functions[function.0 as usize];
+        self.budget.spend(
+            visiting.len().saturating_add(1),
+            "migration forward caller inventory",
+        )?;
+        if visiting.len() >= self.budget.helper_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "migration caller inventory depth exceeded",
+                Some(target.span),
+            )]);
+        }
+        if !visiting.insert(function) {
+            return Err(bad(
+                target.span,
+                "migration caller cycle has unresolved actual inputs",
+            ));
+        }
+        if target.parameters.is_empty() {
+            visiting.remove(&function);
+            return Ok(vec![vec![]]);
+        }
+        let mut sources = vec![];
+        // Inventory executable call sites first. Each is solved forwards with
+        // its real incoming facts; a signature never supplies a frame origin.
+        for caller in &self.module.functions {
+            if caller.foreign.is_some() {
+                continue;
+            }
+            let live = super::super::drop_sync::reachable_blocks(caller, self.budget)?;
+            for (bi, block) in caller.blocks.iter().enumerate() {
+                if !live[bi] {
+                    continue;
+                }
+                for i in &block.instructions {
+                    self.budget.spend(1, "migration forward caller site")?;
+                    if let InstructionKind::Call {
+                        function: callee,
+                        arguments,
+                    }
+                    | InstructionKind::SuspendCall {
+                        function: callee,
+                        arguments,
+                    } = &i.kind
+                        && *callee == function
+                    {
+                        self.budget.spend(
+                            arguments.len().saturating_add(1),
+                            "migration caller input snapshot",
+                        )?;
+                        sources.push((caller.id, arguments.clone()));
+                    }
+                }
+            }
+        }
+        let mut inputs = vec![];
+        for (caller, arguments) in sources {
+            for parent_inputs in self.caller_inputs(caller, visiting)? {
+                let parent = self.solve(caller, parent_inputs)?;
+                self.budget
+                    .spend(arguments.len(), "migration actual caller input facts")?;
+                inputs.push(
+                    arguments
+                        .iter()
+                        .map(|v| {
+                            self.activations[parent].values[v.0 as usize].snapshot(self.budget)
+                        })
+                        .collect::<CompileResult<_>>()?,
+                );
+            }
+        }
+        visiting.remove(&function);
+        if inputs.is_empty() {
+            return Err(bad(
+                target.span,
+                "migration helper has no executable caller supplying its frame",
+            ));
+        }
+        Ok(inputs)
+    }
     fn facts(&mut self, fact: Fact) -> CompileResult<()> {
+        self.budget
+            .spend(fact.work(), "Task actual retained site deduplication")?;
         if fact.unknown {
             return Err(bad(
                 Default::default(),
@@ -448,19 +559,22 @@ impl Proof<'_> {
                 let mut inputs = vec![];
                 for arg in arguments {
                     external_input(&f.values[arg.0 as usize], self.budget, i.span)?;
-                    let fact = self.activations[activation].values[arg.0 as usize].clone();
-                    self.facts(fact.clone())?;
+                    let fact = self.activations[activation].values[arg.0 as usize]
+                        .snapshot(self.budget)?;
+                    let checked = fact.snapshot(self.budget)?;
+                    self.facts(checked)?;
                     inputs.push(fact);
                 }
                 let child = self.solve(*worker, inputs)?;
                 // Analyze forward provenance intentionally covers all reachable
                 // constructed holders. Verify separately selects may-live PC slots.
-                for fact in self.activations[child]
+                let retained = self.activations[child]
                     .values
-                    .clone()
-                    .into_iter()
-                    .chain(self.activations[child].locals.clone())
-                {
+                    .iter()
+                    .chain(&self.activations[child].locals)
+                    .map(|fact| fact.snapshot(self.budget))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                for fact in retained {
                     self.facts(fact)?;
                 }
                 for block in &target.blocks {
@@ -473,10 +587,18 @@ impl Proof<'_> {
                             graph(self.module, *function, true, self.budget)?;
                             let inputs = arguments
                                 .iter()
-                                .map(|v| self.activations[child].values[v.0 as usize].clone())
-                                .collect();
+                                .map(|v| {
+                                    self.activations[child].values[v.0 as usize]
+                                        .snapshot(self.budget)
+                                })
+                                .collect::<CompileResult<_>>()?;
                             let nested = self.solve(*function, inputs)?;
-                            for fact in self.activations[nested].values.clone() {
+                            let retained = self.activations[nested]
+                                .values
+                                .iter()
+                                .map(|fact| fact.snapshot(self.budget))
+                                .collect::<CompileResult<Vec<_>>>()?;
+                            for fact in retained {
                                 self.facts(fact)?;
                             }
                         }
@@ -515,7 +637,9 @@ impl Proof<'_> {
                     return Err(bad(i.span, "retained registration callback absent"));
                 };
                 crate::registration::transfer_callback(self.module, *id, self.budget, i.span)?;
-                self.facts(self.activations[activation].values[callback.0 as usize].clone())?;
+                let callback = self.activations[activation].values[callback.0 as usize]
+                    .snapshot(self.budget)?;
+                self.facts(callback)?;
             }
             _ => {
                 return Err(bad(
@@ -540,13 +664,16 @@ pub(super) fn argument(
         solving: BTreeSet::new(),
         checking: BTreeSet::new(),
     };
-    let root = proof.solve(f.id, vec![])?;
-    let fact = proof.activations[root].values[value.0 as usize].clone();
-    if fact.sites.is_empty() {
-        return Err(bad(
-            f.span,
-            "migrating Task has no actual construction source",
-        ));
+    for inputs in proof.caller_inputs(f.id, &mut BTreeSet::new())? {
+        let root = proof.solve(f.id, inputs)?;
+        let fact = proof.activations[root].values[value.0 as usize].snapshot(proof.budget)?;
+        if fact.sites.is_empty() {
+            return Err(bad(
+                f.span,
+                "migrating Task has no actual construction source",
+            ));
+        }
+        proof.facts(fact)?;
     }
-    proof.facts(fact)
+    Ok(())
 }

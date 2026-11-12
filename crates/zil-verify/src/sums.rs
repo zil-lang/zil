@@ -1452,6 +1452,7 @@ struct Flow<'a> {
     // strong references make cached Content identities immutable until eviction.
     tag_cache: Option<std::cell::RefCell<tag_cache::Cache<'a>>>,
     address_replacement_tags: bool,
+    owned_creation: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
 
@@ -1569,7 +1570,7 @@ impl Flow<'_> {
                     return Ok(false);
                 }
             }
-            if self.address_replacement_tags {
+            if self.address_replacement_tags || self.owned_creation {
                 replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
             }
         }
@@ -2333,6 +2334,7 @@ impl Flow<'_> {
                         ));
                     }
                     if record
+                        && self.owned_creation
                         && !matches!(
                             instruction.kind,
                             InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
@@ -2539,12 +2541,14 @@ fn run_retaining<'m>(
     let mut partial = false;
     let mut address_tag = false;
     let mut address_replacement = false;
+    let mut owned_creation = false;
     let mut definitions = vec![None; f.values.len()];
     let mut observers = vec![None; f.values.len()];
     for (b, block) in f.blocks.iter().enumerate() {
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
             address_tag |= matches!(instruction.kind, InstructionKind::PlaceTagAddress { .. });
+            owned_creation |= matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. });
             address_replacement |= matches!(
                 instruction.kind,
                 InstructionKind::ReservePlaceAddress { .. }
@@ -2621,6 +2625,7 @@ fn run_retaining<'m>(
         partial,
         replacements,
         address_replacement_tags,
+        owned_creation,
         tagged_locals,
         tag_cache: (partial && indexed_invalidation(budget))
             .then(|| std::cell::RefCell::new(tag_cache::Cache::new(f))),

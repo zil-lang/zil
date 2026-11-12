@@ -160,7 +160,7 @@ fn graphs(module: &TypedModule) -> Vec<FunctionGraph> {
         })
         .collect()
 }
-type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>);
+type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>, Option<bool>);
 #[derive(Debug, PartialEq, Eq)]
 struct Proof {
     rows: Vec<Vec<Vec<BridgeFacts>>>,
@@ -180,7 +180,7 @@ impl From<Proofs> for Proof {
                         .map(|block| {
                             block
                                 .into_iter()
-                                .map(|b| (b.result, b.package, b.unpack))
+                                .map(|b| (b.result, b.package, b.unpack, b.task_cleanup))
                                 .collect()
                         })
                         .collect()

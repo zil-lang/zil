@@ -3,7 +3,7 @@ use super::*;
 use crate::place_replacements::fixture;
 include!("reference.rs");
 use super::super::scheduler_contexts as contexts;
-type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>);
+type BridgeFacts = (Option<u8>, FieldFresh, Vec<UnpackedFresh>, Option<bool>);
 thread_local! { static HITS:RefCell<Vec<usize>>=const {RefCell::new(Vec::new())}; }
 type CaptureRow = Vec<Option<Content>>;
 struct CaptureInputs {
@@ -60,6 +60,7 @@ struct EntrySnapshot {
     place_meta: bool,
     tagged_locals: Option<Vec<usize>>,
     address_replacement_tags: bool,
+    owned_creation: bool,
 }
 fn entry_snapshot(entry: &Entry<'_>) -> EntrySnapshot {
     EntrySnapshot {
@@ -78,6 +79,7 @@ fn entry_snapshot(entry: &Entry<'_>) -> EntrySnapshot {
         place_meta: entry.plan.place_meta.is_some(),
         tagged_locals: entry.plan.tagged_locals.clone(),
         address_replacement_tags: entry.plan.address_replacement_tags,
+        owned_creation: entry.plan.owned_creation,
     }
 }
 #[derive(Debug, PartialEq, Eq)]
@@ -98,7 +100,7 @@ impl From<Proofs> for Proof {
                     f.into_iter()
                         .map(|r| {
                             r.into_iter()
-                                .map(|b| (b.result, b.package, b.unpack))
+                                .map(|b| (b.result, b.package, b.unpack, b.task_cleanup))
                                 .collect()
                         })
                         .collect()
