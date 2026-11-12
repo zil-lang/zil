@@ -967,6 +967,42 @@ mod retained_member_tests {
     use zil_base::{FileId, Limits, SourceUnit};
 
     #[test]
+    fn elided_inputs_keep_the_existing_project_ledger_through_option_insertion() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(7),
+            "elided-project-prelude.zil",
+            "fn read(value:&i32)->Option<i32>{return Option.Some(*value)}fn main()->i32{let value=42;let observed=read(&value);return 0}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut products = products::Products::default();
+        products.origins = Some(Origins::single(&parsed.module, false, &mut budget).unwrap());
+        let output = specialize_products(&parsed.module, &limits, &mut products).unwrap();
+        let origins = products.origins.as_ref().unwrap();
+        assert_eq!(origins.entries.len(), output.items.len());
+        assert!(
+            origins
+                .entries
+                .iter()
+                .any(|origin| origin.role == Some(CompilerRole::Option))
+        );
+        let mut originals = 0;
+        for (item, origin) in output.items.iter().zip(&origins.entries) {
+            if origin.compiler {
+                continue;
+            }
+            assert_eq!(origin.declaration.module, source.module_id);
+            let original = &parsed.module.items[origin.declaration.ordinal as usize];
+            assert_eq!(super::super::name(item), super::super::name(original));
+            originals += 1;
+        }
+        assert_eq!(originals, parsed.module.items.len());
+    }
+
+    #[test]
     fn task_and_option_preludes_preserve_aligned_source_identities() {
         for body in [
             "fn main()->Task<i32>{return 0}",
