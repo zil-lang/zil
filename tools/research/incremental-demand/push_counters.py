@@ -20,6 +20,10 @@ LLVM_RAW = 'complete diagnostic LLVM bytes'
 LLVM_PUSH = 'complete diagnostic LLVM bytes except the strict second-line verified-fingerprint hex64 value; raw bytes and hashes retained'
 CANDIDATE_FLAGS = frozenset(('--producer-reuse', '--reactive-queries', '--push-reuse'))
 FIELDS = {
+    'raw_inference_work': ('full_runs', 'sparse_batches', 'replay_fallbacks',
+                           'closure_bodies_checked', 'closure_bodies_reused',
+                           'name_functions_checked', 'name_functions_reused',
+                           'dependency_bodies_checked', 'dependency_bodies_reused'),
     'types_push_work': ('context_rebuilds', 'sparse_batches', 'body_checks',
                         'position_rebindings', 'retained_functions', 'receipt_tree_updates'),
     'initialization': ('product_admission_functions_checked', 'product_function_queries_executed',
@@ -43,6 +47,47 @@ FIELDS = {
     'lowering_work': ('functions_checked', 'layout_checks', 'functions_reused', 'full_checks',
                       'budget_replays', 'context_checks', 'context_check_ns'),
 }
+
+
+NATIVE_PRODUCT_FIELDS = (
+    'available', 'optimizer_function_stage_executions', 'optimizer_function_stage_reuses',
+    'optimizer_module_pass_executions', 'optimizer_cgscc_pass_executions',
+    'analysis_reconstructions', 'ir_key_bytes', 'ir_snapshot_bytes', 'ir_replay_bytes',
+    'machine_function_executions', 'machine_function_reuses', 'machine_pass_skips',
+    'asm_printer_runs', 'mir_key_bytes', 'mir_snapshot_bytes', 'mir_replay_bytes',
+    'mir_key_ns', 'mir_parse_ns', 'mir_restore_validate_ns', 'mir_capture_ns',
+    'retained_bytes', 'failed_replays', 'fresh_context_fallbacks', 'fallback_ns',
+)
+NATIVE_WORK_SCOPE = (
+    'native_products hook counters and MIR scope timers describe the first hooked attempt only; '
+    'after fresh_context_fallbacks, subsequent ordinary native work has unavailable per-pass counts. '
+    'Reuse in a discarded attempt is not work avoided by final compilation. '
+    'Native receipt phase/total times and request wall include the full native fallback; '
+    'request wall also includes all driver retries. MIR timers are scopes, not a partition of native total.'
+)
+
+
+def inspect_native_products(report):
+    native = report.get('native_codegen')
+    if native is None:
+        return None
+    if not isinstance(native, dict) or not isinstance(native.get('object_reports'), list):
+        raise ValueError('native_codegen.object_reports must retain actual unit receipts')
+    result = []
+    for index, unit in enumerate(native['object_reports']):
+        unit = json.loads(unit) if isinstance(unit, str) else unit
+        if not isinstance(unit, dict):
+            raise ValueError('native object receipt must be an object')
+        stats = unit.get('native_products')
+        if stats is not None:
+            if not isinstance(stats, dict):
+                raise ValueError('native_products must be an object or null')
+            for field in NATIVE_PRODUCT_FIELDS:
+                if type(stats.get(field)) is not int or stats[field] < 0:
+                    raise ValueError('native_products.' + field + ' missing or not a nonnegative integer')
+        result.append({'unit_index': index, 'stats': stats,
+                       'fresh_context_fallbacks': None if stats is None else stats['fresh_context_fallbacks']})
+    return {'units': result, 'scope': NATIVE_WORK_SCOPE, 'unavailable_is_not_zero': True}
 
 
 def candidate_flags(flags):
@@ -162,8 +207,10 @@ def llvm_comparison_sha256(data):
 def inspect_report(report, *, mode, cold=False, profiled=False):
     """Validate available receipts and require them when current stages ran.
 
+    This validator is for the fixed closed scalar push workload. Successful
+    current Ct requires raw inference stats; whole Ct hits need no new receipt.
     Complete frontend/candidate hits legitimately lack Types/Analyze receipts.
-    Failed Types currently publishes no partial work receipt, so None is unknown,
+    Failed requests can omit raw inference stats, so None is unknown,
     not zero. Events and execution assertions remain separate from field shape.
     Cold means the *first* request of a fresh block, never a later cold preparation.
     """
@@ -194,6 +241,7 @@ def inspect_report(report, *, mode, cold=False, profiled=False):
     if type(report['verification_runs']) is not int or report['verification_runs'] < 0:
         raise ValueError('verification_runs must be a nonnegative integer')
     required = {
+        'raw_inference_work': report['status'] == 'Success' and 'ct' in executed,
         'types_push_work': 'types' in executed and not failed_types,
         'initialization': 'analyze' in executed,
         'verification_work': report['verification_runs'] > 0,
@@ -222,7 +270,7 @@ def inspect_report(report, *, mode, cold=False, profiled=False):
         if mode == 'o2' and groups['lowering_work']['functions_checked'] <= 0:
             raise ValueError('first cold request did not admit any Lower functions')
     return {'groups': groups, 'fields_present': present, 'required_by_execution': required,
-            'unavailable_is_not_zero': True}
+            'native_products': inspect_native_products(report), 'unavailable_is_not_zero': True}
 
 
 def main():

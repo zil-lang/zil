@@ -25,6 +25,7 @@ CASES = ('cold', 'unchanged', 'private', 'multi', 'broad', 'restore', 'error', '
 PARENTS = {case: ('error' if case == 'recovery' else 'private' if case == 'restore' else 'cold') for case in CASES if case != 'cold'}
 SCOPES = [
     'Each mode has its own sequential six-block window with all six rotated arm permutations; check and native O2 are separate experiments. OS caches are not flushed; six observations are not a significance test.',
+    pc.NATIVE_WORK_SCOPE,
     'Zil wall is resident send-to-response and excludes resident startup; Rust wall includes each new Cargo process and rustc startup. Source writes, object/symbol inventory and native-oracle execution are outside request wall.',
     'Zil resident_cpu_seconds is a root /proc user+system tick delta; resident_and_waited_cpu_seconds additionally includes waited children. Rust tree_cpu_seconds_wait4 is Cargo wait4 user+system including waited descendants. These scopes are explicitly different.',
     'resident_rss_kib is response-time Zil root RSS; resident_peak_kib is cumulative process high water across prior requests. cargo_peak_sampled_rss_kib samples Cargo root only; wait4_maxrss_kib is a largest-process statistic, not simultaneous process-tree RSS. Do not infer cross-language memory superiority.',
@@ -78,6 +79,8 @@ def reuse(row):
     out = pick(report, ('status', 'phase', 'verification_runs', 'disk_cache', 'verification_work', 'backend_work'))
     # Preserve unavailable receipts explicitly, without fabricated zero counters.
     out['types_push_work'] = report.get('types_push_work')
+    out['raw_inference_work'] = report.get('raw_inference_work')
+    out['native_products'] = pc.inspect_native_products(report)
     out['lowering_work'] = report.get('lowering_work')
     if report:
         out['query_events'] = dict(collections.Counter(event['phase'] + ':' + event['disposition'] for event in report['query_events']))

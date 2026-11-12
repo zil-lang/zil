@@ -336,6 +336,10 @@ class RuntimeEvidenceTests(unittest.TestCase):
 class PushReceiptTests(unittest.TestCase):
     def report(self, mode='check'):
         groups = {name: {field: 0 for field in fields} for name, fields in pc.FIELDS.items()}
+        groups['raw_inference_work']['full_runs'] = 1
+        groups['raw_inference_work']['closure_bodies_checked'] = 425
+        groups['raw_inference_work']['name_functions_checked'] = 425
+        groups['raw_inference_work']['dependency_bodies_checked'] = 425
         groups['types_push_work']['body_checks'] = 425
         groups['initialization']['product_function_queries_executed'] = 425
         groups['verification_work']['raw_shape_functions_aggregated'] = 425
@@ -344,7 +348,8 @@ class PushReceiptTests(unittest.TestCase):
         return {'status': 'Success', 'phase': 'verify' if mode == 'check' else 'link',
                 'verification_runs': 1,
                 'query_events': [{'phase': phase, 'disposition': 'executed'} for phase in
-                                 (['types', 'analyze', 'verify'] + (['lower', 'link'] if mode == 'o2' else []))],
+                                 (['ct', 'types', 'analyze', 'verify'] + (['lower', 'link'] if mode == 'o2' else []))],
+                'raw_inference_work': groups['raw_inference_work'],
                 'types_push_work': groups['types_push_work'],
                 'frontend_stats': {'initialization': groups['initialization']},
                 'verification_work': groups['verification_work'],
@@ -430,6 +435,70 @@ class PushReceiptTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pc.inspect_commands(restored, manifest)
 
+    def test_raw_inference_is_required_only_for_successful_current_scalar_ct(self):
+        report = self.report()
+        self.assertTrue(pc.inspect_report(report, mode='check')['required_by_execution']['raw_inference_work'])
+        report['raw_inference_work'] = None
+        with self.assertRaisesRegex(ValueError, 'raw_inference_work unavailable'):
+            pc.inspect_report(report, mode='check')
+        report['query_events'][0]['disposition'] = 'reused'
+        checked = pc.inspect_report(report, mode='check')
+        self.assertIsNone(checked['groups']['raw_inference_work'])
+        self.assertFalse(checked['required_by_execution']['raw_inference_work'])
+        error = {'status': 'SafeReject', 'phase': 'types', 'verification_runs': 0,
+                 'query_events': [{'phase': 'ct', 'disposition': 'executed'},
+                                  {'phase': 'types', 'disposition': 'executed'}]}
+        checked = pc.inspect_report(error, mode='check')
+        self.assertIsNone(checked['groups']['raw_inference_work'])
+        self.assertFalse(checked['required_by_execution']['raw_inference_work'])
+
+    def native_stats(self):
+        return {field: 0 for field in pc.NATIVE_PRODUCT_FIELDS}
+
+    def test_native_mir_scopes_and_fallback_counts_are_actual_required_integer_fields(self):
+        stats = self.native_stats()
+        stats.update({'available': 1, 'mir_key_ns': 11, 'mir_parse_ns': 12,
+                      'mir_restore_validate_ns': 13, 'mir_capture_ns': 14,
+                      'fresh_context_fallbacks': 1, 'fallback_ns': 1000,
+                      'machine_function_reuses': 20})
+        report = self.report('o2')
+        report['native_codegen'] = {'object_reports': [{'native_products': stats},
+                                                      json.dumps({'native_products': stats}), {}]}
+        result = pc.inspect_report(report, mode='o2')['native_products']
+        self.assertEqual(result['units'][0]['stats'], stats)
+        self.assertEqual(result['units'][1]['stats']['mir_parse_ns'], 12)
+        self.assertIsNone(result['units'][2]['stats'])
+        self.assertIn('first hooked attempt only', result['scope'])
+        self.assertIn('all driver retries', result['scope'])
+        for field in pc.NATIVE_PRODUCT_FIELDS:
+            for value in (None, -1, True, 1.5, '0'):
+                malformed = dict(stats)
+                malformed[field] = value
+                report['native_codegen']['object_reports'] = [{'native_products': malformed}]
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, 'native_products.' + field):
+                    pc.inspect_report(report, mode='o2')
+            malformed = dict(stats)
+            del malformed[field]
+            report['native_codegen']['object_reports'] = [{'native_products': malformed}]
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'native_products.' + field):
+                pc.inspect_report(report, mode='o2')
+
+    def test_summary_preserves_raw_ct_and_native_unknowns_without_counting_discarded_reuse_as_avoided(self):
+        report = self.report('o2')
+        stats = self.native_stats()
+        stats.update({'fresh_context_fallbacks': 1, 'machine_function_reuses': 7, 'mir_capture_ns': 99})
+        report['native_codegen'] = {'object_reports': [{'native_products': stats}, {}]}
+        result = summary.reuse({'resident': {'report': report}})
+        self.assertEqual(result['raw_inference_work']['closure_bodies_checked'], 425)
+        self.assertEqual(result['native_products']['units'][0]['stats']['machine_function_reuses'], 7)
+        self.assertIsNone(result['native_products']['units'][1]['stats'])
+        self.assertIn('discarded attempt', result['native_products']['scope'])
+        report['raw_inference_work'] = None
+        report['native_codegen'] = None
+        result = summary.reuse({'resident': {'report': report}})
+        self.assertIsNone(result['raw_inference_work'])
+        self.assertIsNone(result['native_products'])
+
     def test_actual_cold_execution_is_required_not_just_fields(self):
         for mode in ('check', 'o2'):
             pc.inspect_report(self.report(mode), mode=mode, cold=True)
@@ -438,7 +507,7 @@ class PushReceiptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'did not check any bodies'):
             pc.inspect_report(report, mode='check', cold=True)
         report = self.report()
-        report['query_events'][0]['disposition'] = 'reused'
+        report['query_events'][1]['disposition'] = 'reused'
         with self.assertRaisesRegex(ValueError, 'did not execute'):
             pc.inspect_report(report, mode='check', cold=True)
 
@@ -453,7 +522,7 @@ class PushReceiptTests(unittest.TestCase):
         self.assertFalse(checked['required_by_execution']['types_push_work'])
 
     def test_null_and_absent_are_preserved_and_execution_requires_receipt(self):
-        for name in ('types_push_work', 'verification_work', 'lowering_work'):
+        for name in ('raw_inference_work', 'types_push_work', 'verification_work', 'lowering_work'):
             for absent in (False, True):
                 report = self.report('o2')
                 if absent:
