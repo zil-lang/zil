@@ -2,6 +2,8 @@
 //! This is not a resource safety receipt: an owning result still requires the
 //! original complete resource/effect/cleanup checks. Current closure captures
 //! and the global gate are evaluated separately, at their original positions.
+//! A changed body with an equal complete local/value type projection keeps this
+//! predicate and its length-based fee; it does not inherit any body proof.
 use super::*;
 
 pub(super) struct Node {
@@ -39,10 +41,15 @@ impl Attempt<'_> {
         let previous = previous.filter(|p| p.len == len);
         if let Some(previous) = previous
             && previous.work <= budget.remaining
-            && self
-                .delta
-                .as_ref()
-                .is_some_and(|delta| delta.unchanged_range(module, start, len))
+            && self.delta.as_ref().is_some_and(|delta| {
+                delta.unchanged_range(module, start, len)
+                    || len == 1
+                        && delta.functions.ptr_eq(&module.functions)
+                        && delta
+                            .previous_functions
+                            .get(start)
+                            .is_some_and(|old| shapes::same_types(old, &module.functions[start]))
+            })
         {
             budget.spend(previous.work)?;
             self.stats.resource_inventory_functions_reused += len;
