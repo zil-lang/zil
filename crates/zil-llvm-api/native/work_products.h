@@ -35,7 +35,8 @@ void *ZilNativeProductsCreateRequest(void *module, void *target_machine,
 void ZilNativeProductsSetPhase(void *request, unsigned phase);
 int ZilNativeProductsFailed(const void *request);
 // Finish/Abort both consume request and restore the previous per-thread scope.
-void *ZilNativeProductsFinish(void *request, struct ZilNativeProductStats *stats);
+void *ZilNativeProductsFinish(void *request, struct ZilNativeProductStats *stats,
+    int *failed);
 void ZilNativeProductsAbort(void *request, struct ZilNativeProductStats *stats);
 void ZilNativeProductsDispose(void *products);
 // Reentrant ordinary compilations temporarily suspend the outer TLS hooks.
