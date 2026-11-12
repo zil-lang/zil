@@ -6914,7 +6914,12 @@ fn solve_check(
         }
         if let Some(definition) = capture_result_definition {
             let mut used = Vec::new();
-            for (_, sources) in &s.result {
+            for (path, sources) in &s.result {
+                // lending_captures names the outer returned head. Every inner
+                // slot is checked below against its own actual class relation.
+                if !path.is_empty() {
+                    continue;
+                }
                 for source in sources {
                     b.spend(used.len().saturating_add(1))?;
                     if let HoldRoot::Capture(index) = source.base {

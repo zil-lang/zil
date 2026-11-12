@@ -6,7 +6,7 @@ fn select<life h,life b>(left:&'h mut Holder<'b>,right:&'h mut Holder<'b>,choose
 }
 fn make<life h,life b>(left:&'h mut Holder<'b>,right:&'h mut Holder<'b>,replacement:&'b i32,choose:bool)->impl FnOnce()->i32{
  let target=select(give left,give right,choose)
- return move()=>{target.pointer=replacement;return 0}
+ return move()=>{let selected=give target;selected.pointer=replacement;return 0}
 }
 fn run(choose:bool)->i32{
  let a=10
