@@ -7137,7 +7137,7 @@ fn derive_cfg(
                         }
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
-                    dyn_return::summarize(module, f, value, &mut actual, b)?;
+                    dyn_return::summarize(module, f, value, &mut actual, &loans, b)?;
                 }
             }
             if let Some(d) = f

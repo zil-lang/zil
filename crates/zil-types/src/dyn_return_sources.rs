@@ -427,6 +427,28 @@ pub(super) fn propose<'a>(
                 &mut sources,
             )?;
         }
+        if mode == StoredBorrowMode::SharedAddress
+            && matches!(leaf,Type::Address{mutable:false,inner}
+            if matches!(inner.as_ref(),Type::Slice(element) if element.as_ref()==&Type::U8))
+        {
+            walk.pay(f.blocks.len())?;
+            let mut has_static = false;
+            for block in &f.blocks {
+                walk.pay(block.instructions.len())?;
+                has_static |= block.instructions.iter().any(|i| {
+                    matches!(i.kind, InstructionKind::StaticUtf8 { .. })
+                        && i.result
+                            .is_some_and(|id| f.values.get(id.0 as usize) == Some(leaf))
+                });
+            }
+            if has_static {
+                inference::charge_type_snapshot(leaf, f.span, limits, walk.left, 2)?;
+                sources.push(StorageSource::Static {
+                    leaf: leaf.clone(),
+                    mode,
+                });
+            }
+        }
         walk.pay(position.path.len().saturating_add(1))?;
         proposed.push(StorageSourceBinding { position, sources });
     }

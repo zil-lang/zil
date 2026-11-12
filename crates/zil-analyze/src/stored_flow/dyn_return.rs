@@ -487,10 +487,35 @@ fn contract(
                     derived = place_address(f, place, *mode, b)?;
                     &derived
                 }
+                StorageSource::Static { leaf: ty, mode } => {
+                    crate::dyn_metadata::ty(ty, b)?;
+                    if *mode != StoredBorrowMode::SharedAddress
+                        || !matches!(ty,Type::Address{mutable:false,inner}
+                        if matches!(inner.as_ref(),Type::Slice(element) if element.as_ref()==&Type::U8))
+                    {
+                        return Err(failure(
+                            "static source has no supported complete immutable leaf",
+                        ));
+                    }
+                    fee(b, 2)?;
+                    derived = Leaf {
+                        position: leaf.position.clone(),
+                        ty: ty.clone(),
+                        mode: *mode,
+                        binder: leaf.binder,
+                        target: Some(Target {
+                            base: HoldRoot::Static,
+                            stored: vec![],
+                            retained_port: None,
+                            place: vec![],
+                            heap_element: None,
+                            heap_parents: vec![],
+                        }),
+                    };
+                    &derived
+                }
                 _ => {
-                    return Err(failure(
-                        "retained source atom needs its actual view/static proof",
-                    ));
+                    return Err(failure("retained source atom needs its actual view proof"));
                 }
             };
             if input.mode != leaf.mode || input.binder != leaf.binder || input.ty != leaf.ty {
@@ -530,6 +555,7 @@ pub(super) fn summarize(
     f: &TypedFunction,
     value: &Value,
     facts: &mut Facts,
+    loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
     let Some(upper) = contract(module, f, b)? else {
@@ -556,12 +582,45 @@ pub(super) fn summarize(
                 .len()
                 .saturating_mul(sources.len().saturating_add(1)),
         )?;
+        let declares_static = sources.iter().any(|source| source.base == HoldRoot::Static);
+        if actual
+            .targets
+            .iter()
+            .any(|target| target.base == HoldRoot::Static)
+        {
+            if !declares_static {
+                return Err(failure(
+                    "actual program-static target is absent from its declared upper",
+                ));
+            }
+            for id in ancestry(&actual.loans, loans, b)? {
+                let parent = loans
+                    .get(id)
+                    .ok_or_else(|| failure("static result ancestry exceeds actual loan arena"))?;
+                if parent.receiver_head {
+                    return Err(failure(
+                        "static result cannot erase an actual receiver head parent",
+                    ));
+                }
+                for target in &parent.targets {
+                    fee(
+                        b,
+                        target_width(target).saturating_mul(sources.len().saturating_add(1)),
+                    )?;
+                    if target.base != HoldRoot::Static && !sources.contains(target) {
+                        return Err(failure(
+                            "static result would erase an activation or undeclared parent",
+                        ));
+                    }
+                }
+            }
+        }
         for target in &actual.targets {
             fee(
                 b,
                 target_width(target).saturating_mul(sources.len().saturating_add(1)),
             )?;
-            if !sources.contains(target) {
+            if !(target.base == HoldRoot::Static && declares_static) && !sources.contains(target) {
                 return Err(failure(
                     "actual returned dyn target exceeds its declared source upper",
                 ));
