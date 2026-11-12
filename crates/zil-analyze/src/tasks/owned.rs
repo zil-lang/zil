@@ -426,6 +426,9 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
     budget.type_work(t, false, "pollable frame actual type")?;
     budget.spend(1, "pollable frame actual storage")?;
     match t {
+        // An owned child head is a real asynchronous cleanup obligation. Its
+        // constructor is separately traced by Task origin/migration checks.
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) => Ok(true),
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
         {
@@ -812,7 +815,13 @@ pub(super) fn profile(
                     }
                     children.push(*function);
                 }
-                InstructionKind::AsyncRegistrationStart { .. }
+                InstructionKind::TaskCreate { .. }
+                | InstructionKind::TaskPoll { .. }
+                | InstructionKind::TaskValid { .. }
+                | InstructionKind::TaskRequestCancel { .. }
+                | InstructionKind::TaskPollClose { .. }
+                | InstructionKind::TaskFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationStart { .. }
                 | InstructionKind::AsyncRegistrationValid { .. }
                 | InstructionKind::AsyncRegistrationRequestClose { .. }
                 | InstructionKind::AsyncRegistrationPollClose { .. }

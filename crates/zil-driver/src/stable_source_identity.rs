@@ -607,6 +607,7 @@ mod tests {
             symbol: "putchar".into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            thread_driver_transfer: false,
             scoped_callback: None,
         });
         for role in [

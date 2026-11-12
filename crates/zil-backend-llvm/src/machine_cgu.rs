@@ -1596,6 +1596,7 @@ mod tests {
             symbol: "foreign".into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            thread_driver_transfer: false,
             scoped_callback: None,
         });
         let original = m(vec![

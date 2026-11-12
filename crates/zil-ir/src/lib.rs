@@ -1084,6 +1084,10 @@ pub struct ForeignDeclaration {
     pub noescape_parameters: Vec<u32>,
     /// Explicit external promise allowing only the finite static callback profile.
     pub static_callbacks: bool,
+    /// Unsafe provider promise: initialized registration records and all three
+    /// role operations support transfer between exclusive driver threads.
+    /// Callback ThreadCallable alone does not establish this promise.
+    pub thread_driver_transfer: bool,
     pub scoped_callback: Option<ScopedCallbackRole>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3309,6 +3313,7 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
             encode_u32(b, *parameter);
         }
         b.push(u8::from(foreign.static_callbacks));
+        b.push(u8::from(foreign.thread_driver_transfer));
         b.push(scoped_callback_role_tag(foreign.scoped_callback));
     }
     b.push(u8::from(f.environment.is_some()));

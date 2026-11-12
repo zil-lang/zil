@@ -2253,6 +2253,17 @@ fn infer_with_private(
                                 state.insert(*local, source.clone());
                             }
                         }
+                        InstructionKind::UnpackVariant { local, variant, fields }
+                            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+                        {
+                            budget.spend(fields.len().saturating_add(1), "Task outcome Hold move")?;
+                            let source = state.remove(local).unwrap_or_default();
+                            for target in fields { state.remove(target); }
+                            if *variant == 0 {
+                                let [target] = fields.as_slice() else { return Err(bad("Task Failed must move exactly one owner")); };
+                                if !source.is_empty() { state.insert(*target,source); }
+                            }
+                        }
                         InstructionKind::UnpackVariant { local, fields, .. }
                         | InstructionKind::UnpackTuple { local, fields } => {
                             budget

@@ -145,7 +145,7 @@ fn dependencies(
 // A helper returning Task is transparent only after its executable return
 // values have been traced to real constructors. The declaration's `create`
 // mode is an obligation, not evidence of a worker.
-fn live_blocks(f: &TypedFunction, budget: &mut Budget) -> Check<Vec<bool>> {
+pub(super) fn live_blocks(f: &TypedFunction, budget: &mut Budget) -> Check<Vec<bool>> {
     budget.spend(f.blocks.len().saturating_add(1))?;
     let mut live = vec![false; f.blocks.len()];
     let mut pending = vec![f.entry];
@@ -482,7 +482,8 @@ fn require_origin(
                 {
                     changed |= locals[local.0 as usize].add(&values[value.0 as usize], budget)?;
                 }
-                if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
+                if let InstructionKind::UnpackTuple { local, fields }
+                | InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
                     for field in fields {
                         budget.spend(locals[local.0 as usize].workers.len().saturating_add(1))?;
                         let origin = locals[local.0 as usize].clone();
@@ -500,6 +501,7 @@ fn require_origin(
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
                     },
+                    InstructionKind::WithScopedThread { argument, .. } => values[argument.0 as usize].clone(),
                     InstructionKind::Call {
                         function,
                         arguments,
@@ -687,39 +689,4 @@ fn require_workers(
         }
     }
     Ok(())
-}
-
-/// Rebuild actual origins without consuming Analyze's candidate facts.
-pub(super) fn transfer_workers(
-    module: &TypedModule,
-    f: &TypedFunction,
-    value: ValueId,
-    budget: &mut Budget,
-) -> Check<Vec<FunctionId>> {
-    let reachable = live_blocks(f, budget)?;
-    let actual = returned_value(
-        module,
-        f,
-        &reachable,
-        value,
-        &mut BTreeSet::from([f.id]),
-        &mut BTreeSet::new(),
-        &mut BTreeSet::new(),
-        budget,
-    )?;
-    budget.spend(
-        actual
-            .workers
-            .len()
-            .saturating_add(actual.parameters.len())
-            .saturating_add(1),
-    )?;
-    if actual.unknown || !actual.parameters.is_empty() || actual.workers.is_empty() {
-        return Err(reject(
-            "E-VERIFY-TASK-TRANSFER",
-            Some(f.span),
-            "Task migration requires actual constructor identities",
-        ));
-    }
-    Ok(actual.workers.into_iter().collect())
 }

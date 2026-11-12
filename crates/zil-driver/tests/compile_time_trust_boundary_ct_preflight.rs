@@ -496,6 +496,7 @@ fn foreign_metadata_and_untyped_closure_parameters_cannot_hide_unbounded_tables(
         symbol: "f".into(),
         noescape_parameters: vec![0; 128],
         static_callbacks: true,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     limited(
@@ -510,6 +511,7 @@ fn foreign_metadata_and_untyped_closure_parameters_cannot_hide_unbounded_tables(
         symbol: "f".repeat(128),
         noescape_parameters: vec![],
         static_callbacks: true,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     limited(

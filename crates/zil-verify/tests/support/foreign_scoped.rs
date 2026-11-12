@@ -64,6 +64,7 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         abi: "C".into(),
         symbol: "scoped_register".into(),
         static_callbacks: true,
+        thread_driver_transfer: false,
         noescape_parameters: vec![],
         scoped_callback: Some(ScopedCallbackRole::Register),
     });
@@ -72,6 +73,7 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         abi: "C".into(),
         symbol: "scoped_close".into(),
         static_callbacks: true,
+        thread_driver_transfer: false,
         noescape_parameters: vec![],
         scoped_callback: Some(ScopedCallbackRole::Close),
     });

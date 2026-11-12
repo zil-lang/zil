@@ -160,6 +160,7 @@ fn roots_join(target: &mut Roots, source: &[Root], budget: &mut Budget) -> Check
     Ok(changed)
 }
 fn local_transfer(
+    f: &TypedFunction,
     state: &mut State,
     instruction: &Instruction,
     values: &[Roots],
@@ -176,6 +177,17 @@ fn local_transfer(
                 state.insert(local, source.clone());
             }
         }
+        InstructionKind::UnpackVariant { local, variant, ref fields }
+            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            budget.spend(fields.len().saturating_add(state.get(&local).map_or(0,|s|s.len())))?;
+            let source=state.remove(&local).unwrap_or_default();
+            for target in fields {state.remove(target);}
+            if variant==0 {
+                let [target]=fields.as_slice() else{return Err(reject("E-VERIFY-TASK-PORT",Some(instruction.span),"Task failure transports one owning field"));};
+                if !source.is_empty(){state.insert(*target,source);}
+            }
+        }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::StorageLive(local)
@@ -184,7 +196,7 @@ fn local_transfer(
             lookup(budget, state.len())?;
             state.remove(&local);
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local } | InstructionKind::DropEnum { local }
             if budget.borrowed_task_ports =>
         {
             lookup(budget, state.len())?;
@@ -613,7 +625,7 @@ fn check(
                 | InstructionKind::EndPackageCapture { local, .. } => alive[local.0 as usize] = 1,
                 _ => {}
             }
-            local_transfer(&mut locals, instruction, values, budget)?;
+            local_transfer(f, &mut locals, instruction, values, budget)?;
         }
     }
     Ok(())
@@ -1039,7 +1051,7 @@ fn reconstruct(
                     }
                     changed |= roots_join(&mut values[result.0 as usize], &row, budget)?;
                 }
-                local_transfer(&mut state, instruction, &values, budget)?;
+                local_transfer(f, &mut state, instruction, &values, budget)?;
                 if let Some(capture_facts) = &capture_facts {
                     captures::local_transfer(
                         &mut capture_state,

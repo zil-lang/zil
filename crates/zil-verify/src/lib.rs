@@ -759,6 +759,11 @@ fn check_module(
                 ));
             }
         }
+        if let Some(foreign)=&function.foreign
+            && foreign.thread_driver_transfer
+            && !matches!(foreign.scoped_callback,Some(ScopedCallbackRole::ThreadAsyncRegister|ScopedCallbackRole::ThreadAsyncRequestClose|ScopedCallbackRole::ThreadAsyncPollDrain)) {
+            return Err(reject("E-VERIFY-TASK-TRANSFER",Some(function.span),"unsafe driver transfer promise lacks actual threaded provider role"));
+        }
         budget.protocol_contracts |= function.protocol_contract.is_some();
         if let Some(contract) = &function.storage_life {
             if function.call_kind == CallKind::Suspend {
@@ -1172,6 +1177,7 @@ fn check_module(
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
+    tasks::transfer::finish(module, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,

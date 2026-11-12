@@ -1143,6 +1143,7 @@ impl<'a> Writer<'a> {
                 self.u32(*parameter)?;
             }
             self.boolean(foreign.static_callbacks)?;
+            self.boolean(foreign.thread_driver_transfer)?;
             self.u8(scoped_callback_role_tag(foreign.scoped_callback))?;
         }
         self.boolean(function.environment.is_some())?;
@@ -3550,6 +3551,7 @@ impl<'a> Reader<'a> {
                 symbol: self.text()?,
                 noescape_parameters: self.callable_indices()?,
                 static_callbacks: self.boolean()?,
+                thread_driver_transfer: self.boolean()?,
                 scoped_callback: match self.u8()? {
                     0 => None,
                     1 => Some(ScopedCallbackRole::Register),

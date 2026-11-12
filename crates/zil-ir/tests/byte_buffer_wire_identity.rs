@@ -233,6 +233,7 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
         symbol: "unique_scoped_callback_marker".into(),
         noescape_parameters: vec![],
         static_callbacks: true,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     let kind = InstructionKind::WithForeignCallback {

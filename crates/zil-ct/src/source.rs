@@ -3659,6 +3659,7 @@ mod tests {
             symbol: "external_callback".into(),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: None,
         });
         let (ordinary, old_usage) =

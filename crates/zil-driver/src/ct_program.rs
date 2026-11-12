@@ -1681,6 +1681,7 @@ mod tests {
             symbol: "register".into(),
             noescape_parameters: vec![],
             static_callbacks: true,
+            thread_driver_transfer: false,
             scoped_callback: None,
         });
         let mut program = CoreProgram {

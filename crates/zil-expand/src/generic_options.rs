@@ -130,6 +130,7 @@ struct Probe<'a> {
     budget: Budget<'a>,
     present: bool,
     tasks: bool,
+    task_threads: bool,
 }
 impl crate::ct_selection::Visitor for Probe<'_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
@@ -143,6 +144,7 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         // A literal string or an unrelated binding named Poll keeps its old
         // path and fee; ordinary alias resolution still handles shadowing.
         self.tasks |= path.len() >= 2 && task_declaration(&path[path.len() - 2]).is_some();
+        self.task_threads |= path.len()>=2 && path[path.len()-2]=="TaskThreadScopeResult";
         Ok(())
     }
     fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
@@ -152,10 +154,12 @@ impl crate::ct_selection::Visitor for Probe<'_> {
             self.present = true;
         }
         self.tasks |= matches!(&ty.kind, TypeKind::Named { path, .. } if path.last().is_some_and(|n| task_declaration(n).is_some() || n=="Task"));
+        self.task_threads |= matches!(&ty.kind,TypeKind::Named{path,..} if path.last().is_some_and(|n|n=="TaskThreadScopeResult"));
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
         self.present |= matches!(&e.kind, ExprKind::Name(name) if name=="Option");
+        self.task_threads |= matches!(&e.kind,ExprKind::Name(name) if name=="thread_scope" || name=="TaskThreadScopeResult");
         self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || name=="task_create");
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
         crate::ct_selection::walk_expression(self, e, depth)
@@ -208,6 +212,7 @@ pub(super) fn prepare(
         budget: Budget::new(limits),
         present: false,
         tasks: false,
+        task_threads: false,
     };
     for item in &module.items {
         let reserved = match &item.kind {
@@ -233,6 +238,7 @@ pub(super) fn prepare(
     // same remaining ledger, then ordinary specialization pays its own work.
     let options = probe.present;
     let tasks = probe.tasks;
+    let task_threads = probe.task_threads;
     let mut output = module.clone();
     let mut normal = Normalize {
         budget: probe.budget,
@@ -288,13 +294,15 @@ pub(super) fn prepare(
             .budget
             .identity_work(4096, span)
             .map_err(|e| vec![e])?;
-        let thread_result = task_thread_declaration(span);
-        normal.budget.item(&thread_result).map_err(|e| vec![e])?;
-        output.items.insert(0, thread_result);
-        prelude.len += 1;
-        prelude.option = prelude.option.map(|i| i + 1);
-        prelude.poll = prelude.poll.map(|i| i + 1);
-        let aliases = task_aliases(module, span, &mut normal.budget).map_err(|e| vec![e])?;
+        if task_threads {
+            let thread_result = task_thread_declaration(span);
+            normal.budget.item(&thread_result).map_err(|e| vec![e])?;
+            output.items.insert(0, thread_result);
+            prelude.len += 1;
+            prelude.option = prelude.option.map(|i| i + 1);
+            prelude.poll = prelude.poll.map(|i| i + 1);
+        }
+        let aliases = task_aliases(module, span, &mut normal.budget,task_threads).map_err(|e| vec![e])?;
         for (role, item) in task_declarations(span)
             .into_iter()
             .chain(aliases.into_iter().map(|item| (None, item)))
@@ -418,7 +426,7 @@ fn task_thread_declaration(span: Span) -> Item {
 
 // Prelude aliases are ordinary bindings. Existing user declarations win, and
 // the ordinary alias visitor handles local value/type shadowing at each use.
-fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<Item>> {
+fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>,task_threads:bool) -> R<Vec<Item>> {
     budget.identity_work(module.items.len(), span)?;
     let mut occupied = BTreeSet::new();
     for item in &module.items {
@@ -454,6 +462,7 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
         "TaskPollState",
         "TaskThreadScopeResult",
     ] {
+        if public=="TaskThreadScopeResult" && !task_threads {continue;}
         let target = task_declaration(public).unwrap();
         for qualified in [true, false] {
             let key = if qualified { "std" } else { public };
@@ -587,4 +596,13 @@ mod namespace_budget {
             boundaries[0], boundaries[1]
         );
     }
+}
+
+// This closed wrapper transports the complete Task context already carried by
+// its field. It never stores an arbitrary address actual or invents life classes.
+pub(super) fn thread_owner_syntax(t:&TypeRef)->bool {
+    let TypeKind::Named{path,args}=&grouped(t).kind else{return false;};
+    if path.as_slice()!=["Managed"] {return false;}
+    let [GenericArg::Type(owner)]=args.as_slice() else{return false;};
+    matches!(&grouped(owner).kind,TypeKind::Named{path,args} if path.as_slice()==["Task"] && matches!(args.len(),1|2))
 }

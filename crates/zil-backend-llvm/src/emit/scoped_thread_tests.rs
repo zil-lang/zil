@@ -189,6 +189,7 @@ fn model() -> (m::Module, LirModule) {
         symbol: "body_observe".into(),
         noescape_parameters: vec![],
         static_callbacks: false,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     let lir = LirModule {

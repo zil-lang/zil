@@ -282,6 +282,7 @@ fn module(flag: bool) -> TypedModule {
                 symbol: "foreign-名".into(),
                 noescape_parameters: vec![2, 5],
                 static_callbacks: i % 2 == 0,
+                thread_driver_transfer: false,
                 scoped_callback: None,
             }),
             environment: flag.then_some(ClosureId(i as u32)),
