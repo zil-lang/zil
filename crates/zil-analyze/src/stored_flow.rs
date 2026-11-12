@@ -520,6 +520,8 @@ struct State {
     /// not their target identity; each leaf starts with a symbolic target.
     external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
     captures: BTreeMap<u32, Value>,
+    // A bound view aliases environment storage, never activation storage.
+    capture_views: BTreeMap<LocalId, u32>,
     /// A missing row is definitely initialized. Join unions holes, so a slot
     /// is usable only if every incoming path kept it initialized.
     vacant: BTreeSet<Target>,
@@ -736,11 +738,12 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
         s.locals
             .len()
             .saturating_add(s.external.len())
-            .saturating_add(s.captures.len()),
+            .saturating_add(s.captures.len()).saturating_add(s.capture_views.len()),
     )?;
     let mut out = State::default();
     target_work(&s.vacant, b)?;
     out.vacant = s.vacant.clone();
+    out.capture_views = s.capture_views.clone();
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
@@ -768,7 +771,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         s.locals
             .len()
             .saturating_add(s.external.len())
-            .saturating_add(s.captures.len()),
+            .saturating_add(s.captures.len()).saturating_add(s.capture_views.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
         value.enum_variants.work(b)?;
@@ -893,6 +896,12 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
+    for (local, index) in &from.capture_views {
+        ordered(b, to.capture_views.len(), 0)?;
+        if to.capture_views.insert(*local, *index).is_some_and(|old| old != *index) {
+            return Err(failure("capture view joins different environment fields"));
+        }
+    }
     for hole in &from.vacant {
         ordered(b, to.vacant.len(), target_width(hole))?;
         fee(b, target_width(hole))?;
@@ -2304,7 +2313,7 @@ fn seed_environment(
         return Ok(());
     }
     fee(b, d.captures.len())?;
-    let mut add = |path: Path, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
+    let mut add = |path: Path, mutable: bool, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
         fee(b, path.len().saturating_mul(2).saturating_add(3))?;
         let target = Target {
             retained_port: None,
@@ -2317,8 +2326,9 @@ fn seed_environment(
         loans.push(Loan {
             targets: BTreeSet::from([target.clone()]),
             parents: Loans::new(),
-            mutable: false,
+            mutable,
         });
+        b.stored_exclusive_loans |= mutable;
         let permission = Permission {
             targets: BTreeSet::from([target]),
             loans: Loans::from([id]),
@@ -2336,14 +2346,21 @@ fn seed_environment(
             fee(b, path.len().saturating_add(1))?;
             path.push(PlaceProjection::Field(index as u32));
             if matches!(capture, Type::Address { mutable: false, .. }) {
-                add(path.clone(), value, b)?;
+                add(path.clone(), false, value, b)?;
                 if let Some((_, shape)) = pointed_carrier(capture) {
                     for leaf in &shape.slots {
                         let mut nested = path.clone();
                         fee(b, nested.len().saturating_add(leaf.path.len()))?;
                         nested.extend_from_slice(&leaf.path);
-                        add(nested, value, b)?;
+                        add(nested, false, value, b)?;
                     }
+                }
+            } else if let Type::BorrowedStorage { life, .. } = capture {
+                for slot in &life.slots {
+                    let mut nested = path.clone();
+                    fee(b, nested.len().saturating_add(slot.path.len()))?;
+                    nested.extend_from_slice(&slot.path);
+                    add(nested, slot.mode == StoredBorrowMode::ExclusiveAddress, value, b)?;
                 }
             } else if let Type::Closure(child) = capture {
                 let definition = module.closures.get(child.0 as usize)
@@ -2559,6 +2576,21 @@ fn seed(
     Ok(state)
 }
 
+fn captured_view_local(state: &State, base: HoldRoot, b: &mut Budget) -> CompileResult<Option<LocalId>> {
+    let HoldRoot::Capture(index) = base else { return Ok(None); };
+    if state.capture_views.is_empty() { return Ok(None); }
+    fee(b, state.capture_views.len())?;
+    Ok(state.capture_views.iter().find_map(|(local, capture)| (*capture == index).then_some(*local)))
+}
+fn actual_slot_rows_mut<'a>(state: &'a mut State, base: HoldRoot, b: &mut Budget) -> CompileResult<&'a mut BTreeMap<Path, Permission>> {
+    let view = captured_view_local(state, base, b)?;
+    match base {
+        HoldRoot::Local(local) => state.locals.get_mut(&local).map(|value| &mut value.slots),
+        _ if view.is_some() => state.locals.get_mut(&view.unwrap()).map(|value| &mut value.slots),
+        HoldRoot::Parameter(_) | HoldRoot::Capture(_) => state.external.get_mut(&base),
+        HoldRoot::Static => None,
+    }.ok_or_else(|| failure("actual stored carrier has no active slot rows"))
+}
 fn select(
     state: &State,
     address: &Permission,
@@ -2590,11 +2622,13 @@ fn select(
                 &value.slots
             }
             HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                ordered(b, state.external.len(), 0)?;
-                state
-                    .external
-                    .get(&root.base)
-                    .ok_or_else(|| failure("external carrier has no actual slot facts"))?
+                if let Some(local) = captured_view_local(state, root.base, b)? {
+                    &state.locals.get(&local).ok_or_else(|| failure("captured view slot rows absent"))?.slots
+                } else {
+                    ordered(b, state.external.len(), 0)?;
+                    state.external.get(&root.base)
+                        .ok_or_else(|| failure("external carrier has no actual slot facts"))?
+                }
             }
         };
         ordered(b, slots.len(), actual_path.len())?;
@@ -2945,6 +2979,28 @@ fn transfer(
         None
     };
     match &i.kind {
+        InstructionKind::BindPackageCapture { local, index } => {
+            let actual = state.captures.get(index)
+                .ok_or_else(|| failure("captured view has no actual environment value"))?;
+            let actual = snapshot(actual, b)?;
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.insert(*local, actual);
+            ordered(b, state.capture_views.len(), 0)?;
+            if state.capture_views.insert(*local, *index).is_some() {
+                return Err(failure("captured view bound twice"));
+            }
+        }
+        InstructionKind::EndPackageCapture { local, index } => {
+            ordered(b, state.capture_views.len(), 0)?;
+            if state.capture_views.remove(local) != Some(*index) {
+                return Err(failure("captured view end differs from its actual binding"));
+            }
+            let actual = state.locals.get(local)
+                .ok_or_else(|| failure("ended captured view has no actual value"))?;
+            let actual = snapshot(actual, b)?;
+            ordered(b, state.captures.len(), 0)?;
+            state.captures.insert(*index, actual);
+        }
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
@@ -3061,9 +3117,13 @@ fn transfer(
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             fee(b, 1)?;
+            let base = if state.capture_views.is_empty() { HoldRoot::Local(*local) } else {
+                ordered(b, state.capture_views.len(), 0)?;
+                state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture)
+            };
             out.pointer.targets.insert(Target {
                 retained_port: None,
-                base: HoldRoot::Local(*local),
+                base,
                 stored: Vec::new(),
                 place: Vec::new(),
                 heap_element: None,
@@ -3304,18 +3364,8 @@ fn transfer(
             out.pointer = select(state, address, path, b)?;
             if !address.targets.is_empty() {
                 let position = slot_position(address, path, b)?;
-                let actual = match position.base {
-                    HoldRoot::Local(local) => {
-                        state.locals.get_mut(&local).map(|value| &mut value.slots)
-                    }
-                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                        state.external.get_mut(&position.base)
-                    }
-                    HoldRoot::Static => None,
-                };
-                if let Some(slots) = actual {
-                    slots.remove(&position.place);
-                }
+                let slots = actual_slot_rows_mut(state, position.base, b)?;
+                slots.remove(&position.place);
                 ordered(b, state.vacant.len(), target_width(&position))?;
                 state.vacant.insert(position);
             }
@@ -3348,25 +3398,9 @@ fn transfer(
                     .saturating_add(new.targets.len())
                     .saturating_add(new.loans.len()),
             )?;
-            match root.base {
-                HoldRoot::Local(local) => {
-                    let holder = state
-                        .locals
-                        .get_mut(&local)
-                        .ok_or_else(|| failure("replacement local carrier is unavailable"))?;
-                    ordered(b, holder.slots.len(), actual_path.len())?;
-                    holder.slots.insert(actual_path, new);
-                }
-                HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                    let holder = state
-                        .external
-                        .get_mut(&root.base)
-                        .ok_or_else(|| failure("replacement external carrier is unavailable"))?;
-                    ordered(b, holder.len(), actual_path.len())?;
-                    holder.insert(actual_path, new);
-                }
-                HoldRoot::Static => return Err(failure("static text has no stored slot")),
-            }
+            let holder = actual_slot_rows_mut(state, root.base, b)?;
+            ordered(b, holder.len(), actual_path.len())?;
+            holder.insert(actual_path, new);
             if !state.vacant.is_empty() {
                 let position = slot_position(&get(*storage)?.pointer, path, b)?;
                 if target_width(&position) != 0 {
@@ -6217,6 +6251,8 @@ fn actual_instructions(
                         | InstructionKind::ConvertNumber { .. }
                         | InstructionKind::ScopeEnter { .. }
                         | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::BindPackageCapture { .. }
+                        | InstructionKind::EndPackageCapture { .. }
                         | InstructionKind::LoadStoredBorrow {
                             mode: StoredBorrowLoad::CopyShared
                                 | StoredBorrowLoad::Reborrow { mutable: true }
@@ -6256,6 +6292,16 @@ fn actual_instructions(
                 }
                 Ok(())
             };
+            if let InstructionKind::BindPackageCapture { local, index } | InstructionKind::EndPackageCapture { local, index } = i.kind {
+                let actual = f.locals.get(local.0 as usize).ok_or_else(||failure("captured view local absent"))?;
+                let captured = f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                    .and_then(|d|d.captures.get(index as usize)).ok_or_else(||failure("captured view field absent"))?;
+                b.type_work(captured, true, "captured owning view actual type")?;
+                if i.result.is_some() || actual.ty!=*captured
+                    || !matches!(resources::package_storage(captured), Type::Package { .. }) {
+                    return Err(failure("captured owning view differs from its complete actual field"));
+                }
+            }
             if super::class_flow::pointer_instruction(f, i) {
                 super::class_flow::pointer_types(module, f, i, b)?;
             }

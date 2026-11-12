@@ -11,6 +11,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
             | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::ReadErrorUnion { .. }
+            | InstructionKind::ErrorTag { .. }
             | InstructionKind::PlaceTagLocal { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
@@ -181,7 +183,7 @@ pub(super) fn ordinary_package_read(
         .get(local.0 as usize)
         .ok_or_else(|| failure("ordinary Package read local is absent"))?
         .ty;
-    let Type::Package { fields, .. } = parent else {
+    let Type::Package { fields, .. } = resources::package_storage(parent) else {
         return Ok(false);
     };
     let field = &fields
@@ -299,6 +301,18 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
                 ));
             }
             &Type::I32
+        }
+        InstructionKind::ErrorTag { value } | InstructionKind::ReadErrorUnion { value, .. } => {
+            let source = value_type(f, *value)?;
+            if !pure(source, b, 0)? { return Err(failure("pure error observation retains actual targets")); }
+            let Type::ErrorUnion { error, result: success } = source else {
+                return Err(failure("pure error observation lacks its actual union"));
+            };
+            match i.kind {
+                InstructionKind::ErrorTag { .. } => &Type::Bool,
+                InstructionKind::ReadErrorUnion { is_error, .. } => if is_error { error.as_ref() } else { success.as_ref() },
+                _ => unreachable!(),
+            }
         }
         InstructionKind::MakeErrorUnion { is_error, value } => {
             let Type::ErrorUnion {

@@ -2,7 +2,7 @@
 //! Preparation temporaries retain ownership until an explicit cleanup/commit.
 use super::*;
 
-fn physical_package(ty: &Type) -> Option<&Type> {
+pub(super) fn physical_package(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Package { .. } => Some(ty),
         Type::BorrowedStorage { storage, .. }

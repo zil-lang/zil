@@ -1518,11 +1518,21 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
+                super::stored_flow::qualification(module, ty, limits, budget)?;
+                super::resources::product::admit_owned(module, ty, budget)?;
+                if closure.kind == zil_ir::CallableKind::Fn
+                    && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress)) {
+                    return Err(bad("exclusive stored capture requires an exclusive environment entry"));
+                }
+                continue;
+            }
             if matches!(ty, Type::OwnedDyn { .. }) {
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }
             if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+
             {
                 return Err(bad(
                     "owned dyn error capture requires a selected whole owner",

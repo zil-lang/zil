@@ -3430,7 +3430,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
-            if matches!(stored, Type::Package { .. }) {
+            if matches!(stored::physical(&stored), Type::Package { .. }) {
                 let local = builder.declare_local(
                     &capture.name,
                     stored,
@@ -3451,7 +3451,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         for (index, capture) in captures.into_iter().enumerate() {
             let stored = capture.stored_type();
-            if matches!(stored, Type::Package { .. }) {
+            if matches!(stored::physical(&stored), Type::Package { .. }) {
                 continue;
             }
             if owned_shapes::sum(&stored)

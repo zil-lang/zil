@@ -140,7 +140,8 @@ pub(super) fn check_function(
                 matches!(
                     definition.captures[*index as usize],
                     Type::Address { mutable: true, .. } | Type::Desc(_)
-                )
+                ) || matches!(&definition.captures[*index as usize], Type::BorrowedStorage { life, .. }
+                    if life.slots.iter().any(|slot| matches!(slot.mode, zil_ir::StoredBorrowMode::ExclusiveAddress | zil_ir::StoredBorrowMode::WritableDescription)))
             })
             .collect::<Vec<_>>();
         if contract.writes != writes {
@@ -167,6 +168,7 @@ pub(super) fn check_function(
         }
         if matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. } | Type::Closure(_))
+            || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
         {
             cleanup.push(index as u32);
         } else if dynamic_store::is_owned_carrier(ty) {

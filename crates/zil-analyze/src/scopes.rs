@@ -31,7 +31,7 @@ pub(super) fn check(
     if let Some(captures) = captures {
         budget.spend(captures.len(), "package capture view inventory")?;
         for (index, ty) in captures.iter().enumerate() {
-            if matches!(ty, Type::Package { .. }) {
+            if matches!(resources::package_storage(ty), Type::Package { .. }) {
                 budget.lookup(expected.len(), "package capture inventory insertion")?;
                 expected.insert(index as u32);
             }
@@ -104,7 +104,7 @@ pub(super) fn check(
                     || block_index != entry
                     || position == 0
                     || position >= prefix
-                    || !matches!(ty, Type::Package { .. })
+                    || !matches!(resources::package_storage(ty), Type::Package { .. })
                     || function.locals.get(local.0 as usize).map(|decl| &decl.ty) != Some(ty)
                     || function.parameters.contains(&local)
                     || views.insert(local, index).is_some()
@@ -137,14 +137,24 @@ pub(super) fn check(
                 budget.spend(1, "Package view boundary scan")?;
                 match instruction.kind {
                     InstructionKind::StorageLive(local)
-                    | InstructionKind::StorageDead(local)
-                    | InstructionKind::BorrowLocal { local }
-                    | InstructionKind::BorrowLocalMut { local } => {
+                    | InstructionKind::StorageDead(local) => {
                         budget.lookup(views.len(), "Package view storage boundary lookup")?;
                         if views.contains_key(&local) {
                             return Err(bad(
                                 "Package view cannot use ordinary storage or address operations",
                             ));
+                        }
+                    }
+                    InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+                        budget.lookup(views.len(), "qualified view head lookup")?;
+                        if let Some(index)=views.get(&local) {
+                            let captured=&module.closures[function.environment.unwrap().0 as usize].captures[*index as usize];
+                            let mutable=matches!(instruction.kind,InstructionKind::BorrowLocalMut{..});
+                            budget.type_work(captured,true,"qualified view head actual type")?;
+                            if !matches!(captured,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..}))
+                                || mutable && module.closures[function.environment.unwrap().0 as usize].kind==zil_ir::CallableKind::Fn
+                                || !matches!(instruction.result.and_then(|value|function.values.get(value.0 as usize)),Some(Type::Address{mutable:actual,inner})if *actual==mutable && inner.as_ref()==captured)
+                            { return Err(bad("Package view head requires its actual qualified owner and entry permission")); }
                         }
                     }
                     InstructionKind::EndPackageCapture { local, index } => {
