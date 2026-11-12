@@ -405,22 +405,16 @@ pub(super) fn apply(
         ) {
             let head = select(state, &receiver, &[PlaceProjection::Field(*index)], b)?;
             for root in &head.sources {
-                if !root.leaf.is_empty()
-                    || root.retained_port.is_some()
-                    || root.heap_element.is_some()
-                {
-                    return Err(err(&format!(
-                        "borrowed capture update crosses an unauthenticated target boundary: {root:?}",
-                    )));
+                let holder = match root.base {
+                    HoldRoot::Local(local) => state.locals.get(local.0 as usize),
+                    HoldRoot::Parameter(index) => state.external.get(index as usize),
+                    HoldRoot::Capture(index) => state.captures.get(index as usize),
+                    HoldRoot::Static => None,
                 }
-                b.spend(
-                    root.inline
-                        .len()
-                        .saturating_add(tail.len())
-                        .saturating_add(1),
-                )?;
-                let mut complete = root.inline.clone();
-                complete.extend(tail);
+                .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
+                let Some(complete) = symbolic_slot_path(holder, root, tail, b)? else {
+                    continue;
+                };
                 permission_work(&retained, b)?;
                 updates.push((
                     root.base,

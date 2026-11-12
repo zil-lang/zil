@@ -2619,11 +2619,6 @@ fn select(
     let mut result = Permission::default();
     for source in &address.sources {
         b.spend(width(source))?;
-        if !source.leaf.is_empty() {
-            return Err(err("stored leaf base crosses a target or inline boundary"));
-        }
-        let mut actual_path = source.inline.clone();
-        actual_path.extend_from_slice(path);
         let p = match source.base {
             HoldRoot::Static => {
                 return Err(err("static text cannot supply nested carrier permissions"));
@@ -2633,6 +2628,9 @@ fn select(
             HoldRoot::Capture(p) => state.captures.get(p as usize),
         }
         .ok_or_else(|| err("carrier location is absent"))?;
+        let Some(actual_path) = symbolic_slot_path(p, source, path, b)? else {
+            continue;
+        };
         if let Some(p) = leaf(p, &actual_path, b)? {
             join_permission(&mut result, p, b)?;
         }
@@ -2640,6 +2638,56 @@ fn select(
     Ok(result)
 }
 
+// A nonempty leaf is an abstract target namespace, not a physical GEP.
+// Only an actual seeded pointer row with that exact symbolic target can
+// establish a private pointee directory inside a closure helper.
+fn symbolic_slot_path(
+    holder: &Payload,
+    source: &Source,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> Check<Option<Path>> {
+    b.spend(
+        source
+            .leaf
+            .len()
+            .saturating_add(source.inline.len())
+            .saturating_add(path.len()),
+    )?;
+    if !source.leaf.is_empty() {
+        if source.retained_port.is_some()
+            || source.heap_element.is_some()
+            || !source.heap_parents.is_empty()
+        {
+            return Err(err(
+                "opaque or heap targets need their own complete directory",
+            ));
+        }
+        let Some(head) = leaf(holder, &source.leaf, b)? else {
+            return Ok(None);
+        };
+        source_work(&head.sources, b)?;
+        if head.sources.is_empty() {
+            return Ok(None);
+        }
+        if !head.sources.iter().any(|known| {
+            known.base == source.base
+                && known.leaf == source.leaf
+                && known.retained_port.is_none()
+                && known.inline.is_empty()
+                && known.heap_element.is_none()
+                && known.heap_parents.is_empty()
+        }) {
+            return Err(err(
+                "symbolic pointee lacks an actual captured head binding",
+            ));
+        }
+    }
+    let mut complete = source.leaf.clone();
+    complete.extend(&source.inline);
+    complete.extend(path);
+    Ok(Some(complete))
+}
 fn slot_position(address: &Permission, path: &[PlaceProjection], b: &mut Budget) -> Check<Source> {
     let [root] = address.sources.as_slice() else {
         return Err(err("stored slot needs one actual inline carrier"));
