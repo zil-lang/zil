@@ -1331,6 +1331,11 @@ impl CompilationSession {
         artifact.commit_object_cache();
         if let Some(backend) = backend {
             self.backend = backend;
+        } else {
+            // A successful native build with producer reuse disabled ends its
+            // retained backend history. Failed builds leave the old session
+            // untouched because publication and cancellation precede this point.
+            self.backend = Default::default();
         }
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
