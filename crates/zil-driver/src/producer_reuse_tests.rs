@@ -182,7 +182,8 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         // Actual input declarations: main has one, left two, and the original
         // IO fixture four (two extern declarations plus read and emit).
         assert_eq!(work.normalized_item_deep_clones, 7);
-        assert_eq!(work.restored_module_deep_clones, 3);
+        assert_eq!(work.restored_module_deep_clones, 0);
+        assert_eq!(work.restored_item_deep_clones, 7);
         assert_eq!(work.retained_normalized_items, 0);
         assert_eq!(work.retained_restored_modules, 0);
         let materialization = cold.materialization_work.expect("current scalar admission");
@@ -403,9 +404,10 @@ fn producer_borrowed_bodies_reenter_full_restore_on_insufficient_budget() {
                 "a complete unchanged module must be retained before the failing stage"
             );
             assert!(
-                work.restored_module_deep_clones > 1,
-                "beyond the changed left module, insufficient receipts must materialize an unchanged module's full normalized body"
+                work.restored_item_deep_clones > 1,
+                "beyond the changed left item, insufficient receipts must visit a complete retained item's normalized body"
             );
+            assert_eq!(work.restored_module_deep_clones, 0);
             assert_eq!(current.verification_runs, 0);
             assert_eq!(session.active_query_count(), 0);
             let restored = session.compile_project(&cheaper, &limited);

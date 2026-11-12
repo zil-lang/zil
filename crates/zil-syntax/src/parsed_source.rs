@@ -37,6 +37,14 @@ impl ParsedSource {
         self.parsed.clone()
     }
 
+    /// Grammar/attribute inputs for an already successful fragment proof.
+    /// Quotas remain admission checks: callers must use actual current parse
+    /// success, actual old/current source bytes and their current stage budgets.
+    /// This does not relax matches_current or authorize arbitrary AST equality.
+    pub fn same_attribute_context(&self, other: &Self) -> bool {
+        self.context == other.context
+    }
+
     /// Equal parser settings only; this never establishes source/AST equality.
     /// Incremental producers separately compare their actual source fragments.
     pub fn same_parse_configuration(&self, other: &Self) -> bool {
