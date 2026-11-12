@@ -493,6 +493,8 @@ pub(super) fn reserve_binding(
                     InstructionKind::MakeClosure { captures, .. } => {
                         captures.len().saturating_add(1)
                     }
+                    InstructionKind::BindPackageCapture { .. }
+                    | InstructionKind::EndPackageCapture { .. } => 2,
                     InstructionKind::FunctionRef { .. } => 1,
                     InstructionKind::ExtractIndex { .. } => 2,
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,

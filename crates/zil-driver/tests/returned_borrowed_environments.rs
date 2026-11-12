@@ -454,6 +454,8 @@ fn whole_qualified_owner_capture_has_owner_and_leaf_responsibilities() {
     assert!(!contract.capture_sources.as_ref().unwrap().is_empty());
     assert!(module.closures[contract.closure.0 as usize].storage_life.is_some());
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    check_raw_and_wire(source);
+    check_native_factory(source,b"AA");
 }
 
 #[test]
@@ -461,6 +463,8 @@ fn mutable_qualified_owner_publishes_actual_environment_slot_epoch() {
     let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    check_raw_and_wire(source);
+    check_native_factory(source,b"A");
 }
 
 #[test]
@@ -487,4 +491,36 @@ fn ordinary_parameter_forwarding_keeps_each_actual_external_environment() {
     let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil");
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn mutable_environment_raw_and_wire_reconstruct_both_slot_epochs() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let module=typed_source(source);
+    let plan=zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    for (target,after_call,accepted) in [("a",0,false),("a",1,true),("b",1,false),("b",2,true)] {
+        let mut changed=module.clone();
+        let main=changed.functions.iter().position(|f|f.name=="main").unwrap();
+        let f=&mut changed.functions[main];
+        let local=f.locals.iter().find(|local|local.name==target).unwrap().id;
+        f.locals[local.0 as usize].mutable=true;
+        let value=zil_ir::ValueId(f.values.len() as u32);
+        f.values.push(zil_ir::Type::I32);
+        let block=f.blocks.iter_mut().find(|block|block.instructions.iter().any(|i|matches!(i.kind,zil_ir::InstructionKind::CallClosureMut{..}))).unwrap();
+        let calls=block.instructions.iter().enumerate().filter_map(|(index,i)|matches!(i.kind,zil_ir::InstructionKind::CallClosureMut{..}).then_some(index)).collect::<Vec<_>>();
+        let at=if after_call==0 {calls[0]} else {calls[after_call-1]+1};
+        block.instructions.splice(at..at,[
+            zil_ir::Instruction{result:Some(value),kind:zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(99)),span:f.span},
+            zil_ir::Instruction{result:None,kind:zil_ir::InstructionKind::Store{local,value},span:f.span},
+        ]);
+        let mut claim=plan.clone();
+        claim.module_fingerprint=changed.fingerprint();
+        claim.functions[main].holds.push(zil_ir::ValueHold{value,roots:Vec::new()});
+        let raw=zil_verify::verify_module(changed.clone(),claim.clone(),&changed.target,&Limits::default());
+        let wire=zil_ir::wire::encode_module_candidate(&changed,&claim,&Limits::default()).unwrap();
+        let decoded=zil_verify::verify_module_bytes(&wire,&changed.target,&Limits::default());
+        assert_eq!(raw.is_ok(),accepted,"{target}/{after_call}: {raw:?}");
+        assert_eq!(decoded.is_ok(),accepted,"Wire {target}/{after_call}: {decoded:?}");
+        assert_eq!(zil_analyze::analyze(&changed,&Limits::default()).is_ok(),accepted);
+    }
 }

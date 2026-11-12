@@ -55,6 +55,7 @@ pub(super) fn leaves(
 }
 
 pub(super) fn summarize(
+    module: &TypedModule,
     f: &TypedFunction,
     state: &State,
     actual: &mut Facts,
@@ -63,6 +64,11 @@ pub(super) fn summarize(
     if f.environment.is_none() || state.captures.is_empty() {
         return Ok(());
     }
+    let definition = module
+        .closures
+        .get(f.environment.unwrap().0 as usize)
+        .ok_or_else(|| failure("terminal mutable environment definition absent"))?;
+    let shape = leaves(module, definition, b)?;
     for (index, value) in &state.captures {
         let mut add = |tail: &Path, permission: &Permission| -> CompileResult<()> {
             let path = environment_path(*index as usize, tail, b)?;
@@ -82,6 +88,20 @@ pub(super) fn summarize(
                     return Err(failure(
                         "mutable environment retains an activation-local target",
                     ));
+                }
+                if target.retained_port.is_some() || target.heap_element.is_some() {
+                    return Err(failure(
+                        "mutable capture update requires explicit opaque or heap source transport",
+                    ));
+                }
+                if let HoldRoot::Capture(source) = target.base {
+                    let key = environment_path(source as usize, &target.stored, b)?;
+                    fee(b, shape.len().saturating_mul(key.len().saturating_add(1)))?;
+                    if !shape.iter().any(|(path, _)| *path == key) {
+                        return Err(failure(
+                            "mutable capture update source is not an actual external environment leaf",
+                        ));
+                    }
                 }
                 if !row.contains(target) {
                     row.push(target.clone());
@@ -112,6 +132,7 @@ fn replace_environment(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn invoke(
     module: &TypedModule,
     f: &TypedFunction,
@@ -245,4 +266,63 @@ pub(super) fn invoke(
         _ => unreachable!(),
     }
     Ok(())
+}
+
+/// Generated environment cleanup visits owned responsibilities. A borrowed
+/// slot in an owning Package does not by itself make teardown read its target.
+/// Opaque resource cleanup is conservative unless the actual payload proves
+/// that no external target is reachable.
+pub(super) fn cleanup_reads_external(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let mut todo = vec![(ty, 0usize)];
+    while let Some((ty, depth)) = todo.pop() {
+        fee(b, 1)?;
+        if depth > b.partial_depth {
+            return Err(failure("environment cleanup shape exceeds finite depth"));
+        }
+        match ty {
+            Type::Closure(id) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| failure("cleanup environment definition absent"))?;
+                fee(b, d.captures.len())?;
+                todo.extend(d.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::BorrowedStorage { storage, .. } => todo.push((storage, depth + 1)),
+            Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                todo.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                todo.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    todo.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                todo.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)])
+            }
+            Type::Array { element, .. } | Type::OwnedStore { element } => {
+                todo.push((element, depth + 1))
+            }
+            Type::Managed(payload) => match payload.as_ref() {
+                Type::ByteBuffer => {}
+                Type::OwnedStore { element } => todo.push((element, depth + 1)),
+                payload if super::super::stored_callables::resource_payload(payload, b)? => {}
+                _ => return Ok(true),
+            },
+            Type::Address { .. } | Type::Desc(_) => {}
+            ty if ty.is_copy_value() => {}
+            _ => return Ok(true),
+        }
+    }
+    Ok(false)
 }
