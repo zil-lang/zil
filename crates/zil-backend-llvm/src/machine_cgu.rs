@@ -834,7 +834,7 @@ mod tests {
             module_id: zil_base::ModuleId(0),
             verified_fingerprint: Fingerprint::ZERO,
             target: zil_base::TargetProfile::host_llvm(),
-            functions: vec![],
+            functions: vec![].into(),
             resources: vec![],
             closures: vec![],
             layouts: vec![],

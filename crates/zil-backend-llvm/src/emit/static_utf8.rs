@@ -75,11 +75,11 @@ impl FunctionEmitter<'_> {
 /// structural equality traversal now prepays byte comparisons where they occur.
 /// Aliased immutable views require neither comparison nor byte-copy payment.
 pub(crate) fn same_functions(
-    left: &[TypedFunction],
-    right: &[TypedFunction],
+    left: &zil_ir::PersistentVec<TypedFunction>,
+    right: &zil_ir::PersistentVec<TypedFunction>,
     remaining: &mut usize,
 ) -> CompileResult<bool> {
-    if std::ptr::eq(left, right) {
+    if left.ptr_eq(right) {
         return Ok(true);
     }
     if left.len() != right.len() {

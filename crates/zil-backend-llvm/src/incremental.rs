@@ -120,7 +120,7 @@ pub(crate) struct PartitionInput {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RawInput {
-    functions: Vec<zil_ir::TypedFunction>,
+    functions: zil_ir::PersistentVec<zil_ir::TypedFunction>,
     closures: Vec<zil_ir::ClosureDefinition>,
     resources: Vec<zil_ir::ResourceDefinition>,
     layouts: Vec<zil_ir::ScalarLayout>,
@@ -151,7 +151,7 @@ impl PartitionInput {
                 .map(|closure| closure.function)
                 .collect(),
             raw: scalar.is_none().then(|| RawInput {
-                functions: lir.functions.to_vec(),
+                functions: lir.functions.clone(),
                 closures: lir.closures.to_vec(),
                 resources: lir.resources.to_vec(),
                 layouts: lir.layouts.to_vec(),

@@ -51,12 +51,16 @@ use zil_verify::VerifiedModule;
 use crate::{EmitOptions, EntryPoint};
 
 #[cfg(test)]
-fn no_dyn_test_module(
+fn no_dyn_test_module<'a>(
     target: TargetProfile,
-    functions: &[TypedFunction],
+    functions: impl IntoIterator<Item = &'a TypedFunction>,
     closures: &[ClosureDefinition],
     resources: &[ResourceDefinition],
 ) -> zil_ir::TypedModule {
+    let functions = functions
+        .into_iter()
+        .cloned()
+        .collect::<zil_ir::PersistentVec<_>>();
     assert!(
         functions
             .iter()
@@ -77,7 +81,7 @@ fn no_dyn_test_module(
         module_id: zil_base::ModuleId(0),
         source_fingerprint: zil_base::Fingerprint::ZERO,
         target,
-        functions: functions.to_vec(),
+        functions,
         closures: closures.to_vec(),
         resources: resources.to_vec(),
         unsupported: Vec::new(),
@@ -347,7 +351,7 @@ pub(crate) fn lower_view_with_session(
                 },
                 || {
                     lower_function_batch(
-                        std::slice::from_ref(function),
+                        std::slice::from_ref(function).iter(),
                         lir,
                         options,
                         incremental_scalar_policy,
@@ -375,7 +379,7 @@ pub(crate) fn lower_view_with_session(
     } else {
         parallel_lowering::ordered_batches(lir.functions, jobs, |start, batch| {
             lower_function_batch(
-                batch,
+                batch.iter(),
                 lir,
                 options,
                 incremental_scalar_policy,
@@ -680,8 +684,8 @@ fn resource_head_address(ty: &Type) -> bool {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn lower_function_batch(
-    batch: &[TypedFunction],
+fn lower_function_batch<'a>(
+    batch: impl ExactSizeIterator<Item = &'a TypedFunction>,
     lir: &LirView<'_>,
     options: &EmitOptions,
     incremental_scalar_policy: bool,
@@ -701,7 +705,7 @@ fn lower_function_batch(
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
         Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
-    for (offset, function) in batch.iter().enumerate() {
+    for (offset, function) in batch.enumerate() {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
                 && function

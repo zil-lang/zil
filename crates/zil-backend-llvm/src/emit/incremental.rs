@@ -596,7 +596,7 @@ mod mixed_tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"mixed-task-reservation"),
             target: TargetProfile::host_llvm(),
-            functions: vec![worker, root, leaf],
+            functions: vec![worker, root, leaf].into(),
             closures: vec![],
             resources: vec![ResourceDefinition {
                 name: TASK_I32_RESOURCE_NAME.into(),
@@ -667,7 +667,7 @@ mod mixed_tests {
         );
         let fresh = |meter: &tasks::Meter| {
             lower_function_batch(
-                std::slice::from_ref(leaf),
+                std::slice::from_ref(leaf).iter(),
                 &view,
                 &options,
                 false,

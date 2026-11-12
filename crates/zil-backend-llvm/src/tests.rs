@@ -159,7 +159,7 @@ fn checked_with_closures(
         module_id: ModuleId(17),
         source_fingerprint: Fingerprint::of(b"hand-authored backend test fixture"),
         target: TargetProfile::host_llvm(),
-        functions,
+        functions: functions.into(),
         closures,
         unsupported: Vec::new(),
     };
@@ -232,7 +232,8 @@ fn checked_static_utf8(bytes: &[u8]) -> VerifiedModule {
             ],
             Terminator::Return(Some(ValueId(1))),
         )],
-    )];
+    )]
+    .into();
     let mut plan = CandidatePlan::empty_for(&module);
     plan.functions.push(FunctionPlan {
         function: FunctionId(0),
@@ -340,7 +341,10 @@ fn static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets
     // has no comparison, and an old scalar fixture has no static-data fee.
     let verified = checked_static_utf8("a\0中".as_bytes());
     let original = &verified.module().functions;
-    let raw = original.clone();
+    let raw = original
+        .iter()
+        .cloned()
+        .collect::<zil_ir::PersistentVec<_>>();
     let needed = "a\0中".len() + 1;
     for _ in 0..2 {
         let mut exact = needed;
@@ -354,7 +358,7 @@ fn static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets
         );
     }
     assert!(same_functions(original, original, &mut 0).unwrap());
-    let scalar = vec![returning(Constant::I64(42))];
+    let scalar: zil_ir::PersistentVec<_> = vec![returning(Constant::I64(42))].into();
     assert!(same_functions(&scalar.clone(), &scalar, &mut 0).unwrap());
     for count in [0usize, 5, 1024] {
         let verified = checked_static_utf8(&vec![b'A'; count]);
@@ -1887,26 +1891,34 @@ fn changing_any_lir_closure_claim_is_rejected_before_tools_or_output() {
 
 #[test]
 fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
-    let verified = checked_simple(returning(Constant::I64(1024)));
+    let first = returning(Constant::I64(1024));
+    let mut second = returning(Constant::I64(2048));
+    second.id = FunctionId(1);
+    second.name = "second".into();
+    let verified = checked(vec![first, second], vec![vec![(vec![], vec![])]; 2]);
     let original = lir(&verified);
     let mut view = original.as_view();
-    view.functions = verified.module().functions.as_slice();
+    view.functions = &verified.module().functions;
     let options = EmitOptions::default();
     assert_eq!(
         crate::emit::lower_view_with_options(&verified, &view, &options).unwrap(),
         crate::emit::lower_with_options(&verified, &original, &options).unwrap()
     );
-    view.functions = &verified.module().functions[..0];
-    assert_eq!(
-        view.functions.as_ptr(),
-        verified.module().functions.as_ptr()
-    );
+    let mut prefix = verified.module().functions.clone();
+    prefix.truncate(1);
+    assert!(std::sync::Arc::ptr_eq(
+        prefix.owner(0).unwrap(),
+        verified.module().functions.owner(0).unwrap()
+    ));
+    view.functions = &prefix;
+    assert_eq!(view.functions.len(), 1);
+    assert_eq!(verified.module().functions.len(), 2);
     assert_eq!(
         crate::emit::lower_view_with_options(&verified, &view, &options).unwrap_err()[0].code,
         "E-CODEGEN-UNBOUND-LIR"
     );
     let other = checked_simple(returning(Constant::I64(99)));
-    view.functions = verified.module().functions.as_slice();
+    view.functions = &verified.module().functions;
     view.verified_fingerprint = other.fingerprint();
     assert_eq!(
         crate::emit::lower_view_with_options(&other, &view, &options).unwrap_err()[0].code,
@@ -2091,7 +2103,7 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
     .unwrap();
     warm.commit_object_cache();
     assert!(session.summary().reused_machine_module);
-    assert_eq!(session.summary().whole_machine_input_functions_compared, 1);
+    assert_eq!(session.summary().whole_machine_input_functions_compared, 0);
     assert_eq!(session.summary().reused_functions, 0);
     assert!(session.summary().reused_partition);
     assert!(session.summary().reused_machine_transforms);
@@ -2558,7 +2570,7 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
     assert_eq!(policy.source_projection_instruction_visits, 0);
     assert_eq!(policy.source_projection_reuses, 0);
     assert!(policy.reused_machine_module);
-    assert_eq!(policy.whole_machine_input_functions_compared, 2);
+    assert_eq!(policy.whole_machine_input_functions_compared, 0);
     let mut known = returning(Constant::I64(1));
     known.id = FunctionId(1);
     known.name = "known".into();
