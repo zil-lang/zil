@@ -27,7 +27,11 @@ fn current(state: OldState) -> State {
             .unwrap();
     }
     State {
-        cells: state.cells,
+        cells: state
+            .cells
+            .into_iter()
+            .map(|(place, fact)| (place, Cell::Inline(fact)))
+            .collect(),
         later,
         package_values: state.package_values,
         product_births: state.product_births,
@@ -56,7 +60,11 @@ fn snapshot(state: &State) -> OldState {
         }
     };
     OldState {
-        cells: state.cells.clone(),
+        cells: state
+            .cells
+            .iter()
+            .map(|(place, fact)| (*place, (**fact).clone()))
+            .collect(),
         later,
         package_values: state.package_values.clone(),
         product_births: state.product_births.clone(),
@@ -349,5 +357,127 @@ fn sorted_resource_cells_preserve_complete_state_with_actual_packed_order() {
             &mut Budget::new(&Limits::default())
         )
         .unwrap()
+    );
+}
+
+fn shared(state: OldState) -> State {
+    let mut result = current(state);
+    let mut setup = Budget::new(&Limits::default());
+    for cell in result.cells.values_mut() {
+        let Cell::Inline(fact) = cell else {
+            unreachable!()
+        };
+        *cell = stored_fact(std::mem::take(fact), true, &mut setup).unwrap();
+    }
+    result
+}
+
+#[test]
+fn immutable_resource_facts_preserve_full_old_state_and_external_snapshots() {
+    let old_left = state(128, false);
+    let old_right = state(128, true);
+    let mut actual = shared(old_left.clone());
+    let saved = clone_state(&actual, &mut Budget::new(&Limits::default())).unwrap();
+    let incoming = shared(old_right.clone());
+    let mut expected = old_left.clone();
+    let changed = join(&mut actual, &incoming, &mut Budget::new(&Limits::default())).unwrap();
+    let old_changed = lookup_join(
+        &mut expected,
+        &old_right,
+        &mut Budget::new(&Limits::default()),
+    )
+    .unwrap();
+    assert_eq!(changed, old_changed);
+    assert_eq!(snapshot(&actual), expected);
+    assert_eq!(snapshot(&saved), old_left);
+    assert_eq!(snapshot(&incoming), old_right);
+    assert!(!join(&mut actual, &incoming, &mut Budget::new(&Limits::default())).unwrap());
+    assert_eq!(snapshot(&actual), expected);
+    for (place, cell) in &saved.cells {
+        let Cell::Shared(old) = cell else {
+            unreachable!()
+        };
+        let Cell::Shared(new) = &actual.cells[place] else {
+            unreachable!()
+        };
+        assert!(!std::sync::Arc::ptr_eq(old, new));
+    }
+}
+
+#[test]
+fn immutable_resource_snapshots_have_smaller_paid_complete_request_boundaries() {
+    let old = state(256, false);
+    let initial_shared = shared(old.clone());
+    let initial_inline = current(old.clone());
+    let run = |sharing: bool, work| {
+        let mut budget = Budget::new(&Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        });
+        let initial = if sharing {
+            &initial_shared
+        } else {
+            &initial_inline
+        };
+        let mut value = clone_state(initial, &mut budget)?;
+        budget.spend(64, "snapshot request inventory and release")?;
+        let mut snapshots = Vec::with_capacity(32);
+        for _ in 0..32 {
+            let saved = clone_state(&value, &mut budget)?;
+            assert!(!join(&mut value, &saved, &mut budget)?);
+            snapshots.push(saved);
+        }
+        let place = Place::Value(ValueId(128));
+        let mut changed = copied(&value, place, &mut budget)?;
+        changed.life = BTreeSet::from([Life::Transferred]);
+        replace(&mut value, place, changed, &mut budget)?;
+        for saved in &snapshots {
+            assert_eq!(snapshot(saved), old);
+        }
+        let mut expected = old.clone();
+        expected.cells.get_mut(&place).unwrap().life = BTreeSet::from([Life::Transferred]);
+        assert_eq!(snapshot(&value), expected);
+        Ok::<_, Vec<zil_base::Diagnostic>>(snapshot(&value))
+    };
+    let mut boundaries = Vec::new();
+    for sharing in [false, true] {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(sharing, high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(sharing, middle) {
+                Ok(value) => {
+                    assert_eq!(value, expected);
+                    high = middle
+                }
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|error| error.category == ResultCategory::ResourceLimit)
+                    );
+                    low = middle
+                }
+            }
+        }
+        assert_eq!(run(sharing, high).unwrap(), expected);
+        assert!(
+            run(sharing, high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|error| error.category == ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(sharing, high).unwrap(), expected);
+        boundaries.push(high);
+    }
+    assert!(
+        boundaries[1] < boundaries[0],
+        "shared={}, inline={}",
+        boundaries[1],
+        boundaries[0]
+    );
+    eprintln!(
+        "full resource snapshots32+actual mutation shared N={}, inline N={}; N-1/fresh N preserve every state and alias",
+        boundaries[1], boundaries[0]
     );
 }
