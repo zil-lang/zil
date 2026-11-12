@@ -396,7 +396,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some()
+            || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()
@@ -530,7 +531,6 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                     } else {
                         PassingMode::Borrow
                     }
-                || interface.context.is_some() && slot.receiver.mutable
                 || !slot.parameters.iter().all(plain_value)
                 || slot.parameter_modes.iter().any(|m| !scalar_mode(*m))
                 || slot.parameters.len() != slot.parameter_modes.len()
@@ -717,7 +717,7 @@ fn body(
                 InstructionKind::LoadStoredBorrow {
                     storage,
                     path,
-                    mode: StoredBorrowLoad::CopyShared,
+                    mode,
                 } if receiver_values.contains(storage) => {
                     let Type::BorrowedStorage {
                         storage: actual_storage,
@@ -730,9 +730,6 @@ fn body(
                     let actual = life.slots.iter().find(|s| s.path == *path).ok_or_else(|| {
                         bad("dyn saved borrow is not an actual Self borrowed leaf")
                     })?;
-                    if actual.mode != StoredBorrowMode::SharedAddress {
-                        return Err(bad("dyn saved borrow copies an exclusive or unknown leaf"));
-                    }
                     let mut selected = actual_storage.as_ref();
                     for p in path {
                         if let Type::BorrowedStorage { storage, .. } = selected {
@@ -751,17 +748,44 @@ fn body(
                             .1;
                     }
                     let Type::Address {
-                        mutable: false,
+                        mutable: stored_mutable,
                         inner,
                     } = selected
                     else {
-                        return Err(bad("dyn saved borrow leaf is not a shared address"));
+                        return Err(bad("dyn saved borrow leaf is not an actual address"));
+                    };
+                    let output_mutable = match mode {
+                        StoredBorrowLoad::CopyShared
+                            if !stored_mutable
+                                && actual.mode == StoredBorrowMode::SharedAddress =>
+                        {
+                            false
+                        }
+                        StoredBorrowLoad::Reborrow { mutable: reborrow }
+                            if actual.mode
+                                == if *stored_mutable {
+                                    StoredBorrowMode::ExclusiveAddress
+                                } else {
+                                    StoredBorrowMode::SharedAddress
+                                }
+                                && (!*reborrow || mutable && *stored_mutable) =>
+                        {
+                            *reborrow
+                        }
+                        _ => {
+                            return Err(bad(
+                                "dyn saved borrow copies, consumes or upgrades an actual leaf",
+                            ));
+                        }
                     };
                     let output = instruction
                         .result
                         .ok_or_else(|| bad("dyn saved borrow has no actual result"))?;
-                    if value(f, output, budget)? != selected || !scalar(inner) {
-                        return Err(bad("dyn saved borrow changes full target type"));
+                    if !matches!(value(f, output, budget)?, Type::Address {mutable: actual,inner: target}
+                        if *actual == output_mutable && target == inner)
+                        || !scalar(inner)
+                    {
+                        return Err(bad("dyn saved borrow changes full target type or mode"));
                     }
                     field_values.insert(output, inner.as_ref().clone());
                 }
@@ -778,8 +802,15 @@ fn body(
                     address,
                     value: written,
                 } if mutable && field_values.contains_key(address) => {
-                    if value(f, *written, budget)? != field_values.get(address).unwrap() {
-                        return Err(bad("dyn write value differs from actual scalar Self field"));
+                    if !matches!(
+                        value(f, *address, budget)?,
+                        Type::Address { mutable: true, .. }
+                    ) || value(f, *written, budget)? != field_values.get(address).unwrap()
+                        || !value_results.contains(written)
+                    {
+                        return Err(bad(
+                            "dyn write changes actual scalar target, mode or value source",
+                        ));
                     }
                     saw_write = true;
                 }
