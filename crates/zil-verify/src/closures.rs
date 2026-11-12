@@ -285,6 +285,15 @@ pub(super) fn check_definitions(
                 "a non-address result cannot advertise lending sources",
             ));
         }
+        if closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|c| !c.static_bindings.is_empty())
+        {
+            budget.static_borrow_occurrences = true;
+            budget.nested_callable_sources = true;
+            budget.returned_environment_sources = true;
+        }
         if closure.id.0 as usize != index {
             return Err(reject(
                 "E-VERIFY-CLOSURE",

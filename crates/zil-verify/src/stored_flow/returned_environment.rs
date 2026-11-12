@@ -84,11 +84,14 @@ pub(super) fn seed(
             heap_parents: Vec::new(),
             heap_element: None,
         };
+        let sources =
+            static_borrows::environment_source(&module.closures[id.0 as usize], &path, b)?
+                .unwrap_or_else(|| vec![source]);
         let loan = loans.len();
         let exclusive = writes(ty);
         loans.push(Loan {
             receiver_head: false,
-            sources: vec![source.clone()],
+            sources: sources.clone(),
             parents: Vec::new(),
             exclusive,
         });
@@ -97,7 +100,7 @@ pub(super) fn seed(
             out,
             &path,
             &Permission {
-                sources: vec![source],
+                sources,
                 loans: vec![loan],
             },
             b,

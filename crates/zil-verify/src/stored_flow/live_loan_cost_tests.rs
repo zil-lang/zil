@@ -128,6 +128,7 @@ fn empty_rows(mode: usize, count: usize) -> (Solution, Frame, Vec<bool>) {
                 let row = Permission {
                     sources: if mode == 1 {
                         vec![Source {
+                            static_dependency: None,
                             retained_port: None,
                             base: HoldRoot::Parameter(0),
                             leaf: vec![PlaceProjection::Field(id as u32)],
