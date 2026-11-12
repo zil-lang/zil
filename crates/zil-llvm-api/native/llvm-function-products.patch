@@ -25,7 +25,7 @@
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-@@ -160,0 +183,76 @@
+@@ -160,0 +183,83 @@
 +
 +// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
 +// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
@@ -102,6 +102,13 @@
 +      Capacity, Next, Epoch, llvm::ArrayRef<unsigned>(Numbers, Count),
 +      llvm::ArrayRef<unsigned>(AnalysisNumbers, Count));
 +}
++
++extern "C" LLVM_ABI int ZilLLVMHasMachineProductBlockOwners(const void *IR) {
++  if (!IR) return 1;
++  const auto &MF = *static_cast<const llvm::MachineFunction *>(IR);
++  for (const auto &MBB : MF) if (MBB.zilProductHasCachedOwners()) return 1;
++  return 0;
++}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
 @@ -18,0 +19 @@
@@ -138,8 +145,9 @@
 +  }
 --- a/llvm/lib/IR/PassManager.cpp
 +++ b/llvm/lib/IR/PassManager.cpp
-@@ -9,0 +10,9 @@
+@@ -9,0 +10,10 @@
 +#include "llvm/Analysis/BasicAliasAnalysis.h"
++#include "llvm/IR/Dominators.h"
 +#include "llvm/Analysis/LastRunTrackingAnalysis.h"
 +#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 +#include "llvm/Analysis/TargetLibraryInfo.h"
@@ -148,9 +156,9 @@
 +#include "llvm/Analysis/AssumptionCache.h"
 +#include "llvm/Analysis/TargetTransformInfo.h"
 +#include "llvm/IR/IntrinsicInst.h"
-@@ -15,0 +25 @@
+@@ -15,0 +26 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +176,107 @@
+@@ -165,0 +177,107 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -406,7 +414,7 @@
 +  bool zilRestoreNoOptionProductState(const void *AllowedID, unsigned State) {
 +    if (State > 1 || zilNoOptionProductState(AllowedID) < 0) return false;
 +    TrackedPasses.clear();
-+    if (State) TrackedPasses[AllowedID] = {};
++    if (State) TrackedPasses[AllowedID] = CompatibilityCheckFn{};
 +    return true;
 +  }
 --- a/llvm/include/llvm/Analysis/TargetLibraryInfo.h
@@ -437,3 +445,14 @@
 +    return F == Current && !BFI && !enabled() &&
 +           !F->getContext().getDiagnosticsHotnessRequested();
 +  }
+--- a/llvm/include/llvm/CodeGen/MachineBasicBlock.h
++++ b/llvm/include/llvm/CodeGen/MachineBasicBlock.h
+@@ -239,0 +240,8 @@
++public:
++  // Pure inspection: unlike getSymbol()/getEndSymbol(), never creates owners.
++  bool zilProductHasCachedOwners() const {
++    return CachedMCSymbol || CachedEHContMCSymbol || CachedEndMCSymbol ||
++           !PrefetchTargets.empty();
++  }
++private:
++
