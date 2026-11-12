@@ -60,10 +60,22 @@ fn main()->i32 {
 fn complete_owning_hash_source_reconstructs_default_analyze_candidate() {
     let typed = typed_stdlib(&[
         ("main", CONSUMER),
-        ("owning_hash_map", include_str!("../../../lib/std/owning_hash_map.zil")),
-        ("owning_hash_set", include_str!("../../../lib/std/owning_hash_set.zil")),
-        ("owning_entries", include_str!("../../../lib/std/owning_entries.zil")),
-        ("owning_map", include_str!("../../../lib/std/owning_map.zil")),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_hash_set",
+            include_str!("../../../lib/std/owning_hash_set.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
         ("store", include_str!("../../../lib/std/store.zil")),
     ]);
     let limits = zil_base::Limits::default();
