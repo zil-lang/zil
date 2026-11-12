@@ -1,0 +1,97 @@
+{
+  "baseline_source": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "candidate_binary_sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a",
+  "compiled_source": "328eb392d8d88148a75a743d899b43aebae73587",
+  "compiled_tree": "f8cf388608f0afe700ab76a0abb156239d68ae8d",
+  "exact_disjoint_original_union": true,
+  "finished_utc": "2026-11-12T19:46:33.252949+00:00",
+  "master_sha256": "1a34e8fc7be86994c6bddc548e36d9069189445edfe7990acb7fd349d57e976f",
+  "metadata_shard": 5,
+  "new_v17_materialized_parts_retired": {
+    "Git_objects_preserved": true,
+    "bytes": 132682225,
+    "parts": 7,
+    "receipt_sha256": "dec8c0271062057b8dace4ea58e6f06b9dbff93b9bf3d4658826a6bc63943b5c"
+  },
+  "original_bytes": 728179825,
+  "original_files": 3058,
+  "original_observed_controller_exit": 0,
+  "original_validator_counts": {
+    "blobs": 115,
+    "measured": 144,
+    "native": 0,
+    "parents": 126,
+    "rows": 270
+  },
+  "original_validator_exit": 0,
+  "payload_shards": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "remote_ref": "refs/heads/archive/source-history",
+  "rustc_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "schema": "formal-check03-v17-fixed-archive-index-v1",
+  "scope": "All3058 original check03 files fresh HTTPS restored per shard with SHA256/size/mode verified; exact disjoint union equals full pre-retirement master. Original270row validator/controller observed exit0 before both subsequent environment reconnects; no check timing continuity uncertainty. Check has no native stage, no profile, candidate onlypush-reuse; budgets/workload/flags unchanged. This is a storage-integrity proof, not a simultaneous full assembled fresh validator execution. All original payload now fixed-remote-restorable after manifest-matched retirement. Local20file strictsummary projection, sidecars and immutable binaries retained. Metadata05 includes cleanup11 parts/index backup and cleanup12 release retirement, pinned tools/controllers/validation/source bindings, new-v17 part dematerialization proof. No SDK, runtime, Gitobjects or sources were removed.",
+  "shards": [
+    {
+      "archive_bytes": 37885330,
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-01",
+      "archive_sha256": "9dc53bb8e34eebca363b38b29e08af84617a58f99d514e8db80bd9193049d2ee",
+      "bootstrap_sha256": "72e24f6ede3835829f8d433b8780cc0064f78dcab7ecec0f5a10961985ce26c8",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/d393a6183e33fd87a8b9ea05fb8a065843978fb0/research/incremental-demand-full-push-20261112-v17-01/restore_https.py",
+      "files": 132,
+      "fixed_archive_commit": "d393a6183e33fd87a8b9ea05fb8a065843978fb0",
+      "manifest_sha256": "8ba1f4f3e47f7e3874b385b44e10889cba74b7acd16d4c994792ce43b879898a",
+      "raw_bytes": 186565917
+    },
+    {
+      "archive_bytes": 21177163,
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-02",
+      "archive_sha256": "2e7e2794f54189facf17b04a48b5448c8a105541ab68e31ed6ab6d84bfcfa9cd",
+      "bootstrap_sha256": "30a702bbe886de885a5418776b28021fdf2ba3c01dce34acf2a8c5f0dc0dac1d",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/5ce3b5e340795bfc60afc9b81b36f3da2585d090/research/incremental-demand-full-push-20261112-v17-02/restore_https.py",
+      "files": 1210,
+      "fixed_archive_commit": "5ce3b5e340795bfc60afc9b81b36f3da2585d090",
+      "manifest_sha256": "a43d42f9f29d1d71044b05b7c736276d782a9392d46d1f40a4908f53a58b05d7",
+      "raw_bytes": 188206928
+    },
+    {
+      "archive_bytes": 20263245,
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-03",
+      "archive_sha256": "b318d567849a6ec00e89c6ce39220e7dd44f7e0ed581cde05c26380ef0f9d186",
+      "bootstrap_sha256": "ab2842e0fa7335670e018a1141f917c8d27c30fe8ac59e6cbcbb1ea7ce006eaa",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/300ccf651d041575e4a29d2ec06078e049151b9e/research/incremental-demand-full-push-20261112-v17-03/restore_https.py",
+      "files": 1172,
+      "fixed_archive_commit": "300ccf651d041575e4a29d2ec06078e049151b9e",
+      "manifest_sha256": "d6b356871329684a01f5b6352686b2031b86bf9f247abf971515a32df87386d6",
+      "raw_bytes": 187994377
+    },
+    {
+      "archive_bytes": 53356487,
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-04",
+      "archive_sha256": "ab7e7d227d30b1045248530cfe8998f604e3966ab0098267909f76e3d6551de4",
+      "bootstrap_sha256": "e3453ced4044145ebacb83668b51305751feb12784befc221324f1f619fa80cc",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/46cf96d083fac8a80f24a677e372f3aee584131b/research/incremental-demand-full-push-20261112-v17-04/restore_https.py",
+      "files": 546,
+      "fixed_archive_commit": "46cf96d083fac8a80f24a677e372f3aee584131b",
+      "manifest_sha256": "24937dad7eea98c9b71cdfd40b5bcef9bce63d15e2b439a3327409e42df229a3",
+      "raw_bytes": 166208468
+    },
+    {
+      "archive_bytes": 287301,
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-05",
+      "archive_sha256": "514029934da2d090482cb4737264ae35852ebf327dbf44ca81e1a15f67bd02a9",
+      "bootstrap_sha256": "283205adaaa8aa5e2f345c885df0a8c30be4f1b5e3f4c4ce965046e66c202ce9",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/f51d8e43662b87d269469e5887c51e22cac7aa9f/research/incremental-demand-full-push-20261112-v17-05/restore_https.py",
+      "files": 97,
+      "fixed_archive_commit": "f51d8e43662b87d269469e5887c51e22cac7aa9f",
+      "manifest_sha256": "e81334bf7b177ebab0275d507b2ec7d1342e09d0d16030bdb7354c3ccc596301",
+      "raw_bytes": 6634571
+    }
+  ],
+  "source_documentation_tools_head": "86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb",
+  "status": "complete_all5_storage_shards_fixed_remote_fresh_https_full_file_verified",
+  "whole_assembled_fresh_validator_rerun": false
+}

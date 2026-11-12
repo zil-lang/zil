@@ -1,0 +1,7 @@
+# V17 complete formal check03 archive
+
+Five storage shards preserve the exact original3058files/728179825B check03 run plus validation/controller, source/tool receipts,20file summary projection, cleanup11/12 receipts and reversible new-part dematerialization. See V17-INDEX.json for complete fixed commits, manifests, URLs and bootstrap SHA256.
+
+For each shard, download its exact bootstrap_url, verify bootstrap_sha256, then run `python3 DOWNLOADED_BOOTSTRAP.py FIXED_ARCHIVE_COMMIT --receipt UNIQUE_RECEIPT.json`. The tested bootstrap freshly fetches only fixed Git content, fully restores each file and verifies bytes/size/mode. Assemble the workspace-relative payload paths from shards01..04 for the whole original run; shard05 preserves metadata/proofs. Overlapping auxiliary metadata must agree byte-for-byte. Source328 full tree snapshot also remains in fixed V16 archive301c7f680207dbd115ebf895e6b07126d1615fe1.
+
+The original270row validator and controller both directly exited0 before environment reconnects. Every file was freshly restored per shard and the exact union verified, but no simultaneous full assembled fresh validator rerun is claimed. No native stage or profiling in this formal check run. All workload, budgets and original raw bytes remain unchanged remotely. Git objects and metadata remain; selected materialized compressed parts can be recreated from fixed Git paths using the recorded flags/modes.

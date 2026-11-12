@@ -1,0 +1,57 @@
+{
+  "schema": "fixed-shard-check03-exact-union-v1",
+  "complete": true,
+  "original_files": 3058,
+  "original_bytes": 728179825,
+  "master_sha256": "1a34e8fc7be86994c6bddc548e36d9069189445edfe7990acb7fd349d57e976f",
+  "exact_disjoint_union": true,
+  "all_payload_fresh_https_full_hash_mode_verified_before_retirement": true,
+  "original_validator_passed": true,
+  "original_controller_observed_exit": 0,
+  "original_validator_counts": {
+    "rows": 270,
+    "measured": 144,
+    "parents": 126,
+    "blobs": 115,
+    "native": 0
+  },
+  "whole_assembled_fresh_validator_rerun": false,
+  "shards": [
+    {
+      "fixed_archive_commit": "d393a6183e33fd87a8b9ea05fb8a065843978fb0",
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-01",
+      "manifest_sha256": "8ba1f4f3e47f7e3874b385b44e10889cba74b7acd16d4c994792ce43b879898a",
+      "archive_sha256": "9dc53bb8e34eebca363b38b29e08af84617a58f99d514e8db80bd9193049d2ee",
+      "files": 132,
+      "raw_bytes": 186565917,
+      "archive_bytes": 37885330
+    },
+    {
+      "fixed_archive_commit": "5ce3b5e340795bfc60afc9b81b36f3da2585d090",
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-02",
+      "manifest_sha256": "a43d42f9f29d1d71044b05b7c736276d782a9392d46d1f40a4908f53a58b05d7",
+      "archive_sha256": "2e7e2794f54189facf17b04a48b5448c8a105541ab68e31ed6ab6d84bfcfa9cd",
+      "files": 1210,
+      "raw_bytes": 188206928,
+      "archive_bytes": 21177163
+    },
+    {
+      "fixed_archive_commit": "300ccf651d041575e4a29d2ec06078e049151b9e",
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-03",
+      "manifest_sha256": "d6b356871329684a01f5b6352686b2031b86bf9f247abf971515a32df87386d6",
+      "archive_sha256": "b318d567849a6ec00e89c6ce39220e7dd44f7e0ed581cde05c26380ef0f9d186",
+      "files": 1172,
+      "raw_bytes": 187994377,
+      "archive_bytes": 20263245
+    },
+    {
+      "fixed_archive_commit": "46cf96d083fac8a80f24a677e372f3aee584131b",
+      "archive_path": "research/incremental-demand-full-push-20261112-v17-04",
+      "manifest_sha256": "24937dad7eea98c9b71cdfd40b5bcef9bce63d15e2b439a3327409e42df229a3",
+      "archive_sha256": "ab7e7d227d30b1045248530cfe8998f604e3966ab0098267909f76e3d6551de4",
+      "files": 546,
+      "raw_bytes": 166208468,
+      "archive_bytes": 53356487
+    }
+  ]
+}
