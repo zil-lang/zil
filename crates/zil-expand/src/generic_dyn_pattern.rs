@@ -320,6 +320,9 @@ pub(super) fn pay(
     fn constant(value: &DynConstPattern, b: &mut Budget<'_>, s: Span, d: usize) -> R<()> {
         b.node(s, d)?;
         match value {
+            DynConstPattern::IntegerLiteral(text) | DynConstPattern::FloatLiteral(text) => {
+                b.identity_work(text.len(), s)?;
+            }
             DynConstPattern::Value(zil_ir::Constant::WideString(units)) => {
                 b.identity_work(units.len(), s)?
             }

@@ -372,6 +372,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         WORK,
     )?;
     for table in &module.dyn_vtables {
+        crate::dyn_metadata::recipe_table(table, budget)?;
         if table.self_classes.len() > budget.helper_nodes {
             return Err(bad("dyn Self class inventory exceeds node limit"));
         }
@@ -389,7 +390,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 crate::dyn_metadata::ty(ty, budget)?;
             }
         }
-        crate::dyn_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        crate::dyn_metadata::recipe_declaration(declaration, budget)?;
+        if let Some(pattern) = &declaration.self_pattern {
+            crate::dyn_metadata::recipe(pattern, budget)?;
+        }
         crate::dyn_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
         if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
         {
@@ -1387,11 +1391,11 @@ mod tests {
         TypedModule {
             dyn_declarations: vec![
                 DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+                    direct_supertraits: None,
+                    requirements: None,
+                    associated_definitions: None,
+                    method_signatures: None,
+                    method_definitions: None,
                     self_pattern: None,
                     implemented_trait: None,
                     id: trait_id,
@@ -1404,11 +1408,11 @@ method_definitions: None,
                     }],
                 },
                 DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+                    direct_supertraits: None,
+                    requirements: None,
+                    associated_definitions: None,
+                    method_signatures: None,
+                    method_definitions: None,
                     self_pattern: None,
                     implemented_trait: Some(DynSelfPattern {
                         declaration: trait_id,
@@ -1458,8 +1462,8 @@ method_definitions: None,
                 }],
             }],
             dyn_vtables: vec![DynVtable {
-self_life: None,
-implementation_witnesses: None,
+                self_life: None,
+                implementation_witnesses: None,
                 self_classes: vec![],
                 id: table_id,
                 interface: interface_id,

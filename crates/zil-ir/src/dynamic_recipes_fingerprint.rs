@@ -256,6 +256,14 @@ pub(super) fn encode_dyn_definition_declaration(
     b: &mut impl FingerprintSink,
     value: &DynDefinitionDeclaration,
 ) {
+    encode_len(b, (&value.requirements).len());
+    for item in &value.requirements {
+        encode_dyn_obligation(b, item);
+    }
+    encode_len(b, (&value.instances).len());
+    for item in &value.instances {
+        encode_dyn_definition_specialization(b, item);
+    }
     encode_dyn_definition_id(b, &value.id);
     encode_declaration_identity(b, &value.identity);
     encode_u32(b, *&value.member);
@@ -263,6 +271,10 @@ pub(super) fn encode_dyn_definition_declaration(
     encode_dyn_signature_recipe(b, &value.signature);
 }
 pub(super) fn encode_dyn_method_recipe(b: &mut impl FingerprintSink, value: &DynMethodRecipe) {
+    encode_len(b, (&value.requirements).len());
+    for item in &value.requirements {
+        encode_dyn_obligation(b, item);
+    }
     encode_u32(b, *&value.member);
     encode_dyn_signature_recipe(b, &value.signature);
     b.push(u8::from((&value.default_definition).is_some()));
@@ -305,6 +317,10 @@ pub(super) fn encode_dyn_associated_definition(
     b: &mut impl FingerprintSink,
     value: &DynAssociatedDefinition,
 ) {
+    b.push(u8::from((&value.carrier).is_some()));
+    if let Some(item) = &value.carrier {
+        encode_dyn_type_pattern(b, item);
+    }
     encode_u32(b, *&value.member);
     b.push(u8::from((&value.value).is_some()));
     if let Some(item) = &value.value {
@@ -378,6 +394,34 @@ pub(super) fn encode_dyn_implementation_witness(
         encode_dyn_associated_resolution(b, item);
     }
 }
+pub(super) fn encode_dyn_function_target(b: &mut impl FingerprintSink, value: &DynFunctionTarget) {
+    match value {
+        DynFunctionTarget::Core { module, source } => {
+            b.push(0);
+            encode_u32(b, (module).0);
+            encode_u32(b, (source).0);
+        }
+        DynFunctionTarget::Typed(value_0) => {
+            b.push(1);
+            encode_u32(b, (value_0).0);
+        }
+    }
+}
+pub(super) fn encode_dyn_definition_specialization(
+    b: &mut impl FingerprintSink,
+    value: &DynDefinitionSpecialization,
+) {
+    encode_dyn_function_target(b, &value.function);
+    encode_dyn_type_value(b, &value.receiver);
+    encode_len(b, (&value.declaration_actuals).len());
+    for item in &value.declaration_actuals {
+        encode_dyn_generic_actual(b, item);
+    }
+    encode_len(b, (&value.method_actuals).len());
+    for item in &value.method_actuals {
+        encode_dyn_generic_actual(b, item);
+    }
+}
 pub(super) fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, value: &DynSelfPattern) {
     encode_declaration_id(b, &value.declaration);
     encode_len(b, (&value.arguments).len());
@@ -447,6 +491,14 @@ pub(super) fn encode_dyn_const_pattern(b: &mut impl FingerprintSink, value: &Dyn
             encode_dyn_type_pattern(b, receiver);
             encode_dyn_self_pattern(b, application);
             encode_u32(b, *member);
+        }
+        DynConstPattern::IntegerLiteral(value_0) => {
+            b.push(7);
+            encode_text(b, value_0);
+        }
+        DynConstPattern::FloatLiteral(value_0) => {
+            b.push(8);
+            encode_text(b, value_0);
         }
     }
 }

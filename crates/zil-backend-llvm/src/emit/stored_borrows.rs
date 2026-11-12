@@ -62,7 +62,12 @@ pub(super) fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileR
     }
     Ok(())
 }
-fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> CompileResult<()> {
+pub(super) fn type_work(
+    t: &Type,
+    work: &mut usize,
+    limits: &Limits,
+    depth: usize,
+) -> CompileResult<()> {
     pay(work, 8)?;
     if depth > limits.max_call_depth {
         return Err(exhausted());
@@ -194,6 +199,10 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.resources.len()),
     )?;
     for function in &module.functions {
+        if let Some(instance) = &function.dyn_instance {
+            super::static_utf8::reserve_dyn_instance(instance, limits, work)?;
+        }
+
         if let Some(rows) = &function.retained_return_sources {
             pay(work, rows.len().saturating_add(1))?;
             for row in rows {

@@ -703,18 +703,7 @@ pub(super) fn declarations(
             budget.node(member.span, 0)?;
             let (name, kind) = match &member.kind {
                 ItemKind::TypeAlias(alias) => (&alias.name, DynMemberKind::Type),
-                ItemKind::Const(constant) => (
-                    &constant.name,
-                    DynMemberKind::Constant(lower_type(
-                        constant.ty.as_ref().ok_or_else(|| {
-                            unsupported(
-                                member.span,
-                                "dyn impl constant header needs its substituted declared type",
-                            )
-                        })?,
-                        budget,
-                    )?),
-                ),
+                ItemKind::Const(constant) => (&constant.name, DynMemberKind::Constant),
                 ItemKind::Function(function) => (
                     &function.name,
                     DynMemberKind::Method(parameters(&function.generics, budget)?),
@@ -981,8 +970,8 @@ impl Catalog {
                 owning |= reference.same(&self.interfaces[table.interface].reference);
             }
             output.push(zil_ir::CoreDynVtable {
-self_life: None,
-implementation_witnesses: None,
+                self_life: None,
+                implementation_witnesses: None,
                 self_classes: {
                     budget.identity_work(table.self_classes.len(), span)?;
                     table.self_classes.clone()
@@ -1704,7 +1693,7 @@ implementation_witnesses: None,
                 budget.text(&member.name, span)?;
                 match &member.kind {
                     DynMemberKind::Type => {}
-                    DynMemberKind::Constant(ty) => pay_type(ty, budget, span, 0)?,
+                    DynMemberKind::Constant => {}
                     DynMemberKind::Method(parameters) => {
                         for parameter in parameters {
                             pay_parameter(parameter, budget, span)?;
@@ -1719,12 +1708,15 @@ implementation_witnesses: None,
                 pattern::pay(recipe, budget, span, 0)?;
             }
             result.push(DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
-                self_pattern: declaration.self_pattern.clone().map(|p| zil_ir::DynTypePattern::Nominal(Box::new(p))),
+                direct_supertraits: None,
+                requirements: None,
+                associated_definitions: None,
+                method_signatures: None,
+                method_definitions: None,
+                self_pattern: declaration
+                    .self_pattern
+                    .clone()
+                    .map(|p| zil_ir::DynTypePattern::Nominal(Box::new(p))),
                 implemented_trait: declaration.implemented_trait.clone(),
                 id: declaration_id(declaration.origin, origins, budget, span)?,
                 identity: identity.clone(),

@@ -309,9 +309,8 @@ pub(super) fn encode_dyn_member_kind(b: &mut impl FingerprintSink, value: &DynMe
         DynMemberKind::Type => {
             b.push(0);
         }
-        DynMemberKind::Constant(value_0) => {
+        DynMemberKind::Constant => {
             b.push(1);
-            encode_type(b, value_0);
         }
         DynMemberKind::Method(value_0) => {
             b.push(2);

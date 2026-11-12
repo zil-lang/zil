@@ -314,6 +314,14 @@ impl Writer<'_> {
         depth: usize,
     ) -> WireResult<()> {
         self.dyn_recipe_node(depth)?;
+        self.count((&value.requirements).len(), self.limits.max_nodes)?;
+        for item in &value.requirements {
+            self.dyn_obligation(item, depth + 1)?;
+        }
+        self.count((&value.instances).len(), self.limits.max_nodes)?;
+        for item in &value.instances {
+            self.dyn_definition_specialization(item, depth + 1)?;
+        }
         self.dyn_definition_id(&value.id, depth + 1)?;
         self.declaration_identity(&value.identity)?;
         self.u32(*&value.member)?;
@@ -327,6 +335,10 @@ impl Writer<'_> {
         depth: usize,
     ) -> WireResult<()> {
         self.dyn_recipe_node(depth)?;
+        self.count((&value.requirements).len(), self.limits.max_nodes)?;
+        for item in &value.requirements {
+            self.dyn_obligation(item, depth + 1)?;
+        }
         self.u32(*&value.member)?;
         self.dyn_signature_recipe(&value.signature, depth + 1)?;
         self.boolean((&value.default_definition).is_some())?;
@@ -378,6 +390,10 @@ impl Writer<'_> {
         depth: usize,
     ) -> WireResult<()> {
         self.dyn_recipe_node(depth)?;
+        self.boolean((&value.carrier).is_some())?;
+        if let Some(item) = &value.carrier {
+            self.dyn_type_pattern(item, depth + 1)?;
+        }
         self.u32(*&value.member)?;
         self.boolean((&value.value).is_some())?;
         if let Some(item) = &value.value {
@@ -461,6 +477,43 @@ impl Writer<'_> {
         self.count((&value.associated).len(), self.limits.max_nodes)?;
         for item in &value.associated {
             self.dyn_associated_resolution(item, depth + 1)?;
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_function_target(
+        &mut self,
+        value: &DynFunctionTarget,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        match value {
+            DynFunctionTarget::Core { module, source } => {
+                self.u8(0)?;
+                self.u32((module).0)?;
+                self.u32((source).0)?;
+            }
+            DynFunctionTarget::Typed(value_0) => {
+                self.u8(1)?;
+                self.u32((value_0).0)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_definition_specialization(
+        &mut self,
+        value: &DynDefinitionSpecialization,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        self.dyn_function_target(&value.function, depth + 1)?;
+        self.dyn_type_value(&value.receiver, depth + 1)?;
+        self.count((&value.declaration_actuals).len(), self.limits.max_nodes)?;
+        for item in &value.declaration_actuals {
+            self.dyn_generic_actual(item)?;
+        }
+        self.count((&value.method_actuals).len(), self.limits.max_nodes)?;
+        for item in &value.method_actuals {
+            self.dyn_generic_actual(item)?;
         }
         Ok(())
     }
@@ -550,6 +603,14 @@ impl Writer<'_> {
                 self.dyn_type_pattern(receiver, depth + 1)?;
                 self.dyn_self_pattern(application, depth + 1)?;
                 self.u32(*member)?;
+            }
+            DynConstPattern::IntegerLiteral(value_0) => {
+                self.u8(7)?;
+                self.text(value_0)?;
+            }
+            DynConstPattern::FloatLiteral(value_0) => {
+                self.u8(8)?;
+                self.text(value_0)?;
             }
         }
         Ok(())
@@ -898,6 +959,22 @@ impl Reader<'_> {
     ) -> WireResult<DynDefinitionDeclaration> {
         self.dyn_recipe_node(depth)?;
         Ok(DynDefinitionDeclaration {
+            requirements: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_obligation(depth + 1)?);
+                }
+                rows
+            },
+            instances: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_definition_specialization(depth + 1)?);
+                }
+                rows
+            },
             id: self.dyn_definition_id(depth + 1)?,
             identity: self.declaration_identity()?,
             member: self.u32()?,
@@ -908,6 +985,14 @@ impl Reader<'_> {
     pub(super) fn dyn_method_recipe(&mut self, depth: usize) -> WireResult<DynMethodRecipe> {
         self.dyn_recipe_node(depth)?;
         Ok(DynMethodRecipe {
+            requirements: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_obligation(depth + 1)?);
+                }
+                rows
+            },
             member: self.u32()?,
             signature: self.dyn_signature_recipe(depth + 1)?,
             default_definition: if self.boolean()? {
@@ -963,6 +1048,11 @@ impl Reader<'_> {
     ) -> WireResult<DynAssociatedDefinition> {
         self.dyn_recipe_node(depth)?;
         Ok(DynAssociatedDefinition {
+            carrier: if self.boolean()? {
+                Some(self.dyn_type_pattern(depth + 1)?)
+            } else {
+                None
+            },
             member: self.u32()?,
             value: if self.boolean()? {
                 Some(self.dyn_associated_value_recipe(depth + 1)?)
@@ -1045,6 +1135,43 @@ impl Reader<'_> {
             },
         })
     }
+    pub(super) fn dyn_function_target(&mut self, depth: usize) -> WireResult<DynFunctionTarget> {
+        self.dyn_recipe_node(depth)?;
+        Ok(match self.u8()? {
+            0 => DynFunctionTarget::Core {
+                module: ModuleId(self.u32()?),
+                source: NodeId(self.u32()?),
+            },
+            1 => DynFunctionTarget::Typed(FunctionId(self.u32()?)),
+            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+        })
+    }
+    pub(super) fn dyn_definition_specialization(
+        &mut self,
+        depth: usize,
+    ) -> WireResult<DynDefinitionSpecialization> {
+        self.dyn_recipe_node(depth)?;
+        Ok(DynDefinitionSpecialization {
+            function: self.dyn_function_target(depth + 1)?,
+            receiver: self.dyn_type_value(depth + 1)?,
+            declaration_actuals: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_generic_actual()?);
+                }
+                rows
+            },
+            method_actuals: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_generic_actual()?);
+                }
+                rows
+            },
+        })
+    }
     pub(super) fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {
         self.dyn_recipe_node(depth)?;
         Ok(DynSelfPattern {
@@ -1094,6 +1221,8 @@ impl Reader<'_> {
                 application: Box::new(self.dyn_self_pattern(depth + 1)?),
                 member: self.u32()?,
             },
+            7 => DynConstPattern::IntegerLiteral(self.text()?),
+            8 => DynConstPattern::FloatLiteral(self.text()?),
             _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
         })
     }
