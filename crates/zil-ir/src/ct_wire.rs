@@ -395,7 +395,7 @@ macro_rules! integer_wire { ($($t:ty),+ $(,)?) => {$(
         fn decode(d:&mut Decoder<'_>)->Result<Self> { let bytes=d.read(std::mem::size_of::<Self>())?;
             Ok(Self::from_le_bytes(bytes.try_into().map_err(|_| WireError::Truncated)?)) } }
 )+}; }
-integer_wire!(u16, u32, u64, i32, i64);
+integer_wire!(u16, u32, u64, i8, i16, i32, i64);
 impl Wire for bool {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         (*self as u8).encode(e)
@@ -920,6 +920,22 @@ impl Wire for Constant {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
+                Self::U32(v) => {
+                    13u8.encode(e)?;
+                    v.encode(e)?;
+                }
+                Self::I8(v) => {
+                    14u8.encode(e)?;
+                    v.encode(e)?;
+                }
+                Self::I16(v) => {
+                    15u8.encode(e)?;
+                    v.encode(e)?;
+                }
+                Self::Isize(v) => {
+                    16u8.encode(e)?;
+                    v.encode(e)?;
+                }
                 Self::Unit => {
                     0u8.encode(e)?;
                 }
@@ -988,6 +1004,10 @@ impl Wire for Constant {
             6 => Ok(Self::NullHandle),
             7 => Ok(Self::NullWideString),
             8 => Ok(Self::WideString(<Vec<u16> as Wire>::decode(d)?)),
+            13 => Ok(Self::U32(<u32 as Wire>::decode(d)?)),
+            14 => Ok(Self::I8(<i8 as Wire>::decode(d)?)),
+            15 => Ok(Self::I16(<i16 as Wire>::decode(d)?)),
+            16 => Ok(Self::Isize(<i64 as Wire>::decode(d)?)),
             _ => Err(WireError::UnknownTag),
         })
     }
@@ -1159,6 +1179,18 @@ impl Wire for CtScalarTy {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
+                Self::U32 => {
+                    10u8.encode(e)?;
+                }
+                Self::I8 => {
+                    11u8.encode(e)?;
+                }
+                Self::I16 => {
+                    12u8.encode(e)?;
+                }
+                Self::Isize => {
+                    13u8.encode(e)?;
+                }
                 Self::Unit => {
                     0u8.encode(e)?;
                 }
@@ -1205,6 +1237,10 @@ impl Wire for CtScalarTy {
             7 => Ok(Self::Usize),
             8 => Ok(Self::F32),
             9 => Ok(Self::F64),
+            10 => Ok(Self::U32),
+            11 => Ok(Self::I8),
+            12 => Ok(Self::I16),
+            13 => Ok(Self::Isize),
             _ => Err(WireError::UnknownTag),
         })
     }
