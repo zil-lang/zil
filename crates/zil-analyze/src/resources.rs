@@ -598,13 +598,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             budget.spend(c.captures.len(), "resource environment classification")?;
             let mut owned = c.kind == CallableKind::FnOnce
                 || c.captures.iter().any(|t| {
-                    matches!(t, Type::Address { mutable: true, .. }) || matches!(
-                        package_storage(t),
-                        Type::Managed(_)
-                            | Type::Package { .. }
-                            | Type::Closure(_)
-                            | Type::OwnedDyn { .. }
-                    )
+                    matches!(t, Type::Address { mutable: true, .. })
+                        || matches!(
+                            package_storage(t),
+                            Type::Managed(_)
+                                | Type::Package { .. }
+                                | Type::Closure(_)
+                                | Type::OwnedDyn { .. }
+                        )
                 });
             if budget.has_ordinary_store_sum_capture(*id)? {
                 for ty in &c.captures {
@@ -2965,9 +2966,15 @@ impl Flow<'_> {
                         .get(*index as usize)
                         .ok_or_else(|| error("capture index is absent"))?;
                     if c.kind == CallableKind::Fn
-                        && matches!(ty,Type::Address{mutable:true,..})
-                        && matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address{mutable:true,..})) {
-                        return Err(error("shared environment cannot expose a mutable captured capability"));
+                        && matches!(ty, Type::Address { mutable: true, .. })
+                        && matches!(
+                            i.result.and_then(|v| f.values.get(v.0 as usize)),
+                            Some(Type::Address { mutable: true, .. })
+                        )
+                    {
+                        return Err(error(
+                            "shared environment cannot expose a mutable captured capability",
+                        ));
                     }
                     if matches!(
                         package_storage(ty),

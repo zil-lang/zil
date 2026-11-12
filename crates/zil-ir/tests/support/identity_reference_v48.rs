@@ -1376,6 +1376,10 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
     }
 }
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
+    b.push(u8::from(c.life.is_some()));
+    if let Some(life) = &c.life {
+        encode_closed_relation(b, life);
+    }
     b.push(u8::from(c.capture_sources.is_some()));
     if let Some(rows) = &c.capture_sources {
         encode_len(b, rows.len());

@@ -1330,6 +1330,32 @@ impl<'a> Walker<'a> {
                 }
             }
             if let Some(contract) = &f.callable_return {
+                let work = callable_return_metadata_work(
+                    contract,
+                    self.limits.max_nodes,
+                    self.limits.max_call_depth,
+                )
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "callable return metadata exceeds bounds",
+                        Some(f.span),
+                    )]
+                })?;
+                self.work_left = self.work_left.checked_sub(work).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "callable return metadata copy budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+                if let Some(context) = &contract.source_life {
+                    for formal in &context.parameters {
+                        if let LifeParameterKind::Const(ty) = formal {
+                            self.pattern_type_shape(ty, 0, f.span)?;
+                        }
+                    }
+                }
                 self.charge(0, f.span)?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
             }
@@ -3861,6 +3887,8 @@ mod tests {
     fn callable_return_metadata_is_preserved_and_bounded_before_clone() {
         let mut m = module(number("7"), Type::I32);
         let contract = CoreCallableReturn {
+            life: None,
+            source_life: None,
             kind: CallableKind::Fn,
             parameters: vec![Type::I32],
             result: Type::I32,

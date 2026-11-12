@@ -177,6 +177,8 @@ fn state_replacement_compile_time_unused_mixed_headers_reject_wrong_roles_signat
             }),
             18 => {
                 f.callable_return = Some(CoreCallableReturn {
+                    life: None,
+                    source_life: None,
                     kind: CallableKind::FnOnce,
                     parameters: vec![],
                     result: Type::I32,

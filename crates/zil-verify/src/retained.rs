@@ -89,6 +89,16 @@ pub(super) fn check_claim(
         budget.pending_dyn_returns.insert(f.id);
     }
     if let Some(c) = &f.callable_return_contract {
+        if let Some(life) = &c.life {
+            let work =
+                storage_relation_metadata_work(life, limits.max_nodes, limits.max_call_depth)
+                    .ok_or_else(|| limit("callable return relation exceeds bounds"))?;
+            budget.spend(work)?;
+            return Err(bad(
+                f,
+                "callable return relation requires independent concrete environment proof",
+            ));
+        }
         budget.spend(1)?;
         budget.callable_source_functions.push(f.id);
         let bindings = c
