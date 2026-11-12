@@ -1,13 +1,25 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
+mod selected;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
     unknown: bool,
     workers: BTreeSet<FunctionId>,
     parameters: BTreeSet<u32>,
+    selected: BTreeSet<zil_ir::StoragePosition>,
 }
 impl Origins {
     fn add(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
+        for source in self.selected.iter().chain(&other.selected) {
+            budget.spend(
+                source.path.len().saturating_add(1).saturating_mul(
+                    self.selected
+                        .len()
+                        .saturating_add(other.selected.len())
+                        .saturating_add(1),
+                ),
+            )?;
+        }
         budget.spend(
             self.workers
                 .len()
@@ -20,6 +32,7 @@ impl Origins {
         self.unknown |= other.unknown;
         self.workers.extend(other.workers.iter().copied());
         self.parameters.extend(other.parameters.iter().copied());
+        self.selected.extend(other.selected.iter().cloned());
         Ok(*self != old)
     }
 }
@@ -226,7 +239,11 @@ fn returned_workers(
         }
     }
     visiting.remove(&function);
-    if !saw_return || (origins.workers.is_empty() && origins.parameters.is_empty()) {
+    if !saw_return
+        || (origins.workers.is_empty()
+            && origins.parameters.is_empty()
+            && origins.selected.is_empty())
+    {
         origins.unknown = true;
     }
     Ok(origins)
@@ -249,6 +266,7 @@ fn returned_value(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         });
     }
     let mut found = None;
@@ -268,6 +286,33 @@ fn returned_value(
         }
     }
     let origin = match found {
+        Some(InstructionKind::TakeCapture { index }) => {
+            let actual = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .is_some_and(|d| {
+                    d.function == f.id
+                        && d.kind == CallableKind::FnOnce
+                        && d.captures.get(*index as usize).is_some()
+                });
+            if !actual {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "Task return capture lacks its actual consuming entry",
+                ));
+            }
+            Origins {
+                selected: BTreeSet::from([zil_ir::StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: vec![],
+                }]),
+                ..Origins::default()
+            }
+        }
+        Some(InstructionKind::CallClosureOnce { callee, arguments }) => {
+            selected::invocation(module, f, *callee, arguments, functions, budget)?
+        }
         Some(
             InstructionKind::TaskCreate { worker, .. }
             | InstructionKind::TaskCreateOwned { worker, .. },
@@ -276,6 +321,7 @@ fn returned_value(
             unknown: false,
             workers: BTreeSet::from([*worker]),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         },
         Some(InstructionKind::MakeErrorUnion { is_error: true, .. })
         | Some(InstructionKind::TakeErrorUnion { is_error: true, .. }) => Origins::default(),
@@ -329,7 +375,14 @@ fn returned_value(
                 unknown: summary.unknown,
                 workers: summary.workers,
                 parameters: BTreeSet::new(),
+                selected: BTreeSet::new(),
             };
+            if !summary.selected.is_empty() {
+                actual.add(
+                    &selected::sources(module, f, arguments, &summary.selected, functions, budget)?,
+                    budget,
+                )?;
+            }
             for parameter in summary.parameters {
                 let argument = *arguments.get(parameter as usize).ok_or_else(|| {
                     reject("E-VERIFY-TASK", None, "Task helper result input absent")
@@ -347,6 +400,7 @@ fn returned_value(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         },
     };
     values.remove(&value);
@@ -381,6 +435,7 @@ fn returned_local(
             unknown: true,
             workers: BTreeSet::new(),
             parameters: BTreeSet::new(),
+            selected: BTreeSet::new(),
         });
     }
     let mut origin = Origins::default();
@@ -524,6 +579,7 @@ fn require_origin(
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
+                        selected: BTreeSet::new(),
                     },
                     InstructionKind::WithScopedThread { argument, .. } => {
                         values[argument.0 as usize].clone()
@@ -544,7 +600,21 @@ fn require_origin(
                             unknown: summary.unknown,
                             workers: summary.workers,
                             parameters: BTreeSet::new(),
+                            selected: BTreeSet::new(),
                         };
+                        if !summary.selected.is_empty() {
+                            actual.add(
+                                &selected::sources(
+                                    module,
+                                    f,
+                                    arguments,
+                                    &summary.selected,
+                                    &mut BTreeSet::new(),
+                                    budget,
+                                )?,
+                                budget,
+                            )?;
+                        }
                         for parameter in summary.parameters {
                             let argument = *arguments.get(parameter as usize).ok_or_else(|| {
                                 reject(
@@ -557,6 +627,14 @@ fn require_origin(
                         }
                         actual
                     }
+                    InstructionKind::CallClosureOnce { callee, arguments } => selected::invocation(
+                        module,
+                        f,
+                        *callee,
+                        arguments,
+                        &mut BTreeSet::new(),
+                        budget,
+                    )?,
                     InstructionKind::Load(local)
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
@@ -608,6 +686,7 @@ fn require_origin(
                         unknown: true,
                         workers: BTreeSet::new(),
                         parameters: BTreeSet::new(),
+                        selected: BTreeSet::new(),
                     },
                 };
                 changed |= values[out.0 as usize].add(&origin, budget)?;
@@ -623,7 +702,11 @@ fn require_origin(
         &values[value.expect("value endpoint").0 as usize]
     };
     budget.spend(origins.workers.len().saturating_add(1))?;
-    if origins.unknown || origins.workers.is_empty() {
+    if origins.unknown
+        || origins.workers.is_empty()
+        || !origins.parameters.is_empty()
+        || !origins.selected.is_empty()
+    {
         return Err(reject(
             "E-VERIFY-TASK",
             span,

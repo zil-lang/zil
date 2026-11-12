@@ -634,7 +634,9 @@ fn produce(
             }
             Ok(result)
         }
-        InstructionKind::CallClosureOnce { callee, arguments } => {
+        InstructionKind::CallClosureOnce { callee, arguments }
+            if wanted.keys().any(|path| retained_path(path)) =>
+        {
             let Type::Closure(id) = &f.values[callee.0 as usize] else {
                 return Err(bad(
                     instruction.span,
