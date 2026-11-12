@@ -164,6 +164,57 @@ def rust_command(*, cargo, mode, target):
     return command
 
 
+def resolved_tool(run, manifest, name):
+    """Bind logical CLI names to the archived successful actual-tool resolution.
+
+    Original executable paths need not exist when auditing a recovered archive.
+    Start/end executable hashes remain mandatory, alongside actual -vV argv and
+    raw resolution/version stream hashes. No argv[0] wildcard is introduced.
+    """
+    try:
+        tool = manifest['tools'][name]
+        requested = manifest['arguments'][name]
+        actual = tool['actual_path']
+        launcher = tool['launcher_path']
+        if tool['requested'] != requested or not isinstance(requested, str) or not requested:
+            raise ValueError('requested tool differs from recorded resolution: ' + name)
+        for path in (actual, launcher):
+            if (type(path) is not str or not Path(path).is_absolute()
+                    or '..' in Path(path).parts or '\0' in path):
+                raise ValueError('resolved tool path must be absolute: ' + name)
+        for field in ('actual_sha256', 'launcher_sha256'):
+            if not isinstance(tool[field], str) or re.fullmatch('[0-9a-f]{64}', tool[field]) is None:
+                raise ValueError('resolved tool hash missing or malformed: ' + name)
+        if manifest['tools_after_sha256'][name] != tool['actual_sha256']:
+            raise ValueError('resolved tool changed during run: ' + name)
+        def evidence(directory, expected):
+            record = json.loads((directory / 'command.json').read_text())
+            result = json.loads((directory / 'result.json').read_text())
+            if record['argv'] != expected or result['returncode'] != 0 or result['timed_out'] is not False:
+                raise ValueError('tool resolution/version command failed or differs: ' + name)
+            for stream in ('stdout', 'stderr'):
+                data = (directory / (stream + '.bin')).read_bytes()
+                if hashlib.sha256(data).hexdigest() != result[stream + '_sha256']:
+                    raise ValueError('tool resolution/version raw stream differs: ' + name)
+            return (directory / 'stdout.bin').read_text()
+        resolution = Path(run) / (name + '-resolution')
+        if launcher != actual:
+            output = evidence(resolution, [launcher, 'which', name])
+            if output.strip() != actual:
+                raise ValueError('actual tool differs from successful proxy resolution: ' + name)
+        elif tool['launcher_sha256'] != tool['actual_sha256'] or resolution.exists():
+            raise ValueError('direct tool has inconsistent launcher/resolution identity: ' + name)
+        evidence(Path(run) / (name + '-version'), [actual, '-vV'])
+    except (KeyError, TypeError) as error:
+        raise ValueError('missing or malformed tool resolution metadata: ' + name) from error
+    return actual
+
+
+def rust_command_flags(command, *, cargo, mode, target):
+    if command != rust_command(cargo=cargo, mode=mode, target=target):
+        raise ValueError('complete Cargo argv differs from resolved tool/protocol')
+
+
 def inspect_commands(run, manifest):
     """Bind all recorded argv to the original manifest, also after relocation."""
     original = Path(manifest['arguments']['out'])
