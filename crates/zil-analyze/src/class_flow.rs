@@ -1036,10 +1036,18 @@ fn check_with(
     };
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
-    let receiver_region = if f.environment
+    let receiver_region = if f
+        .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        .is_some_and(|d| d.captures.iter().any(super::stored_callables::exclusive_capture))
-    { Some(e.fresh(true, b)?) } else { None };
+        .is_some_and(|d| {
+            d.captures
+                .iter()
+                .any(super::stored_callables::exclusive_capture)
+        }) {
+        Some(e.fresh(true, b)?)
+    } else {
+        None
+    };
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
@@ -1341,10 +1349,12 @@ fn check_with(
                     )?;
                 }
                 InstructionKind::TakeLocal { local }
-                    if matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{..})
-                        || super::stored_callables::exclusive_capture(&f.locals[local.0 as usize].ty)
+                    if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                        || super::stored_callables::exclusive_capture(
+                            &f.locals[local.0 as usize].ty,
+                        )
                         || (b.task_sources()
-                        && !locals[local.0 as usize].task_ports.is_empty())
+                            && !locals[local.0 as usize].task_ports.is_empty())
                         || super::stored_callables::fixed_value(
                             module,
                             &f.locals[local.0 as usize].ty,
@@ -1386,22 +1396,27 @@ fn check_with(
                         let capture = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("actual capture class source is absent"))?;
-                        let mutable_head = f.environment
+                        let mutable_head = f
+                            .environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|d| d.captures.get(*index as usize))
                             .is_some_and(super::stored_callables::exclusive_capture);
                         if mutable_head {
                             array_outer::copy_elements(&mut e, out, capture, outer.as_ref(), b)?;
-                            b.spend(out.classes.len().saturating_add(capture.classes.len()),
-                                "capture reborrow exact pointee classes")?;
+                            b.spend(
+                                out.classes.len().saturating_add(capture.classes.len()),
+                                "capture reborrow exact pointee classes",
+                            )?;
                             if out.classes.len() != capture.classes.len() {
-                                return Err(bad("capture reborrow changes its pointee class domain"));
+                                return Err(bad(
+                                    "capture reborrow changes its pointee class domain",
+                                ));
                             }
-                            if let (Some(head),Some(region))=(out.outer,receiver_region) {
-                                array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;
+                            if let (Some(head), Some(region)) = (out.outer, receiver_region) {
+                                array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
                             }
-                            for (actual,original) in out.classes.iter().zip(&capture.classes) {
-                                e.equal(*actual,*original,b)?;
+                            for (actual, original) in out.classes.iter().zip(&capture.classes) {
+                                e.equal(*actual, *original, b)?;
                             }
                         } else {
                             array_outer::copy(&mut e, out, capture, outer.as_ref(), b)?;

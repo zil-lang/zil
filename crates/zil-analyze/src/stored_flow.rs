@@ -842,7 +842,9 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     out.vacant = s.vacant.clone();
     out.capture_views = s.capture_views.clone();
     out.receiver_loan = s.receiver_loan;
-    if s.receiver_loan.is_some() {fee(b,1)?;}
+    if s.receiver_loan.is_some() {
+        fee(b, 1)?;
+    }
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
@@ -3078,13 +3080,16 @@ fn seed(
                 .external
                 .insert(HoldRoot::Parameter(index as u32), rows);
         }
-        if let Type::Closure(id)=&f.locals[local.0 as usize].ty
+        if let Type::Closure(id) = &f.locals[local.0 as usize].ty
             && !value.environment.is_empty()
-            && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
-            b.stored_slot_updates=true;
-            let rows=copy_permission_rows(&value.environment,b)?;
-            ordered(b,state.external.len(),0)?;
-            state.external.insert(HoldRoot::Parameter(index as u32),rows);
+            && capture_after::has_context(module, &module.closures[id.0 as usize], b)?
+        {
+            b.stored_slot_updates = true;
+            let rows = copy_permission_rows(&value.environment, b)?;
+            ordered(b, state.external.len(), 0)?;
+            state
+                .external
+                .insert(HoldRoot::Parameter(index as u32), rows);
         }
         if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
             if super::stored_callables::resource_payload(payload, b)?)
@@ -3099,7 +3104,10 @@ fn seed(
         .and_then(|id| module.closures.get(id.0 as usize))
         && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
-        if d.captures.iter().any(super::stored_callables::exclusive_capture) {
+        if d.captures
+            .iter()
+            .any(super::stored_callables::exclusive_capture)
+        {
             fee(b, 1)?;
             state.receiver_loan = Some(loans.len());
             loans.push(Loan::default());
@@ -3554,11 +3562,17 @@ fn slot_loan_ids(
                             for (path, mutable) in capture_after::leaves(module, d, b)? {
                                 add(position as u32, &path, mutable, b)?;
                             }
-                        }
-                        else if let Type::Closure(id)=&callee.locals[local.0 as usize].ty
-                            && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
-                            for (path,mutable) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
-                                add(position as u32,&path,mutable,b)?;
+                        } else if let Type::Closure(id) = &callee.locals[local.0 as usize].ty
+                            && capture_after::has_context(
+                                module,
+                                &module.closures[id.0 as usize],
+                                b,
+                            )?
+                        {
+                            for (path, mutable) in
+                                capture_after::leaves(module, &module.closures[id.0 as usize], b)?
+                            {
+                                add(position as u32, &path, mutable, b)?;
                             }
                         }
                     }
@@ -4988,8 +5002,12 @@ fn separate(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if intersects(left, right, b)? {
-        return Err(vec![Diagnostic::error(Phase::Analyze,"E-BORROW-CONFLICT",None,
-            "simultaneously live access overlaps an actual stored target/parent loan")]);
+        return Err(vec![Diagnostic::error(
+            Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            None,
+            "simultaneously live access overlaps an actual stored target/parent loan",
+        )]);
     }
     if may_alias(left, right) {
         let width = target_width(left)
@@ -5909,15 +5927,24 @@ fn windows(
                         access.check(&actual, write, apart, b)?;
                     }
                     InstructionKind::ReadCapture { index }
-                        if f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                        if f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|d| d.captures.get(*index as usize))
                             .is_some_and(super::stored_callables::exclusive_capture) =>
                     {
-                        let actual = state.captures.get(index)
+                        let actual = state
+                            .captures
+                            .get(index)
                             .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
-                        access.check(&actual.pointer,
-                            matches!(i.result.and_then(|v| f.values.get(v.0 as usize)),Some(Type::Address { mutable: true, .. })),
-                            apart, b)?;
+                        access.check(
+                            &actual.pointer,
+                            matches!(
+                                i.result.and_then(|v| f.values.get(v.0 as usize)),
+                                Some(Type::Address { mutable: true, .. })
+                            ),
+                            apart,
+                            b,
+                        )?;
                     }
                     InstructionKind::BorrowCapture { index, mutable } => {
                         let actual = Permission {
@@ -6345,7 +6372,9 @@ fn windows(
             })();
             checked.map_err(|mut errors| {
                 for error in &mut errors {
-                    error.notes.push(format!("actual stored access in {}: {:?}", f.name, i.kind));
+                    error
+                        .notes
+                        .push(format!("actual stored access in {}: {:?}", f.name, i.kind));
                 }
                 errors
             })?;
@@ -6707,15 +6736,24 @@ fn derive_cfg(
                     grounded = false;
                 }
                 let environment = match ty {
-                    Type::Closure(id)=>Some(*id),
-                    Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>Some(*id),_=>None},
-                    _=>None,
+                    Type::Closure(id) => Some(*id),
+                    Type::Address { inner, .. } => match inner.as_ref() {
+                        Type::Closure(id) => Some(*id),
+                        _ => None,
+                    },
+                    _ => None,
                 };
-                if let Some(id)=environment
-                    && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
-                    for (path,_) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
-                        ordered(b,value.environment.len(),path.len())?;
-                        grounded &= value.environment.get(&path).is_some_and(|p|!p.targets.is_empty());
+                if let Some(id) = environment
+                    && capture_after::has_context(module, &module.closures[id.0 as usize], b)?
+                {
+                    for (path, _) in
+                        capture_after::leaves(module, &module.closures[id.0 as usize], b)?
+                    {
+                        ordered(b, value.environment.len(), path.len())?;
+                        grounded &= value
+                            .environment
+                            .get(&path)
+                            .is_some_and(|p| !p.targets.is_empty());
                     }
                 }
                 if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
@@ -6859,12 +6897,23 @@ fn derive_cfg(
                                         .get(&(position as u32, path))
                                         .is_some_and(|row| !row.is_empty());
                                 }
-                            }
-                            else if let Type::Closure(id)=&callee.locals[local.0 as usize].ty
-                                && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
-                                for (path,_) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
-                                    ordered(b,summary.external_after.len(),path.len())?;
-                                    grounded &= summary.external_after.get(&(position as u32,path)).is_some_and(|row|!row.is_empty());
+                            } else if let Type::Closure(id) = &callee.locals[local.0 as usize].ty
+                                && capture_after::has_context(
+                                    module,
+                                    &module.closures[id.0 as usize],
+                                    b,
+                                )?
+                            {
+                                for (path, _) in capture_after::leaves(
+                                    module,
+                                    &module.closures[id.0 as usize],
+                                    b,
+                                )? {
+                                    ordered(b, summary.external_after.len(), path.len())?;
+                                    grounded &= summary
+                                        .external_after
+                                        .get(&(position as u32, path))
+                                        .is_some_and(|row| !row.is_empty());
                                 }
                             }
                         }

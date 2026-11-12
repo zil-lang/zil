@@ -1626,10 +1626,14 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
     Ok(changed)
 }
 
-pub(crate) fn check_contexts(module:&TypedModule,left:&mut usize)->R<()> {
-    spend(left,module.closures.len(),Span::default())?;
+pub(crate) fn check_contexts(module: &TypedModule, left: &mut usize) -> R<()> {
+    spend(left, module.closures.len(), Span::default())?;
     for d in &module.closures {
-        spend(left,d.captures.len(),module.functions[d.function.0 as usize].span)?;
+        spend(
+            left,
+            d.captures.len(),
+            module.functions[d.function.0 as usize].span,
+        )?;
         if d.storage_life.is_none() && d.captures.iter().any(|ty|matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..}))) {
             return Err(unsupported(module.functions[d.function.0 as usize].span,"qualified capture has no completed actual creator class relation"));
         }

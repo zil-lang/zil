@@ -1588,9 +1588,13 @@ pub(super) fn preflight(
             budget.mutable_capture_contexts |= super::stored_callables::mutable_context_capture(ty);
             // Actual capture shape schedules the independent resource ledger;
             // a qualifier wrapper never removes a physical owning ticket.
-            budget.owning_environment_captures |= matches!(super::resources::package_storage(ty),Type::Managed(_)|Type::Package{..}|Type::Closure(_)|Type::OwnedDyn{..});
+            budget.owning_environment_captures |= matches!(
+                super::resources::package_storage(ty),
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+            );
             budget.owning_environment_captures |= matches!(ty, Type::Address { mutable: true, .. });
-            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
                 super::resources::product::admit_owned(module, ty, budget)?;
                 budget.owning_environment_captures = true;
@@ -2037,9 +2041,16 @@ pub(super) fn preflight(
                         .closures
                         .get(id.0 as usize)
                         .ok_or_else(|| bad("returned environment child definition absent"))?;
-                    budget.input(definition.captures.len(), "returned environment actual child edges")?;
-                    if definition.captures.iter().any(super::stored_callables::exclusive_capture) {
-                        budget.stored_borrows=true;
+                    budget.input(
+                        definition.captures.len(),
+                        "returned environment actual child edges",
+                    )?;
+                    if definition
+                        .captures
+                        .iter()
+                        .any(super::stored_callables::exclusive_capture)
+                    {
+                        budget.stored_borrows = true;
                     }
                     for capture in &definition.captures {
                         if let Type::Closure(child) = capture {
