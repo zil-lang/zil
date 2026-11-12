@@ -477,3 +477,13 @@ fn local_borrowed_callback_keeps_owning_input_and_result_types() {
     let role = module.functions.iter().filter_map(|f|f.callable_contract.as_ref()).flat_map(|c|&c.roles).find(|role|role.closure==d.id).unwrap();
     assert_eq!(role.life.as_ref(),Some(scope));
 }
+
+#[test]
+fn static_callable_closed_bound_is_discharged_after_actual_typed_constructors() {
+    let source = "fn make()->impl Fn()->u8{let text=\"abc\";return move()=>text[0]}fn invoke<F:Fn()->u8+ClosedEnvironment>(callback:F)->i32{return i32(callback())}fn main()->i32{return invoke(make())-97}";
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.storage_life.as_ref().unwrap().fixed_binder_count,0);
+    assert_eq!(d.storage_life.as_ref().unwrap().static_bindings.len(),1);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}

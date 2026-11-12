@@ -409,6 +409,7 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
+    pub deferred_closed: BTreeMap<ClosureId, Span>,
     pub returned_life_bounds: BTreeMap<FunctionId, retained::ReturnedLifeBound>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
@@ -519,7 +520,18 @@ impl State {
         true
     }
 
+    pub(super) fn defer_static_closed(&mut self, id: ClosureId, span: Span) -> R<bool> {
+        if !retained::potential_static_closed(&self.pending, id, &mut self.work_left, span)? {
+            return Ok(false);
+        }
+        self.snapshot(self.deferred_closed.len().saturating_add(1), span)?;
+        self.deferred_closed.insert(id, span);
+        Ok(true)
+    }
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
+        if self.defer_static_closed(id, span)? {
+            return Ok(());
+        }
         retained::self_contained(&self.pending, id, &mut self.work_left, span)
     }
     pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
@@ -540,6 +552,7 @@ impl State {
             helper_instances: BTreeMap::new(),
             forward_callers: BTreeSet::new(),
             forward_results: BTreeMap::new(),
+            deferred_closed: BTreeMap::new(),
             returned_life_bounds: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,

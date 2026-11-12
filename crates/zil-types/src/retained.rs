@@ -4,6 +4,8 @@
 use super::*;
 use std::collections::BTreeSet;
 mod local_scopes;
+mod static_closed;
+pub(super) use static_closed::{potential as potential_static_closed, check as check_deferred_closed};
 mod return_life;
 mod source_scope;
 mod sources;
