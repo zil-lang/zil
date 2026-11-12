@@ -1241,7 +1241,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    populate_static_capture_contracts(module, left, limits)?;
+    populate_static_capture_contracts(module, &summaries, left, limits)?;
     if local_scopes::populate(module, left, limits, false)? {
         helper_classes::populate(module, left, limits)?;
     }
@@ -1258,6 +1258,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
 
 fn populate_static_capture_contracts(
     module: &mut TypedModule,
+    summaries: &[Summary],
     left: &mut usize,
     limits: &Limits,
 ) -> R<()> {
@@ -1267,15 +1268,16 @@ fn populate_static_capture_contracts(
             continue;
         };
         let definition = &module.closures[returned.closure.0 as usize];
+        let static_result = matches!(&definition.result,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8));
         if definition.storage_life.is_some()
-            || !local_scopes::closed(
+            || !(static_result || local_scopes::closed(
                 &definition.result,
                 module,
                 left,
                 factory.span,
                 0,
                 limits.max_call_depth,
-            )?
+            )?)
         {
             continue;
         }
@@ -1358,6 +1360,17 @@ fn populate_static_capture_contracts(
             }
             contract.static_bindings.push(position);
         }
+        if complete && static_result {
+            let origins = summaries[definition.function.0 as usize].returned.get(&Vec::new());
+            complete = origins.is_some_and(|origin| {
+                !origin.local && !origin.unknown && !origin.receiver && origin.places.is_empty()
+                    && (origin.static_utf8 || !origin.inputs.is_empty())
+                    && origin.inputs.iter().all(|source| contract.static_bindings.contains(source))
+            });
+            if complete {
+                contract.static_bindings.push(StoragePosition{base:StorageBase::Result,path:Vec::new()});
+            }
+        }
         if complete {
             borrowed_fp::charge_contract(&contract, |work| spend(left, work, factory.span), 2)?;
             changes.insert(definition.id, contract);
@@ -1367,6 +1380,14 @@ fn populate_static_capture_contracts(
         let entry = module.closures[id.0 as usize].function;
         module.closures[id.0 as usize].storage_life = Some(contract.clone());
         module.functions[entry.0 as usize].storage_life = Some(contract.clone());
+        if contract.static_bindings.iter().any(|position|position.base==StorageBase::Result) {
+            let result=&module.closures[id.0 as usize].result;
+            inference::charge_type_snapshot(result,module.functions[entry.0 as usize].span,limits,left,1)?;
+            module.functions[entry.0 as usize].retained_return_sources=Some(vec![StorageSourceBinding{
+                position:StoragePosition{base:StorageBase::Result,path:Vec::new()},
+                sources:vec![StorageSource::Static{leaf:result.clone(),mode:StoredBorrowMode::SharedAddress}],
+            }]);
+        }
         for function in &mut module.functions {
             if let Some(callable) = &mut function.callable_contract {
                 for role in &mut callable.roles {
