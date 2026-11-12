@@ -384,3 +384,177 @@ fn exclusive_context_preserves_mutation_and_the_original_borrow_parent() {
     zil_verify::verify_module(module, candidate, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn retained_exclusive_context_rejects_original_mutable_ssa_writes_in_raw_and_wire() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/exclusive-provider.zil");
+    let (_, module, _, _) = context_candidate(text, "exclusive-near-write");
+    let mut attack = module.clone();
+    let function = attack
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::MakeDynOwned { .. }))
+        })
+        .unwrap();
+    let parameter = function.parameters[0];
+    let address = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind,zil_ir::InstructionKind::Load(local)|zil_ir::InstructionKind::TakeLocal {local} if local==parameter)
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    assert!(matches!(
+        function.values[address.0 as usize],
+        zil_ir::Type::Address { mutable: true, .. }
+    ));
+    let constant = zil_ir::ValueId(function.values.len() as u32);
+    function.values.push(zil_ir::Type::I32);
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::MakeDynOwned { .. }))
+        })
+        .unwrap();
+    let index = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, zil_ir::InstructionKind::MakeDynOwned { .. }))
+        .unwrap()
+        + 1;
+    let span = block.instructions[index - 1].span;
+    block.instructions.splice(
+        index..index,
+        [
+            zil_ir::Instruction {
+                result: Some(constant),
+                kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(0)),
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: zil_ir::InstructionKind::WriteAddress {
+                    address,
+                    value: constant,
+                },
+                span,
+            },
+        ],
+    );
+    let limits = zil_base::Limits::default();
+    let assert_rejected = |input: &zil_ir::TypedModule| {
+        let errors = zil_analyze::analyze(input, &limits)
+            .expect_err("retained child must exclude writes through original mutable SSA");
+        assert!(
+            errors.iter().any(|d| d.code == "E-ANALYZE-IR"
+                && d.message
+                    .contains("exclusive stored SSA value was used after transfer")),
+            "{errors:?}"
+        );
+    };
+    assert_rejected(&attack);
+    let empty = zil_ir::CandidatePlan::empty_for(&attack);
+    let bytes = zil_ir::wire::encode_module_candidate(&attack, &empty, &limits).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_rejected(&decoded);
+}
+
+#[test]
+fn borrowed_exclusive_factory_keeps_a_distinct_retained_lease_after_call() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/exclusive-factory.zil");
+    let (_, module, _, dir) = context_candidate(text, "exclusive-factory-lease");
+    let mut attack = module.clone();
+    let function=attack.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b|&b.instructions).any(|i|
+        matches!(i.kind,zil_ir::InstructionKind::Call{..}) && i.result.is_some_and(|v|
+            matches!(&f.values[v.0 as usize],zil_ir::Type::ErrorUnion{result,..} if matches!(result.as_ref(),zil_ir::Type::OwnedDyn{..}))))).unwrap();
+    let call=function.blocks.iter().flat_map(|b|&b.instructions).find(|i|
+        matches!(i.kind,zil_ir::InstructionKind::Call{..}) && i.result.is_some_and(|v|
+            matches!(&function.values[v.0 as usize],zil_ir::Type::ErrorUnion{result,..} if matches!(result.as_ref(),zil_ir::Type::OwnedDyn{..})))).unwrap();
+    let zil_ir::InstructionKind::Call { arguments, .. } = &call.kind else {
+        unreachable!()
+    };
+    let address = arguments[0];
+    let call_result = call.result;
+    assert!(matches!(
+        function.values[address.0 as usize],
+        zil_ir::Type::Address { mutable: true, .. }
+    ));
+    let constant = zil_ir::ValueId(function.values.len() as u32);
+    function.values.push(zil_ir::Type::I32);
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| b.instructions.iter().any(|i| i.result == call_result))
+        .unwrap();
+    let index = block
+        .instructions
+        .iter()
+        .position(|i| i.result == call_result)
+        .unwrap()
+        + 1;
+    let span = block.instructions[index - 1].span;
+    block.instructions.splice(
+        index..index,
+        [
+            zil_ir::Instruction {
+                result: Some(constant),
+                kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(0)),
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: zil_ir::InstructionKind::WriteAddress {
+                    address,
+                    value: constant,
+                },
+                span,
+            },
+        ],
+    );
+    let limits = zil_base::Limits::default();
+    let raw_bytes = zil_ir::wire::encode_module_candidate(
+        &attack,
+        &zil_ir::CandidatePlan::empty_for(&attack),
+        &limits,
+    )
+    .unwrap();
+    fs::write(
+        dir.join("original-call-argument-write-unverified.wire"),
+        &raw_bytes,
+    )
+    .unwrap();
+    let assert_rejected = |input: &zil_ir::TypedModule| {
+        let outcome = zil_analyze::analyze(input, &limits);
+        if let Ok(candidate) = &outcome {
+            fs::write(
+                dir.join("original-call-argument-write-accepted-by-analyze.wire"),
+                zil_ir::wire::encode_module_candidate(input, candidate, &limits).unwrap(),
+            )
+            .unwrap();
+        }
+        let errors = outcome.expect_err("borrowed helper input must gain a retained child lease");
+        assert!(
+            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+            "{errors:?}"
+        );
+    };
+    assert_rejected(&attack);
+    let bytes = zil_ir::wire::encode_module_candidate(
+        &attack,
+        &zil_ir::CandidatePlan::empty_for(&attack),
+        &limits,
+    )
+    .unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_rejected(&decoded);
+}

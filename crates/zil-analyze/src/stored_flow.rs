@@ -576,7 +576,22 @@ type ActualStoredSlot = (
     StoredBorrowMode,
     Option<(Vec<LifeTypeProjection>, u32)>,
 );
-type SlotLoanIds = BTreeMap<(usize, u32, Path), (usize, bool)>;
+type PhysicalLoanKey = (usize, u32, Path);
+type DynamicLoanKey = (usize, Vec<zil_ir::ContractProjection>, Target);
+#[derive(Default)]
+struct SlotLoanIds {
+    physical: BTreeMap<PhysicalLoanKey, (usize, bool)>,
+    // Opaque dynamic port paths never masquerade as physical field paths.
+    dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
+}
+impl SlotLoanIds {
+    fn new() -> Self { Self::default() }
+    fn len(&self) -> usize { self.physical.len().saturating_add(self.dynamic.len()) }
+    fn get(&self,key:&PhysicalLoanKey)->Option<&(usize,bool)> {self.physical.get(key)}
+    fn insert(&mut self,key:PhysicalLoanKey,value:(usize,bool))->Option<(usize,bool)> {
+        self.physical.insert(key,value)
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
     targets: Targets,
@@ -3763,6 +3778,7 @@ fn slot_loan_ids(
                 }
                 _ => {}
             }
+            dyn_return::sites(module, instruction, &mut ids.dynamic, loans, b)?;
         }
     }
     Ok(ids)
@@ -4393,7 +4409,7 @@ fn transfer(
                 fee(b, path.len())?;
                 environment_leaf(&mut out, path.clone(), &permission, b)?;
             }
-            dyn_return::call(callee, summary, arguments, values, state, &mut out, b)?;
+            dyn_return::call(i, callee, summary, arguments, values, state, &mut out, slot_ids, loans, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {

@@ -2,6 +2,10 @@
 //! Calls substitute the declared upper through actual input permissions.
 use super::*;
 use zil_ir::{ContractProjection, LifeTypeProjection, StorageBinder, StorageLifeContract};
+struct Upper {
+    targets: Vec<Target>,
+    mode: StoredBorrowMode,
+}
 struct Leaf {
     position: StoragePosition,
     ty: Type,
@@ -279,7 +283,7 @@ fn contract(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,
-) -> CompileResult<Option<BTreeMap<Vec<ContractProjection>, Vec<Target>>>> {
+) -> CompileResult<Option<BTreeMap<Vec<ContractProjection>, Upper>>> {
     if !b.dyn_contexts {
         if f.retained_return_sources.is_some() {
             return Err(failure(
@@ -399,7 +403,13 @@ fn contract(
             }
         }
         fee(b, leaf.position.path.len())?;
-        result.insert(leaf.position.path, allowed);
+        result.insert(
+            leaf.position.path,
+            Upper {
+                targets: allowed,
+                mode: leaf.mode,
+            },
+        );
     }
     Ok(Some(result))
 }
@@ -416,7 +426,13 @@ pub(super) fn summarize(
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
     };
-    for (path, sources) in upper {
+    for (
+        path,
+        Upper {
+            targets: sources, ..
+        },
+    ) in upper
+    {
         ordered(b, value.dyn_ports.len(), path.len())?;
         let Some(actual) = value.dyn_ports.get(&path) else {
             // This solver iteration has not established a producer yet.
@@ -461,13 +477,141 @@ pub(super) fn summarize(
     }
     Ok(())
 }
+// Stable sites are allocated from the actual validated output directory. A
+// site allocates no permission until an independently complete Return summary
+// is substituted through the caller's real pre-call inputs.
+fn transports_existing(callee: &TypedFunction, source: &Target) -> bool {
+    let HoldRoot::Parameter(index) = source.base else {
+        return source.base == HoldRoot::Static;
+    };
+    let Some(local) = callee
+        .parameters
+        .get(index as usize)
+        .and_then(|id| callee.locals.get(id.0 as usize))
+    else {
+        return false;
+    };
+    matches!(
+        local.ty,
+        Type::BorrowedStorage { .. }
+            | Type::OwnedDyn { .. }
+            | Type::Package { .. }
+            | Type::Tuple(_)
+    )
+}
+pub(super) fn sites(
+    module: &TypedModule,
+    instruction: &Instruction,
+    sites: &mut BTreeMap<DynamicLoanKey, (usize, bool)>,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b.dyn_contexts {
+        return Ok(());
+    }
+    let InstructionKind::Call { function, .. } = &instruction.kind else {
+        return Ok(());
+    };
+    let callee = module
+        .functions
+        .get(function.0 as usize)
+        .ok_or_else(|| failure("dynamic retained call target absent"))?;
+    if callee.retained_return_sources.is_none() {
+        return Ok(());
+    }
+    let Some(upper) = contract(module, callee, b)? else {
+        return Ok(());
+    };
+    for (path, row) in upper {
+        for source in row.targets {
+            if transports_existing(callee, &source) {
+                continue;
+            }
+            fee(
+                b,
+                path.len()
+                    .saturating_add(target_width(&source))
+                    .saturating_add(3),
+            )?;
+            ordered(
+                b,
+                sites.len(),
+                path.len().saturating_add(target_width(&source)),
+            )?;
+            let id = loans.len();
+            loans.push(Loan::default());
+            let mutable = row.mode == StoredBorrowMode::ExclusiveAddress;
+            b.stored_exclusive_loans |= mutable;
+            if sites
+                .insert(
+                    (
+                        instruction as *const Instruction as usize,
+                        path.clone(),
+                        source,
+                    ),
+                    (id, mutable),
+                )
+                .is_some()
+            {
+                return Err(failure("dynamic retained child site repeated"));
+            }
+        }
+    }
+    Ok(())
+}
+fn retain(
+    instruction: &Instruction,
+    path: &[ContractProjection],
+    source: &Target,
+    permission: &Permission,
+    sites: &SlotLoanIds,
+    loans: &mut [Loan],
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    fee(b, path.len().saturating_add(target_width(source)))?;
+    ordered(
+        b,
+        sites.dynamic.len(),
+        path.len().saturating_add(target_width(source)),
+    )?;
+    let (id, mutable) = sites
+        .dynamic
+        .get(&(
+            instruction as *const Instruction as usize,
+            path.to_vec(),
+            source.clone(),
+        ))
+        .ok_or_else(|| failure("dynamic borrowed result has no stable retained child site"))?;
+    let loan = loans
+        .get_mut(*id)
+        .ok_or_else(|| failure("dynamic retained child exceeds actual loan arena"))?;
+    let mut joined = Permission {
+        targets: std::mem::take(&mut loan.targets),
+        loans: std::mem::take(&mut loan.parents),
+    };
+    union(&mut joined, permission, b)?;
+    joined.loans.remove(id);
+    loan.targets = joined.targets;
+    loan.parents = joined.loans;
+    loan.mutable = *mutable;
+    let mut out = Permission::default();
+    union(&mut out, permission, b)?;
+    out.loans.clear();
+    fee(b, 1)?;
+    out.loans.insert(*id);
+    Ok(out)
+}
+#[allow(clippy::too_many_arguments)]
 pub(super) fn call(
+    instruction: &Instruction,
     callee: &TypedFunction,
     summary: &Facts,
     args: &[ValueId],
     values: &[Value],
     state: &State,
     out: &mut Value,
+    sites: &SlotLoanIds,
+    loans: &mut [Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
     if !b.dyn_contexts || callee.retained_return_sources.is_none() {
@@ -480,11 +624,13 @@ pub(super) fn call(
     for (path, sources) in &summary.declared_dyn_return_upper {
         let mut permission = Permission::default();
         for source in sources {
-            union(
-                &mut permission,
-                &substitute(source, args, values, state, b)?,
-                b,
-            )?;
+            let actual = substitute(source, args, values, state, b)?;
+            let actual = if transports_existing(callee, source) {
+                actual
+            } else {
+                retain(instruction, path, source, &actual, sites, loans, b)?
+            };
+            union(&mut permission, &actual, b)?;
         }
         fee(b, path.len())?;
         out.dyn_ports.insert(path.clone(), permission);
