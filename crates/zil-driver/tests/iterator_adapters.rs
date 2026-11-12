@@ -47,7 +47,9 @@ fn project(source: &str) -> ProjectSources {
     }
 }
 fn typed(source: &str) -> zil_ir::TypedModule {
-    let p = project(source);
+    typed_project(project(source))
+}
+fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
     let asts = p
         .modules
         .iter()
@@ -912,4 +914,33 @@ fn all_original_owning_iterators_reconstruct_default_analysis_candidates() {
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
+fn local_borrowed_callback_with_owning_item_keeps_real_complete_scopes() {
+    let source = "resource R{code:i32}\npackage Item{manages token:R;value:i32}\nfn apply<F:FnMut(&Item)->i32>(callback:&mut F,item:&Item)->i32{return callback(item)}\nfn main()->i32{\n let item=Item{token:R{code:1},value:22}\n var total=0\n var callback=(item:&Item)=>{total+=item.value;return total}\n let result=apply(&mut callback,&item)\n return result-22\n}\n";
+    let typed = typed_project(ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source)],
+        paths: Default::default(),
+    });
+    let closure = typed.closures.iter().find(|d| {
+        d.captures.iter().any(|ty| matches!(ty,
+            zil_ir::Type::Address { mutable: true, inner } if **inner == zil_ir::Type::I32))
+            && d.parameters.iter().any(|ty| matches!(ty,
+                zil_ir::Type::Address { inner, .. } if matches!(inner.as_ref(), zil_ir::Type::Package { .. })))
+    }).expect("real callback with a mutable scalar capture and owning Item argument");
+    let life = closure
+        .storage_life
+        .as_ref()
+        .expect("actual local callback contract");
+    assert_eq!(life.fixed_binder_count, 1);
+    assert_eq!(life.invocation_binder_count, 1);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+        (typed, plan)
+    );
 }

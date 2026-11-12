@@ -998,6 +998,10 @@ fn solve(
 }
 
 pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
+    let local_scopes = local_scopes::populate(module, left, limits, true)?;
+    if local_scopes {
+        helper_classes::populate(module, left, limits)?;
+    }
     // Existing self-contained factories keep their old work profile.
     let active = module.functions.iter().any(|f| {
         f.callable_return_contract
@@ -1138,6 +1142,9 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                         matches!(slot.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription)))
             })
             .collect();
+    }
+    if local_scopes::populate(module, left, limits, false)? {
+        helper_classes::populate(module, left, limits)?;
     }
     loop {
         helper_classes::factory_inputs(module, left)?;
