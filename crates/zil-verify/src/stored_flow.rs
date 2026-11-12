@@ -3376,7 +3376,10 @@ static_dependency: None,
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.replacements || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.replacements
+                || b.ordinary_closed_stores && i.result.is_some_and(|result|
+                    crate::dynamic_store::element(&f.values[result.0 as usize]).is_some())
+                || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
