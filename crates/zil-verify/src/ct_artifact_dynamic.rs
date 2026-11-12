@@ -140,3 +140,133 @@ pub(super) fn check(
     };
     raw.dynamic_catalogue.visit_ct_dynamic(&mut inventory, 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{Fingerprint, ModuleId, NodeId};
+    fn raw() -> CtArtifactProgram {
+        let limits = Limits::default();
+        CtArtifactProgram {
+            schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            target_pointer_width: 64,
+            source_fingerprint: Fingerprint::ZERO,
+            ambient_life_scopes: vec![],
+            dynamic_catalogue: CtDynamicCatalogue::default(),
+            functions: vec![],
+            entry: CtFunctionId(0),
+            constants: vec![],
+            record_schemas: vec![],
+            enum_schemas: vec![],
+            templates: vec![],
+            input_tokens: CtInputTable {
+                invocation_fingerprint: Fingerprint::ZERO,
+                tokens: vec![],
+            },
+            snapshot: CtSnapshotRequest {
+                fingerprint: Fingerprint::ZERO,
+                ready: CtReadyStage::Tokens,
+                target_fingerprint: None,
+                requested_queries: vec![],
+            },
+            budget: CtDeclaredBudget {
+                max_steps: limits.max_ct_steps,
+                max_call_depth: limits.max_call_depth as u32,
+                max_live_cells: limits.max_values as u64,
+                max_temporary_bytes: limits.max_source_bytes as u64,
+                max_generated_nodes: limits.max_nodes as u64,
+                max_instances: limits.max_functions as u64,
+                max_analysis_work: limits.max_analysis_steps as u64,
+            },
+        }
+    }
+    fn fixture() -> CtArtifactProgram {
+        let mut raw = raw();
+        raw.dynamic_catalogue.types = vec![
+            CtDynamicTypeNode::I32,
+            CtDynamicTypeNode::Address {
+                mutable: false,
+                inner: Box::new(CtDynamicTypeId(0)),
+            },
+        ];
+        raw.dynamic_catalogue
+            .function_sources
+            .push(CtFunctionSourceBindings {
+                module: ModuleId(0),
+                source: NodeId(7),
+                retained_return_sources: Some(vec![CtStorageSourceBinding {
+                    position: zil_ir::StoragePosition {
+                        base: zil_ir::StorageBase::Result,
+                        path: vec![],
+                    },
+                    sources: vec![CtStorageSource::Static {
+                        leaf: CtDynamicTypeId(1),
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    }],
+                }]),
+            });
+        raw
+    }
+    #[test]
+    fn ct_dynamic_raw_and_wire_type_edges_fail_closed_independently() {
+        let limits = Limits::default();
+        let good = fixture();
+        // Structural metadata admission only: there is no runtime source permission
+        // or executable/provider authority in these deliberately raw fixtures.
+        for attack in 0..4 {
+            let mut raw = good.clone();
+            match attack {
+                0 => {}
+                1 => {
+                    raw.dynamic_catalogue.types[1] = CtDynamicTypeNode::Address {
+                        mutable: false,
+                        inner: Box::new(CtDynamicTypeId(1)),
+                    }
+                }
+                2 => {
+                    raw.dynamic_catalogue.types[0] = CtDynamicTypeNode::Address {
+                        mutable: false,
+                        inner: Box::new(CtDynamicTypeId(1)),
+                    }
+                }
+                _ => {
+                    let CtStorageSource::Static { leaf, .. } =
+                        &mut raw.dynamic_catalogue.function_sources[0]
+                            .retained_return_sources
+                            .as_mut()
+                            .unwrap()[0]
+                            .sources[0]
+                    else {
+                        unreachable!()
+                    };
+                    *leaf = CtDynamicTypeId(2);
+                }
+            }
+            let bytes = zil_ir::ct_wire::encode_program(&raw, &limits).unwrap();
+            let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+            for candidate in [&raw, &decoded] {
+                let mut meter = CtVerificationMeter::new(u64::MAX);
+                assert_eq!(check(candidate, &limits, &mut meter).is_ok(), attack == 0);
+            }
+        }
+    }
+    #[test]
+    fn ct_dynamic_metadata_exact_work_and_fresh_retry_do_not_cache_permissions() {
+        let limits = Limits::default();
+        let raw = fixture();
+        let mut measure = CtVerificationMeter::new(u64::MAX);
+        check(&raw, &limits, &mut measure).unwrap();
+        let n = measure.spent();
+        for allowance in [n - 1, n] {
+            let mut meter = CtVerificationMeter::new(allowance);
+            let result = check(&raw, &limits, &mut meter);
+            assert_eq!(result.is_ok(), allowance == n);
+            if allowance < n {
+                assert!(check(&raw, &limits, &mut meter).is_err());
+            }
+        }
+        let mut fresh = CtVerificationMeter::new(n);
+        check(&raw, &limits, &mut fresh).unwrap();
+        assert_eq!(fresh.spent(), n);
+    }
+}

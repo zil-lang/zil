@@ -941,3 +941,201 @@ fn borrowed_identity_domains_and_shared_budget_are_checked() {
         Err(WireError::Limit)
     );
 }
+
+#[test]
+fn ct_dynamic_atoms_have_independent_bytes_and_a_real_type_dag_holder() {
+    use crate::{StorageBase, StoragePosition, StoredBorrowMode};
+    let position = StoragePosition {
+        base: StorageBase::Parameter(3),
+        path: vec![],
+    };
+    let atoms = vec![
+        CtStorageSource::Exact(position.clone()),
+        CtStorageSource::PlaceAddress {
+            place: position.clone(),
+            mode: StoredBorrowMode::ExclusiveAddress,
+        },
+        CtStorageSource::OwnedView {
+            head: position.clone(),
+            leaf: CtDynamicTypeId(0),
+            mode: StoredBorrowMode::SharedAddress,
+        },
+        CtStorageSource::ReborrowedLeaf {
+            source: position.clone(),
+            head: position.clone(),
+        },
+        CtStorageSource::Static {
+            leaf: CtDynamicTypeId(0),
+            mode: StoredBorrowMode::ReadOnlyDescription,
+        },
+    ];
+    let raw_position = [0, 3, 0, 0, 0, 0, 0, 0, 0];
+    let mut expected = vec![];
+    expected.push(0);
+    expected.extend(raw_position);
+    expected.push(1);
+    expected.extend(raw_position);
+    expected.push(1);
+    expected.push(2);
+    expected.extend(raw_position);
+    expected.extend([0, 0, 0, 0, 0]);
+    expected.push(3);
+    expected.extend(raw_position);
+    expected.extend(raw_position);
+    expected.extend([4, 0, 0, 0, 0, 2]);
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    for atom in &atoms {
+        atom.encode(&mut encoder).unwrap();
+    }
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    for atom in &atoms {
+        assert_eq!(CtStorageSource::decode(&mut decoder).unwrap(), *atom);
+    }
+    decoder.finish().unwrap();
+    let mut raw = program();
+    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::I32);
+    raw.dynamic_catalogue
+        .function_sources
+        .push(CtFunctionSourceBindings {
+            module: ModuleId(7),
+            source: NodeId(13),
+            retained_return_sources: Some(vec![CtStorageSourceBinding {
+                position,
+                sources: atoms,
+            }]),
+        });
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue.types[0] = CtDynamicTypeNode::U32;
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+}
+#[test]
+fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees() {
+    use crate::{LifeDeclarationId, LifeDeclarationIdentity};
+    let mut raw = program();
+    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::Usize);
+    raw.dynamic_catalogue.declarations.push(CtDynDeclaration {
+        id: LifeDeclarationId {
+            module: ModuleId(2),
+            declaration: NodeId(9),
+            compiler: false,
+        },
+        identity: LifeDeclarationIdentity {
+            package: "actual".into(),
+            module_path: vec!["module".into()],
+            declaration_path: vec!["Trait".into()],
+            generation_path: vec![],
+        },
+        kind: CtDynDeclarationKind::Trait,
+        parameters: vec![
+            CtLifeParameterKind::Type,
+            CtLifeParameterKind::Const(CtDynamicTypeId(0)),
+        ],
+        members: vec![],
+        direct_supertraits: Some(vec![]),
+        requirements: Some(vec![
+            CtDynObligation::TypeEqual {
+                left: CtDynTypePattern::Parameter(0),
+                right: CtDynTypePattern::SelfType,
+            },
+            CtDynObligation::ConstEqual {
+                ty: CtDynTypePattern::Concrete(CtDynamicTypeId(0)),
+                left: CtDynConstPattern::Binary {
+                    op: BinaryOp::Add,
+                    left: Box::new(CtDynConstPattern::Value(Constant::Usize(20))),
+                    right: Box::new(CtDynConstPattern::Value(Constant::Usize(22))),
+                    ty: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(0))),
+                },
+                right: CtDynConstPattern::IntegerLiteral("42".into()),
+            },
+        ]),
+        associated_definitions: Some(vec![]),
+        method_signatures: Some(vec![]),
+        method_definitions: Some(vec![]),
+        self_pattern: None,
+        implemented_trait: None,
+    });
+    let limits = Limits::default();
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    let CtDynObligation::ConstEqual { right, .. } = &mut raw.dynamic_catalogue.declarations[0]
+        .requirements
+        .as_mut()
+        .unwrap()[1]
+    else {
+        unreachable!()
+    };
+    *right = CtDynConstPattern::IntegerLiteral("43".into());
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    let mut pattern = CtDynTypePattern::SelfType;
+    for _ in 0..130 {
+        pattern = CtDynTypePattern::Slice(Box::new(pattern));
+    }
+    raw.dynamic_catalogue.declarations[0].self_pattern = Some(pattern);
+    assert_eq!(encode_program(&raw, &limits), Err(WireError::Limit));
+}
+#[test]
+fn ct_dynamic_wire_work_is_exact_n_minus_one_and_fresh() {
+    let mut raw = program();
+    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::F64);
+    raw.dynamic_catalogue
+        .function_sources
+        .push(CtFunctionSourceBindings {
+            module: ModuleId(0),
+            source: NodeId(1),
+            retained_return_sources: Some(vec![CtStorageSourceBinding {
+                position: crate::StoragePosition {
+                    base: crate::StorageBase::Result,
+                    path: vec![],
+                },
+                sources: vec![CtStorageSource::Static {
+                    leaf: CtDynamicTypeId(0),
+                    mode: crate::StoredBorrowMode::SharedAddress,
+                }],
+            }]),
+        });
+    let limits = Limits::default();
+    let generous = WireBudget::from_limits(&limits);
+    let mut measure = generous;
+    let (bytes, usage) = encode_program_with_usage(&raw, &limits, &mut measure).unwrap();
+    for work in [usage.work - 1, usage.work] {
+        let mut budget = WireBudget { work, ..generous };
+        let result = encode_program_with_usage(&raw, &limits, &mut budget);
+        assert_eq!(result.is_ok(), work == usage.work);
+    }
+    let mut measure = generous;
+    let (_, usage) = decode_program_with_usage(&bytes, &limits, &mut measure).unwrap();
+    let mut low = WireBudget {
+        work: usage.work - 1,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut low),
+        Err(WireError::Limit)
+    );
+    assert!(decode_program_with_usage(&bytes, &limits, &mut low).is_err());
+    let mut exact = WireBudget {
+        work: usage.work,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut exact)
+            .unwrap()
+            .0,
+        raw
+    );
+    let mut fresh = WireBudget {
+        work: usage.work,
+        ..generous
+    };
+    assert_eq!(
+        decode_program_with_usage(&bytes, &limits, &mut fresh)
+            .unwrap()
+            .0,
+        raw
+    );
+}

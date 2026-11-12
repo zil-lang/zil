@@ -24,11 +24,11 @@ pub fn reify_dyn_interface_id<R: CtDynamicReifier>(
     Ok(CtDynInterfaceId {
         module: {
             reifier.node(depth + 1)?;
-            (&value.module).clone()
+            *(&value.module)
         },
         index: {
             reifier.node(depth + 1)?;
-            (&value.index).clone()
+            *(&value.index)
         },
     })
 }
@@ -41,11 +41,11 @@ pub fn reify_dyn_vtable_id<R: CtDynamicReifier>(
     Ok(CtDynVtableId {
         module: {
             reifier.node(depth + 1)?;
-            (&value.module).clone()
+            *(&value.module)
         },
         index: {
             reifier.node(depth + 1)?;
-            (&value.index).clone()
+            *(&value.index)
         },
     })
 }
@@ -223,7 +223,7 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
         }
         DynConstPattern::MethodParameter(field_value_0) => CtDynConstPattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         DynConstPattern::Unary {
             op: field_op,
@@ -232,7 +232,7 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
         } => CtDynConstPattern::Unary {
             op: {
                 reifier.node(depth + 1)?;
-                (field_op).clone()
+                *(field_op)
             },
             value: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
@@ -251,7 +251,7 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
         } => CtDynConstPattern::Binary {
             op: {
                 reifier.node(depth + 1)?;
-                (field_op).clone()
+                *(field_op)
             },
             left: {
                 reifier.rows(1, std::mem::size_of::<CtDynConstPattern>(), depth + 1)?;
@@ -298,7 +298,7 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
             },
             member: {
                 reifier.node(depth + 1)?;
-                (field_member).clone()
+                *(field_member)
             },
         },
         DynConstPattern::Value(field_value_0) => {
@@ -306,7 +306,7 @@ pub fn reify_dyn_const_pattern<R: CtDynamicReifier>(
         }
         DynConstPattern::Parameter(field_value_0) => CtDynConstPattern::Parameter({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
     })
 }
@@ -320,7 +320,7 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
         DynTypePattern::SelfType => CtDynTypePattern::SelfType,
         DynTypePattern::MethodParameter(field_value_0) => CtDynTypePattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         DynTypePattern::AssociatedProjection {
             receiver: field_receiver,
@@ -341,7 +341,7 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
             },
             member: {
                 reifier.node(depth + 1)?;
-                (field_member).clone()
+                *(field_member)
             },
         },
         DynTypePattern::Concrete(field_value_0) => {
@@ -349,7 +349,7 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
         }
         DynTypePattern::Parameter(field_value_0) => CtDynTypePattern::Parameter({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         DynTypePattern::Nominal(field_value_0) => CtDynTypePattern::Nominal({
             reifier.rows(1, std::mem::size_of::<CtDynSelfPattern>(), depth + 1)?;
@@ -362,7 +362,7 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
         } => CtDynTypePattern::Address {
             mutable: {
                 reifier.node(depth + 1)?;
-                (field_mutable).clone()
+                *(field_mutable)
             },
             lifetime: match field_lifetime {
                 Some(item) => Some(reify_dyn_life_pattern(item, reifier, depth + 1)?),
@@ -489,7 +489,7 @@ pub fn reify_dyn_generic_actual<R: CtDynamicReifier>(
         }
         DynGenericActual::Life(field_value_0) => CtDynGenericActual::Life({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
     })
 }
@@ -525,7 +525,7 @@ pub fn reify_dyn_member<R: CtDynamicReifier>(
         application: reify_dyn_trait_application(&value.application, reifier, depth + 1)?,
         ordinal: {
             reifier.node(depth + 1)?;
-            (&value.ordinal).clone()
+            *(&value.ordinal)
         },
     })
 }
@@ -549,7 +549,7 @@ pub fn reify_dyn_associated_type<R: CtDynamicReifier>(
             for item in &value.classes {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -577,11 +577,11 @@ pub fn reify_dyn_receiver<R: CtDynamicReifier>(
     Ok(CtDynReceiver {
         mutable: {
             reifier.node(depth + 1)?;
-            (&value.mutable).clone()
+            *(&value.mutable)
         },
         mode: {
             reifier.node(depth + 1)?;
-            (&value.mode).clone()
+            *(&value.mode)
         },
     })
 }
@@ -628,7 +628,7 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
             for item in &value.parameter_modes {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -636,11 +636,11 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
         result: reify_type_value(&value.result, reifier, depth + 1)?,
         result_mode: {
             reifier.node(depth + 1)?;
-            (&value.result_mode).clone()
+            *(&value.result_mode)
         },
         call_kind: {
             reifier.node(depth + 1)?;
-            (&value.call_kind).clone()
+            *(&value.call_kind)
         },
         storage_life: match &value.storage_life {
             Some(item) => Some(reify_storage_life_contract(item, reifier, depth + 1)?),
@@ -726,15 +726,15 @@ pub fn reify_core_dyn_entry<R: CtDynamicReifier>(
     Ok(CtCoreDynEntry {
         slot: {
             reifier.node(depth + 1)?;
-            (&value.slot).clone()
+            *(&value.slot)
         },
         module: {
             reifier.node(depth + 1)?;
-            (&value.module).clone()
+            *(&value.module)
         },
         function: {
             reifier.node(depth + 1)?;
-            (&value.function).clone()
+            *(&value.function)
         },
     })
 }
@@ -747,11 +747,11 @@ pub fn reify_dyn_entry<R: CtDynamicReifier>(
     Ok(CtDynEntry {
         slot: {
             reifier.node(depth + 1)?;
-            (&value.slot).clone()
+            *(&value.slot)
         },
         function: {
             reifier.node(depth + 1)?;
-            (&value.function).clone()
+            *(&value.function)
         },
     })
 }
@@ -764,7 +764,7 @@ pub fn reify_dyn_retained_port_binding<R: CtDynamicReifier>(
     Ok(CtDynRetainedPortBinding {
         port: {
             reifier.node(depth + 1)?;
-            (&value.port).clone()
+            *(&value.port)
         },
         sources: {
             reifier.rows(
@@ -816,7 +816,7 @@ pub fn reify_core_dyn_vtable<R: CtDynamicReifier>(
             for item in &value.self_classes {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -907,7 +907,7 @@ pub fn reify_dyn_vtable<R: CtDynamicReifier>(
             for item in &value.self_classes {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -1001,7 +1001,7 @@ pub fn reify_dyn_requirement<R: CtDynamicReifier>(
             ty: reify_type_value(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (field_variant).clone()
+                *(field_variant)
             },
         },
     })
@@ -1026,7 +1026,7 @@ pub fn reify_dyn_guarantee<R: CtDynamicReifier>(
             ty: reify_type_value(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (field_variant).clone()
+                *(field_variant)
             },
         },
     })
@@ -1115,7 +1115,7 @@ pub fn reify_dyn_result_source<R: CtDynamicReifier>(
             },
             mutable: {
                 reifier.node(depth + 1)?;
-                (field_mutable).clone()
+                *(field_mutable)
             },
         },
     })
@@ -1129,7 +1129,7 @@ pub fn reify_dyn_cleanup_contract<R: CtDynamicReifier>(
     Ok(CtDynCleanupContract {
         environment: {
             reifier.node(depth + 1)?;
-            (&value.environment).clone()
+            *(&value.environment)
         },
         positions: {
             reifier.rows(
@@ -1178,11 +1178,11 @@ pub fn reify_dyn_thread_requirements<R: CtDynamicReifier>(
     Ok(CtDynThreadRequirements {
         transfer: {
             reifier.node(depth + 1)?;
-            (&value.transfer).clone()
+            *(&value.transfer)
         },
         share: {
             reifier.node(depth + 1)?;
-            (&value.share).clone()
+            *(&value.share)
         },
     })
 }
@@ -1290,7 +1290,7 @@ pub fn reify_dyn_type_value<R: CtDynamicReifier>(
             for item in &value.classes {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -1307,12 +1307,12 @@ pub fn reify_dyn_life_pattern<R: CtDynamicReifier>(
         DynLifePattern::DeclarationParameter(field_value_0) => {
             CtDynLifePattern::DeclarationParameter({
                 reifier.node(depth + 1)?;
-                (field_value_0).clone()
+                *(field_value_0)
             })
         }
         DynLifePattern::MethodParameter(field_value_0) => CtDynLifePattern::MethodParameter({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         DynLifePattern::Bound {
             depth: field_depth,
@@ -1320,16 +1320,16 @@ pub fn reify_dyn_life_pattern<R: CtDynamicReifier>(
         } => CtDynLifePattern::Bound {
             depth: {
                 reifier.node(depth + 1)?;
-                (field_depth).clone()
+                *(field_depth)
             },
             index: {
                 reifier.node(depth + 1)?;
-                (field_index).clone()
+                *(field_index)
             },
         },
         DynLifePattern::Invocation(field_value_0) => CtDynLifePattern::Invocation({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
     })
 }
@@ -1363,11 +1363,11 @@ pub fn reify_dyn_obligation<R: CtDynamicReifier>(
             receiver: reify_dyn_type_pattern(field_receiver, reifier, depth + 1)?,
             kind: {
                 reifier.node(depth + 1)?;
-                (field_kind).clone()
+                *(field_kind)
             },
             quantified_lifetimes: {
                 reifier.node(depth + 1)?;
-                (field_quantified_lifetimes).clone()
+                *(field_quantified_lifetimes)
             },
             signature: {
                 reifier.rows(1, std::mem::size_of::<CtDynSignatureRecipe>(), depth + 1)?;
@@ -1406,7 +1406,7 @@ pub fn reify_dyn_parameter_recipe<R: CtDynamicReifier>(
         ty: reify_dyn_type_pattern(&value.ty, reifier, depth + 1)?,
         mode: {
             reifier.node(depth + 1)?;
-            (&value.mode).clone()
+            *(&value.mode)
         },
     })
 }
@@ -1432,15 +1432,15 @@ pub fn reify_dyn_signature_recipe<R: CtDynamicReifier>(
         result: reify_dyn_type_pattern(&value.result, reifier, depth + 1)?,
         result_mode: {
             reifier.node(depth + 1)?;
-            (&value.result_mode).clone()
+            *(&value.result_mode)
         },
         call_kind: {
             reifier.node(depth + 1)?;
-            (&value.call_kind).clone()
+            *(&value.call_kind)
         },
         invocation_binder_count: {
             reifier.node(depth + 1)?;
-            (&value.invocation_binder_count).clone()
+            *(&value.invocation_binder_count)
         },
         contract: reify_dyn_contract_recipe(&value.contract, reifier, depth + 1)?,
     })
@@ -1474,7 +1474,7 @@ pub fn reify_dyn_requirement_recipe<R: CtDynamicReifier>(
             ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (field_variant).clone()
+                *(field_variant)
             },
         },
     })
@@ -1499,7 +1499,7 @@ pub fn reify_dyn_guarantee_recipe<R: CtDynamicReifier>(
             ty: reify_dyn_type_pattern(field_ty, reifier, depth + 1)?,
             variant: {
                 reifier.node(depth + 1)?;
-                (field_variant).clone()
+                *(field_variant)
             },
         },
     })
@@ -1536,7 +1536,7 @@ pub fn reify_dyn_cleanup_recipe<R: CtDynamicReifier>(
     Ok(CtDynCleanupRecipe {
         environment: {
             reifier.node(depth + 1)?;
-            (&value.environment).clone()
+            *(&value.environment)
         },
         positions: {
             reifier.rows(
@@ -1663,11 +1663,11 @@ pub fn reify_dyn_definition_id<R: CtDynamicReifier>(
     Ok(CtDynDefinitionId {
         module: {
             reifier.node(depth + 1)?;
-            (&value.module).clone()
+            *(&value.module)
         },
         source: {
             reifier.node(depth + 1)?;
-            (&value.source).clone()
+            *(&value.source)
         },
     })
 }
@@ -1721,7 +1721,7 @@ pub fn reify_dyn_definition_declaration<R: CtDynamicReifier>(
         identity: reify_life_declaration_identity(&value.identity, reifier, depth + 1)?,
         member: {
             reifier.node(depth + 1)?;
-            (&value.member).clone()
+            *(&value.member)
         },
         scope: reify_dyn_definition_scope(&value.scope, reifier, depth + 1)?,
         signature: reify_dyn_signature_recipe(&value.signature, reifier, depth + 1)?,
@@ -1748,7 +1748,7 @@ pub fn reify_dyn_method_recipe<R: CtDynamicReifier>(
         },
         member: {
             reifier.node(depth + 1)?;
-            (&value.member).clone()
+            *(&value.member)
         },
         signature: reify_dyn_signature_recipe(&value.signature, reifier, depth + 1)?,
         default_definition: match &value.default_definition {
@@ -1824,7 +1824,7 @@ pub fn reify_dyn_associated_definition<R: CtDynamicReifier>(
         },
         member: {
             reifier.node(depth + 1)?;
-            (&value.member).clone()
+            *(&value.member)
         },
         value: match &value.value {
             Some(item) => Some(reify_dyn_associated_value_recipe(item, reifier, depth + 1)?),
@@ -1858,7 +1858,7 @@ pub fn reify_dyn_associated_source<R: CtDynamicReifier>(
             declaration: reify_life_declaration_id(field_declaration, reifier, depth + 1)?,
             member: {
                 reifier.node(depth + 1)?;
-                (field_member).clone()
+                *(field_member)
             },
         },
         DynAssociatedSource::ImplOverride {
@@ -1868,7 +1868,7 @@ pub fn reify_dyn_associated_source<R: CtDynamicReifier>(
             declaration: reify_life_declaration_id(field_declaration, reifier, depth + 1)?,
             member: {
                 reifier.node(depth + 1)?;
-                (field_member).clone()
+                *(field_member)
             },
         },
     })
@@ -1953,16 +1953,16 @@ pub fn reify_dyn_function_target<R: CtDynamicReifier>(
         } => CtDynFunctionTarget::Core {
             module: {
                 reifier.node(depth + 1)?;
-                (field_module).clone()
+                *(field_module)
             },
             source: {
                 reifier.node(depth + 1)?;
-                (field_source).clone()
+                *(field_source)
             },
         },
         DynFunctionTarget::Typed(field_value_0) => CtDynFunctionTarget::Typed({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
     })
 }
@@ -2031,7 +2031,7 @@ pub fn reify_storage_source<R: CtDynamicReifier>(
             place: reify_storage_position(field_place, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (field_mode).clone()
+                *(field_mode)
             },
         },
         StorageSource::OwnedView {
@@ -2043,7 +2043,7 @@ pub fn reify_storage_source<R: CtDynamicReifier>(
             leaf: reify_type_value(field_leaf, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (field_mode).clone()
+                *(field_mode)
             },
         },
         StorageSource::ReborrowedLeaf {
@@ -2060,7 +2060,7 @@ pub fn reify_storage_source<R: CtDynamicReifier>(
             leaf: reify_type_value(field_leaf, reifier, depth + 1)?,
             mode: {
                 reifier.node(depth + 1)?;
-                (field_mode).clone()
+                *(field_mode)
             },
         },
     })
@@ -2075,11 +2075,11 @@ pub fn reify_retained_borrow_port<R: CtDynamicReifier>(
         leaf: reify_type_value(&value.leaf, reifier, depth + 1)?,
         mode: {
             reifier.node(depth + 1)?;
-            (&value.mode).clone()
+            *(&value.mode)
         },
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
     })
 }
@@ -2092,7 +2092,7 @@ pub fn reify_retained_life_shape<R: CtDynamicReifier>(
     Ok(CtRetainedLifeShape {
         binder_count: {
             reifier.node(depth + 1)?;
-            (&value.binder_count).clone()
+            *(&value.binder_count)
         },
         ports: {
             reifier.rows(
@@ -2227,7 +2227,7 @@ pub fn reify_life_nominal_actual<R: CtDynamicReifier>(
         }
         LifeNominalActual::Lifetime(field_value_0) => CtLifeNominalActual::Lifetime({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
     })
 }
@@ -2307,7 +2307,7 @@ pub fn reify_type<R: CtDynamicReifier>(
         Type::ForeignHandle => CtDynamicTypeNode::ForeignHandle,
         Type::SyncCell(field_value_0) => CtDynamicTypeNode::SyncCell({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         Type::Mutex {
             payload: field_payload,
@@ -2398,7 +2398,7 @@ pub fn reify_type<R: CtDynamicReifier>(
             },
             length: {
                 reifier.node(depth + 1)?;
-                (field_length).clone()
+                *(field_length)
             },
         },
         Type::Slice {
@@ -2502,7 +2502,7 @@ pub fn reify_type<R: CtDynamicReifier>(
         } => CtDynamicTypeNode::Address {
             mutable: {
                 reifier.node(depth + 1)?;
-                (field_mutable).clone()
+                *(field_mutable)
             },
             inner: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
@@ -2563,7 +2563,7 @@ pub fn reify_type<R: CtDynamicReifier>(
         },
         Type::Closure(field_value_0) => CtDynamicTypeNode::Closure({
             reifier.node(depth + 1)?;
-            (field_value_0).clone()
+            *(field_value_0)
         }),
         Type::Opaque {
             identity: field_identity,
@@ -2571,7 +2571,7 @@ pub fn reify_type<R: CtDynamicReifier>(
         } => CtDynamicTypeNode::Opaque {
             identity: {
                 reifier.node(depth + 1)?;
-                (field_identity).clone()
+                *(field_identity)
             },
             hidden: {
                 reifier.rows(1, std::mem::size_of::<CtDynamicTypeId>(), depth + 1)?;
@@ -2600,18 +2600,18 @@ pub fn reify_storage_life_slot<R: CtDynamicReifier>(
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
         },
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
         mode: {
             reifier.node(depth + 1)?;
-            (&value.mode).clone()
+            *(&value.mode)
         },
     })
 }
@@ -2624,15 +2624,15 @@ pub fn reify_life_declaration_id<R: CtDynamicReifier>(
     Ok(LifeDeclarationId {
         module: {
             reifier.node(depth + 1)?;
-            (&value.module).clone()
+            *(&value.module)
         },
         declaration: {
             reifier.node(depth + 1)?;
-            (&value.declaration).clone()
+            *(&value.declaration)
         },
         compiler: {
             reifier.node(depth + 1)?;
-            (&value.compiler).clone()
+            *(&value.compiler)
         },
     })
 }
@@ -2653,18 +2653,18 @@ pub fn reify_storage_retained_binding<R: CtDynamicReifier>(
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
         },
         class: {
             reifier.node(depth + 1)?;
-            (&value.class).clone()
+            *(&value.class)
         },
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
     })
 }
@@ -2685,7 +2685,7 @@ pub fn reify_nominal_life_argument<R: CtDynamicReifier>(
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -2693,11 +2693,11 @@ pub fn reify_nominal_life_argument<R: CtDynamicReifier>(
         declaration: reify_life_declaration_id(&value.declaration, reifier, depth + 1)?,
         argument: {
             reifier.node(depth + 1)?;
-            (&value.argument).clone()
+            *(&value.argument)
         },
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
     })
 }
@@ -2710,7 +2710,7 @@ pub fn reify_storage_life_shape<R: CtDynamicReifier>(
     Ok(StorageLifeShape {
         binder_count: {
             reifier.node(depth + 1)?;
-            (&value.binder_count).clone()
+            *(&value.binder_count)
         },
         slots: {
             reifier.rows(
@@ -2759,7 +2759,7 @@ pub fn reify_storage_position<R: CtDynamicReifier>(
     Ok(StoragePosition {
         base: {
             reifier.node(depth + 1)?;
-            (&value.base).clone()
+            *(&value.base)
         },
         path: {
             reifier.rows(
@@ -2771,7 +2771,7 @@ pub fn reify_storage_position<R: CtDynamicReifier>(
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
@@ -2788,7 +2788,7 @@ pub fn reify_storage_life_binding<R: CtDynamicReifier>(
         position: reify_storage_position(&value.position, reifier, depth + 1)?,
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
     })
 }
@@ -2801,7 +2801,7 @@ pub fn reify_signature_life_class<R: CtDynamicReifier>(
     Ok(SignatureLifeClass {
         base: {
             reifier.node(depth + 1)?;
-            (&value.base).clone()
+            *(&value.base)
         },
         path: {
             reifier.rows(
@@ -2813,14 +2813,14 @@ pub fn reify_signature_life_class<R: CtDynamicReifier>(
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output
         },
         class: {
             reifier.node(depth + 1)?;
-            (&value.class).clone()
+            *(&value.class)
         },
     })
 }
@@ -2834,7 +2834,7 @@ pub fn reify_signature_life_class_binding<R: CtDynamicReifier>(
         position: reify_signature_life_class(&value.position, reifier, depth + 1)?,
         binder: {
             reifier.node(depth + 1)?;
-            (&value.binder).clone()
+            *(&value.binder)
         },
     })
 }
@@ -2847,11 +2847,11 @@ pub fn reify_storage_life_contract<R: CtDynamicReifier>(
     Ok(StorageLifeContract {
         fixed_binder_count: {
             reifier.node(depth + 1)?;
-            (&value.fixed_binder_count).clone()
+            *(&value.fixed_binder_count)
         },
         invocation_binder_count: {
             reifier.node(depth + 1)?;
-            (&value.invocation_binder_count).clone()
+            *(&value.invocation_binder_count)
         },
         bindings: {
             reifier.rows(
@@ -2925,7 +2925,7 @@ pub fn reify_life_declaration_identity<R: CtDynamicReifier>(
             for item in &value.generation_path {
                 output.push({
                     reifier.node(depth + 1)?;
-                    (item).clone()
+                    *(item)
                 });
             }
             output

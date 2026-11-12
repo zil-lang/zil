@@ -141,6 +141,7 @@ pub trait CtDynamicMetadata {
     fn visit_ct_dynamic<V:CtDynamicVisitor>(&self, visitor:&mut V, depth:usize)->Result<(),V::Error>;
 }
 '''
+copy_leaves={'u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
 def walk(t,e):
  if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+e+').as_ref()')
  if t.startswith('('):
@@ -153,6 +154,7 @@ def walk(t,e):
  if t=='CtDynamicTypeId':return f'visitor.type_reference(*{e},depth+1)?;\n'
  if t=='String':return f'visitor.text({e},depth+1)?;\n'
  if t=='Constant':return f'visitor.constant({e},depth+1)?;\n'
+ if t not in copy_leaves:raise ValueError('unvisited CT metadata leaf: '+t)
  return f'let _={e}; visitor.node(depth+1)?;\n'
 for n,(kind,rows) in visit_items.items():
  visitor+=f'impl CtDynamicMetadata for {n} {{ fn visit_ct_dynamic<V:CtDynamicVisitor>(&self,visitor:&mut V,depth:usize)->Result<(),V::Error>{{ visitor.node(depth)?;\n'
@@ -194,7 +196,8 @@ def expr(t,e):
  if t=='String':return 'reifier.text('+e+',depth+1)?'
  if t=='Constant':return 'reifier.constant('+e+',depth+1)?'
  if t in converters:return method(t)+'('+e+',reifier,depth+1)?'
- return '{ reifier.node(depth+1)?; ('+e+').clone() }'
+ if t not in copy_leaves:raise ValueError('unreified CT metadata leaf: '+t)
+ return '{ reifier.node(depth+1)?; *('+e+') }'
 for name,(kind,rows) in converters.items():
  result=names.get(name,name)
  convert+=f'pub fn {method(name)}<R:CtDynamicReifier>(value:&{name},reifier:&mut R,depth:usize)->Result<{result},R::Error>{{ reifier.node(depth)?;\n'
