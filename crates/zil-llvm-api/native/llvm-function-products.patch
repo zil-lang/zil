@@ -305,14 +305,15 @@
 @@ -18,0 +19,2 @@
 +#include <climits>
 +#include "llvm/ADT/DenseSet.h"
-@@ -935,0 +938,27 @@
+@@ -935,0 +938,28 @@
 +  // Restore a sealed resident product's original numbering, including holes.
 +  // Current MBB owners/layout and current MMI FunctionNumber are retained.
 +  bool zilRestoreProductBlockNumbers(unsigned Capacity, unsigned Next,
 +      unsigned Epoch, ArrayRef<unsigned> Numbers,
 +      ArrayRef<unsigned> AnalysisNumbers) {
 +    if (Numbers.size() != size() || AnalysisNumbers.size() != size() ||
-+        Capacity > (64 * 1024 * 1024) / sizeof(MachineBasicBlock *)) return false;
++        Capacity > (64 * 1024 * 1024) / sizeof(MachineBasicBlock *) ||
++        Next > (64 * 1024 * 1024) / sizeof(MachineBasicBlock *)) return false;
 +    DenseSet<unsigned> IDs, AnalysisIDs;
 +    for (unsigned I = 0; I != Numbers.size(); ++I)
 +      if (Numbers[I] >= Capacity || Numbers[I] > unsigned(INT_MAX) ||
