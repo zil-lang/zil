@@ -339,6 +339,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             crate::dynamic_metadata::ty(context, budget)?;
         }
         crate::dynamic_cleanup::metadata(module, item.owning_cleanup.as_ref(), budget)?;
+        crate::dynamic_metadata::retained_shape(&item.retained_life, budget)?;
+        crate::dynamic_context::validate(module, item, budget)?;
         budget.spend(
             item.slots
                 .len()
