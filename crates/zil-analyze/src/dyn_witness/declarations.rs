@@ -8,6 +8,7 @@ struct Scope<'a> {
     method: &'a [LifeParameterKind],
     quantified: Vec<u32>,
     invocation: u32,
+    implicit: usize,
     self_type: bool,
 }
 impl Scope<'_> {
@@ -50,6 +51,10 @@ impl Scope<'_> {
                     ))
                 }
             }
+            DynLifePattern::ImplicitDeclaration(i) if (*i as usize) < self.implicit => Ok(()),
+            DynLifePattern::ImplicitDeclaration(_) => Err(fail(
+                "implicit declaration lifetime has no original occurrence table row",
+            )),
             DynLifePattern::Invocation(i) if *i < self.invocation => Ok(()),
             DynLifePattern::Invocation(_) => Err(fail(
                 "recipe invocation lifetime is outside its method domain",
@@ -206,6 +211,13 @@ impl<'a> Walk<'a, '_> {
                         scope.life(lifetime)?;
                         self.add(Work::Type(inner, scope, depth + 1))?;
                     }
+                    DynTypePattern::Desc { lifetime, inner } => {
+                        let lifetime = lifetime
+                            .as_ref()
+                            .ok_or_else(|| fail("description recipe outer domain is Unknown"))?;
+                        scope.life(lifetime)?;
+                        self.add(Work::Type(inner, scope, depth + 1))?;
+                    }
                     DynTypePattern::Tuple(fields) => {
                         self.b.spend(
                             fields
@@ -223,7 +235,6 @@ impl<'a> Walk<'a, '_> {
                     }
                     DynTypePattern::Slice(inner)
                     | DynTypePattern::Managed(inner)
-                    | DynTypePattern::Desc(inner)
                     | DynTypePattern::OwnedStore(inner) => {
                         self.add(Work::Type(inner, scope, depth + 1))?
                     }
@@ -420,6 +431,11 @@ pub(super) fn validate(
         method: &[],
         quantified: vec![],
         invocation: 0,
+        implicit: declaration
+            .implicit_lifetimes
+            .as_ref()
+            .ok_or_else(|| fail("original implicit lifetime occurrence table is Unknown"))?
+            .len(),
         self_type: true,
     };
     let mut walk = Walk {

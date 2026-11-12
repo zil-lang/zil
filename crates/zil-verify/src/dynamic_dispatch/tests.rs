@@ -7,6 +7,7 @@ fn span() -> Span {
 
 fn declaration(id: u32, name: &str, kind: DynDeclarationKind) -> DynDeclaration {
     DynDeclaration {
+        implicit_lifetimes: None,
         direct_supertraits: None,
         requirements: None,
         associated_definitions: None,

@@ -397,7 +397,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
-        if declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()
@@ -1410,6 +1410,7 @@ mod tests {
         TypedModule {
             dyn_declarations: vec![
                 DynDeclaration {
+                    implicit_lifetimes: None,
                     direct_supertraits: None,
                     requirements: None,
                     associated_definitions: None,
@@ -1427,6 +1428,7 @@ mod tests {
                     }],
                 },
                 DynDeclaration {
+                    implicit_lifetimes: None,
                     direct_supertraits: None,
                     requirements: None,
                     associated_definitions: None,
