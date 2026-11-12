@@ -183,3 +183,65 @@ fn actual_context_factory_unknown_empty_wrong_root_and_duplicate_sources_reject_
         );
     }
 }
+
+#[test]
+fn erased_owner_arm_extraction_cannot_release_dependencies_without_an_actual_tag_guard() {
+    let limits = Limits::default();
+    let (mut module, mut plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("../../tests/fixtures/dyn-context/context-factory.candidate.wire"),
+        &limits,
+    )
+    .unwrap();
+    let f = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "start")
+        .unwrap();
+    let conditions = f
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            if let Terminator::Branch { condition, .. } = block.terminator {
+                Some(condition)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(conditions.len(), 2);
+    for (index, condition) in conditions.iter().enumerate() {
+        let test = f
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| i.result == Some(*condition))
+            .unwrap();
+        assert!(matches!(
+            test.kind,
+            InstructionKind::Binary {
+                op: BinaryOp::Equal,
+                ..
+            }
+        ));
+        // Skip the wildcard error case and select the owning success case,
+        // without retaining either actual tag comparison.
+        test.kind = InstructionKind::Constant(Constant::Bool(index == 1));
+    }
+    plan.module_fingerprint = module.fingerprint();
+    let target = module.target.clone();
+    for wire in [false, true] {
+        let (module, plan) = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+        } else {
+            (module.clone(), plan.clone())
+        };
+        let result = crate::verify_module(module, plan, &target, &limits);
+        assert!(result.is_err(), "unguarded owning extraction was accepted");
+        let failure = result.err().unwrap();
+        assert!(
+            failure.iter().any(|d| d.code == "E-VERIFY-SUM"),
+            "{failure:?}"
+        );
+    }
+}

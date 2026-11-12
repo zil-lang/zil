@@ -932,7 +932,11 @@ pub(super) fn transfer(
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
             out.dyn_ports = projected(&state.locals[local.0 as usize].dyn_ports, &prefix, b)?;
-            remove(&mut state.locals[local.0 as usize].dyn_ports, &prefix, b)?;
+            // The independent Sum proof requires the current actual tag guard
+            // before this exact canonical arm can be extracted. The selected
+            // owner moves out, or the proved error arm contains no owner. An
+            // inactive success row must not keep borrowing its old inputs.
+            state.locals[local.0 as usize].dyn_ports = Rows::default();
         }
         InstructionKind::DropErrorUnion { local } if wrapper(module, f, instruction, b)? => {
             state.locals[local.0 as usize].dyn_ports = Rows::default();

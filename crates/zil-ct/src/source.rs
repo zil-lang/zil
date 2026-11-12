@@ -3381,6 +3381,7 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            self_pattern: None,
             id: declaration,
             identity: LifeDeclarationIdentity {
                 package: "transport".into(),
@@ -3445,6 +3446,7 @@ mod tests {
                 name: "Provider".into(),
                 fields: vec![],
             },
+            self_classes: Vec::new(),
             implementation: declaration,
             actuals: vec![],
             ports: vec![],

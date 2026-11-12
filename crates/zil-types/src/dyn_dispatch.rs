@@ -618,6 +618,7 @@ fn inventory_in_modules(
             id: table.id,
             interface: table.interface,
             self_type,
+            self_classes: table.self_classes.clone(),
             implementation: table.implementation,
             actuals: table.actuals.clone(),
             ports: Vec::new(),

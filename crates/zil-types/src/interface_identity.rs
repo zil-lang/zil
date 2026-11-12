@@ -649,6 +649,8 @@ mod tests {
                 generation_path: Vec::new(),
             };
             let original = DynDeclaration {
+                self_pattern: None,
+            implemented_trait: None,
                 id: declaration,
                 identity,
                 kind: DynDeclarationKind::Trait,

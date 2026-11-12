@@ -921,6 +921,7 @@ impl Catalog {
                 },
                 interface: self.interface_id(table.interface, budget, span)?,
                 self_type: lower_type(&table.self_type, budget)?,
+                self_classes: Vec::new(),
                 implementation: declaration_id(table.implementation, origins, budget, span)?,
                 actuals: Vec::new(),
                 ports: Vec::new(),
@@ -1419,6 +1420,8 @@ impl Catalog {
                 }
             }
             result.push(DynDeclaration {
+                self_pattern: None,
+            implemented_trait: None,
                 id: declaration_id(declaration.origin, origins, budget, span)?,
                 identity: identity.clone(),
                 kind: declaration.kind,
