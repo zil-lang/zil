@@ -1,0 +1,245 @@
+{
+  "schema": "incremental-demand-independent-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author_scope": "Reviewer authored pipeline-audit.md only; did not edit production compiler or measurement helper code.",
+  "candidate_source": "e91d16480d5e31c620d2b776245973c24329840f",
+  "candidate_tree": "3d4932012a34b28e66126fd75dba2edd0711c4d4",
+  "goal_workflow_source": "ee7fcd1a229799f1146c4dbdee822d6c9f8ff269",
+  "verdict": {
+    "production": "Accept for the explicitly bounded research continuation; no semantic or authority blocker found.",
+    "measurement_tools": "Accept exact amended tool blobs below for the matched sequential measurement protocol. No benchmark result acceptance is implied.",
+    "performance": "Not evaluated; no matched benchmark or full native measurement outcome is accepted by this receipt."
+  },
+  "production_files_sha256": {
+    "crates/zil-ir/src/wire.rs": "9c9c7c0ae131311b9af8c2429c3f74d2a4d0115d5a7ae9952d72731fdfafcc83",
+    "crates/zil-ir/src/wire/function_encoding_tests.rs": "0029943a6fd7313cdc87d939ab8a0fa96e45f2f84a6da341d974ac4f1b4332b8",
+    "crates/zil-types/src/incremental.rs": "5f139e25c9d6bb5f2142674d6fc44c3fcb1609f0e38620057423409b7f6d114d",
+    "crates/zil-driver/src/lib.rs": "569d4cff7c2db2ba88a31e9d6c447251b5d296d6299735ea2e36032d9273886b",
+    "crates/zil-driver/src/project.rs": "f05e25eae4e6f94f0978dbaaac3bca874f1b878e8e016f8ec4ffe91f6517fcdc",
+    "crates/zil-driver/src/semantic_cache.rs": "a76e07f5f551d61ce3acf0457cbe5cc0adad5ff4b850e959e749f87a3f4bb95a"
+  },
+  "tool_files_sha256_at_source_freeze": {
+    "tools/research/incremental-demand/matched_measure.py": "c9e3f8892b8b8895696cad81f0b5cd6952d154797072165c9bc58cafe397781b",
+    "tools/research/incremental-demand/matched_validate.py": "7aa559d62d2911d51991e06ec073e74b71b6acb23e445926f1185409f9e46926",
+    "tools/research/incremental-demand/test_matched_tools.py": "2dfc663fdfdb7b9ee3e183ffa1fbdeb79b188122c3680195ccd1afb80baccf28"
+  },
+  "source_review": [
+    "Entry is private and immutable; its OnceLock fragment is bound to the same raw TypedFunction and retained through Arc ownership. New/decoded entries start with empty slots. No cached Verified object is introduced.",
+    "Warm replay requires the complete Limits value to match, remaining cumulative node quota to fit and remaining wire bytes to fit. Otherwise the original function traversal runs, preserving first-failure diagnostics. Module, candidate and outer ZILFUN01 formats and limits remain unchanged.",
+    "FunctionSession clone/checkpoint share Arc<Mutex<()>> around complete encoding, closing simultaneous same-map retained-byte snapshot/admission races. Mutex poisoning recovers the guard; OnceLock only contains completed successful function fragments.",
+    "Whole cache publication borrows Entry functions instead of deep-cloning them into a temporary module; warm immutable fragments skip function encoding traversal. It still builds complete output buffers, copies wire bytes, hashes and writes/fsyncs full payloads.",
+    "Driver publication still follows successful finish_typed and rechecks cancellation, artifact aliases and directory admission. Optional cache failure cannot turn successful compilation into failure. Current independent Verify is unchanged.",
+    "function_cache_encoding is an opt-in final-attempt encoding-work counter. CompileReport starts it at None; restart constructs a new report. It is not a successful disk publication or Verify receipt.",
+    "Legacy byte equivalence, changed limits, exact/short node and byte quotas, partial function publication, edit/checkpoint/failed epoch/restore and shared eight-thread serialization tests have substantive assertions."
+  ],
+  "memory_limit": {
+    "accepted_boundary": "Current epoch admission subtracts bytes already retained by its selected slots, and each immutable Entry retains at most one fragment under one Limits value.",
+    "not_established": "A strict max_source_bytes bound across all live checkpoints, epochs or session history; leak freedom or a measured memory improvement.",
+    "counterexample": "An old checkpoint shares an unfilled Entry slot with a later epoch; after the later epoch drops other entries and fills this shared slot, the old checkpoint retained sum may exceed its earlier admission cap.",
+    "mitigation_and_scope": "No unbounded internal history container was added. Driver keeps a checkpoint for its current transaction; arbitrary public snapshots retain their data. Root explicitly accepted this limit and declined a larger lifetime-budget registry. Source comments and pipeline audit disclose it.",
+    "wire_execution_limits": "Strict current cumulative wire bytes/nodes remain enforced independently."
+  },
+  "measurement_review": [
+    "Six blocks, eight named-parent requests and three arms are sequential. Resident send-to-response and full Cargo process timings are explicitly different boundaries; startup/native execution/object inventory occur outside request timing.",
+    "Actual main source is pinned to 99035931d358add0eaed6d4535035c38413701dd. Compiler source identity rejects modified and untracked production paths; build receipts bind source/tree/binary hash/success/command. Compiler/tool/helper hashes are checked before and after.",
+    "Fixed workload is 20 modules x20 functions x16 steps; O2 requests use CGU16/jobs1 on each arm. Actual unit objects and symbol inventories are retained; requested CGU count does not establish partition equivalence.",
+    "Rust finalized-session selection uses unique new completed session relative to immediately prior inventory, or preserves prior current session when no new one appears. Historical objects are separate; ambiguity fails. This matches official pinned rustc GC retaining current and an older finalized session.",
+    "Exact error diagnostics, current Zil Verify counts, source/interface consistency and native output oracles are checked. Equal bytes alone are not counted as physical carry-forward or proof of skipped codegen.",
+    "Cargo profile/config/environment controls and verbose command evidence are retained. Unstable checksum freshness is not silently enabled. Root-only memory samples do not support cross-language process-tree memory comparisons.",
+    "No isolated attribution of main-to-candidate wall differences to this serialization slice is supported: those arms compare the complete research branch with main."
+  ],
+  "validation": [
+    {
+      "path": "out/runs/onboarding-continuation/workspace-lib.log",
+      "sha256": "98ff8b8dc7e333dde010c1b01f6d0e9912e05316652b6ec965c2ba17e5d2b4de",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--lib"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": 1660,
+      "failed_observed": 0,
+      "note": null
+    },
+    {
+      "path": "out/runs/onboarding-continuation/ir-types.log",
+      "sha256": "219225b717697677b19fdaf62d5ecf1669cf71d1b58c972cf7f36c6fe14c0bf5",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-ir",
+        "-p",
+        "zil-types"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": 167,
+      "failed_observed": 0,
+      "note": "Counts overlap other suites; do not sum."
+    },
+    {
+      "path": "out/runs/onboarding-continuation/cross-function-borrows.log",
+      "sha256": "9ca53ca9ff36b72a8e7a7f8660233d277615843b2b9ccd22354d2127e66576aa",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cross_function_borrows"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": 119,
+      "failed_observed": 0,
+      "note": null
+    },
+    {
+      "path": "out/runs/onboarding-continuation/cli.log",
+      "sha256": "1eae2da45269514b8089e472ca571c958e92ae7aefca5b148caab7d1dc357ccd",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-cli"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": 24,
+      "failed_observed": 0,
+      "note": null
+    },
+    {
+      "path": "out/runs/onboarding-continuation/clippy.log",
+      "sha256": "4d9c3b0e9b8edaef230d21387942289455c0d8811105a461420e3a980908c7f9",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": null,
+      "failed_observed": null,
+      "note": null
+    },
+    {
+      "path": "out/runs/onboarding-continuation/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executor": "root",
+      "argv_reported_by_executor": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "reported_exit_code": 0,
+      "reviewer_checked_log": true,
+      "passed_observed": null,
+      "failed_observed": null,
+      "note": null
+    }
+  ],
+  "rust_reference_evidence": {
+    "path": "out/runs/onboarding-continuation/rust-reference/manifest.json",
+    "sha256": "2d78399c8050cd63f55c38e74919225d5d38baefe9376f926fa0d698891ea15f",
+    "artifacts": 15,
+    "all_manifest_hashes_rechecked": true,
+    "rust_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo_commit": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "finding": "Pinned rustc supports value red-green but also full-crate mono partitioning, affected-CGU recompilation and substantial green-value promotion/re-serialization; no changed-function-only or zero-persistence idealization."
+  },
+  "resolved_during_review": [
+    "Initial driver JSON format placeholder mismatch corrected before freeze.",
+    "Concurrent same-map cache admission race closed with shared publication lock.",
+    "Untracked compiler file provenance omission corrected in helper.",
+    "Build-receipt source/binary linkage added.",
+    "Rust all-session object count corrected to current-session selection with historical artifacts separate.",
+    "Removed unconditional final executable deletion; checked failed-request publication stability and successful same-artifact main/candidate quality gate in both runner and validator."
+  ],
+  "pending_tool_correction": null,
+  "unmeasured_or_not_accepted": [
+    "Candidate release build was still in progress when this receipt was drafted.",
+    "No newly completed matched check/O2 measurement is accepted here.",
+    "No broad workspace integration/native-language acceptance beyond listed root logs.",
+    "No memory-leak, global retained-byte bound, Rust parity, general end-to-end demand propagation or default-enable/main-merge acceptance."
+  ],
+  "amended_tool_review": {
+    "base_commit": "e91d16480d5e31c620d2b776245973c24329840f",
+    "status_at_review": "Uncommitted tool-only correction on the frozen production source; exact blob content pinned below.",
+    "sha256": {
+      "tools/research/incremental-demand/matched_measure.py": "c9e3f8892b8b8895696cad81f0b5cd6952d154797072165c9bc58cafe397781b",
+      "tools/research/incremental-demand/matched_validate.py": "7aa559d62d2911d51991e06ec073e74b71b6acb23e445926f1185409f9e46926",
+      "tools/research/incremental-demand/test_matched_tools.py": "2dfc663fdfdb7b9ee3e183ffa1fbdeb79b188122c3680195ccd1afb80baccf28"
+    },
+    "git_blob_ids": {
+      "tools/research/incremental-demand/matched_measure.py": "28fb2f35bdd7ed882ac90860a15961cd0dee0108",
+      "tools/research/incremental-demand/matched_validate.py": "5b21636ad5b8065de0da40174f7e349f94a9b92a",
+      "tools/research/incremental-demand/test_matched_tools.py": "eb8aa444cd96b172e75332b6d24c9a6e01cef980"
+    },
+    "correction": "Unconditional output deletion removed. Final exe/known LLVM publication before and after error requests must match existence, bytes, SHA, mtime, inode and device. Successful main/candidate pairs must have equal executable and diagnostic LLVM bytes; mismatch retains raw failure evidence."
+  },
+  "reviewer_executed_on_frozen_source": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tools/research/incremental-demand",
+      "-p",
+      "test_matched_tools.py",
+      "-v"
+    ],
+    "path": "out/runs/onboarding-continuation/reviewer-helper-tests.log",
+    "sha256": "6f3ce82aad2c0c0dc1919c5a1079d36077500876596d813fd6bdb1894a07cb02",
+    "exit_code": 0,
+    "passed": 7,
+    "failed": 0,
+    "note": "Independently rerun on frozen e91 source. No heavy compiler build or benchmark launched by reviewer."
+  },
+  "reviewer_executed_on_amended_tools": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tools/research/incremental-demand",
+      "-p",
+      "test_matched_tools.py",
+      "-v"
+    ],
+    "path": "out/runs/onboarding-continuation/reviewer-helper-tests-r2.log",
+    "sha256": "b9aecfb424c101a6ef40235d051cfff1cc478f15803ea04a76130c5d3bd12645",
+    "exit_code": 0,
+    "passed": 8,
+    "failed": 0,
+    "note": "Independent rerun after inspecting exact tool-only diff, while root owned the single heavy release build window."
+  }
+}

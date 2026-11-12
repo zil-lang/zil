@@ -1,3 +1,5 @@
+> This checkout now contains a completed continuation slice. Read `.task/point-to-point-continuation.md` and `tools/research/incremental-demand/continuation-results.md` first. The prior handoff below remains historical provenance.
+
 # Point-to-point compilation continuation
 
 User requests a new Codex Cloud chat to implement this continuation. Stop old-chat measurement work.

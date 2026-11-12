@@ -68,14 +68,47 @@ class EvidenceTests(unittest.TestCase):
         cache.mkdir()
         key='12'*32
         data=b'object payload'
-        header=b'ZILOBJ01'+bytes.fromhex(key)+b'x'*32+len(data).to_bytes(8,'little')
-        (cache/(key+'.zobj')).write_bytes(header+data)
+        header=b'ZILOBJ01'+bytes.fromhex(key)+bytes.fromhex(rc.sha(data))+len(data).to_bytes(8,'little')
+        namespace=cache/'objects-v1'/('ab'*32)
+        namespace.mkdir(parents=True)
+        (namespace/(key+'.zobj')).write_bytes(header+data)
         (cache/'old-unrelated.zobj').write_bytes(b'old object')
         report={'native_codegen':{'actual_units':1,'object_reports':[{'cache':{'action_key':key,'state':'hit'}}]}}
         result=mm.zil_inventory(self.args,report,cache)
         self.assertEqual(result['object_count'],1)
+        self.assertEqual(result['namespace'],'ab'*32)
         self.assertEqual(result['objects'][0]['object']['sha256'],rc.sha(data))
         self.assertEqual((self.out/result['objects'][0]['object']['archive']).read_bytes(),data)
+
+    def test_zil_rejects_ambiguous_namespace_and_corrupt_container(self):
+        cache=self.root/'cache'
+        namespace=cache/'objects-v1'/('ab'*32)
+        namespace.mkdir(parents=True)
+        key='12'*32
+        data=b'object payload'
+        header=b'ZILOBJ01'+bytes.fromhex(key)+bytes.fromhex(rc.sha(data))+len(data).to_bytes(8,'little')
+        path=namespace/(key+'.zobj')
+        path.write_bytes(header+data)
+        report={'native_codegen':{'actual_units':1,'object_reports':[{'cache':{'action_key':key,'state':'hit'}}]}}
+        other=cache/'objects-v1'/('cd'*32)
+        other.mkdir()
+        with self.assertRaisesRegex(ValueError,'exactly one namespace'):
+            mm.zil_inventory(self.args,report,cache)
+        other.rmdir()
+        path.write_bytes(header+b'corrupt object')
+        with self.assertRaisesRegex(ValueError,'header/key/payload checksum/length'):
+            mm.zil_inventory(self.args,report,cache)
+
+    def test_zil_rejects_symlinked_namespace(self):
+        cache=self.root/'cache'
+        schema=cache/'objects-v1'
+        schema.mkdir(parents=True)
+        outside=self.root/'outside'
+        outside.mkdir()
+        (schema/('ab'*32)).symlink_to(outside,target_is_directory=True)
+        report={'native_codegen':{'actual_units':1,'object_reports':[{'cache':{'action_key':'12'*32,'state':'hit'}}]}}
+        with self.assertRaisesRegex(ValueError,'unsafe Zil object cache namespace'):
+            mm.zil_inventory(self.args,report,cache)
 
     def test_precise_zil_error_rejects_wrong_source_and_offset(self):
         source=self.root/'source'
@@ -88,6 +121,17 @@ class EvidenceTests(unittest.TestCase):
         report['diagnostics'][0]['span']['start']=7
         report['source_files']['1']=str(source/'m1.zil')
         self.assertFalse(mm.zil_error(report,source,files))
+
+    def test_final_publication_detects_creation_and_overwrite(self):
+        program=self.root/'program'
+        absent=mm.publication_state([program])
+        program.write_bytes(b'old executable')
+        present=mm.publication_state([program])
+        self.assertNotEqual(absent,present)
+        self.assertEqual(present,mm.publication_state([program]))
+        program.write_bytes(b'changed executable')
+        self.assertNotEqual(present,mm.publication_state([program]))
+        self.assertTrue(program.exists())
 
     def test_check_has_no_fabricated_codegen_inventory(self):
         self.args.mode='check'

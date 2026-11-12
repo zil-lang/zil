@@ -1,0 +1,3299 @@
+{
+  "schema": "incremental-demand-continuation-v1",
+  "date": "2026-11-12",
+  "status": "Research slice implemented; matched measurements complete; general point-to-point pipeline remains open",
+  "identity": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "predecessor": "468702058d02e382b69e446266fdad4a64b530d4",
+    "compiler_source": "e91d16480d5e31c620d2b776245973c24329840f",
+    "branch": "research/incremental-demand-continuation",
+    "rustc": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "llvm_zil": "23.1.4",
+    "llvm_rust": "23.1.1",
+    "cpu_quota": 4,
+    "memory_gib": 32
+  },
+  "comparisons": {
+    "check": {
+      "run": "continuation-matched-check-r1",
+      "window_utc": [
+        "2026-11-12T02:13:40Z",
+        "2026-11-12T02:15:05Z"
+      ],
+      "summary": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 8,
+        "cells": {
+          "cold": {
+            "baseline": {
+              "wall_ms": [
+                871.80596,
+                648.668013,
+                898.751888,
+                648.577395,
+                671.551451,
+                739.183703
+              ],
+              "median_ms": 705.367577,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                1094.466415,
+                620.861986,
+                604.89209,
+                608.244072,
+                534.879427,
+                1053.726464
+              ],
+              "median_ms": 614.5530289999999,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                962.69798,
+                1266.29341,
+                942.199925,
+                1182.088482,
+                1254.223826,
+                1201.634218
+              ],
+              "median_ms": 1191.8613500000001,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "unchanged": {
+            "baseline": {
+              "wall_ms": [
+                105.986142,
+                95.201999,
+                94.67441,
+                89.429536,
+                95.068309,
+                97.711153
+              ],
+              "median_ms": 95.135154,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                90.782761,
+                346.292706,
+                88.03018,
+                84.135605,
+                82.248483,
+                89.903354
+              ],
+              "median_ms": 88.966767,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                12.477663,
+                19.013261,
+                12.327328,
+                10.888261,
+                19.832909,
+                12.729301
+              ],
+              "median_ms": 12.603482,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "private": {
+            "baseline": {
+              "wall_ms": [
+                552.470773,
+                497.987361,
+                487.788588,
+                561.586061,
+                563.288584,
+                478.133841
+              ],
+              "median_ms": 525.229067,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                224.81388,
+                214.468709,
+                503.749124,
+                202.709857,
+                212.006608,
+                230.646054
+              ],
+              "median_ms": 219.64129450000001,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                257.91264,
+                186.079853,
+                180.521751,
+                180.347167,
+                177.306566,
+                182.560938
+              ],
+              "median_ms": 181.54134449999998,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "multi": {
+            "baseline": {
+              "wall_ms": [
+                835.478998,
+                782.072451,
+                552.76133,
+                487.797538,
+                818.899482,
+                505.154491
+              ],
+              "median_ms": 667.4168905,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                253.115568,
+                234.999224,
+                219.593924,
+                210.33991,
+                224.731882,
+                293.522924
+              ],
+              "median_ms": 229.865553,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                365.281458,
+                176.04971,
+                232.071288,
+                181.031169,
+                183.247456,
+                181.271905
+              ],
+              "median_ms": 182.2596805,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "broad": {
+            "baseline": {
+              "wall_ms": [
+                1020.636293,
+                972.581691,
+                798.045249,
+                695.371854,
+                585.917441,
+                979.90628
+              ],
+              "median_ms": 885.31347,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                930.828393,
+                624.872515,
+                706.188191,
+                589.787999,
+                601.748449,
+                811.154344
+              ],
+              "median_ms": 665.530353,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                1358.07912,
+                873.370814,
+                1044.254965,
+                1027.720739,
+                1037.379995,
+                1027.397479
+              ],
+              "median_ms": 1032.550367,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "restore": {
+            "baseline": {
+              "wall_ms": [
+                116.538898,
+                100.493215,
+                97.948672,
+                123.112663,
+                94.367362,
+                87.905952
+              ],
+              "median_ms": 99.2209435,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                130.885565,
+                86.504114,
+                84.627723,
+                96.576751,
+                85.585508,
+                96.325198
+              ],
+              "median_ms": 91.41465600000001,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                241.950028,
+                173.581769,
+                253.042739,
+                393.435595,
+                203.854798,
+                190.481538
+              ],
+              "median_ms": 222.902413,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "error": {
+            "baseline": {
+              "wall_ms": [
+                593.733793,
+                489.013646,
+                381.65781,
+                374.04842,
+                473.020691,
+                422.570837
+              ],
+              "median_ms": 447.79576399999996,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                501.348044,
+                327.173622,
+                280.388139,
+                322.104757,
+                434.634386,
+                281.230048
+              ],
+              "median_ms": 324.63918950000004,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                291.614598,
+                172.810893,
+                194.148469,
+                209.959299,
+                179.149431,
+                184.72275
+              ],
+              "median_ms": 189.4356095,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          "recovery": {
+            "baseline": {
+              "wall_ms": [
+                746.939179,
+                776.086337,
+                642.507919,
+                763.529165,
+                906.674266,
+                867.932773
+              ],
+              "median_ms": 769.807751,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                374.291163,
+                409.931668,
+                292.515554,
+                301.517356,
+                407.796793,
+                362.715557
+              ],
+              "median_ms": 368.50336,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                185.612291,
+                319.468291,
+                190.391534,
+                201.673612,
+                249.65453,
+                193.941867
+              ],
+              "median_ms": 197.8077395,
+              "actual_object_counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        }
+      },
+      "paired_main_contrasts": {
+        "cold": {
+          "candidate_over_main_paired_geomean": 0.9753868830597232,
+          "candidate_faster_pairs": 4,
+          "paired_mean_saved_ms": -6.42200733333334
+        },
+        "unchanged": {
+          "candidate_over_main_paired_geomean": 1.1377902688288641,
+          "candidate_faster_pairs": 5,
+          "paired_mean_saved_ms": -33.886923333333336
+        },
+        "private": {
+          "candidate_over_main_paired_geomean": 0.47755046618925445,
+          "candidate_faster_pairs": 5,
+          "paired_mean_saved_ms": 258.81016266666666
+        },
+        "multi": {
+          "candidate_over_main_paired_geomean": 0.36807520920989645,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 424.31014300000004
+        },
+        "broad": {
+          "candidate_over_main_paired_geomean": 0.8487677495185729,
+          "candidate_faster_pairs": 5,
+          "paired_mean_saved_ms": 131.31315283333333
+        },
+        "restore": {
+          "candidate_over_main_paired_geomean": 0.931002428488211,
+          "candidate_faster_pairs": 4,
+          "paired_mean_saved_ms": 6.643650499999997
+        },
+        "error": {
+          "candidate_over_main_paired_geomean": 0.776117781749167,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 97.86103349999998
+        },
+        "recovery": {
+          "candidate_over_main_paired_geomean": 0.4556093104374307,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 425.81692466666664
+        }
+      },
+      "unit_observations": [],
+      "manifest_sha256": "90c550fc0548338a20394a2c6f6480451530913209a55b149cf63a0abe9e84cc"
+    },
+    "o2": {
+      "run": "continuation-matched-o2-r2",
+      "window_utc": [
+        "2026-11-12T02:20:17Z",
+        "2026-11-12T02:26:47Z"
+      ],
+      "summary": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 352,
+        "cells": {
+          "cold": {
+            "baseline": {
+              "wall_ms": [
+                5900.139721,
+                7908.798969,
+                5393.842802,
+                5163.438916,
+                5507.784702,
+                5110.316776
+              ],
+              "median_ms": 5450.813752,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                5700.958885,
+                7777.737008,
+                5246.462748,
+                5221.17584,
+                5128.07613,
+                5095.880944
+              ],
+              "median_ms": 5233.819294,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                5696.312867,
+                7267.644734,
+                5260.023055,
+                5636.835155,
+                6659.211067,
+                6127.146477
+              ],
+              "median_ms": 5911.7296719999995,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "unchanged": {
+            "baseline": {
+              "wall_ms": [
+                481.538443,
+                496.681929,
+                485.631279,
+                505.620502,
+                494.050094,
+                490.834618
+              ],
+              "median_ms": 492.442356,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                578.450567,
+                823.542982,
+                512.306929,
+                492.735768,
+                462.23845,
+                701.511152
+              ],
+              "median_ms": 545.378748,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                12.337724,
+                14.403289,
+                12.629601,
+                12.917604,
+                12.463487,
+                13.754489
+              ],
+              "median_ms": 12.773602499999999,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "private": {
+            "baseline": {
+              "wall_ms": [
+                1491.172779,
+                1496.632248,
+                1713.650129,
+                1424.272387,
+                1382.406199,
+                1286.626708
+              ],
+              "median_ms": 1457.722583,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                1301.701606,
+                1156.077851,
+                1062.605346,
+                1296.535647,
+                999.708165,
+                991.776459
+              ],
+              "median_ms": 1109.3415985000001,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                543.763619,
+                610.928797,
+                427.956681,
+                898.210682,
+                564.804283,
+                584.41726
+              ],
+              "median_ms": 574.6107715,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "multi": {
+            "baseline": {
+              "wall_ms": [
+                1698.067917,
+                1551.311024,
+                1697.947726,
+                1589.574475,
+                1695.928547,
+                1577.031115
+              ],
+              "median_ms": 1642.751511,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                1253.70697,
+                1289.102604,
+                1447.704342,
+                1413.565008,
+                1219.08057,
+                1298.309424
+              ],
+              "median_ms": 1293.7060139999999,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                1035.429822,
+                940.852753,
+                1016.851292,
+                1145.695086,
+                990.190387,
+                999.632507
+              ],
+              "median_ms": 1008.2418995,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "broad": {
+            "baseline": {
+              "wall_ms": [
+                4612.827046,
+                5554.054131,
+                5002.088967,
+                5215.07055,
+                4923.734487,
+                5126.815135
+              ],
+              "median_ms": 5064.452051,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                5272.969866,
+                5058.955833,
+                5639.685983,
+                5043.118263,
+                4878.873984,
+                5132.796208
+              ],
+              "median_ms": 5095.8760205,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                5400.616041,
+                5439.9489,
+                5562.251407,
+                5743.07586,
+                5588.958129,
+                5607.434995
+              ],
+              "median_ms": 5575.604767999999,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "restore": {
+            "baseline": {
+              "wall_ms": [
+                492.576623,
+                626.77038,
+                567.863737,
+                492.036823,
+                746.35887,
+                478.243564
+              ],
+              "median_ms": 530.22018,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                470.455552,
+                518.008748,
+                482.522969,
+                509.876608,
+                524.980277,
+                477.651587
+              ],
+              "median_ms": 496.19978849999995,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                385.012724,
+                461.607095,
+                442.137122,
+                425.361646,
+                466.689554,
+                470.731072
+              ],
+              "median_ms": 451.87210849999997,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "error": {
+            "baseline": {
+              "wall_ms": [
+                323.180799,
+                330.369497,
+                307.1559,
+                320.738198,
+                371.236626,
+                314.19069
+              ],
+              "median_ms": 321.9594985,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                257.357067,
+                294.563057,
+                289.613722,
+                272.966472,
+                289.417789,
+                279.073192
+              ],
+              "median_ms": 284.2454905,
+              "actual_object_counts": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                220.547772,
+                170.717511,
+                193.281109,
+                237.830407,
+                267.621714,
+                323.63874
+              ],
+              "median_ms": 229.18908950000002,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          },
+          "recovery": {
+            "baseline": {
+              "wall_ms": [
+                2501.059267,
+                1556.389245,
+                1536.450464,
+                1534.849095,
+                1492.237397,
+                1724.531212
+              ],
+              "median_ms": 1546.4198545,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "candidate": {
+              "wall_ms": [
+                1182.046274,
+                1028.285894,
+                1261.182871,
+                1327.606266,
+                1212.048798,
+                1351.729163
+              ],
+              "median_ms": 1236.6158345,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            },
+            "rust": {
+              "wall_ms": [
+                407.296018,
+                552.489734,
+                507.892471,
+                528.250087,
+                524.59316,
+                486.920337
+              ],
+              "median_ms": 516.2428155,
+              "actual_object_counts": [
+                16,
+                16,
+                16,
+                16,
+                16,
+                16
+              ]
+            }
+          }
+        }
+      },
+      "paired_main_contrasts": {
+        "cold": {
+          "candidate_over_main_paired_geomean": 0.9766279422644647,
+          "candidate_faster_pairs": 5,
+          "paired_mean_saved_ms": 135.67172183333318
+        },
+        "unchanged": {
+          "candidate_over_main_paired_geomean": 1.1827921796070073,
+          "candidate_faster_pairs": 2,
+          "paired_mean_saved_ms": -102.73816383333335
+        },
+        "private": {
+          "candidate_over_main_paired_geomean": 0.7722938626001719,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 331.0592293333333
+        },
+        "multi": {
+          "candidate_over_main_paired_geomean": 0.8065484804348904,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 314.731981
+        },
+        "broad": {
+          "candidate_over_main_paired_geomean": 1.020004572902509,
+          "candidate_faster_pairs": 3,
+          "paired_mean_saved_ms": -98.63497016666679
+        },
+        "restore": {
+          "candidate_over_main_paired_geomean": 0.8873848803647859,
+          "candidate_faster_pairs": 5,
+          "paired_mean_saved_ms": 70.05904266666668
+        },
+        "error": {
+          "candidate_over_main_paired_geomean": 0.8564088868444915,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 47.31340183333333
+        },
+        "recovery": {
+          "candidate_over_main_paired_geomean": 0.7215697956824694,
+          "candidate_faster_pairs": 6,
+          "paired_mean_saved_ms": 497.10290233333336
+        }
+      },
+      "unit_observations": [
+        {
+          "block": 0,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 48144896,
+            "lookup_ns": 705408,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 50753587,
+            "lookup_ns": 576957,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 0,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 0,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 43079400,
+            "lookup_ns": 1038818,
+            "current_preflight_ns": 85595863,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 46476989,
+            "lookup_ns": 998814,
+            "current_preflight_ns": 83768540,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 43595843,
+            "lookup_ns": 1265549,
+            "current_preflight_ns": 85082170,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 0,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 44028150,
+            "lookup_ns": 3076686,
+            "current_preflight_ns": 77359741,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 49400130,
+            "lookup_ns": 1174680,
+            "current_preflight_ns": 82083010,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 0,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 46057789,
+            "lookup_ns": 1021821,
+            "current_preflight_ns": 80818712,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 0,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 49638158,
+            "lookup_ns": 866309,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 50252235,
+            "lookup_ns": 1257547,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 41023024,
+            "lookup_ns": 1021830,
+            "current_preflight_ns": 79220640,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 42444877,
+            "lookup_ns": 947061,
+            "current_preflight_ns": 81001672,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 0,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 0,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 44283665,
+            "lookup_ns": 1196353,
+            "current_preflight_ns": 73243039,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 0,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 90097093,
+            "lookup_ns": 2547882,
+            "current_preflight_ns": 78723959,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 1,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 158891787,
+            "lookup_ns": 1593883,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 206423787,
+            "lookup_ns": 5845384,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 42098121,
+            "lookup_ns": 1727222,
+            "current_preflight_ns": 78730383,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 1,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 43883802,
+            "lookup_ns": 986266,
+            "current_preflight_ns": 83449377,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 59540077,
+            "lookup_ns": 1609111,
+            "current_preflight_ns": 75173591,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 1,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 48051259,
+            "lookup_ns": 1532067,
+            "current_preflight_ns": 81502121,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 1,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 47714695,
+            "lookup_ns": 1033581,
+            "current_preflight_ns": 65262942,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 44886385,
+            "lookup_ns": 1046377,
+            "current_preflight_ns": 76832867,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 81405998,
+            "lookup_ns": 1908851,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 46568766,
+            "lookup_ns": 660370,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 1,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 42101834,
+            "lookup_ns": 1194592,
+            "current_preflight_ns": 86135601,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 47266214,
+            "lookup_ns": 1474512,
+            "current_preflight_ns": 92116068,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 1,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 42954421,
+            "lookup_ns": 982743,
+            "current_preflight_ns": 71320731,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 1,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 1,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 40453810,
+            "lookup_ns": 852650,
+            "current_preflight_ns": 68763489,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 116883243,
+            "lookup_ns": 1038768,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 2,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 122425276,
+            "lookup_ns": 1979540,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 43516193,
+            "lookup_ns": 1154311,
+            "current_preflight_ns": 83594166,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 2,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 46328294,
+            "lookup_ns": 1339088,
+            "current_preflight_ns": 92521643,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 2,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 43920840,
+            "lookup_ns": 1614099,
+            "current_preflight_ns": 88508874,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 44577144,
+            "lookup_ns": 981791,
+            "current_preflight_ns": 78651635,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 43483904,
+            "lookup_ns": 1163806,
+            "current_preflight_ns": 76429707,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 53397685,
+            "lookup_ns": 1727783,
+            "current_preflight_ns": 85154179,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 2,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 46812367,
+            "lookup_ns": 658358,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 64720030,
+            "lookup_ns": 4193641,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 2,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 2,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 42455293,
+            "lookup_ns": 884966,
+            "current_preflight_ns": 78775098,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 46276587,
+            "lookup_ns": 1079308,
+            "current_preflight_ns": 89935605,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 42741500,
+            "lookup_ns": 1021170,
+            "current_preflight_ns": 69062462,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 2,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 2,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 42700759,
+            "lookup_ns": 978577,
+            "current_preflight_ns": 71080408,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 159174444,
+            "lookup_ns": 2121140,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 3,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 121389887,
+            "lookup_ns": 1500922,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 3,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 47589133,
+            "lookup_ns": 1294478,
+            "current_preflight_ns": 89695854,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 46500417,
+            "lookup_ns": 931615,
+            "current_preflight_ns": 88503027,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 121218272,
+            "lookup_ns": 2347328,
+            "current_preflight_ns": 101600846,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 44945327,
+            "lookup_ns": 1185096,
+            "current_preflight_ns": 78366029,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 3,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 59634708,
+            "lookup_ns": 3355901,
+            "current_preflight_ns": 86545687,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 50987476,
+            "lookup_ns": 1260898,
+            "current_preflight_ns": 100826945,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 3,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 3,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 50174060,
+            "lookup_ns": 732297,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 45322903,
+            "lookup_ns": 650542,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 40362996,
+            "lookup_ns": 1000819,
+            "current_preflight_ns": 77993139,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 3,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 47419859,
+            "lookup_ns": 1058756,
+            "current_preflight_ns": 86434773,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 3,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 40958307,
+            "lookup_ns": 945631,
+            "current_preflight_ns": 71171037,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 3,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 46004885,
+            "lookup_ns": 1006408,
+            "current_preflight_ns": 76291247,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 4,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 114112275,
+            "lookup_ns": 2243895,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 122942114,
+            "lookup_ns": 1548042,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 41063675,
+            "lookup_ns": 931246,
+            "current_preflight_ns": 75212969,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 48867118,
+            "lookup_ns": 1148581,
+            "current_preflight_ns": 89049603,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 4,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 43538547,
+            "lookup_ns": 1048741,
+            "current_preflight_ns": 73902511,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 45057314,
+            "lookup_ns": 1133156,
+            "current_preflight_ns": 76445378,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 4,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 4,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 44881922,
+            "lookup_ns": 1081201,
+            "current_preflight_ns": 71816325,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 42105688,
+            "lookup_ns": 1283915,
+            "current_preflight_ns": 71370928,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 42385288,
+            "lookup_ns": 656735,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 4,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 48255514,
+            "lookup_ns": 762052,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 43921773,
+            "lookup_ns": 1349232,
+            "current_preflight_ns": 90191419,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 4,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 44028402,
+            "lookup_ns": 1331791,
+            "current_preflight_ns": 97475246,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 40233858,
+            "lookup_ns": 952408,
+            "current_preflight_ns": 67390667,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 41553206,
+            "lookup_ns": 933161,
+            "current_preflight_ns": 74207503,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 4,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 5,
+          "request": "cold",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 175362509,
+            "lookup_ns": 1754913,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "cold",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 152220470,
+            "lookup_ns": 2071755,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "cold",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 5,
+          "request": "unchanged",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 44142930,
+            "lookup_ns": 1110163,
+            "current_preflight_ns": 92238115,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "unchanged",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 49505857,
+            "lookup_ns": 1430215,
+            "current_preflight_ns": 106030816,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "unchanged",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 16
+        },
+        {
+          "block": 5,
+          "request": "private",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 5,
+          "request": "private",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 42697685,
+            "lookup_ns": 1235245,
+            "current_preflight_ns": 75527220,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "private",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 43266659,
+            "lookup_ns": 1016684,
+            "current_preflight_ns": 75430666,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "multi",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 47374785,
+            "lookup_ns": 1121613,
+            "current_preflight_ns": 77351528,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "multi",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 13
+        },
+        {
+          "block": 5,
+          "request": "multi",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 14,
+            "misses": 2,
+            "corrupt": 0,
+            "stored": 2,
+            "write_failures": 0,
+            "key_ns": 106901451,
+            "lookup_ns": 2188902,
+            "current_preflight_ns": 72710719,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "broad",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 51806688,
+            "lookup_ns": 810018,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "broad",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 0
+        },
+        {
+          "block": 5,
+          "request": "broad",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 0,
+            "misses": 16,
+            "corrupt": 0,
+            "stored": 16,
+            "write_failures": 0,
+            "key_ns": 52325333,
+            "lookup_ns": 826743,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "restore",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        },
+        {
+          "block": 5,
+          "request": "restore",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 41017457,
+            "lookup_ns": 939500,
+            "current_preflight_ns": 78465368,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "restore",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 16,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 48577689,
+            "lookup_ns": 1016484,
+            "current_preflight_ns": 88657024,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "recovery",
+          "arm": "baseline",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 46079092,
+            "lookup_ns": 1172688,
+            "current_preflight_ns": 77164568,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "recovery",
+          "arm": "candidate",
+          "actual_units": 16,
+          "zil_cache": {
+            "requested": true,
+            "enabled": true,
+            "hits": 15,
+            "misses": 1,
+            "corrupt": 0,
+            "stored": 1,
+            "write_failures": 0,
+            "key_ns": 50918865,
+            "lookup_ns": 1043363,
+            "current_preflight_ns": 101106952,
+            "disabled_reason": null
+          },
+          "rust_physical_carry_forward": null
+        },
+        {
+          "block": 5,
+          "request": "recovery",
+          "arm": "rust",
+          "actual_units": 16,
+          "zil_cache": null,
+          "rust_physical_carry_forward": 15
+        }
+      ],
+      "manifest_sha256": "d20dabf0a5c222869362ad31cc2c1425fcecb2aff7abf63b1f23eed29db94b02"
+    }
+  },
+  "attribution": "main versus entire research branch, including predecessor changes. This is not isolated wall-time attribution to the serialization slice. No other active worker compared.",
+  "limitations": [
+    "Six blocks do not establish tail latency or universal speedup. No hypothetical workload weighting.",
+    "ZIL resident excludes startup; Rust includes a new Cargo process. Current independent ZIL Verify differs from Rust checks.",
+    "Requested CGU16/O2/jobs1 is matched; actual CGU contents differ. Whole compiler, linker and cache strategies are not identical across languages.",
+    "OS caches not flushed; cold means empty per-block application cache/target.",
+    "No full workspace integration or release performance/product gate acceptance; scope-specific tests are recorded separately.",
+    "Function fragments retain one encoding per immutable Entry with exact Limits. Current epoch admission is bounded; all live checkpoints do not have a proven aggregate lifetime byte bound.",
+    "Original prior-environment raw remains unavailable. This new archive does not restore it."
+  ],
+  "tests": {
+    "source": "e91d16480d5e31c620d2b776245973c24329840f",
+    "cwd": "/workspace/zil-demand",
+    "activation": "source /workspace/.zil-environment/env.sh; export CARGO_TARGET_DIR=/workspace/zil-demand/target",
+    "checks": [
+      {
+        "command": "cargo test --offline --locked --workspace --lib",
+        "log": "workspace-lib.log",
+        "log_sha256": "98ff8b8dc7e333dde010c1b01f6d0e9912e05316652b6ec965c2ba17e5d2b4de",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          1660,
+          0,
+          0
+        ],
+        "suites": 14
+      },
+      {
+        "command": "cargo test --offline --locked -p zil-ir -p zil-types",
+        "log": "ir-types.log",
+        "log_sha256": "219225b717697677b19fdaf62d5ecf1669cf71d1b58c972cf7f36c6fe14c0bf5",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          167,
+          0,
+          0
+        ],
+        "suites": 8
+      },
+      {
+        "command": "cargo test --offline --locked -p zil-driver --test cross_function_borrows",
+        "log": "cross-function-borrows.log",
+        "log_sha256": "9ca53ca9ff36b72a8e7a7f8660233d277615843b2b9ccd22354d2127e66576aa",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          119,
+          0,
+          0
+        ],
+        "suites": 1
+      },
+      {
+        "command": "cargo test --offline --locked -p zil-cli",
+        "log": "cli.log",
+        "log_sha256": "1eae2da45269514b8089e472ca571c958e92ae7aefca5b148caab7d1dc357ccd",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          24,
+          0,
+          0
+        ],
+        "suites": 10
+      },
+      {
+        "command": "cargo clippy --offline --locked --workspace --all-targets -- -D warnings",
+        "log": "clippy.log",
+        "log_sha256": "4d9c3b0e9b8edaef230d21387942289455c0d8811105a461420e3a980908c7f9",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          0,
+          0,
+          0
+        ],
+        "suites": 0
+      },
+      {
+        "command": "cargo fmt --all -- --check",
+        "log": "fmt.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "exit_code": 0,
+        "totals_pass_fail_ignore": [
+          0,
+          0,
+          0
+        ],
+        "suites": 0
+      }
+    ],
+    "note": "suite scopes overlap; no aggregate total; declaration follows completed exec results"
+  },
+  "raw_evidence": {
+    "status": "remote_pushed_and_independently_recovered_verified",
+    "repository": "https://github.com/zil-lang/zil.git",
+    "ref": "archive/source-history",
+    "commit": "64f88e6a21b637a45192726b88c0a0ff1fb8a329",
+    "path": "research/incremental-demand-20261112/",
+    "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+    "archive_bytes": 222791765,
+    "parts": 9,
+    "recovery_receipt": "continuation-recovery.json",
+    "restored_validations": {
+      "check": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 8
+      },
+      "o2": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 352
+      }
+    }
+  },
+  "mechanism_profile": {
+    "run": "continuation-profile-r1",
+    "scope": "Separate single-block diagnostic, excluded from unprofiled performance samples",
+    "observations": [
+      {
+        "request": "cold",
+        "encoding": {
+          "serialized_functions": 421,
+          "reused_functions": 0
+        },
+        "publication_ns": 38115603,
+        "verification_runs": 1
+      },
+      {
+        "request": "unchanged",
+        "encoding": null,
+        "publication_ns": null,
+        "verification_runs": 1
+      },
+      {
+        "request": "private",
+        "encoding": {
+          "serialized_functions": 1,
+          "reused_functions": 420
+        },
+        "publication_ns": 17269090,
+        "verification_runs": 1
+      },
+      {
+        "request": "multi",
+        "encoding": {
+          "serialized_functions": 2,
+          "reused_functions": 419
+        },
+        "publication_ns": 17382719,
+        "verification_runs": 1
+      },
+      {
+        "request": "broad",
+        "encoding": {
+          "serialized_functions": 397,
+          "reused_functions": 24
+        },
+        "publication_ns": 27168545,
+        "verification_runs": 1
+      },
+      {
+        "request": "restore",
+        "encoding": null,
+        "publication_ns": null,
+        "verification_runs": 1
+      },
+      {
+        "request": "error",
+        "encoding": null,
+        "publication_ns": null,
+        "verification_runs": 0
+      },
+      {
+        "request": "recovery",
+        "encoding": {
+          "serialized_functions": 400,
+          "reused_functions": 21
+        },
+        "publication_ns": 30651139,
+        "verification_runs": 1
+      }
+    ]
+  },
+  "failures": [
+    {
+      "run": "continuation-matched-o2-r1",
+      "kind": "measurement inventory bug; baseline native build succeeded",
+      "reason": "runner omitted objects-v1/compiler-namespace directory",
+      "completed_rows": 0,
+      "resolution": "corrected helper, independent 10 tests and replay of original 16 objects, new full r2 run; original retained"
+    }
+  ]
+}

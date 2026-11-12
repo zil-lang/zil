@@ -1,0 +1,84 @@
+{
+  "status": "Pass",
+  "remote": "https://github.com/zil-lang/zil.git",
+  "ref": "archive/source-history",
+  "archive_commit": "64f88e6a21b637a45192726b88c0a0ff1fb8a329",
+  "prefix": "research/incremental-demand-20261112/",
+  "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+  "archive_bytes": 222791765,
+  "parts": [
+    {
+      "part": "raw.tar.zst.part.000",
+      "sha256": "b9b0662c6489c485f339dbd2135576902f3d35c977b82ef36105cc69258a8d4c",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.001",
+      "sha256": "ef817dd21744b2e217ca6e78fb1527a439f98bfedfe31697a1038637d54c879e",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.002",
+      "sha256": "414cc9e5d8a4643269e71c37b04d4a9815e675665348f1b1609ec6b30b49befa",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.003",
+      "sha256": "4dae34b6bc6470836197d1521ecade33f9c850c12e604ce66c37101d8766e9c9",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.004",
+      "sha256": "2d927fc9b740063ea9f2b6772ef3eb8cfe0367f29622fdada60e1e9d47f9339d",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.005",
+      "sha256": "12299858b819ccbb28302c604487f83e33ddcd961827d228de3957b4b83f0940",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.006",
+      "sha256": "77c0a00e14ebcdc58858f0afa979ec271abee7399eef68a6cec19bef2f93dfce",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.007",
+      "sha256": "7a70c03554a365d81f6adf97fec0718dc1a8ed226ccdb3d8c18392a24b201712",
+      "bytes": 25165824
+    },
+    {
+      "part": "raw.tar.zst.part.008",
+      "sha256": "b7abc38731a39b278696b8de2ec9add5cb69364570a2d01c865b978dac121de5",
+      "bytes": 21465173
+    }
+  ],
+  "independent_repository": "/tmp/zil-demand-remote-recovery",
+  "source_commit": "e91d16480d5e31c620d2b776245973c24329840f",
+  "remote_source_blobs_verified": 6,
+  "method": "Fresh HTTPS clone/fetch, no local alternates or shared objects; git show streamed each remote blob, SHA256 verified; source blobs fetched separately and compared to independent review",
+  "restored_archive": "/tmp/zil-demand-recovered.tar.zst",
+  "restored_validations": {
+    "check": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 0,
+      "verified_blobs": 8
+    },
+    "o2": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 2808,
+      "verified_blobs": 352
+    }
+  },
+  "restored_failures_preserved": {
+    "type": "FileNotFoundError",
+    "message": "[Errno 2] No such file or directory: '/workspace/zil-demand/out/runs/continuation-matched-o2-r1/block-00/baseline/objects/11c41e98dbd9676cfcdecebf78a9a267cdea3c1c09fd6f2af1b4cf130ec50519.zobj'",
+    "completed_rows": 0
+  }
+}

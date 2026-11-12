@@ -78,6 +78,7 @@ def audit(out):
     rows = [json.loads(line) for line in (out/'rows.jsonl').read_text().splitlines()]
     require(len(rows)==270 and sum(r['measured'] for r in rows)==144, 'row counts differ')
     native_count, inventory_counts = 0, Counter()
+    namespace_bindings = {}
     for block in range(6):
         current = [r for r in rows if r['block']==block]
         expected=[]
@@ -106,9 +107,15 @@ def audit(out):
             require(len(set(r['source_identity_sha256'] for r in triplet))==1, 'three-arm source identity mismatch')
             left,right = [r['resident']['report'] for r in triplet if r['arm']!='rust']
             require(all(left[k]==right[k] for k in ['status','phase','diagnostics','input_fingerprint','source_files','scalar_interfaces']), 'raw Zil reports disagree')
+            if mode=='o2' and triplet[0]['request']!='error':
+                zil_rows=[r for r in triplet if r['arm']!='rust']
+                require(zil_rows[0]['executable']['sha256']==zil_rows[1]['executable']['sha256'] and zil_rows[0]['llvm']['sha256']==zil_rows[1]['llvm']['sha256'], 'main/candidate executable or LLVM content differs')
+                require(pair_receipt['executable_equal'] is True and pair_receipt['llvm_text_equal'] is True, 'native quality equality receipt missing')
     for row in rows:
         require(row['valid'] is True and row['mode']==mode, 'invalid row/mode')
         label,arm = row['request'],row['arm']
+        if label=='error':
+            require(row['publication_before']==row['publication_after'], 'error request changed final publication history')
         require(row['transition_from']==(rc.parent(row['target_request']) if row['measured'] else None), 'named parent differs')
         require(row['source_identity_sha256']==manifest['fixture_identity'][label]['zil'], 'row source differs from fixture')
         directory = out/row['directory']
@@ -158,6 +165,16 @@ def audit(out):
             require(inventory['object_count']==len(inventory['objects'])>0, 'actual object inventory empty/wrong count')
             if arm!='rust':
                 require(inventory['object_count']==row['resident']['report']['native_codegen']['actual_units'], 'Zil actual object count differs from current receipts')
+                namespace=inventory['namespace']
+                require(inventory['cache_schema']=='objects-v1' and len(namespace)==64 and all(c in '0123456789abcdef' for c in namespace), 'invalid Zil namespace binding')
+                require(all(Path(item['path']).parts==('objects-v1',namespace,item['action_key']+'.zobj') for item in inventory['objects']), 'Zil object is outside bound namespace')
+                binding_key=(row['block'],arm)
+                require(namespace_bindings.setdefault(binding_key,namespace)==namespace, 'Zil namespace changed within block/arm')
+                receipts=row['resident']['report']['native_codegen']['object_reports']
+                require([item['unit_index'] for item in inventory['objects']]==list(range(len(receipts))), 'Zil unit index mapping is missing, reordered or duplicated')
+                for item,receipt in zip(inventory['objects'],receipts):
+                    receipt=json.loads(receipt) if isinstance(receipt,str) else receipt
+                    require(item['action_key']==receipt['cache']['action_key'] and item['cache_observation']==receipt['cache'], 'Zil unit object does not match current receipt action key/state')
             inventory_counts[(arm,row['request'])]+=inventory['object_count']
             if arm=='rust':
                 current=inventory['current_session']
@@ -170,6 +187,8 @@ def audit(out):
                 require(file_hash(out/item['symbols']['path'])==item['symbols']['sha256'], 'object symbol content differs')
                 if arm!='rust':
                     check_blob(item['cache_container'])
+                    container=(out/item['cache_container']['archive']).read_bytes()
+                    require(len(container)>80 and container[:8]==b'ZILOBJ01' and container[8:40].hex()==item['action_key'] and container[40:72].hex()==item['object']['sha256'] and int.from_bytes(container[72:80],'little')==len(container)-80 and rc.sha(container[80:])==item['object']['sha256'], 'Zil container magic/key/payload checksum/length mismatch')
             for item in inventory.get('metadata',[]):
                 check_blob(item)
     summary={'valid':True,'rows':len(rows),'measured_requests':144,'preparation_requests':126,

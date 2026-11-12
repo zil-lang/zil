@@ -60,6 +60,21 @@ def preserve(out, path, suffix=''):
     return blob(out, Path(path).read_bytes(), suffix)
 
 
+def publication_state(paths):
+    """Final publication history; source/cache/intermediate files are separate."""
+    result = {}
+    for path in paths:
+        path = Path(path)
+        if path.exists():
+            stat = path.stat()
+            result[str(path)] = {'exists': True, 'sha256': file_hash(path),
+                                 'bytes': stat.st_size, 'mtime_ns': stat.st_mtime_ns,
+                                 'inode': stat.st_ino, 'device': stat.st_dev}
+        else:
+            result[str(path)] = {'exists': False}
+    return result
+
+
 def source_identity(repo, commit, out, arm):
     def git(*args):
         return subprocess.check_output(['git', '-C', str(repo), *args])
@@ -255,23 +270,51 @@ def zil_inventory(args, report, cache):
     reports = summary.get('object_reports', [])
     if len(reports) != summary.get('actual_units') or not reports:
         raise ValueError('missing current Zil unit receipts')
+    # This root was created empty for exactly one pinned arm/block. The
+    # compiler's schema places objects under a tool/target-specific namespace;
+    # require that namespace to be unique and stable rather than searching for
+    # an action key recursively across unrelated compiler identities.
+    schema = cache / 'objects-v1'
+    if cache.is_symlink() or schema.is_symlink() or not schema.is_dir():
+        raise ValueError('missing or unsafe Zil objects-v1 cache schema')
+    entries = list(schema.iterdir())
+    if len(entries) != 1:
+        raise ValueError('fresh Zil arm cache does not have exactly one namespace')
+    namespace_path = entries[0]
+    namespace = namespace_path.name
+    if (len(namespace) != 64 or any(c not in '0123456789abcdef' for c in namespace)
+            or namespace_path.is_symlink() or not namespace_path.is_dir()
+            or namespace_path.resolve().parent != schema.resolve()):
+        raise ValueError('invalid or unsafe Zil object cache namespace')
+    bindings = getattr(args, '_zil_namespace_bindings', {})
+    cache_identity = str(cache.resolve())
+    if cache_identity in bindings and bindings[cache_identity] != namespace:
+        raise ValueError('Zil arm cache namespace changed during the block')
+    bindings[cache_identity] = namespace
+    args._zil_namespace_bindings = bindings
     objects = []
     for index, receipt in enumerate(reports):
         if isinstance(receipt, str):
             receipt = json.loads(receipt)
         access = receipt.get('cache', {})
         key = access.get('action_key')
-        if not key:
-            raise ValueError('unit receipt lacks current object action key')
-        path = cache / (key + '.zobj')
+        if not isinstance(key,str) or len(key)!=64 or any(c not in '0123456789abcdef' for c in key):
+            raise ValueError('unit receipt lacks a valid current object action key')
+        path = namespace_path / (key + '.zobj')
+        if path.is_symlink() or not path.is_file() or path.resolve().parent != namespace_path.resolve():
+            raise ValueError('missing or unsafe current Zil cached object')
         data = path.read_bytes()
-        if data[:8] != b'ZILOBJ01' or len(data) < 80 or data[8:40].hex() != key or int.from_bytes(data[72:80], 'little') != len(data)-80:
-            raise ValueError('invalid current Zil cached object')
+        if (len(data) <= 80 or data[:8] != b'ZILOBJ01' or data[8:40].hex() != key
+                or data[40:72].hex() != rc.sha(data[80:])
+                or int.from_bytes(data[72:80], 'little') != len(data)-80):
+            raise ValueError('invalid current Zil cached object header/key/payload checksum/length')
         item = object_record(args, path, cache, data[80:])
         item.update({'unit_index': index, 'action_key': key, 'cache_observation': access,
                      'cache_container': preserve(args.out, path, '.zobj')})
         objects.append(item)
     return {'object_count': len(objects), 'objects': objects, 'compiler_summary': summary,
+            'cache_schema': 'objects-v1', 'namespace': namespace,
+            'namespace_binding': 'Unique immediate hex64 namespace in a fresh private arm/block root, stable for the pinned compiler/library/target; symlinks and path escapes rejected',
             'scope': 'Current request unit receipts map exact action keys to archived objects and symbols; not the cumulative cache directory count'}
 
 
@@ -296,6 +339,8 @@ def rust_request(args, workloads, fixtures, label, project, target, directory, e
                '--jobs', '1', '--verbose', '--message-format=json', '--target-dir', str(target)]
     if args.mode == 'o2':
         command.append('--release')
+    program_path = target / ('release' if args.mode == 'o2' else 'debug') / rc.PACKAGE
+    before_publication = publication_state([program_path])
     # run_process creates the leaf directory itself.
     result = rc.run_process(command, project, directory, args.timeout, args.sample_ms, env=env)
     messages = rc.cargo_messages(directory / 'stdout.bin')
@@ -305,7 +350,11 @@ def rust_request(args, workloads, fixtures, label, project, target, directory, e
     valid = (not result['timed_out'] and result['returncode'] == (0 if success else 101)
              and len(finished) == 1 and finished[0].get('success') is success)
     valid &= rc.expected_error(diagnostics, fixtures[label]['rust']) if not success else not any(d.get('level') == 'error' for d in diagnostics)
-    row = {'source': source, 'measurement': result, 'diagnostics': diagnostics, 'valid': bool(valid)}
+    after_publication = publication_state([program_path])
+    if not success:
+        valid &= before_publication == after_publication
+    row = {'source': source, 'measurement': result, 'diagnostics': diagnostics, 'valid': bool(valid),
+           'publication_before': before_publication, 'publication_after': after_publication}
     if valid and success and args.mode == 'o2':
         artifacts = [m for m in messages if m.get('reason') == 'compiler-artifact' and m.get('target', {}).get('name') == rc.PACKAGE and m.get('executable')]
         if len(artifacts) != 1:
@@ -445,7 +494,7 @@ def main():
                 project.mkdir()
                 (project/'Cargo.toml').write_text(rc.manifest_text(16))
                 (project/'Cargo.lock').write_text(rc.lock_text())
-                workers, previous_inventory = {}, {}
+                workers, previous_inventory, published_llvm = {}, {}, {}
                 try:
                     for arm in ORDERS[block]:
                         if arm == 'rust':
@@ -479,7 +528,8 @@ def main():
                                 else:
                                     leaf.mkdir()
                                     program = directory/arm/'program'
-                                    program.unlink(missing_ok=True)
+                                    publication_paths = [program] + ([published_llvm[arm]] if arm in published_llvm else [])
+                                    before_publication = publication_state(publication_paths)
                                     result,response = workers[arm].request(leaf)
                                     report = response['report']
                                     valid = set(report['source_files'].values()) == {str(source/name) for name in fixtures[current]['zil']}
@@ -487,12 +537,17 @@ def main():
                                         valid &= report['status']=='SafeReject' and report['phase']=='types' and report['verification_runs']==0 and zil_error(report,source,fixtures[current]['zil'])
                                     else:
                                         valid &= report['status']=='Success' and report['verification_runs']==1 and report['diagnostics']==[] and sum(e=={'phase':'verify','disposition':'executed'} for e in report['query_events'])==1
-                                    row = {'measurement':result,'resident':response,'valid':bool(valid),'source':source_meta}
+                                    after_publication = publication_state(publication_paths)
+                                    if current=='error':
+                                        valid &= before_publication == after_publication
+                                    row = {'measurement':result,'resident':response,'valid':bool(valid),'source':source_meta,
+                                           'publication_before':before_publication,'publication_after':after_publication}
                                     if valid and current!='error' and args.mode=='o2':
                                         if report['artifacts']['executable'] != str(program):
                                             raise ValueError('unexpected Zil executable path')
                                         row['executable'] = preserve(args.out,program,'.elf')
-                                        row['llvm'] = preserve(args.out,Path(report['artifacts']['llvm']),'.ll')
+                                        published_llvm[arm] = Path(report['artifacts']['llvm'])
+                                        row['llvm'] = preserve(args.out,published_llvm[arm],'.ll')
                                         row['inventory'] = zil_inventory(args,report,directory/arm/'objects')
                                         row['native'] = native_outcomes(args,workloads,program,current,leaf,env)
                                         row['valid'] &= all(r['valid'] for r in row['native'])
@@ -507,10 +562,15 @@ def main():
                             zil_rows = [r for r in pair if r['arm']!='rust']
                             left,right = [r['resident']['report'] for r in zil_rows]
                             equal = all(left[k]==right[k] for k in ['status','phase','diagnostics','input_fingerprint','source_files','scalar_interfaces'])
-                            rc.save(leaf.parent/'pair-validation.json',{'valid':equal,'request':current,'measured':measured,
-                                                                      'executable_equal':zil_rows[0].get('executable',{}).get('sha256')==zil_rows[1].get('executable',{}).get('sha256') if args.mode=='o2' and current!='error' else None})
-                            if not equal:
-                                raise ValueError('main/candidate current semantics differ')
+                            native_pair = args.mode=='o2' and current!='error'
+                            executable_equal = zil_rows[0].get('executable',{}).get('sha256') == zil_rows[1].get('executable',{}).get('sha256') if native_pair else None
+                            llvm_text_equal = zil_rows[0].get('llvm',{}).get('sha256') == zil_rows[1].get('llvm',{}).get('sha256') if native_pair else None
+                            pair_valid = equal and (not native_pair or (executable_equal and llvm_text_equal))
+                            rc.save(leaf.parent/'pair-validation.json',{'valid':pair_valid,'request':current,'measured':measured,
+                                                                      'semantics_equal':equal,'executable_equal':executable_equal,
+                                                                      'llvm_text_equal':llvm_text_equal})
+                            if not pair_valid:
+                                raise ValueError('main/candidate current semantics or executable/LLVM content differ; raw evidence retained for diagnosis')
                             rows.extend(pair)
                             print(json.dumps({'block':block,'request':current,'measured':measured,'order':order,'wall_ms':{r['arm']:r['measurement']['wall_ms'] for r in pair}}),flush=True)
                 finally:

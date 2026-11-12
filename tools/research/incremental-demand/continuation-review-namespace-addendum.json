@@ -1,0 +1,102 @@
+{
+  "schema": "incremental-demand-independent-review-addendum-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "previous_receipt": {
+    "path": "tools/research/incremental-demand/continuation-review.json",
+    "sha256": "4e6894fed9258329c118e9b6fee164bfbfb4004448da42c763f4b641db748791",
+    "unchanged": true
+  },
+  "production_source": {
+    "commit": "e91d16480d5e31c620d2b776245973c24329840f",
+    "unchanged_from_previous_approval": true,
+    "production_hashes_rechecked": true
+  },
+  "verdict": "Accept the exact tool-only namespace correction below for a new O2 r2 attempt. No O2 measurement or performance result is accepted here.",
+  "approved_tool_files": {
+    "tools/research/incremental-demand/matched_measure.py": {
+      "sha256": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd",
+      "git_blob": "6007569dacd685f7646d5e5ac0998bc8afdea9e6"
+    },
+    "tools/research/incremental-demand/matched_validate.py": {
+      "sha256": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c",
+      "git_blob": "3b33d6db70a4200b5312de3bdf911af40c564cff"
+    },
+    "tools/research/incremental-demand/test_matched_tools.py": {
+      "sha256": "26730f730f949958c12c000a5daaa4d595cbe99dd11d81b2574dbe19b0da2194",
+      "git_blob": "058a7fc5476fddfa4244ec07a0ef647b81f0327f"
+    }
+  },
+  "namespace_contract": {
+    "backend_sources": [
+      "crates/zil-backend-llvm/src/object_cache.rs:193",
+      "crates/zil-backend-llvm/src/object_cache.rs:344",
+      "crates/zil-backend-llvm/src/object_cache.rs:350",
+      "crates/zil-base/src/lib.rs:375"
+    ],
+    "actual_layout": "<arm-block-private-cache>/objects-v1/<compiler-library-target-pipeline-namespace-hex64>/<action-key-hex64>.zobj",
+    "correction": "Require exactly one immediate valid namespace under the fresh arm/block root, keep that namespace stable for this arm/block, and look up the current receipt action key only within that namespace. Reject ambiguous layouts, malformed hex keys, symlinks and path escapes; do not recursively choose a matching key across compiler identities.",
+    "container_binding": "Require nonempty payload, ZILOBJ01 magic, embedded action key equal to current receipt key, embedded payload length equal to actual length and SHA256(payload) equal to embedded digest. Preserve container and exact object bytes separately.",
+    "independent_validator": "Recompute namespace format/path containment and stable namespace per (block,arm). Require unit_index sequence to match current object_reports and each action key/full cache observation to equal that receipt. Validate archived container magic/key/length/payload digest against archived object hash.",
+    "unchanged_controls": "No compiler options, source workload, budgets, optimization, timing boundary, history preparations, native oracle or production compiler source changed."
+  },
+  "first_failure_retained": {
+    "directory": "out/runs/continuation-matched-o2-r1",
+    "failure_json_sha256": "0ccbc395b37208f789282bafbfd7cc70f8455f330a93a7547ba40ce822410536",
+    "observed_failure": {
+      "type": "FileNotFoundError",
+      "message": "[Errno 2] No such file or directory: '/workspace/zil-demand/out/runs/continuation-matched-o2-r1/block-00/baseline/objects/11c41e98dbd9676cfcdecebf78a9a267cdea3c1c09fd6f2af1b4cf130ec50519.zobj'",
+      "completed_rows": 0
+    },
+    "interpretation": "Baseline compiler successfully produced the current artifacts, then the measurement helper searched an incorrect flat cache path. Zero completed rows means this run contributes no completed O2 measurement sample. Original failed run was not modified.",
+    "prior_review_gap": "The previous source review missed the helper/backend directory-layout mismatch. Its synthetic object fixture modeled a flat cache path and could not expose the real namespace contract. The corrected fixture plus independent real-artifact replay close this specific coverage gap."
+  },
+  "reviewer_validation": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_matched_tools.py",
+        "-v"
+      ],
+      "path": "out/runs/onboarding-continuation/reviewer-helper-tests-namespace-final.log",
+      "sha256": "34a91ce31533e01fefa6760198ee22ed6310cb03a6bbbf3b21ee5b3f88c7e46c",
+      "passed": 10,
+      "failed": 0,
+      "exit_code": 0,
+      "scope": "Lightweight tests only: real namespace fixture, ambiguous namespace rejection, same-length corrupt payload rejection, symlink rejection, current action-key inventory, prior Rust session/diagnostic/publication controls."
+    },
+    {
+      "kind": "Read-only replay of failed r1 response/cache through corrected zil_inventory and nm",
+      "directory": "out/runs/onboarding-continuation/reviewer-namespace-replay-r1",
+      "inventory_sha256": "10b26fe270fcb8fb513edfddb4bd2545602c7f4fad879a4268283efd3d6e9231",
+      "objects": 16,
+      "namespace": "4eec7312d1e6f59f681148dfe8af17eeb76013fb57123ddb4a3b06bd54974db1",
+      "response_sha256": "e5b7d0300ee218881250c3c81a295bfc9d3ad87992d1142c1b203be3f9a20bbb",
+      "compiler_commands_executed": 0,
+      "original_run_modified": false,
+      "note": "Archives object bytes, cache containers and defined symbol tables to a new reviewer directory; this is schema verification, not a new benchmark or compile request."
+    }
+  ],
+  "previous_receipt_metadata_clarification": {
+    "field": "tool_files_sha256_at_source_freeze",
+    "clarification": "The previous receipt collected this map while the output-history amended tool files were already present. Interpret those hashes as the previously reviewed amended working-tree blobs, not as the tool bytes contained in commit e91d1648. Its amended_tool_review already correctly records the working-tree status and base commit. This addendum corrects the field interpretation without changing the previous receipt.",
+    "actual_committed_tool_sha256_at_e91": {
+      "tools/research/incremental-demand/matched_measure.py": "73a9d642e1e3018f589b086c2637571153baf4b9675dbfedba109028fa6ea8e0",
+      "tools/research/incremental-demand/matched_validate.py": "a1e4727483931dab29ecacd5268af590e024432644a5b1b532628076d7c76b3d",
+      "tools/research/incremental-demand/test_matched_tools.py": "844c42f6dc81204501dcb89cc3dbff43839fefafcd139330c907ec25ac241f49"
+    }
+  },
+  "limits": [
+    "Original memory/checkpoint limitations and research-only production acceptance remain.",
+    "No heavy build, compiler request or native benchmark was launched by this reviewer.",
+    "No completed new O2 matrix, cross-language speed ratio, global memory bound, Rust parity, default enablement or main merge is accepted.",
+    "Implementation files must remain byte-frozen throughout the new measurement window; only separate review/evidence files were written by this addendum."
+  ]
+}
