@@ -22,11 +22,14 @@
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <dlfcn.h>
 #include <map>
+#include <limits>
 #include <mutex>
 #include <set>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -142,16 +145,36 @@ struct BlockEmissionState {
 // Values only. In particular, neither MachineOperand's parent/use-list links
 // nor its ConstantInt/MBB pointers may escape the current compilation.
 struct BodyOperand {
-  enum Kind { Reg, Imm, CImm, Block } kind;
-  unsigned value = 0, flags = 0, subReg = 0, targetFlags = 0;
-  int64_t immediate = 0;
-  llvm::APInt integer{1, 0};
+  enum Kind : uint8_t { Reg, Imm, CImm, Block };
+  // Reg: low32 register, high32 subregister; extra holds all register flags.
+  // Imm: exact signed immediate bits. Block: current-layout ordinal.
+  // CImm: index into BodyState's owned, encounter-ordered APInt pool.
+  // Every non-Reg kind stores its complete target flags in extra.
+  uint64_t payload = 0;
+  uint32_t extra = 0;
+  Kind kind = Imm;
+
+  unsigned reg() const { return uint32_t(payload); }
+  unsigned subReg() const { return uint32_t(payload >> 32); }
+  void setRegister(unsigned RegNo, unsigned SubReg) {
+    payload = uint64_t(RegNo) | (uint64_t(SubReg) << 32);
+  }
+  void setImmediate(int64_t Value) {
+    // Do not rely on implementation-defined unsigned-to-signed conversion.
+    std::memcpy(&payload, &Value, sizeof(Value));
+  }
+  int64_t immediate() const {
+    int64_t Value;
+    std::memcpy(&Value, &payload, sizeof(Value));
+    return Value;
+  }
   bool operator==(const BodyOperand &O) const {
-    return std::tie(kind, value, flags, subReg, targetFlags, immediate) ==
-               std::tie(O.kind, O.value, O.flags, O.subReg, O.targetFlags, O.immediate) &&
-           integer == O.integer;
+    return std::tie(kind, payload, extra) == std::tie(O.kind, O.payload, O.extra);
   }
 };
+static_assert(sizeof(BodyOperand) == 16, "machine operand product must remain compact");
+static_assert(sizeof(unsigned) == sizeof(uint32_t), "LLVM register fields must fit their full encoding");
+static_assert(std::is_trivially_copyable_v<BodyOperand>, "operand records must contain values only");
 struct BodyInstruction {
   unsigned opcode = 0, flags = 0, asmFlags = 0, cfiType = 0;
   std::vector<BodyOperand> operands;
@@ -176,11 +199,16 @@ struct BodyBlock {
 };
 struct BodyState {
   std::vector<BodyBlock> blocks;
+  std::vector<llvm::APInt> integers;
   // Physical register -> original ordered (global MI ordinal, operand index).
   std::map<unsigned, std::vector<std::pair<unsigned, unsigned>>> registerUses;
   llvm::BitVector usedRegisters, reservedRegisters;
   bool reservedFrozen = false, subRegLiveness = false;
   bool operator==(const BodyState &O) const {
+    if (integers.size() != O.integers.size()) return false;
+    for (size_t I = 0; I < integers.size(); ++I)
+      if (integers[I].getBitWidth() != O.integers[I].getBitWidth() ||
+          integers[I] != O.integers[I]) return false;
     return blocks == O.blocks && registerUses == O.registerUses &&
            usedRegisters == O.usedRegisters && reservedRegisters == O.reservedRegisters &&
            reservedFrozen == O.reservedFrozen && subRegLiveness == O.subRegLiveness;
@@ -222,6 +250,10 @@ size_t stepsPayload(const std::vector<PassStep> &Steps) {
   }
   return N;
 }
+size_t integerPayload(const llvm::APInt &I) {
+  // APInt owns its single-word value inline; only wider values allocate words.
+  return sizeof(llvm::APInt) + (I.getBitWidth() > 64 ? I.getNumWords() * sizeof(uint64_t) : 0);
+}
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
   for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader}) N = boundedAdd(N, Text->size());
@@ -232,12 +264,10 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
     for (const auto &MI : BB.instructions) {
       N = boundedAdd(N, sizeof(BodyInstruction));
       N = boundedAdd(N, MI.ties.size() * sizeof(MI.ties.front()));
-      for (const auto &MO : MI.operands) {
-        N = boundedAdd(N, sizeof(BodyOperand));
-        N = boundedAdd(N, MO.integer.getNumWords() * sizeof(uint64_t));
-      }
+      N = boundedAdd(N, MI.operands.size() * sizeof(BodyOperand));
     }
   }
+  for (const auto &I : S.body.integers) N = boundedAdd(N, integerPayload(I));
   for (const auto &Uses : S.body.registerUses) {
     N = boundedAdd(N, sizeof(Uses));
     N = boundedAdd(N, Uses.second.size() * sizeof(Uses.second.front()));
@@ -458,8 +488,8 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
           // to false: the bound tail contains no register-changing transforms
           // or allocator, only preserves-all providers and the actual printer.
           auto Detached = MO; Detached.clearParent();
-          O.kind = BodyOperand::Reg; O.value = MO.getReg().id(); O.subReg = MO.getSubReg();
-          O.flags = (MO.isDef() ? Def : 0) | (MO.isImplicit() ? Implicit : 0) |
+          O.kind = BodyOperand::Reg; O.setRegister(MO.getReg().id(), MO.getSubReg());
+          O.extra = (MO.isDef() ? Def : 0) | (MO.isImplicit() ? Implicit : 0) |
                     ((MO.isDef() ? MO.isDead() : MO.isKill()) ? DeadOrKill : 0) |
                     (MO.isUndef() ? Undef : 0) | (MO.isEarlyClobber() ? Early : 0) |
                     (MO.isDebug() ? Debug : 0) | (MO.isInternalRead() ? Internal : 0) |
@@ -469,20 +499,21 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
             I.ties.emplace_back(MI.findTiedOperandIdx(I.operands.size()), I.operands.size());
           }
           Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.size()));
-          Out.registerUses.try_emplace(O.value);
+          Out.registerUses.try_emplace(O.reg());
         } else if (MO.isImm()) {
-          O.kind = BodyOperand::Imm; O.immediate = MO.getImm();
+          O.kind = BodyOperand::Imm; O.setImmediate(MO.getImm());
         } else if (MO.isCImm()) {
           O.kind = BodyOperand::CImm;
-          if (!Charge(MO.getCImm()->getValue().getNumWords() * sizeof(uint64_t))) return false;
-          O.integer = MO.getCImm()->getValue();
+          if (!Charge(integerPayload(MO.getCImm()->getValue()))) return false;
+          O.payload = Out.integers.size();
+          Out.integers.push_back(MO.getCImm()->getValue());
         } else if (MO.isMBB()) {
           O.kind = BodyOperand::Block;
           auto It = Blocks.find(MO.getMBB());
           if (It == Blocks.end()) return false;
-          O.value = It->second;
+          O.payload = It->second;
         } else return false;
-        if (!MO.isReg()) O.targetFlags = MO.getTargetFlags();
+        if (!MO.isReg()) O.extra = MO.getTargetFlags();
         const bool IsImplicit = MO.isReg() && MO.isImplicit();
         if (Implicits && !IsImplicit) return false;
         Implicits |= IsImplicit;
@@ -507,6 +538,18 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
 }
 
 bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
+  // Pool indices are a lossless local encoding, not independent authority.
+  // Prove the canonical one-to-one encounter order before allocating current
+  // instructions; reject dangling, aliased, reordered, or unused pool entries.
+  size_t IntegerIndex = 0;
+  for (const auto &B : S.blocks)
+    for (const auto &I : B.instructions)
+      for (const auto &O : I.operands)
+        if (O.kind == BodyOperand::CImm) {
+          if (O.payload != IntegerIndex || IntegerIndex >= S.integers.size()) return false;
+          ++IntegerIndex;
+        }
+  if (IntegerIndex != S.integers.size()) return false;
   if (!MF.empty() || MF.getRegInfo().getNumVirtRegs() ||
       !MF.getRegInfo().getPendingVirtRegMapEntries().empty()) return false;
   auto &MRI = MF.getRegInfo();
@@ -541,21 +584,24 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
         llvm::MachineOperand MO = llvm::MachineOperand::CreateImm(0);
         switch (O.kind) {
         case BodyOperand::Reg:
-          MO = llvm::MachineOperand::CreateReg(llvm::Register(O.value), O.flags & Def,
-              O.flags & Implicit, !(O.flags & Def) && (O.flags & DeadOrKill),
-              (O.flags & Def) && (O.flags & DeadOrKill), O.flags & Undef,
-              O.flags & Early, O.subReg, O.flags & Debug, O.flags & Internal,
-              O.flags & Renamable);
+          MO = llvm::MachineOperand::CreateReg(llvm::Register(O.reg()), O.extra & Def,
+              O.extra & Implicit, !(O.extra & Def) && (O.extra & DeadOrKill),
+              (O.extra & Def) && (O.extra & DeadOrKill), O.extra & Undef,
+              O.extra & Early, O.subReg(), O.extra & Debug, O.extra & Internal,
+              O.extra & Renamable);
           break;
-        case BodyOperand::Imm: MO = llvm::MachineOperand::CreateImm(O.immediate); break;
+        case BodyOperand::Imm: MO = llvm::MachineOperand::CreateImm(O.immediate()); break;
         case BodyOperand::CImm:
-          MO = llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(MF.getFunction().getContext(), O.integer));
+          if (O.payload >= S.integers.size()) return false;
+          MO = llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(
+              MF.getFunction().getContext(), S.integers[O.payload]));
           break;
         case BodyOperand::Block:
-          if (O.value >= Blocks.size()) return false;
-          MO = llvm::MachineOperand::CreateMBB(Blocks[O.value]); break;
+          if (O.payload >= Blocks.size()) return false;
+          MO = llvm::MachineOperand::CreateMBB(Blocks[O.payload]); break;
+        default: return false;
         }
-        if (!MO.isReg()) MO.setTargetFlags(O.targetFlags);
+        if (!MO.isReg()) MO.setTargetFlags(O.extra);
         MI->addOperand(MF, MO);
       }
       // Descriptor constraints can create ties during append. Replace those
@@ -680,6 +726,13 @@ void testTypedBody(llvm::MachineFunction &Current) {
   MI->addOperand(*Source, llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(
       Current.getFunction().getContext(), llvm::APInt(128, Words))));
   MI->addOperand(*Source, llvm::MachineOperand::CreateMBB(B, 7));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateImm(std::numeric_limits<int64_t>::min()));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateImm(std::numeric_limits<int64_t>::max()));
+  const uint64_t WideWords[] = {0xfedcba9876543210ULL, 0x1234567890abcdefULL,
+                               0x8899aabbccddeeffULL, 0x0123456789abcdefULL, 1};
+  for (unsigned Width : {1u, 65u, 129u, 257u})
+    MI->addOperand(*Source, llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(
+        Current.getFunction().getContext(), llvm::APInt(Width, WideWords))));
   MI->tieOperands(0, 1);
   MI->setFlag(llvm::MachineInstr::NoUWrap);
   MI->setAsmPrinterFlag(1);
@@ -707,12 +760,38 @@ void testTypedBody(llvm::MachineFunction &Current) {
         NewMI.getOperand(5).getMBB() == NewB &&
         Restored->front().isSuccessor(NewB) && NewB->isSuccessor(&Restored->back()) &&
         NewMI.findTiedOperandIdx(1) == 0 &&
-        NewMI.getOperand(4).getCImm()->getValue() == llvm::APInt(128, Words))
+        NewMI.getOperand(4).getCImm()->getValue() == llvm::APInt(128, Words) &&
+        NewMI.getOperand(6).getImm() == std::numeric_limits<int64_t>::min() &&
+        NewMI.getOperand(7).getImm() == std::numeric_limits<int64_t>::max() &&
+        NewMI.getOperand(11).getCImm()->getValue() == llvm::APInt(257, WideWords))
       MachineTypedBodyTestBits |= 4;
   }
   auto Changed = Saved;
-  Changed.blocks[0].instructions[0].operands[1].flags ^= Undef;
-  if (!(Changed == Saved)) MachineTypedBodyTestBits |= 8;
+  Changed.blocks[0].instructions[0].operands[1].extra ^= Undef;
+  bool EncodingChecks = !(Changed == Saved);
+  Changed = Saved; Changed.integers[0] = Saved.integers[0].zext(129);
+  EncodingChecks &= !(Changed == Saved); // Distinct width, same numeric value.
+  Changed = Saved; Changed.integers.back().flipBit(256);
+  EncodingChecks &= !(Changed == Saved); // High bits must not be truncated.
+  Changed = Saved; Changed.blocks[0].instructions[0].operands[4].payload = Saved.integers.size();
+  auto InvalidInteger = Make();
+  EncodingChecks &= !restoreBody(*InvalidInteger, Changed) && InvalidInteger->empty();
+  Changed = Saved; Changed.integers.push_back(llvm::APInt(1, 1));
+  auto UnusedInteger = Make();
+  EncodingChecks &= !restoreBody(*UnusedInteger, Changed) && UnusedInteger->empty();
+  Changed = Saved; Changed.blocks[0].instructions[0].operands[8].payload = 0;
+  auto AliasedInteger = Make();
+  EncodingChecks &= !restoreBody(*AliasedInteger, Changed) && AliasedInteger->empty();
+  // Exercise the real capacity ledger: a non-CImm operand no longer reserves
+  // a dummy APInt or an imaginary heap word. The wide pool is still charged.
+  Snapshot Accounted; Accounted.body = Saved;
+  const size_t BeforeOperand = snapshotPayload(Accounted, 0);
+  Accounted.body.blocks[0].instructions[0].operands.push_back(BodyOperand{});
+  EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeOperand + sizeof(BodyOperand);
+  const size_t BeforeInteger = snapshotPayload(Accounted, 0);
+  Accounted.body.integers.push_back(llvm::APInt(257, WideWords));
+  EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeInteger + sizeof(llvm::APInt) + 5 * sizeof(uint64_t);
+  if (EncodingChecks) MachineTypedBodyTestBits |= 8;
   Changed = Saved; Changed.blocks[0].irBlock = Current.getFunction().size();
   auto InvalidIR = Make();
   if (!restoreBody(*InvalidIR, Changed) && InvalidIR->empty()) MachineTypedBodyTestBits |= 16;
