@@ -52,6 +52,8 @@ pub struct VerifyStats {
     pub resource_inventory_ranges_reused: usize,
     pub foreign_functions_selected: usize,
     pub foreign_functions_not_visited: usize,
+    pub environment_functions_selected: usize,
+    pub environment_functions_not_visited: usize,
     pub region_functions_checked: usize,
     pub region_functions_reused: usize,
     pub lexical_cleanup_functions_checked: usize,

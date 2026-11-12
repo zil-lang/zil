@@ -865,3 +865,69 @@ fn closure_instance_failure_visits_last_function_first_without_publishing() {
     verify(&mut session, &module, &plan, &limits).unwrap();
     assert_eq!(session.stats().closure_instance_functions_reused, 2);
 }
+
+#[test]
+fn current_environment_selector_keeps_orphan_and_definition_mismatch_errors() {
+    let module = crate::defer_tests::fixture(1, false, false);
+    let plan = crate::resource_tests::plan(&module);
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().environment_functions_selected, 1);
+    assert_eq!(session.stats().environment_functions_not_visited, 1);
+    for case in 0..3 {
+        let mut invalid = module.clone();
+        match case {
+            0 => invalid.functions[0].environment = Some(ClosureId(0)),
+            1 => invalid.functions[1].environment = None,
+            _ => invalid.closures[0].function = FunctionId(0),
+        }
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = invalid.fingerprint();
+        let expected = verify_module(invalid.clone(), candidate.clone(), &invalid.target, &limits)
+            .unwrap_err();
+        assert_eq!(
+            verify(&mut session, &invalid, &candidate, &limits).unwrap_err(),
+            expected
+        );
+        assert_eq!(expected[0].code, "E-VERIFY-CLOSURE-ENTRY");
+    }
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().environment_functions_selected, 1);
+}
+
+#[test]
+fn absent_environment_ranges_keep_original_unit_fees_and_short_credit_position() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(module.clone()),
+        plan: Arc::new(plan),
+    };
+    let mut measured = raw_budget(&limits, 2);
+    closures::check_definitions(&module, &limits, &mut measured).unwrap();
+    let work = limits.max_analysis_steps - measured.remaining;
+    for available in [work, work - 1, work - 2] {
+        let mut call = attempt(&session, &current, &limits);
+        call.check_shape_tree(current.module(), &mut raw_budget(&limits, 2), &limits)
+            .unwrap();
+        let mut fresh = raw_budget(&limits, 2);
+        fresh.remaining = available;
+        let expected = closures::check_definitions(&module, &limits, &mut fresh);
+        let mut warm = raw_budget(&limits, 2);
+        warm.remaining = available;
+        let actual = closures::check_definitions_with_reuse(
+            current.module(),
+            &limits,
+            &mut warm,
+            Some(&mut call),
+        );
+        assert_eq!(expected, actual);
+        assert_eq!(fresh.remaining, warm.remaining);
+        assert_eq!(call.stats.environment_functions_selected, 0);
+        assert_eq!(call.stats.environment_functions_not_visited, 2);
+    }
+}

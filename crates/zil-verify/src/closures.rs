@@ -1,6 +1,7 @@
 //! Independent closure proof boundary. Frontend/analyzer claims never
 //! substitute for checked signatures, executable operands, or reconstructed Hold.
 use super::*;
+use std::collections::BTreeMap;
 
 pub(super) fn lending_result(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner }
@@ -60,16 +61,20 @@ pub(super) fn check_definitions_with_reuse(
     module: &TypedModule,
     limits: &Limits,
     budget: &mut Budget,
-    reuse: Option<&mut incremental::Attempt<'_>>,
+    mut reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<()> {
     if module.closures.len() > limits.max_functions
         || module.closures.len() > module.functions.len()
     {
         return Err(limit("closure count exceeds the function bound"));
     }
-    check_layouts(module, limits, budget, reuse)?;
+    check_layouts(module, limits, budget, reuse.as_deref_mut())?;
     budget.spend(module.functions.len())?;
-    let mut entries = vec![None; module.functions.len()];
+    let mut entries = if reuse.is_some() {
+        Entries::Sparse(BTreeMap::new())
+    } else {
+        Entries::Dense(vec![None; module.functions.len()])
+    };
     for (index, closure) in module.closures.iter().enumerate() {
         if let Some(life) = &closure.storage_life {
             stored_callables::captured_profile(closure, budget)?;
@@ -386,8 +391,11 @@ pub(super) fn check_definitions_with_reuse(
                     "closure entry function is absent",
                 )
             })?;
-        let entry = &mut entries[closure.function.0 as usize];
-        if entry.replace(closure.id).is_some() || function.environment != Some(closure.id) {
+        if entries
+            .insert(closure.function.0 as usize, closure.id)
+            .is_some()
+            || function.environment != Some(closure.id)
+        {
             return Err(reject(
                 "E-VERIFY-CLOSURE-ENTRY",
                 Some(function.span),
@@ -413,15 +421,66 @@ pub(super) fn check_definitions_with_reuse(
             }
         }
     }
-    for (index, function) in module.functions.iter().enumerate() {
-        budget.spend(1)?;
-        if function.environment != entries[index] {
-            return Err(reject(
-                "E-VERIFY-CLOSURE-ENTRY",
-                Some(function.span),
-                "function has an orphaned or mismatched environment identity",
-            ));
+    if let Some(rows) = reuse.and_then(|attempt| attempt.environment_indices(module)) {
+        let mut cursor = 0;
+        for index in rows {
+            charge_absent_environments(index - cursor, budget)?;
+            check_environment(&module.functions[index], entries.get(index), budget)?;
+            cursor = index + 1;
         }
+        charge_absent_environments(module.functions.len() - cursor, budget)?;
+    } else {
+        for (index, function) in module.functions.iter().enumerate() {
+            check_environment(function, entries.get(index), budget)?;
+        }
+    }
+    Ok(())
+}
+
+// Entries arise only after each current definition has checked its current
+// target's Some(environment). Thus a raw None selector row cannot own an entry.
+// Keep the old dense representation on the ordinary non-session path.
+enum Entries {
+    Dense(Vec<Option<ClosureId>>),
+    Sparse(BTreeMap<usize, ClosureId>),
+}
+impl Entries {
+    fn insert(&mut self, index: usize, id: ClosureId) -> Option<ClosureId> {
+        match self {
+            Self::Dense(rows) => rows[index].replace(id),
+            Self::Sparse(rows) => rows.insert(index, id),
+        }
+    }
+    fn get(&self, index: usize) -> Option<ClosureId> {
+        match self {
+            Self::Dense(rows) => rows[index],
+            Self::Sparse(rows) => rows.get(&index).copied(),
+        }
+    }
+}
+fn check_environment(
+    function: &TypedFunction,
+    entry: Option<ClosureId>,
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(1)?;
+    if function.environment != entry {
+        return Err(reject(
+            "E-VERIFY-CLOSURE-ENTRY",
+            Some(function.span),
+            "function has an orphaned or mismatched environment identity",
+        ));
+    }
+    Ok(())
+}
+fn charge_absent_environments(count: usize, budget: &mut Budget) -> Check<()> {
+    if count <= budget.remaining {
+        return budget.spend(count);
+    }
+    // A short balance follows the old per-function charging sequence. No
+    // absent row can introduce an intervening semantic error.
+    for _ in 0..count {
+        budget.spend(1)?;
     }
     Ok(())
 }

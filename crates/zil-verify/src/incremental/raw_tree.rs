@@ -37,6 +37,7 @@ pub(super) struct Node {
     len: usize,
     source_free: bool,
     foreign_count: usize,
+    environment_count: usize,
     instances: Option<usize>,
     receipt: Option<Receipt>,
     children: Option<(Arc<Node>, Arc<Node>)>,
@@ -50,6 +51,18 @@ impl Attempt<'_> {
         Some(self.next_shape_tree.as_ref()?.instances)
     }
 
+    pub(crate) fn environment_indices(&mut self, module: &TypedModule) -> Option<Vec<usize>> {
+        self.current_shape_functions
+            .as_ref()
+            .filter(|inputs| inputs.ptr_eq(&module.functions))?;
+        let root = self.next_shape_tree.as_ref()?;
+        let mut rows = Vec::with_capacity(root.environment_count);
+        root.selected_indices(0, &mut rows, |node| node.environment_count);
+        self.stats.environment_functions_selected += rows.len();
+        self.stats.environment_functions_not_visited += module.functions.len() - rows.len();
+        Some(rows)
+    }
+
     pub(crate) fn foreign_indices(&mut self, module: &TypedModule) -> Option<Vec<usize>> {
         if !self
             .current_shape_functions
@@ -60,7 +73,7 @@ impl Attempt<'_> {
         }
         let root = self.next_shape_tree.as_ref()?;
         let mut rows = Vec::with_capacity(root.foreign_count);
-        root.foreign_indices(0, &mut rows);
+        root.selected_indices(0, &mut rows, |node| node.foreign_count);
         self.stats.foreign_functions_selected += rows.len();
         self.stats.foreign_functions_not_visited += module.functions.len() - rows.len();
         Some(rows)
@@ -118,12 +131,13 @@ impl Attempt<'_> {
         // Insufficient total credit is never a new rejection point. Descending
         // preserves the earliest original error and its residual budget.
         let remaining = b.remaining;
-        let (source_free, foreign_count, instances, children) = if len == 1 {
+        let (source_free, foreign_count, environment_count, instances, children) = if len == 1 {
             let function = &module.functions[start];
             check_function_raw_shapes(module, start, function, b, limits, Some(self))?;
             (
                 function.storage_life.is_none(),
                 usize::from(function.foreign.is_some()),
+                usize::from(function.environment.is_some()),
                 function
                     .locals
                     .len()
@@ -157,6 +171,7 @@ impl Attempt<'_> {
             (
                 left.source_free && right.source_free,
                 left.foreign_count + right.foreign_count,
+                left.environment_count + right.environment_count,
                 left.instances
                     .zip(right.instances)
                     .and_then(|(left, right)| left.checked_add(right)),
@@ -176,6 +191,7 @@ impl Attempt<'_> {
             len,
             source_free,
             foreign_count,
+            environment_count,
             instances,
             receipt,
             children,
@@ -184,13 +200,13 @@ impl Attempt<'_> {
 }
 
 impl Node {
-    fn foreign_indices(&self, start: usize, rows: &mut Vec<usize>) {
-        if self.foreign_count == 0 {
+    fn selected_indices(&self, start: usize, rows: &mut Vec<usize>, count: fn(&Node) -> usize) {
+        if count(self) == 0 {
             return;
         }
         if let Some((left, right)) = &self.children {
-            left.foreign_indices(start, rows);
-            right.foreign_indices(start + left.len, rows);
+            left.selected_indices(start, rows, count);
+            right.selected_indices(start + left.len, rows, count);
         } else {
             rows.push(start);
         }
