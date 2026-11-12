@@ -84,11 +84,13 @@ pub(super) fn known_zero(module: &TypedModule, ty: &Type, b: &mut Budget) -> Com
                 if matches.next().is_some() {
                     return Err(fail("closure type has ambiguous concrete identity"));
                 }
-                if closure
-                    .storage_life
-                    .as_ref()
-                    .is_some_and(|life| life.fixed_binder_count != 0)
-                {
+                // An absent opaque inventory is Unknown, even for an empty
+                // capture list. A checked Some(0) is a different claim; its
+                // actual entry and all construction obligations still apply.
+                let Some(life) = &closure.storage_life else {
+                    return Ok(false);
+                };
+                if life.fixed_binder_count != 0 {
                     return Ok(false);
                 }
                 b.spend(closure.captures.len(), WORK)?;
