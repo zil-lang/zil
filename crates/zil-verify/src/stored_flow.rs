@@ -2278,7 +2278,12 @@ fn access_tail(
         if write || loan.exclusive {
             for a in &p.sources {
                 for z in &loan.sources {
-                    apart(a, z, requirements, b)?;
+                    apart(a, z, requirements, b).map_err(|error| {
+                        error.with_note(format!(
+                            "actual live loan {id}, parents {:?}; access loans {:?}",
+                            loan.parents, p.loans
+                        ))
+                    })?;
                 }
             }
         }

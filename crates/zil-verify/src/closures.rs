@@ -1126,7 +1126,10 @@ pub(super) fn check_resource_instruction(
             let definition = definition(module, *id, span)?;
             if !supports(definition.kind, expected_kind)
                 || (expected_kind == CallableKind::FnOnce
-                    && !definition.lending_captures.is_empty())
+                    && !definition.lending_captures.is_empty()
+                    && !definition.storage_life.as_ref().is_some_and(|life| {
+                        super::signature_life::outer(life, StorageBase::Result).is_some()
+                    }))
             {
                 return Err(reject(
                     "E-VERIFY-CLOSURE-CALL",
