@@ -56,6 +56,36 @@ pub struct AnalysisSession {
 }
 
 impl AnalysisSession {
+    /// Retain the complete successful raw product epoch for an exact current
+    /// program/candidate owner pair. Public fingerprints and equal reconstructed
+    /// values cannot activate this private state. The retained limits are still
+    /// checked by the next `analyze_product` request; this grants no Verify proof.
+    /// The caller owns eviction together with its bounded raw program owner.
+    pub fn product_checkpoint_for(
+        &self,
+        program: &Arc<TypedProgram>,
+        candidate: &Arc<CandidatePlan>,
+    ) -> Option<Self> {
+        let complete = self.product_complete.as_ref()?;
+        if !complete.matches(program, candidate) {
+            return None;
+        }
+        Some(Self {
+            entries: self.entries.clone(),
+            candidate_entries: self.candidate_entries.clone(),
+            resource_entries: self.resource_entries.clone(),
+            initialization_items: self.initialization_items.clone(),
+            function_results: self.function_results.clone(),
+            shared: self.shared.clone(),
+            stats: self.stats,
+            product: self.product.clone(),
+            product_complete: self.product_complete.clone(),
+            // These are transient recording/output deltas, not working receipts.
+            // Avoid first cloning an entire historical changed-functions list.
+            product_capture: None,
+            product_changes: Vec::new(),
+        })
+    }
     pub fn clear(&mut self) {
         *self = Self::default();
     }

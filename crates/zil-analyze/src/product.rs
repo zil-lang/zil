@@ -17,6 +17,16 @@ pub(super) struct Complete {
     candidate: Arc<CandidatePlan>,
     limits: Limits,
 }
+impl Complete {
+    pub(super) fn matches(
+        &self,
+        program: &Arc<TypedProgram>,
+        candidate: &Arc<CandidatePlan>,
+    ) -> bool {
+        Arc::ptr_eq(&self.program, program) && Arc::ptr_eq(&self.candidate, candidate)
+    }
+}
+
 #[derive(Clone)]
 struct Row {
     function: Arc<TypedFunction>,
