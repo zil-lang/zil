@@ -5,6 +5,7 @@ use super::*;
 mod array_index;
 mod array_snapshot;
 mod byte_queries;
+mod capture_after;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
@@ -483,6 +484,7 @@ pub(super) struct Facts {
     byte_reads: Vec<Target>,
     byte_covered: bool,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
+    capture_after: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
     returned_enum_variants: enum_address::Variants,
@@ -728,6 +730,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             .len()
             .saturating_add(f.returned.len())
             .saturating_add(f.returned_environment.len())
+            .saturating_add(f.capture_after.len())
             .saturating_add(f.external_after.len())
             .saturating_add(f.apart.len()),
     )?;
@@ -764,7 +767,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             }
         }
     }
-    for (path, row) in f.returned.iter().chain(&f.returned_environment) {
+    for (path, row) in f.returned.iter().chain(&f.returned_environment).chain(&f.capture_after) {
         fee(b, path.len().saturating_add(row.len()))?;
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
@@ -2743,6 +2746,10 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
+            let mutable_leaves=if let Some((d,_))=super::stored_callables::called(module,f,&instruction.kind)
+                && d.kind==CallableKind::FnMut && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id)) {
+                capture_after::leaves(module,d,b)?
+            } else {Vec::new()};
             let mut add = |parameter: u32, path: &Path, mutable: bool| -> CompileResult<()> {
                 fee(b, path.len().saturating_add(2))?;
                 ordered(b, ids.len(), path.len())?;
@@ -2800,6 +2807,9 @@ fn slot_loan_ids(
                             }
                         }
                     }
+                }
+                _ if !mutable_leaves.is_empty() => {
+                    for (path,mutable) in &mutable_leaves { add(u32::MAX-1,path,*mutable)?; }
                 }
                 _ => {}
             }
@@ -3579,6 +3589,12 @@ fn transfer(
                 }
             }
         }
+        InstructionKind::WriteCapture { index, value } if !state.captures.is_empty() => {
+            let actual=snapshot(get(*value)?,b)?;
+            ordered(b,state.captures.len(),0)?;
+            if !state.captures.contains_key(index) {return Err(failure("written actual capture absent"));}
+            state.captures.insert(*index,actual);
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
             if !state.captures.is_empty() => {
             ordered(b, state.captures.len(), 0)?;
@@ -3811,6 +3827,7 @@ fn transfer(
             )]);
         }
     }
+    capture_after::invoke(module,f,i,state,values,summaries,slot_ids,loans,b)?;
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }
@@ -5210,6 +5227,7 @@ fn derive_cfg(
                 byte_reads: Vec::new(),
                 byte_covered: false,
                 external_after: BTreeMap::new(),
+                capture_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
                 returned_enum_variants: enum_address::Variants::default(),
@@ -5263,6 +5281,10 @@ fn derive_cfg(
             }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
+                if *live && matches!(block.terminator,Terminator::Return(_))
+                    && f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut) {
+                    capture_after::summarize(f,&outputs[bi],&mut actual,b)?;
+                }
                 if b.stored_slot_updates
                     && *live
                     && matches!(block.terminator, Terminator::Return(_))
@@ -5514,6 +5536,18 @@ fn derive_cfg(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            for block in &f.blocks {
+                for instruction in &block.instructions {
+                    if let Some((d,_))=super::stored_callables::called(module,f,&instruction.kind)
+                        && d.kind==CallableKind::FnMut && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id)) {
+                        let summary=&summaries[d.function.0 as usize];
+                        grounded &= summary.complete;
+                        for (path,_) in capture_after::leaves(module,d,b)? {
+                            grounded &= summary.capture_after.get(&path).is_some_and(|row|!row.is_empty());
                         }
                     }
                 }

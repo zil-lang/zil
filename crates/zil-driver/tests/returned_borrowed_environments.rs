@@ -455,3 +455,10 @@ fn whole_qualified_owner_capture_has_owner_and_leaf_responsibilities() {
     assert!(module.closures[contract.closure.0 as usize].storage_life.is_some());
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }
+
+#[test]
+fn mutable_qualified_owner_publishes_actual_environment_slot_epoch() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
