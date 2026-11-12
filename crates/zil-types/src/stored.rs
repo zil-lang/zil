@@ -765,7 +765,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
     }
     if !matches!(
         storage.as_ref(),
-        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_)
     ) || (matches!(storage.as_ref(), Type::Enum { .. })
         && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
     {
@@ -969,11 +969,11 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         limit: depth_limit,
         span,
         slots: Vec::new(),
-        owning: matches!(storage.as_ref(), Type::Package { .. }),
+        owning: matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
         owned_leaves: 0,
     };
     walk.ty(storage, &mut Vec::new(), 0)?;
-    if walk.owning && walk.owned_leaves == 0 {
+    if matches!(storage.as_ref(),Type::Package{..}) && walk.owned_leaves == 0 {
         return Err(unsupported(
             span,
             "stored Package requires an actual owning Managed leaf",
@@ -1109,6 +1109,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
 /// Ordinary shared compound values keep each actual child scope. This is a
 /// value/ABI admission, never a Copy bound or a reconstruction of target roots.
 pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        inference::charge_type_snapshot(ty, span, limits, left, 2)?;
+        shape(ty, left, limits.max_call_depth, span)?;
+        return Ok(life.slots.iter().all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
+            && !owned_shapes::tuple(ty));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1122,6 +1130,7 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
                 Some(span),
             ));
         }
+
         match ty {
             Type::Tuple(fields) => {
                 for field in fields {

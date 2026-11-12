@@ -17,9 +17,18 @@ pub(super) struct Instance {
     pub(super) classes: Vec<LexicalLife>,
 }
 
+/// Candidate header types travel with the exact pending Source emission.
+/// They carry layout and lexical scope data, never origin or access authority.
+#[derive(Default)]
+pub(super) struct SignatureCandidate {
+    pub(super) parameters: BTreeMap<u32, Type>,
+    pub(super) result: Option<Type>,
+}
+
 #[derive(Default)]
 pub(super) struct Catalog {
     pub(super) instances: Vec<Instance>,
+    pub(super) signature_candidates: BTreeMap<(zil_base::ModuleId, usize), SignatureCandidate>,
     /// Actual specialized function spelling -> retained source relation. These
     /// are output lookup keys, never declaration identities or capabilities.
     pub(super) functions: BTreeMap<String, StorageLifeContract>,
@@ -30,6 +39,25 @@ pub(super) struct Catalog {
 }
 
 impl Catalog {
+    pub(super) fn signature_type(
+        &self,
+        module: zil_base::ModuleId,
+        item: usize,
+        parameter: Option<u32>,
+        span: Span,
+        budget: &mut generics::Budget<'_>,
+    ) -> R<Option<Type>> {
+        if self.signature_candidates.is_empty() { return Ok(None); }
+        budget.identity_work(self.signature_candidates.len().checked_ilog2().map_or(1,|n|n as usize+2),span)?;
+        let Some(candidate)=self.signature_candidates.get(&(module,item)) else { return Ok(None); };
+        let ty=match parameter {
+            Some(index)=>candidate.parameters.get(&index),
+            None=>candidate.result.as_ref(),
+        };
+        if let Some(ty)=ty {pay_type(ty,budget,span,0)?;}
+        Ok(ty.cloned())
+    }
+
     pub(super) fn pointer_lookup_fee(
         &self,
         key: &str,
