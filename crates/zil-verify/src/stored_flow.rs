@@ -11,6 +11,7 @@ mod byte_queries;
 mod captured_owner;
 mod compound;
 mod dyn_closed;
+mod dyn_captures;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
@@ -2683,6 +2684,7 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(ty, base, loans, b)?;
+            dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
@@ -3495,6 +3497,9 @@ static_dependency: None,
         }
         InstructionKind::BorrowCapture { .. } if closed_dyn_transfer.is_some() => {
             out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
+        }
+        InstructionKind::BorrowCapture { .. } if dyn_transfer.is_some() => {
+            out = copy_payload(dyn_transfer.as_ref().unwrap(), b)?;
         }
         InstructionKind::BorrowCapture {
             index,

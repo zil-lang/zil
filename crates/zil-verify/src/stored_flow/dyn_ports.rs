@@ -782,6 +782,9 @@ pub(super) fn transfer(
     if !b.dyn_contexts {
         return Ok(None);
     }
+    if let Some(out) = dyn_captures::transfer(module, f, instruction, state, values, b)? {
+        return Ok(Some(out));
+    }
     let get = |id: ValueId| {
         values
             .get(id.0 as usize)
