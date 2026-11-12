@@ -150,7 +150,7 @@ impl PlainSourceSession {
         let old = self.current.as_ref().filter(|old| {
             old.target == *target
                 && old.limits == *limits
-                && same_program_context(&old.program, program)
+                && same_plain_hint_environment(&old.program, program)
         });
         self.stats.context_reuses = usize::from(old.is_some());
         let mut remaining = limits.clone();
@@ -278,7 +278,15 @@ fn validate_module(
     Some((ModuleReceipt { functions: rows }, usage))
 }
 
-fn same_program_context(previous: &CoreProgram, current: &CoreProgram) -> bool {
+// This is only equality of inputs consumed by successful plain body hints.
+// SourceProgramContext::function resolves (module, name) and current imports;
+// its index and unchanged_function/unchanged_expr never read export NodeIds.
+// A raw function ID is copied by the full rebuilding evaluator, but it is not
+// consumed by these no-rewrite visitors. Every returned raw program, current
+// context and declarations walk is still current. This is NOT checkpoint or
+// Typed/Verify identity: checkpoint_for above intentionally retains the full
+// program fingerprint, immutable Core owners, imports AND exact exports.
+fn same_plain_hint_environment(previous: &CoreProgram, current: &CoreProgram) -> bool {
     let CoreProgram {
         root,
         source_fingerprint: _,
@@ -290,17 +298,15 @@ fn same_program_context(previous: &CoreProgram, current: &CoreProgram) -> bool {
             let ProgramModule {
                 core,
                 imports,
-                exports,
+                exports: _,
             } = current;
-            old.imports == *imports
-                && old.exports == *exports
-                && same_module_context(&old.core, core)
+            old.imports == *imports && same_plain_hint_module(&old.core, core)
         })
 }
-fn same_module_context(previous: &CoreModule, current: &CoreModule) -> bool {
-    // Source fingerprints are diagnostic identities, not inputs read by this
-    // unchanged validator. All actual inventories and every declaration are
-    // retained; only bodies may differ under the same context.
+fn same_plain_hint_module(previous: &CoreModule, current: &CoreModule) -> bool {
+    // Retain all inventories and actual hint/header dependencies. Body owners,
+    // raw declaration IDs and absolute positions are bound separately; they do
+    // not select a different callee hint under the same (module, name) table.
     let CoreModule {
         dyn_declarations,
         dyn_interfaces,
@@ -343,7 +349,9 @@ fn same_module_context(previous: &CoreModule, current: &CoreModule) -> bool {
 // Function/parameter locations are read only for declaration diagnostics (run
 // fresh) and the function's own body admission (still exact-owner bound).
 // Cross-function hints read parameter/return types using the current call span;
-// no hint reads a callee body, ID allocation state, or diagnostic location.
+// no hint reads a callee body, raw ID, ID allocation state or diagnostic location.
+// A changed ID still changes that function's immutable owner and requires its
+// actual current admission; it only stops invalidating unrelated callers.
 fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
     let CoreFunction {
         storage_life,
@@ -353,7 +361,7 @@ fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
         state_parameters,
         protocol_contract,
         callable_return,
-        id,
+        id: _,
         name,
         callable_parameters,
         foreign,
@@ -371,7 +379,6 @@ fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
         && previous.state_parameters == *state_parameters
         && previous.protocol_contract == *protocol_contract
         && previous.callable_return == *callable_return
-        && previous.id == *id
         && previous.name == *name
         && previous.callable_parameters == *callable_parameters
         && previous.foreign == *foreign
