@@ -558,7 +558,16 @@ fn borrowed_failure_raw_and_wire_reject_missing_inputs_and_wrong_parent_projecti
     let ast = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &ast).unwrap();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
-    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let analyzed = zil_analyze::analyze(&typed, &limits);
+    if analyzed.is_err() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../out/runs/task-failure-borrowed-first-counterexample");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("source.zil"), BORROWED).unwrap();
+        fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        fs::write(dir.join("diagnostics.txt"), format!("{analyzed:#?}")).unwrap();
+    }
+    let plan = analyzed.unwrap();
     for mutation in 0..4 {
         let mut forged = typed.clone();
         match mutation {

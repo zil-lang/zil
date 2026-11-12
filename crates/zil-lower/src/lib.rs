@@ -211,6 +211,12 @@ fn lower_view_with_budget(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        // This module is already sealed by Verify's actual Return, frame
+        // ownership, port and cleanup proofs. The owning Task result uses
+        // the same checked opaque frame pointer as an ordinary Task return.
+        let task_result = closure.kind == CallableKind::FnOnce
+            && closure.parameters.is_empty()
+            && matches!(&closure.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}));
         let mut complete_captures = true;
         for ty in &closure.captures {
             let legacy_capture = {
@@ -239,7 +245,7 @@ fn lower_view_with_budget(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
