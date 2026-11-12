@@ -109,6 +109,8 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativePackedStageMetadataCounterexample() -> c_int;
         #[cfg(test)]
+        fn ZilNativePackedStageEntryFilterCounterexample() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -500,6 +502,16 @@ mod enabled {
             assert_eq!(
                 result, 1,
                 "plain caller must be admitted, while distinct blockaddress callers must both reject reuse rather than share an empty key"
+            );
+        }
+
+        #[test]
+        fn packed_stage_entry_summary_can_only_reject_before_full_decode_and_equality() {
+            // SAFETY: local immutable packets and fake digest collisions only;
+            // no LLVM pass or compilation is skipped by the fixture itself.
+            assert_eq!(
+                unsafe { ZilNativePackedStageEntryFilterCounterexample() },
+                1
             );
         }
 

@@ -26,16 +26,19 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/xxhash.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <dlfcn.h>
 #include <map>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -524,6 +527,33 @@ void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Poin
   }
   std::fprintf(stderr, "\n");
 }
+// A complete entry-key NEGATIVE filter, never a reuse receipt. Four ordered
+// length/digest pairs cover every text column used by the original comparison;
+// ordered typed EntryKeys are compared separately without encoding addresses.
+// Even a forced digest collision must still decode and pass the full old Eq.
+struct StageEntrySummary {
+  std::array<size_t, 4> Lengths{};
+  std::array<uint64_t, 4> Digests{};
+  static std::array<const std::string *, 4> columns(const StageStrings &P) {
+    return {&P.Input, &P.World, &P.Pipeline, &P.EntryFacts};
+  }
+  bool sameLengths(const StageStrings &P) const {
+    auto Text = columns(P);
+    for (size_t I = 0; I != Text.size(); ++I)
+      if (Lengths[I] != Text[I]->size()) return false;
+    return true;
+  }
+  static StageEntrySummary create(const StageStrings &P) {
+    StageEntrySummary Result;
+    auto Text = columns(P);
+    for (size_t I = 0; I != Text.size(); ++I) {
+      Result.Lengths[I] = Text[I]->size();
+      Result.Digests[I] = xxh3_64bits(
+          reinterpret_cast<const uint8_t *>(Text[I]->data()), Text[I]->size());
+    }
+    return Result;
+  }
+};
 struct StageState {
   Keys EntryKeys, ExitKeys;
   // A full function projection equality (not PA::all or a digest) proves that
@@ -537,8 +567,14 @@ struct StageState {
 };
 // Pending visitors keep ordinary complete text. Resident records encode only
 // the lossless text frame; every analysis/PA/name/BB field remains typed state.
-struct Stage : StageState, StageStrings {};
+struct Stage : StageState, StageStrings {
+  // Entry text does not change during the stage. Reuse a computed miss summary
+  // at retention rather than hashing the same current entry a second time.
+  // If this hint were stale it still could only cause a miss/extra full check.
+  std::optional<StageEntrySummary> EntrySummary;
+};
 struct PackedStage : StageState {
+  StageEntrySummary EntrySummary;
   PackedStageStrings Text;
   size_t UnpackedBytes = 0, StoredBytes = 0;
 };
@@ -606,6 +642,30 @@ bool unpackStage(const PackedStage &Packed, Stage &Out) {
   if (!unpackedStageBytes(Current, Bytes) || Bytes != Packed.UnpackedBytes) return false;
   Out = std::move(Current); return true;
 }
+bool entryMayMatch(const PackedStage &Prior, Stage &Current) {
+  if (Prior.EntryKeys != Current.EntryKeys || !Prior.EntrySummary.sameLengths(Current)) return false;
+  Current.EntrySummary = StageEntrySummary::create(Current);
+  return Prior.EntrySummary.Digests == Current.EntrySummary->Digests;
+}
+bool exactStageEntry(const Stage &Prior, const Stage &Current) {
+  return Prior.Input == Current.Input && Prior.World == Current.World &&
+         Prior.Pipeline == Current.Pipeline && Prior.EntryKeys == Current.EntryKeys &&
+         Prior.EntryFacts == Current.EntryFacts;
+}
+// Called only after exact current Config and Slot lookup. False leaves IR/AM
+// untouched and executes the original stage. AttemptedDecode is a fixture-only
+// observation proving a negative filter really avoided the full packed read.
+bool decodeStageCandidate(const PackedStage &Prior, Stage &Current, Stage &Decoded,
+                          ZilNativeProductStats &Stats, bool *AttemptedDecode = nullptr) {
+  if (AttemptedDecode) *AttemptedDecode = false;
+  { IRScopeNS<> KeyTime(Stats.ir_key_ns); if (!entryMayMatch(Prior, Current)) return false; }
+  if (AttemptedDecode) *AttemptedDecode = true;
+  { IRScopeNS<> UnpackTime(Stats.ir_unpack_ns); if (!unpackStage(Prior, Decoded)) return false; }
+  // A summary MATCH cannot authorize anything, including on a collision or a
+  // malformed/private hint. Preserve every original complete entry comparison.
+  return exactStageEntry(Decoded, Current);
+}
+
 void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const PackedStage> P) {
   if (R.Next.Stages.size() >= MaxStageProductSlots || R.Next.Stages.count(Slot)) return;
   size_t Raw = P->UnpackedBytes, Stored = P->StoredBytes;
@@ -632,6 +692,7 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stag
   auto Packed = std::make_shared<PackedStage>();
   static_cast<StageState &>(*Packed) = static_cast<const StageState &>(*P);
   Packed->Text = std::move(*Text); Packed->UnpackedBytes = Raw;
+  Packed->EntrySummary = P->EntrySummary ? *P->EntrySummary : StageEntrySummary::create(*P);
   size_t Stored = 0;
   if (!addStageBytes(Stored, sizeof(PackedStage)) ||
       !stageMetadataBytes(*Packed, Stored) || !addStageBytes(Stored, Packed->Text.encodedSize())) return;
@@ -879,9 +940,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
       Stage Old;
       // A malformed/unavailable codec is an optional candidate miss. No IR or
       // AM state has changed; the original stage still executes below.
-      bool Decoded;
-      { IRScopeNS<> UnpackTime(R.Stats.ir_unpack_ns); Decoded = unpackStage(*It->second, Old); }
-      if (Decoded && Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
+      if (decodeStageCandidate(*It->second, *P, Old, R.Stats)) {
         if (!replay(R, F, AM, Old)) {
           R.Failed = true; ++R.Stats.failed_replays;
           *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1;
@@ -1465,4 +1524,66 @@ extern "C" int ZilNativeIRScopeTimerCounterexample() {
   Total = std::numeric_limits<uint64_t>::max();
   { IRScopeNS<IRScopeTestClock> Timer(Total); }
   return Total == std::numeric_limits<uint64_t>::max();
+}
+
+extern "C" int ZilNativePackedStageEntryFilterCounterexample() {
+  using namespace zil;
+  Stage Original;
+  Original.Input = std::string("input\0tail", 10); Original.World = "world";
+  Original.Pipeline = "pipeline"; Original.EntryFacts = "complete-entry-facts";
+  Original.Output = std::string("BC\0data", 7); Original.OutputText = "output";
+  Original.ExitFacts = "complete-exit-facts";
+  Original.EntryKeys = {TargetLibraryAnalysis::ID(), DominatorTreeAnalysis::ID()};
+  Original.ExitKeys = {DominatorTreeAnalysis::ID()};
+  auto Text = PackedStageStrings::pack(Original, MaxStageProductBytes, false);
+  if (!Text) return 0;
+  PackedStage Packed;
+  static_cast<StageState &>(Packed) = static_cast<const StageState &>(Original);
+  Packed.Text = std::move(*Text); Packed.EntrySummary = StageEntrySummary::create(Original);
+  if (!unpackedStageBytes(Original, Packed.UnpackedBytes)) return 0;
+  Packed.StoredBytes = sizeof(PackedStage);
+  if (!stageMetadataBytes(Packed, Packed.StoredBytes) ||
+      !addStageBytes(Packed.StoredBytes, Packed.Text.encodedSize())) return 0;
+  ZilNativeProductStats Stats{};
+  Stage Decoded, Current = Original;
+  bool Attempted = false;
+  if (!decodeStageCandidate(Packed, Current, Decoded, Stats, &Attempted) || !Attempted ||
+      !exactStageEntry(Decoded, Original) || Decoded.Output != Original.Output ||
+      Decoded.ExitFacts != Original.ExitFacts) return 0;
+  // Each whole entry column is an independent length/hash input, including
+  // bytes after NUL. Both length and same-length-content misses skip decode.
+  for (unsigned I = 0; I != 4; ++I) {
+    for (bool ChangeLength : {false, true}) {
+      Current = Original;
+      auto Columns = std::array<std::string *, 4>{&Current.Input, &Current.World,
+                                                 &Current.Pipeline, &Current.EntryFacts};
+      if (ChangeLength) Columns[I]->push_back('x'); else Columns[I]->back() ^= 1;
+      Attempted = true;
+      if (decodeStageCandidate(Packed, Current, Decoded, Stats, &Attempted) || Attempted) return 0;
+    }
+  }
+  Current = Original; std::reverse(Current.EntryKeys.begin(), Current.EntryKeys.end());
+  Attempted = true;
+  if (decodeStageCandidate(Packed, Current, Decoded, Stats, &Attempted) || Attempted || Current.EntrySummary) return 0;
+  Current = Original; Current.EntryKeys.pop_back(); Attempted = true;
+  if (decodeStageCandidate(Packed, Current, Decoded, Stats, &Attempted) || Attempted) return 0;
+  // A deliberate false positive/forced collision still reaches the ORIGINAL
+  // exact byte comparison, so no stale body may be replayed on a digest match.
+  Current = Original; Current.Input.back() ^= 1;
+  PackedStage Collision = Packed; Collision.EntrySummary = StageEntrySummary::create(Current);
+  Attempted = false;
+  if (decodeStageCandidate(Collision, Current, Decoded, Stats, &Attempted) || !Attempted) return 0;
+  // Current output/exit state is not an entry key and cannot be used to reject
+  // a legitimate candidate before the original replay reconstructs/checks it.
+  Current = Original; Current.OutputText = "not-an-entry-column"; Current.ExitFacts = "current-exit";
+  Attempted = false;
+  if (!decodeStageCandidate(Packed, Current, Decoded, Stats, &Attempted) || !Attempted) return 0;
+  // A negative may reject an otherwise broken packet without inspecting it;
+  // a positive still must attempt bounded decode and safely miss that packet.
+  PackedStage Broken = Packed; Broken.Text = PackedStageStrings();
+  Current = Original; Current.Input += "changed"; Attempted = true;
+  if (decodeStageCandidate(Broken, Current, Decoded, Stats, &Attempted) || Attempted) return 0;
+  Current = Original; Attempted = false;
+  if (decodeStageCandidate(Broken, Current, Decoded, Stats, &Attempted) || !Attempted) return 0;
+  return 1;
 }

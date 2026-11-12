@@ -82,6 +82,7 @@ int ZilNativeProductsEligibilityProducerCounterexample(void);
 int ZilNativeProductsTypeAndOwnerCounterexamples(void);
 int ZilNativeAnalysisUnsupportedKeysCounterexample(void);
 int ZilNativeIRScopeTimerCounterexample(void);
+int ZilNativePackedStageEntryFilterCounterexample(void);
 #ifdef __cplusplus
 }
 #endif
