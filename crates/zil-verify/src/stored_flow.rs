@@ -2339,24 +2339,23 @@ fn query_access(
 fn captured_definition<'a>(
     module: &'a TypedModule,
     f: &TypedFunction,
-    b: &Budget,
+    _b: &Budget,
 ) -> Option<&'a ClosureDefinition> {
     f.environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        .filter(|d| {
-            d.storage_life.is_some() || b.returned_environment_sources || b.nested_callable_sources
-        })
 }
-fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
+
+fn fixed_environment(module: &TypedModule, ty: &Type, _b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    // This selects actual environment memory transport, not a class count.
-    // A missing class directory remains unknown to signature/class checking.
-    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources || b.nested_callable_sources))
+    // Actual environment memory has a field directory even when its semantic
+    // class domain is unknown. No scope count or signature proof comes from it.
+    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some())
 }
+
 fn seed_environment(
     module: &TypedModule,
     ty: &Type,
@@ -3533,33 +3532,9 @@ fn step(
                 }
             }
         }
-        InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources || b.nested_callable_sources => {
-            returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
-        }
         InstructionKind::MakeClosure { closure, captures }
-            if module
-                .closures
-                .get(closure.0 as usize)
-                .is_some_and(|d| d.storage_life.is_some()) =>
-        {
-            let d = &module.closures[closure.0 as usize];
-            b.spend(captures.len())?;
-            for (index, (value, ty)) in captures.iter().zip(&d.captures).enumerate() {
-                let actual = val(*value)?;
-                let prefix = vec![PlaceProjection::Field(index as u32)];
-                if matches!(ty, Type::Address { .. }) {
-                    add_leaf(&mut out, &prefix, &actual.address, b)?;
-                }
-                if let Some((_, shape)) = addressed(ty) {
-                    for slot in &shape.slots {
-                        let p = select(state, &actual.address, &slot.path, b)?;
-                        b.spend(slot.path.len().saturating_add(1))?;
-                        let mut path = prefix.clone();
-                        path.extend(&slot.path);
-                        add_leaf(&mut out, &path, &p, b)?;
-                    }
-                }
-            }
+            if module.closures.get(closure.0 as usize).is_some() => {
+            returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
