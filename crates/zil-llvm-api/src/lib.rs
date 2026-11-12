@@ -3,7 +3,9 @@
 //! One call owns one context and returns owned bytes; no LLVM pointer escapes.
 //! Native support is optional for library/reference builds; the mainline CLI enables it.
 
+mod late_closed;
 pub mod model;
+pub use late_closed::{LateClosedPlan, LateClosedReport};
 mod preflight;
 mod preflight_receipt;
 mod shared_vec;
@@ -186,6 +188,7 @@ impl NativeWorkProducts {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
+    pub late_closed: Option<LateClosedReport>,
     pub llvm_version: String,
     pub triple: String,
     pub cpu: String,
@@ -374,6 +377,49 @@ pub fn compile_module_with_native_products(
             message: format!(
                 "rebuild with native-products feature and audited LLVM {LLVM_VERSION}"
             ),
+        })
+    }
+}
+
+/// Explicit no-external-ZIL-export executable policy. The original selected
+/// O2 pipeline completes first; only then may zero-use, closure-checked names
+/// be internalized and removed by a separate GlobalDCE pass. Current preflight,
+/// target/layout, cancellation and all LLVM verification remain mandatory.
+pub fn compile_module_with_late_closed(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    plan: &LateClosedPlan,
+    native_products: bool,
+    prior: Option<&NativeWorkProducts>,
+) -> Result<(Object, PreflightReceipt, Option<NativeWorkProducts>), Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module_with_late_closed(
+            module,
+            config,
+            function_merging,
+            cancelled,
+            plan,
+            native_products,
+            prior,
+        )
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (
+            module,
+            config,
+            function_merging,
+            cancelled,
+            plan,
+            native_products,
+            prior,
+        );
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: "late closed executable requires native LLVM".into(),
         })
     }
 }

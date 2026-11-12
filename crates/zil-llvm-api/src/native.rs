@@ -114,6 +114,8 @@ owned!(Layout, LLVMDisposeTargetData);
 owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
 mod builder;
+#[cfg(test)]
+mod late_closed_tests;
 pub(crate) mod products;
 #[cfg(all(test, feature = "native-products", feature = "text-reference"))]
 mod spill_tests;
@@ -241,6 +243,17 @@ pub(super) fn compile_module_with_native_products(
     cancelled: &(dyn Fn() -> bool + Sync),
     prior: Option<&crate::NativeWorkProducts>,
 ) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
+    compile_native_products_policy(module, config, function_merging, cancelled, prior, None)
+}
+#[cfg(feature = "native-products")]
+fn compile_native_products_policy(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    prior: Option<&crate::NativeWorkProducts>,
+    late_closed: Option<&crate::LateClosedPlan>,
+) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
     let start = Instant::now();
     let mut attempt = NativeAttempt {
         prior,
@@ -249,13 +262,14 @@ pub(super) fn compile_module_with_native_products(
         products: None,
         timings: AttemptTimings::default(),
     };
-    let result = compile_input(
+    let result = compile_input_with_policy(
         Input::Structured(module),
         config,
         function_merging,
         cancelled,
         true,
         Some(&mut attempt),
+        late_closed,
     );
     // compile_input has fully returned: its Scope, Module, TargetMachine and
     // Context have all been destroyed. Never retry in a partly replayed context.
@@ -264,13 +278,14 @@ pub(super) fn compile_module_with_native_products(
             check(cancelled)?;
             attempt.stats.fresh_context_fallbacks = 1;
             attempt.stats.fallback_ns = nanos(start);
-            let (mut object, receipt) = compile_input(
+            let (mut object, receipt) = compile_input_with_policy(
                 Input::Structured(module),
                 config,
                 function_merging,
                 cancelled,
                 true,
                 None,
+                late_closed,
             )?;
             object.receipt.preflight_ns = object
                 .receipt
@@ -303,6 +318,52 @@ pub(super) fn compile_module_with_native_products(
         object,
         receipt.expect("structured preflight issued a receipt"),
         attempt.products,
+    ))
+}
+
+pub(super) fn compile_module_with_late_closed(
+    module: &crate::model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    plan: &crate::LateClosedPlan,
+    native_products: bool,
+    prior: Option<&crate::NativeWorkProducts>,
+) -> Result<(Object, PreflightReceipt, Option<crate::NativeWorkProducts>), Error> {
+    if native_products {
+        #[cfg(feature = "native-products")]
+        {
+            return compile_native_products_policy(
+                module,
+                config,
+                function_merging,
+                cancelled,
+                prior,
+                Some(plan),
+            );
+        }
+        #[cfg(not(feature = "native-products"))]
+        {
+            return Err(error(
+                ErrorKind::Unavailable,
+                "native products feature required",
+            ));
+        }
+    }
+    let _ = prior;
+    let (object, receipt) = compile_input_with_policy(
+        Input::Structured(module),
+        config,
+        function_merging,
+        cancelled,
+        true,
+        None,
+        Some(plan),
+    )?;
+    Ok((
+        object,
+        receipt.expect("current machine preflight receipt"),
+        None,
     ))
 }
 
@@ -377,6 +438,25 @@ fn compile_input(
     issue_receipt: bool,
     native_attempt: Option<&mut NativeAttempt<'_>>,
 ) -> Result<(Object, Option<PreflightReceipt>), Error> {
+    compile_input_with_policy(
+        input,
+        config,
+        function_merging,
+        cancelled,
+        issue_receipt,
+        native_attempt,
+        None,
+    )
+}
+fn compile_input_with_policy(
+    input: Input<'_>,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    issue_receipt: bool,
+    native_attempt: Option<&mut NativeAttempt<'_>>,
+    late_closed: Option<&crate::LateClosedPlan>,
+) -> Result<(Object, Option<PreflightReceipt>), Error> {
     let start = Instant::now();
     // A cancellation callback may reenter ordinary/native compilation. Suspend
     // its outer request for this complete invocation, including fresh fallback.
@@ -396,6 +476,27 @@ fn compile_input(
         None => (None, None),
     };
     check(cancelled)?;
+    if let Some(plan) = late_closed {
+        let module = match &input {
+            Input::Structured(module) => *module,
+            #[cfg(feature = "text-reference")]
+            Input::Text(_) => {
+                return Err(error(
+                    ErrorKind::Verify,
+                    "late closed policy requires exact structured inputs",
+                ));
+            }
+        };
+        if !plan.matches(module)
+            || config.optimization != Optimization::O2
+            || config.triple != "x86_64-unknown-linux-gnu"
+        {
+            return Err(error(
+                ErrorKind::Verify,
+                "late closed policy does not bind current Linux O2 input",
+            ));
+        }
+    }
     check_config(config)?;
     if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled {
         return Err(error(ErrorKind::Optimize, "function merging requires O2"));
@@ -560,7 +661,8 @@ fn compile_input(
                 "default",
                 optimized,
                 "verify-before-after",
-                "native-products-v2"
+                "native-products-v2",
+                late_closed.map(crate::LateClosedPlan::candidates)
             )
         )
     });
@@ -581,7 +683,7 @@ fn compile_input(
     }
     let t = Instant::now();
     let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
-    let optimize_ns = nanos(t);
+    let mut optimize_ns = nanos(t);
     if let Some(timings) = attempt_timings.as_deref_mut() {
         timings.optimize_ns = optimize_ns;
     }
@@ -604,6 +706,26 @@ fn compile_input(
         ));
     }
     verify(&module)?;
+    check(cancelled)?;
+    let late_report = if let Some(plan) = late_closed {
+        // O2, including every original function/CGSCC/module pass, has finished.
+        // This separate DCE run cannot retroactively change its inline choices.
+        if let Some(scope) = &product_scope {
+            scope.phase(3);
+        }
+        let late_start = Instant::now();
+        let result = late_closed_native::apply(&module, machine.0, opts.0, plan, cancelled);
+        let cost = nanos(late_start);
+        optimize_ns = optimize_ns.saturating_add(cost);
+        if let Some(timings) = attempt_timings.as_deref_mut() {
+            timings.optimize_ns = optimize_ns;
+        }
+        let mut report = result?;
+        report.cost_ns = cost;
+        Some(report)
+    } else {
+        None
+    };
     check(cancelled)?;
     if let Some(scope) = &product_scope {
         scope.phase(2);
@@ -663,12 +785,20 @@ fn compile_input(
         Object {
             bytes,
             receipt: Receipt {
+                late_closed: late_report,
                 llvm_version: super::LLVM_VERSION.into(),
                 triple: config.triple.into(),
                 cpu: "x86-64".into(),
                 features: String::new(),
                 data_layout,
-                pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
+                pipeline: if late_closed.is_some() {
+                    format!(
+                        "{},late-closed-globaldce-v1",
+                        super::pipeline_identity(config.optimization, function_merging)
+                    )
+                } else {
+                    super::pipeline_identity(config.optimization, function_merging).into()
+                },
                 relocation: "PIC".into(),
                 code_model: "default".into(),
                 verify_before_after: true,
@@ -1321,5 +1451,214 @@ mod native_machine_alignment_tests {
             default_native.bytes, ordinary.bytes,
             "disabled production policy must emit the ordinary LLVM object"
         );
+    }
+}
+
+// This module is inside the existing audited native C boundary. Every borrowed
+// handle remains in compile_input's live current Module/Context/TargetMachine.
+mod late_closed_native {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+    unsafe extern "C" {
+        fn LLVMGetFirstFunction(m: Handle) -> Handle;
+        fn LLVMGetNextFunction(f: Handle) -> Handle;
+        fn LLVMGetNamedFunction(m: Handle, name: *const c_char) -> Handle;
+        fn LLVMGetValueName2(v: Handle, len: *mut usize) -> *const c_char;
+        fn LLVMIsDeclaration(v: Handle) -> c_int;
+        fn LLVMGetLinkage(v: Handle) -> c_uint;
+        fn LLVMSetLinkage(v: Handle, linkage: c_uint);
+        fn LLVMGetFirstUse(v: Handle) -> Handle;
+        fn LLVMGetComdat(v: Handle) -> Handle;
+        fn LLVMGetVisibility(v: Handle) -> c_uint;
+        fn LLVMGetDLLStorageClass(v: Handle) -> c_uint;
+        fn LLVMHasPrefixData(v: Handle) -> c_int;
+        fn LLVMHasPrologueData(v: Handle) -> c_int;
+        fn LLVMHasPersonalityFn(v: Handle) -> c_int;
+        fn LLVMGetGC(v: Handle) -> *const c_char;
+        fn LLVMGetModuleInlineAsm(m: Handle, len: *mut usize) -> *const c_char;
+        fn LLVMGetFirstGlobalAlias(m: Handle) -> Handle;
+        fn LLVMGetFirstGlobalIFunc(m: Handle) -> Handle;
+        fn LLVMGetFirstNamedMetadata(m: Handle) -> Handle;
+        fn LLVMGetFirstGlobal(m: Handle) -> Handle;
+        fn LLVMGetNextGlobal(v: Handle) -> Handle;
+        fn LLVMGlobalCopyAllMetadata(v: Handle, len: *mut usize) -> Handle;
+        fn LLVMDisposeValueMetadataEntries(v: Handle);
+        fn LLVMGetFirstBasicBlock(f: Handle) -> Handle;
+        fn LLVMGetNextBasicBlock(b: Handle) -> Handle;
+        fn LLVMGetFirstInstruction(b: Handle) -> Handle;
+        fn LLVMGetNextInstruction(i: Handle) -> Handle;
+        fn LLVMHasMetadata(i: Handle) -> c_int;
+    }
+    fn name(v: Handle) -> Option<String> {
+        let mut len = 0;
+        // SAFETY: v is an actual live current LLVM Function, len is writable.
+        let p = unsafe { LLVMGetValueName2(v, &mut len) };
+        if p.is_null() || len == 0 || len > isize::MAX as usize {
+            return None;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(p.cast::<u8>(), len) };
+        std::str::from_utf8(bytes).ok().map(str::to_owned)
+    }
+    fn definitions(m: &Module) -> Option<BTreeSet<String>> {
+        let mut names = BTreeSet::new();
+        let mut f = unsafe { LLVMGetFirstFunction(m.0) };
+        while !f.is_null() {
+            if unsafe { LLVMIsDeclaration(f) } == 0 {
+                names.insert(name(f)?);
+            }
+            f = unsafe { LLVMGetNextFunction(f) };
+        }
+        Some(names)
+    }
+    fn global_metadata(v: Handle) -> bool {
+        let mut len = 0;
+        let entries = unsafe { LLVMGlobalCopyAllMetadata(v, &mut len) };
+        if !entries.is_null() {
+            unsafe { LLVMDisposeValueMetadataEntries(entries) };
+        }
+        len != 0
+    }
+    fn module_refusal(m: &Module) -> Option<&'static str> {
+        let mut asm_len = 0;
+        unsafe { LLVMGetModuleInlineAsm(m.0, &mut asm_len) };
+        if asm_len != 0 {
+            return Some("module-assembly");
+        }
+        if !unsafe { LLVMGetFirstGlobalAlias(m.0) }.is_null() {
+            return Some("global-alias");
+        }
+        if !unsafe { LLVMGetFirstGlobalIFunc(m.0) }.is_null() {
+            return Some("global-ifunc");
+        }
+        if !unsafe { LLVMGetFirstNamedMetadata(m.0) }.is_null() {
+            return Some("named-metadata");
+        }
+        let mut g = unsafe { LLVMGetFirstGlobal(m.0) };
+        while !g.is_null() {
+            if global_metadata(g) {
+                return Some("global-metadata");
+            }
+            g = unsafe { LLVMGetNextGlobal(g) };
+        }
+        let mut f = unsafe { LLVMGetFirstFunction(m.0) };
+        while !f.is_null() {
+            if global_metadata(f) {
+                return Some("function-metadata");
+            }
+            let mut b = unsafe { LLVMGetFirstBasicBlock(f) };
+            while !b.is_null() {
+                let mut i = unsafe { LLVMGetFirstInstruction(b) };
+                while !i.is_null() {
+                    if unsafe { LLVMHasMetadata(i) } != 0 {
+                        return Some("instruction-metadata");
+                    }
+                    i = unsafe { LLVMGetNextInstruction(i) };
+                }
+                b = unsafe { LLVMGetNextBasicBlock(b) };
+            }
+            f = unsafe { LLVMGetNextFunction(f) };
+        }
+        // The bound Structured model has no metadata/DbgRecord/asm/alias/ifunc
+        // constructors. This full rooted post-O2 metadata scan is deliberately
+        // conservative: no orphan ValueAsMetadata is an external ABI root.
+        None
+    }
+    pub(super) fn apply(
+        m: &Module,
+        machine: Handle,
+        opts: Handle,
+        plan: &crate::LateClosedPlan,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<crate::LateClosedReport, Error> {
+        let mut report = crate::LateClosedReport {
+            candidates: plan.candidates().to_vec(),
+            refused: BTreeMap::new(),
+            ..crate::LateClosedReport::default()
+        };
+        let Some(before) = definitions(m) else {
+            report.refused.insert(
+                "unrepresented-definition-name".into(),
+                report.candidates.len(),
+            );
+            return Ok(report);
+        };
+        report.before_definitions = before.iter().cloned().collect();
+        report.after_definitions = report.before_definitions.clone();
+        if report.candidates.is_empty() {
+            return Ok(report);
+        }
+        if let Some(reason) = module_refusal(m) {
+            report
+                .refused
+                .insert(reason.into(), report.candidates.len());
+            return Ok(report);
+        }
+        // Complete all checks before the first mutation. use_empty includes
+        // llvm.used/compiler.used, ctor/dtor/annotations and constant users;
+        // the backend has additionally rejected every PRE-O2 address escape
+        // and cross-CGU reference, even if O2 happened to remove that user.
+        let mut selected = Vec::new();
+        for n in &report.candidates {
+            let c =
+                CString::new(n.as_str()).map_err(|e| error(ErrorKind::Verify, e.to_string()))?;
+            let f = unsafe { LLVMGetNamedFunction(m.0, c.as_ptr()) };
+            let refusal = if f.is_null() {
+                Some("absent-after-o2")
+            } else if unsafe { LLVMIsDeclaration(f) } != 0 {
+                Some("declaration")
+            } else if unsafe { LLVMGetLinkage(f) } != 0 {
+                Some("non-external")
+            } else if !unsafe { LLVMGetFirstUse(f) }.is_null() {
+                Some("remaining-users")
+            } else if !unsafe { LLVMGetComdat(f) }.is_null() {
+                Some("comdat")
+            } else if unsafe { LLVMGetVisibility(f) } != 0
+                || unsafe { LLVMGetDLLStorageClass(f) } != 0
+            {
+                Some("external-abi-attributes")
+            } else if unsafe { LLVMHasPrefixData(f) } != 0
+                || unsafe { LLVMHasPrologueData(f) } != 0
+                || unsafe { LLVMHasPersonalityFn(f) } != 0
+                || !unsafe { LLVMGetGC(f) }.is_null()
+            {
+                Some("function-auxiliary-data")
+            } else {
+                None
+            };
+            if let Some(reason) = refusal {
+                *report.refused.entry(reason.into()).or_default() += 1;
+            } else {
+                selected.push(f);
+                report.eligible.push(n.clone());
+            }
+        }
+        check(cancelled)?;
+        if selected.is_empty() {
+            return Ok(report);
+        }
+        for f in selected {
+            unsafe { LLVMSetLinkage(f, 8) };
+        } // LLVMInternalLinkage, fixed23
+        let failure = unsafe { LLVMRunPasses(m.0, c"globaldce".as_ptr(), machine, opts) };
+        if !failure.is_null() {
+            let msg = unsafe { LLVMGetErrorMessage(failure) };
+            let message = unsafe { text(msg) };
+            if !msg.is_null() {
+                unsafe { LLVMDisposeErrorMessage(msg) };
+            }
+            return Err(error(ErrorKind::Optimize, message));
+        }
+        verify(m)?;
+        check(cancelled)?;
+        let after = definitions(m).ok_or_else(|| {
+            error(
+                ErrorKind::Optimize,
+                "late DCE produced an unrepresented definition",
+            )
+        })?;
+        report.removed = before.difference(&after).cloned().collect();
+        report.after_definitions = after.into_iter().collect();
+        report.ran_globaldce = true;
+        Ok(report)
     }
 }

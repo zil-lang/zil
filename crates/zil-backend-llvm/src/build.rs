@@ -149,6 +149,8 @@ pub struct BuildOptions {
     pub optimization: Optimization,
     /// Explicit Linux executable without generated ZIL symbol exports.
     pub closed_executable: bool,
+    /// Explicit no-external-ZIL-exports contract, applied AFTER ordinary O2.
+    pub late_closed_executable: bool,
     /// Explicit stable O2 chunks with complete direct-call implementation copies.
     pub incremental_o2: bool,
     /// Explicit audited LLVM optimization/machine products; no default opt-in.
@@ -170,6 +172,7 @@ impl BuildOptions {
             output: output.into(),
             optimization: Optimization::O0,
             closed_executable: false,
+            late_closed_executable: false,
             incremental_o2: false,
             native_products: false,
             function_merging: FunctionMerging::Disabled,
@@ -313,6 +316,21 @@ pub fn build_view_with_cancellation_and_session(
             ResultCategory::Unsupported,
             "E-CODEGEN-MERGING-BACKEND",
             "before-and-after function merging requires the LLVM API backend",
+            None,
+        )]);
+    }
+    if options.late_closed_executable
+        && (options.closed_executable
+            || options.optimization != Optimization::O2
+            || options.backend != NativeBackend::LlvmApi
+            || lir.target.triple != "x86_64-unknown-linux-gnu"
+            || options.emit.entry == EntryPoint::None)
+    {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-LATE-CLOSED",
+            "late-closed-executable requires a Linux LLVM API O2 executable and excludes early closed-executable",
             None,
         )]);
     }
@@ -599,33 +617,38 @@ pub fn build_view_with_cancellation_and_session(
     timings.partition_ns =
         crate::object_cache::elapsed_ns(partition_started).saturating_sub(timings.diagnostic_ns);
     let object_setup_started = std::time::Instant::now();
+    let late_plans = options
+        .late_closed_executable
+        .then(|| crate::late_closed::plans(&plan.units, lir));
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
     };
-    let cache = options.object_cache.as_ref().and_then(|path| {
-        match PreparedCache::new(
-            path,
-            lir.target,
-            options.optimization,
-            options.function_merging,
-            options.incremental_o2
-                && options.optimization == Optimization::O2
-                && !options.closed_executable
-                && lir.target.triple == "x86_64-unknown-linux-gnu",
-        ) {
-            Ok(cache) => {
-                cache_summary.enabled = true;
-                Some(cache)
+    let cache =
+        options.object_cache.as_ref().and_then(|path| {
+            match PreparedCache::new_with_policy(
+                path,
+                lir.target,
+                options.optimization,
+                options.function_merging,
+                options.incremental_o2
+                    && options.optimization == Optimization::O2
+                    && !options.closed_executable
+                    && lir.target.triple == "x86_64-unknown-linux-gnu",
+                options.late_closed_executable,
+            ) {
+                Ok(cache) => {
+                    cache_summary.enabled = true;
+                    Some(cache)
+                }
+                Err(reason) => {
+                    cache_summary.disabled_reason = Some(reason);
+                    None
+                }
             }
-            Err(reason) => {
-                cache_summary.disabled_reason = Some(reason);
-                None
-            }
-        }
-    });
+        });
     if let Some(diagnostic) = stable_diagnostic {
-        diagnostic.write(&plan.units, cache.as_ref());
+        diagnostic.write(&plan.units, cache.as_ref().filter(|_| late_plans.is_none()));
     }
     let mut pending_cache = PendingObjectCache {
         directory: cache.as_ref().map(|c| c.directory.clone()),
@@ -774,6 +797,7 @@ pub fn build_view_with_cancellation_and_session(
                     }),
                     native_prior: None,
                     native_history: Vec::new(),
+                    late_closed: late_plans.as_ref().map(|plans| plans[id].clone()),
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -785,14 +809,15 @@ pub fn build_view_with_cancellation_and_session(
                 .zip(session.partition.as_ref())
                 .is_some_and(|(previous, current)| std::sync::Arc::ptr_eq(previous, current));
             for (index, unit) in inputs.iter_mut().enumerate() {
+                let candidates = unit.late_closed.as_ref().map(|p| p.candidates().to_vec());
                 let old = if same_partition {
-                    session
-                        .keys
-                        .get(index)
-                        .filter(|entry| entry.directory == cache.directory)
+                    session.keys.get(index).filter(|entry| {
+                        entry.directory == cache.directory && entry.late_candidates == candidates
+                    })
                 } else {
                     session.keys.iter().find(|entry| {
                         entry.directory == cache.directory
+                            && entry.late_candidates == candidates
                             && entry.module.triple == unit.module.triple
                             && entry.module.items == unit.module.items
                     })
@@ -804,7 +829,8 @@ pub fn build_view_with_cancellation_and_session(
                     std::sync::Arc::new(crate::incremental::KeyProduct {
                         directory: cache.directory.clone(),
                         module: unit.module.clone(),
-                        key: cache.key(&unit.module),
+                        key: cache.key_with_plan(&unit.module, unit.late_closed.as_deref()),
+                        late_candidates: candidates,
                     })
                 };
                 unit.key = Some(product.key);
@@ -1032,6 +1058,7 @@ struct UnitInput {
     native_owner: Option<crate::incremental::NativeUnitOwner>,
     native_prior: Option<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
     native_history: Vec<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
+    late_closed: Option<std::sync::Arc<zil_llvm_api::LateClosedPlan>>,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
@@ -1230,7 +1257,8 @@ fn compile_api_unit(
     };
     let mut access = None;
     if let Some(cache) = cache {
-        let (mut lookup, bytes) = cache.lookup_with_key(&unit.module, unit.key);
+        let (mut lookup, bytes) =
+            cache.lookup_with_key(&unit.module, unit.key, unit.late_closed.as_deref());
         check_cancelled(cancelled)?;
         if let Some(bytes) = bytes {
             // A hit is not a native Builder invocation. The independent
@@ -1264,16 +1292,34 @@ fn compile_api_unit(
                 "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"current_machine_preflight_reused\":{},\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
-                q(zil_llvm_api::pipeline_identity(
-                    config.optimization,
-                    function_merging
-                )),
+                q(&if unit.late_closed.is_some() {
+                    format!(
+                        "{},late-closed-globaldce-v1",
+                        zil_llvm_api::pipeline_identity(config.optimization, function_merging)
+                    )
+                } else {
+                    zil_llvm_api::pipeline_identity(config.optimization, function_merging)
+                        .to_owned()
+                }),
                 bytes.len(),
                 lookup.to_json(),
                 reused,
                 lookup.preflight_ns,
                 lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns + history_lookup_ns
             );
+            if let Some(plan) = &unit.late_closed {
+                receipt.pop();
+                let candidates = plan
+                    .candidates()
+                    .iter()
+                    .map(|n| q(n))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                receipt.push_str(&format!(
+                    ",\"object_fingerprint\":{},\"late_closed_policy\":{{\"policy\":\"late-closed-v1\",\"execution\":\"object-cache\",\"candidates\":[{}],\"producer_action_key\":{}}}}}",
+                    q(&zil_base::Fingerprint::of(&bytes).to_hex()), candidates, q(&lookup.key.to_hex())
+                ));
+            }
             if unit.native_owner.is_some() {
                 receipt.pop();
                 receipt.push_str(&format!(
@@ -1392,7 +1438,19 @@ fn compile_api_unit(
         .native_owner
         .as_ref()
         .map(|_| std::time::Instant::now());
-    let (object, preflight, native_products) = if unit.native_owner.is_some() {
+    let (object, preflight, native_products) = if let Some(plan) = &unit.late_closed {
+        let (object, receipt, products) = zil_llvm_api::compile_module_with_late_closed(
+            &unit.module,
+            &config,
+            function_merging,
+            cancelled,
+            plan,
+            unit.native_owner.is_some(),
+            unit.native_prior.as_ref().map(|prior| &prior.products),
+        )
+        .map_err(api_error)?;
+        (object, Some(std::sync::Arc::new(receipt)), products)
+    } else if unit.native_owner.is_some() {
         let (object, receipt, products) = zil_llvm_api::compile_module_with_native_products(
             &unit.module,
             &config,
@@ -1461,6 +1519,14 @@ fn compile_api_unit(
         r.total_ns
     );
 
+    if let Some(report) = &r.late_closed {
+        receipt.pop();
+        receipt.push_str(",\"late_closed\":");
+        receipt.push_str(&report.to_json());
+        receipt.push_str(",\"object_fingerprint\":");
+        receipt.push_str(&q(&zil_base::Fingerprint::of(&object.bytes).to_hex()));
+        receipt.push('}');
+    }
     if let Some(stats) = &r.native_products {
         receipt.pop();
         receipt.push_str(",\"native_products\":");
@@ -1651,6 +1717,7 @@ mod native_history_cache_tests {
             native_owner: Some(owner),
             native_prior,
             native_history,
+            late_closed: None,
         }
     }
     fn compile(unit: &UnitInput, cache: &PreparedCache) -> UnitResult {

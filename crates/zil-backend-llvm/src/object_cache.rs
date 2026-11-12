@@ -145,12 +145,30 @@ pub(crate) fn elapsed_ns(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl PreparedCache {
+    #[cfg(test)]
     pub(crate) fn new(
         directory: &Path,
         target: &TargetProfile,
         opt: Optimization,
         function_merging: FunctionMerging,
         patch_enabled: bool,
+    ) -> Result<Self, String> {
+        Self::new_with_policy(
+            directory,
+            target,
+            opt,
+            function_merging,
+            patch_enabled,
+            false,
+        )
+    }
+    pub(crate) fn new_with_policy(
+        directory: &Path,
+        target: &TargetProfile,
+        opt: Optimization,
+        function_merging: FunctionMerging,
+        patch_enabled: bool,
+        late_closed: bool,
     ) -> Result<Self, String> {
         // Interposed LLVM functions may come from another DSO. Do not reuse
         // objects under an incomplete tool identity in that environment.
@@ -170,13 +188,16 @@ impl PreparedCache {
         let (version, library) = zil_llvm_api::cache_runtime(&config).map_err(|e| e.to_string())?;
         let compiler = std::env::current_exe().map_err(|e| e.to_string())?;
         let mut state = FingerprintBuilder::new();
-        let patch_policy = patch_enabled
+        let patch_policy = (patch_enabled && !late_closed)
             .then(crate::machine_object_patch::Policy::discover)
             .flatten();
         // Versioned exact protocol. Compiler-specific derived Hash cannot cross
         // a compiler identity boundary. Generic CPU/features/pipeline/relocation
         // and layout derivation are fixed in that very compiler's native adapter.
         ACTION_PROTOCOL.hash(&mut state);
+        if late_closed {
+            "late-closed-globaldce-v1".hash(&mut state);
+        }
         if let Some(policy) = &patch_policy {
             "bounded-full-base-object-patch-v1".hash(&mut state);
             policy.identity.hash(&mut state);
@@ -236,13 +257,27 @@ impl PreparedCache {
     pub(crate) fn key(&self, module: &Module) -> Fingerprint {
         machine_key(self.namespace, module)
     }
+    pub(crate) fn key_with_plan(
+        &self,
+        module: &Module,
+        plan: Option<&zil_llvm_api::LateClosedPlan>,
+    ) -> Fingerprint {
+        let base = self.key(module);
+        let Some(plan) = plan else { return base };
+        let mut state = FingerprintBuilder::new();
+        "late-closed-unit-candidates-v1".hash(&mut state);
+        base.hash(&mut state);
+        plan.candidates().hash(&mut state);
+        state.digest()
+    }
     pub(crate) fn lookup_with_key(
         &self,
         module: &Module,
         key: Option<Fingerprint>,
+        plan: Option<&zil_llvm_api::LateClosedPlan>,
     ) -> (Access, Option<Vec<u8>>) {
         let t = Instant::now();
-        let key = key.unwrap_or_else(|| self.key(module));
+        let key = key.unwrap_or_else(|| self.key_with_plan(module, plan));
         let key_ns = elapsed_ns(t);
         let t = Instant::now();
         let (bytes, corrupt) = match load(&self.directory, key) {
@@ -709,6 +744,28 @@ mod tests {
             })])
             .into(),
         }
+    }
+    #[test]
+    fn late_candidates_bind_only_the_current_unit_action() {
+        let m = sample();
+        let cache = PreparedCache {
+            directory: PathBuf::new(),
+            llvm_version: "test".into(),
+            namespace: Fingerprint::of(b"late-policy-only"),
+            patch_policy: None,
+        };
+        let empty = zil_llvm_api::LateClosedPlan::new(&m, []);
+        let selected = zil_llvm_api::LateClosedPlan::new(&m, ["f".into()]);
+        let original = cache.key(&m);
+        let empty_key = cache.key_with_plan(&m, Some(&empty));
+        let selected_key = cache.key_with_plan(&m, Some(&selected));
+        assert_ne!(original, empty_key);
+        assert_ne!(empty_key, selected_key);
+        assert_eq!(cache.key_with_plan(&m, Some(&empty)), empty_key);
+        assert_eq!(cache.namespace, Fingerprint::of(b"late-policy-only"));
+        // Updating a different unit's plan cannot change this unit's action.
+        let _other_updated = zil_llvm_api::LateClosedPlan::new(&m, ["f".into()]);
+        assert_eq!(cache.key_with_plan(&m, Some(&empty)), empty_key);
     }
     fn key_matching_unbuffered(namespace: Fingerprint, module: &Module) -> Fingerprint {
         // The previous calculation remains an independent compatibility oracle.
