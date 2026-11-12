@@ -28,6 +28,8 @@ mod generic_mutex;
 mod helpers;
 mod incremental;
 mod inference;
+mod inference_receipts;
+pub use inference_receipts::{RawInferenceSession, RawInferenceStats};
 mod interface_identity;
 pub use incremental::{
     FunctionChanges, FunctionItem, FunctionItemProducts, FunctionProduct, FunctionSession,
@@ -52,7 +54,7 @@ mod program;
 mod sum_slots;
 pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_produced_program_for_ct,
-    infer_program_for_ct, infer_shared_program_for_ct,
+    infer_produced_program_for_ct_with_session, infer_program_for_ct, infer_shared_program_for_ct,
 };
 mod reference_patterns;
 mod registration;

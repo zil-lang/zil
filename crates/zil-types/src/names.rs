@@ -37,6 +37,38 @@ pub(super) fn check_function(function: &CoreFunction, limits: &Limits) -> R<usiz
     Ok(checker.visited)
 }
 
+pub(super) fn check_modules_reusing<'a>(
+    modules: impl IntoIterator<Item = &'a CoreModule>,
+    limits: &Limits,
+    receipts: &mut inference_receipts::Work,
+) -> R<()> {
+    let mut checker = Names { limits, visited: 0 };
+    let mut index = 0;
+    for module in modules {
+        for function in &module.functions {
+            if let Some(fee) = receipts.names_fee(index) {
+                checker.visited = checker
+                    .visited
+                    .checked_add(fee)
+                    .filter(|total| *total <= limits.max_nodes)
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "raw inference names receipt exceeded current allowance",
+                            Some(function.span),
+                        )
+                    })?;
+            } else {
+                let before = checker.visited;
+                checker.function(function)?;
+                receipts.record_names(index, checker.visited - before);
+            }
+            index += 1;
+        }
+    }
+    Ok(())
+}
+
 fn reserved(span: Span) -> Diagnostic {
     error(
         "E-RECEIVER-RESERVED-NAME",

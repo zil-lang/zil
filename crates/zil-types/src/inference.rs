@@ -338,6 +338,14 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
+    infer_program_recording(program, limits, None)
+}
+
+pub(super) fn infer_program_recording<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+    mut receipts: Option<&mut inference_receipts::Work>,
+) -> CompileResult<Cow<'a, CoreProgram>> {
     let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
@@ -441,23 +449,63 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         )]);
     }
     budget.ordinary_functions = count;
-    let mut flags = Vec::new();
-    for module in &program.modules {
-        flags.push(
-            module
-                .core
-                .functions
-                .iter()
-                .map(|f| {
-                    contains_closure(&f.body, 0, &mut budget)
-                        .map(|found| found || !f.state_parameters.is_empty())
-                })
-                .collect::<R<Vec<_>>>()
-                .map_err(|e| vec![e])?,
-        );
+    if receipts.as_ref().is_some_and(|r| r.is_reusing()) && flags_present_in_budget(&budget) {
+        return Err(vec![replay_requires_fresh()]);
     }
-    names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
+    let mut flags = Vec::with_capacity(program.modules.len());
+    let mut function_index = 0;
+    for module in &program.modules {
+        let mut module_flags = Vec::with_capacity(module.core.functions.len());
+        for function in &module.core.functions {
+            let fee = receipts
+                .as_deref_mut()
+                .and_then(|r| r.closure_fee(function_index));
+            let flag = if let Some(fee) = fee {
+                budget.work(fee.work, function.span).map_err(|e| vec![e])?;
+                budget.nodes = budget.nodes.checked_sub(fee.nodes).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "raw inference node receipt exceeded current allowance",
+                        Some(function.span),
+                    )]
+                })?;
+                false
+            } else {
+                let before = (budget.work, budget.nodes);
+                let found =
+                    contains_closure(&function.body, 0, &mut budget).map_err(|e| vec![e])?;
+                if let Some(receipts) = receipts.as_deref_mut() {
+                    receipts.record_closure(
+                        function_index,
+                        inference_receipts::VisitFee {
+                            work: before.0 - budget.work,
+                            nodes: before.1 - budget.nodes,
+                        },
+                    );
+                }
+                found || !function.state_parameters.is_empty()
+            };
+            module_flags.push(flag);
+            function_index += 1;
+        }
+        flags.push(module_flags);
+    }
+    if receipts.as_ref().is_some_and(|r| r.is_reusing())
+        && (flags.iter().flatten().any(|flag| *flag) || flags_present_in_budget(&budget))
+    {
+        return Err(vec![replay_requires_fresh()]);
+    }
+    if let Some(receipts) = receipts.as_deref_mut() {
+        names::check_modules_reusing(
+            program.modules.iter().map(|m| m.core.as_ref()),
+            limits,
+            receipts,
+        )
         .map_err(|e| vec![e])?;
+    } else {
+        names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
+            .map_err(|e| vec![e])?;
+    }
     let normalized = if flags.iter().flatten().any(|f| *f)
         || program.modules.iter().any(|m| {
             !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
@@ -495,6 +543,7 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     }
     let mut modules = Vec::new();
     let mut enum_work = limits.max_analysis_steps;
+    let mut function_index = 0;
     for (module, flags) in program.modules.iter().zip(flags) {
         let mut imports = program::Imports {
             aliases: BTreeMap::new(),
@@ -530,8 +579,15 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         let mut functions = Vec::new();
         budget.current_module = module.core.module_id;
         for (function, flag) in module.core.functions.iter().zip(flags) {
-            functions.push(
-                prepare(
+            let fee = receipts
+                .as_deref_mut()
+                .and_then(|r| r.dependencies_fee(function_index));
+            if let Some(fee) = fee {
+                budget.work(fee, function.span).map_err(|e| vec![e])?;
+                functions.push(Cow::Borrowed(function));
+            } else {
+                let before = budget.work;
+                let prepared = prepare(
                     function,
                     table,
                     Some(&imports),
@@ -539,10 +595,25 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                     flag,
                     &mut budget,
                 )
-                .map_err(|e| vec![e])?,
-            );
+                .map_err(|e| vec![e])?;
+                if receipts.as_ref().is_some_and(|r| r.is_reusing())
+                    && !matches!(prepared, Cow::Borrowed(_))
+                {
+                    return Err(vec![replay_requires_fresh()]);
+                }
+                if let Some(receipts) = receipts.as_deref_mut() {
+                    receipts.record_dependencies(function_index, before - budget.work);
+                    receipts.eligible &= matches!(prepared, Cow::Borrowed(_));
+                }
+                functions.push(prepared);
+            }
+            function_index += 1;
         }
         modules.push((module, functions));
+    }
+    if let Some(receipts) = receipts {
+        receipts.eligible &=
+            normalized.is_none() && !flags_present_in_budget(&budget) && receipts.complete(count);
     }
     // All header/name/import/metadata/dependency checks and logical charges ran
     // in the original order. Borrow only when no transformation ran anywhere.
@@ -569,6 +640,25 @@ pub(super) fn infer_program_closures_borrowed<'a>(
             })
             .collect(),
     }))
+}
+
+fn replay_requires_fresh() -> Diagnostic {
+    // Internal only: RawInferenceSession discards this attempt and invokes the
+    // original current traversal. This is never the delivered diagnostic.
+    Diagnostic::limit(
+        Phase::Types,
+        "raw inference replay requires original traversal",
+        None,
+    )
+}
+
+fn flags_present_in_budget(budget: &Budget<'_>) -> bool {
+    budget.closures != 0
+        || budget.inside_store
+        || budget.store_shapes
+        || budget.direct_type_callee
+        || budget.shared_arrays
+        || budget.products.is_some()
 }
 
 fn headers(
