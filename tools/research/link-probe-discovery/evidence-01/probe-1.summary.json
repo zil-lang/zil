@@ -1,0 +1,299 @@
+{
+  "absolute_strings": {
+    "/dev/tty": [
+      "failure:ENXIO"
+    ],
+    "/etc/ld.so.cache": [
+      "non-error"
+    ],
+    "/etc/ld.so.preload": [
+      "failure:ENOENT"
+    ],
+    "/lib/x86_64-linux-gnu/libc.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libgcc_s.so.1": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libm.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libstdc++.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libtinfo.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libz.so.1": [
+      "non-error"
+    ],
+    "/lib64/ld-linux-x86-64.so.2": [
+      "non-error"
+    ],
+    "/usr/bin/ldd": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_ADDRESS": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_COLLATE": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_CTYPE": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_MESSAGES": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_MONETARY": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_NAME": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_NUMERIC": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_PAPER": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_TELEPHONE": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.UTF-8/LC_TIME": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/locale/C.utf8/LC_ADDRESS": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_COLLATE": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_CTYPE": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_IDENTIFICATION": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_MEASUREMENT": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_MESSAGES": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_MONETARY": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_NAME": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_NUMERIC": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_PAPER": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_TELEPHONE": [
+      "non-error"
+    ],
+    "/usr/lib/locale/C.utf8/LC_TIME": [
+      "non-error"
+    ],
+    "/usr/lib/locale/locale-archive": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache": [
+      "non-error"
+    ],
+    "/usr/share/locale/locale.alias": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libtinfo.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libtinfo.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libtinfo.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libtinfo.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/zil-push-link-probes": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main": [
+      "non-error"
+    ]
+  },
+  "exec_lines": [
+    "754603 execve(\"/usr/bin/ldd\", [\"/usr/bin/ldd\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x7fff7f881670 /* 79 vars */) = 0",
+    "754605 execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"--version\"], 0x55a22c53f450 /* 79 vars */) = 0",
+    "754606 execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"--verify\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x55a22c536810 /* 79 vars */) = 0",
+    "754609 execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x55a22c542cf0 /* 83 vars */ <unfinished ...>"
+  ],
+  "failures": {
+    "access:ENOENT": 2,
+    "fcntl:EBADF": 1,
+    "ioctl:ENOTTY": 6,
+    "newfstatat:ENOENT": 13,
+    "openat:ENOENT": 39,
+    "openat:ENXIO": 1,
+    "wait4:ECHILD": 6
+  },
+  "syscall_counts": {
+    "access": 2,
+    "arch_prctl": 2,
+    "brk": 9,
+    "clone": 6,
+    "close": 42,
+    "dup2": 7,
+    "execve": 4,
+    "exit_group": 7,
+    "faccessat2": 2,
+    "fcntl": 10,
+    "fstat": 26,
+    "futex": 1,
+    "getcwd": 1,
+    "getegid": 1,
+    "geteuid": 1,
+    "getgid": 1,
+    "getpgrp": 1,
+    "getpid": 9,
+    "getppid": 3,
+    "getrandom": 1,
+    "getuid": 1,
+    "ioctl": 6,
+    "lseek": 4,
+    "mmap": 65,
+    "mprotect": 8,
+    "munmap": 5,
+    "newfstatat": 21,
+    "openat": 66,
+    "pipe2": 3,
+    "pread64": 4,
+    "prlimit64": 3,
+    "read": 23,
+    "rseq": 2,
+    "rt_sigaction": 76,
+    "rt_sigprocmask": 88,
+    "rt_sigreturn": 6,
+    "set_robust_list": 8,
+    "set_tid_address": 2,
+    "uname": 1,
+    "wait4": 12,
+    "write": 6,
+    "writev": 8
+  },
+  "unfinished_or_resumed_lines": 64,
+  "warning": "absolute_strings includes argv/targets; not a resolved dependency set"
+}

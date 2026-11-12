@@ -1,0 +1,104 @@
+{
+  "closure_proven": false,
+  "complete_raw_trace": true,
+  "directory_membership_at_syscall_time_captured": false,
+  "probes": [
+    {
+      "ENOENT_events": 160,
+      "execve_calls": 1,
+      "failed_path_events": 165,
+      "getdents_calls": 4,
+      "path_events": 232,
+      "probe": 0,
+      "raw_argument_syscalls": [
+        "futex",
+        "getrandom",
+        "ioctl",
+        "pread64",
+        "read",
+        "sigaltstack",
+        "write"
+      ],
+      "successful_path_events": 67,
+      "syscalls": 2892,
+      "unique_pathnames": 190
+    },
+    {
+      "ENOENT_events": 54,
+      "execve_calls": 4,
+      "failed_path_events": 55,
+      "getdents_calls": 0,
+      "path_events": 95,
+      "probe": 1,
+      "raw_argument_syscalls": [
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getuid",
+        "ioctl",
+        "pipe2",
+        "pread64",
+        "read",
+        "uname",
+        "write",
+        "writev"
+      ],
+      "successful_path_events": 40,
+      "syscalls": 554,
+      "unique_pathnames": 78
+    },
+    {
+      "ENOENT_events": 37,
+      "execve_calls": 4,
+      "failed_path_events": 38,
+      "getdents_calls": 0,
+      "path_events": 79,
+      "probe": 2,
+      "raw_argument_syscalls": [
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getuid",
+        "ioctl",
+        "pipe2",
+        "pread64",
+        "read",
+        "uname",
+        "write",
+        "writev"
+      ],
+      "successful_path_events": 41,
+      "syscalls": 547,
+      "unique_pathnames": 62
+    },
+    {
+      "ENOENT_events": 18,
+      "execve_calls": 1,
+      "failed_path_events": 18,
+      "getdents_calls": 0,
+      "path_events": 32,
+      "probe": 3,
+      "raw_argument_syscalls": [
+        "futex",
+        "getrandom",
+        "getrusage",
+        "pread64",
+        "read",
+        "write"
+      ],
+      "successful_path_events": 14,
+      "syscalls": 128,
+      "unique_pathnames": 32
+    }
+  ]
+}

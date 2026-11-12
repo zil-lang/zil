@@ -1,0 +1,21 @@
+[
+  {
+    "names": [
+      "14"
+    ],
+    "note": "post-trace names; not an atomic acquisition-time dependency proof",
+    "path": "/usr/lib/gcc/x86_64-linux-gnu",
+    "stat": [
+      16877,
+      9223372036855098606,
+      27,
+      3,
+      65534,
+      65534,
+      41,
+      1793679612,
+      1793679612,
+      1793679612
+    ]
+  }
+]

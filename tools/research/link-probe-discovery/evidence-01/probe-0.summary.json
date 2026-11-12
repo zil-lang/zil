@@ -1,0 +1,625 @@
+{
+  "absolute_strings": {
+    "/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/etc/debian_version": [
+      "non-error"
+    ],
+    "/etc/env.d/gcc": [
+      "failure:ENOENT"
+    ],
+    "/etc/ld.so.cache": [
+      "non-error"
+    ],
+    "/etc/ld.so.preload": [
+      "failure:ENOENT"
+    ],
+    "/etc/lsb-release": [
+      "failure:ENOENT"
+    ],
+    "/etc/os-release": [
+      "non-error"
+    ],
+    "/etc/redhat-release": [
+      "failure:ENOENT"
+    ],
+    "/home/agent/.local/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/home/agent/.local/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/lib": [
+      "non-error"
+    ],
+    "/lib/../lib64": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/Scrt1.o": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/crti.o": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/crtn.o": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libc.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libgcc_s.so.1": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libm.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libstdc++.so.6": [
+      "non-error"
+    ],
+    "/lib/x86_64-linux-gnu/libz.so.1": [
+      "non-error"
+    ],
+    "/opt/codex/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/opt/rh": [
+      "failure:ENOENT"
+    ],
+    "/proc/self/exe": [
+      "non-error"
+    ],
+    "/proc/self/fd": [
+      "non-error"
+    ],
+    "/proc/self/fd/3": [
+      "non-error"
+    ],
+    "/sbin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/usr": [
+      "non-error"
+    ],
+    "/usr/bin/ld": [
+      "non-error"
+    ],
+    "/usr/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib": [
+      "non-error"
+    ],
+    "/usr/lib/gcc": [
+      "non-error"
+    ],
+    "/usr/lib/gcc-cross": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i386-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i386-redhat-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i386-redhat-linux6E": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i386-unknown-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i586-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i586-suse-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i686-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i686-montavista-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i686-pc-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/i686-redhat-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-amazon-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crti.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include/c++/14": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib/../lib64": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../gcc/x86_64-linux-gnu/14/include/c++/": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../lib64": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/32/crtbegin.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/64/crtbegin.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": [
+      "non-error"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crti.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/sparcv8plus/crtbegin.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnu/14/x32/crtbegin.o": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-linux-gnux32": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-manbo-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-pc-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-pc-linux-gnux32": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-redhat-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-redhat-linux6E": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-slackware-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-suse-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-unknown-linux": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/gcc/x86_64-unknown-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib/os-release": [
+      "non-error"
+    ],
+    "/usr/lib/x86_64-linux-gnu": [
+      "non-error"
+    ],
+    "/usr/lib32": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib64": [
+      "non-error"
+    ],
+    "/usr/lib64/gcc": [
+      "failure:ENOENT"
+    ],
+    "/usr/lib64/gcc-cross": [
+      "failure:ENOENT"
+    ],
+    "/usr/libx32": [
+      "failure:ENOENT"
+    ],
+    "/usr/local/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/local/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/local/sbin/ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/local/sbin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/sbin/ld": [
+      "failure:ENOENT"
+    ],
+    "/usr/sbin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/workspace": [
+      "failure:EINVAL"
+    ],
+    "/workspace/.zil-environment": [
+      "failure:EINVAL"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4": [
+      "failure:EINVAL"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin": [
+      "failure:EINVAL"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/..": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtbeginS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtendS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crti.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc-cross": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib32": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib64": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../libx32": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23": [
+      "failure:EINVAL",
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang.cfg": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/ld": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-clang.cfg": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-ld": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu.cfg": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtbeginS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtendS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crti.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtbeginS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtendS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crti.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/x86_64": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/Scrt1.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtbeginS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtendS.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crti.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtn.o": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/": [
+      "non-error"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6": [
+      "failure:ENOENT"
+    ],
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1": [
+      "failure:ENOENT"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/program": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o": [
+      "non-error"
+    ],
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o": [
+      "non-error"
+    ]
+  },
+  "exec_lines": [
+    "754599 execve(\"/workspace/.zil-environment/llvm-23.1.4/bin/clang\", [\"/workspace/.zil-environment/llvm-23.1.4/bin/clang\", \"-###\", \"--target=x86_64-unknown-linux-gnu\", \"-O2\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o\", \"-o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/program\"], 0x7ffcd3946a20 /* 79 vars */) = 0"
+  ],
+  "failures": {
+    "access:ENOENT": 59,
+    "ioctl:ENOTTY": 1,
+    "lseek:ESPIPE": 2,
+    "newfstatat:ENOENT": 45,
+    "openat:ENOENT": 56,
+    "readlink:EINVAL": 5
+  },
+  "syscall_counts": {
+    "access": 67,
+    "arch_prctl": 1,
+    "brk": 6,
+    "close": 10,
+    "execve": 1,
+    "exit_group": 1,
+    "fstat": 15,
+    "futex": 465,
+    "getdents64": 4,
+    "getrandom": 1,
+    "ioctl": 1,
+    "lseek": 2,
+    "mmap": 27,
+    "mprotect": 7,
+    "munmap": 1,
+    "newfstatat": 89,
+    "openat": 66,
+    "pread64": 4,
+    "prlimit64": 1,
+    "read": 5,
+    "readlink": 8,
+    "readlinkat": 1,
+    "rseq": 1,
+    "rt_sigaction": 42,
+    "rt_sigprocmask": 12,
+    "set_robust_list": 1,
+    "set_tid_address": 1,
+    "sigaltstack": 2,
+    "write": 2050
+  },
+  "unfinished_or_resumed_lines": 0,
+  "warning": "absolute_strings includes argv/targets; not a resolved dependency set"
+}

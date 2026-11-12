@@ -1,0 +1,7 @@
+{
+  "repository": "ninja-build/ninja",
+  "revision": "2daa09ba270b0a43e1929d29b073348aa985dfaa",
+  "path": "doc/manual.asciidoc",
+  "url": "https://raw.githubusercontent.com/ninja-build/ninja/2daa09ba270b0a43e1929d29b073348aa985dfaa/doc/manual.asciidoc",
+  "sha256": "899c7ad57db585e20b3761a3a87c9ccd0aef3f157fdabd13a90fdbc296b5516f"
+}

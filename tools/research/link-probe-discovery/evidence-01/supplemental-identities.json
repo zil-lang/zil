@@ -1,0 +1,17 @@
+{
+  "capture_phase": "post-trace identity; kernel shebang interpreter has no separate execve event",
+  "implicit_script_interpreter": {
+    "bytes": 1298416,
+    "device": 27,
+    "inode": 9223372036855075674,
+    "mode": 33261,
+    "path": "/bin/bash",
+    "resolved": "/usr/bin/bash",
+    "sha256": "223fe8564b60636bc738b6178d3ba9a50ef7d791266b0efae6363bb716e4c47f"
+  },
+  "no_extra_probe_invocations": true,
+  "production_current_same_bytes": true,
+  "production_link_cache_sha256": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79",
+  "shebang": "#!/bin/bash",
+  "stdin_observation": "probe-0 line146 fstat(0): S_IFCHR,rdev(1,3), Linux /dev/null; ldd ioctl fd0 ENOTTY"
+}

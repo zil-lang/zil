@@ -1,0 +1,1398 @@
+{
+  "closure_proven": false,
+  "enumerations": [],
+  "errors": {
+    "EBADF": 1,
+    "ECHILD": 6,
+    "ENOENT": 54,
+    "ENOTTY": 6,
+    "ENXIO": 1
+  },
+  "events": [
+    {
+      "line": 1,
+      "path": "/usr/bin/ldd",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "execve"
+    },
+    {
+      "line": 4,
+      "path": "/etc/ld.so.preload",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 5,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libtinfo.so.6",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 6,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 7,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libtinfo.so.6",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 8,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 9,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libtinfo.so.6",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 10,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 11,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libtinfo.so.6",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 12,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 13,
+      "path": "/etc/ld.so.cache",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 17,
+      "path": "/lib/x86_64-linux-gnu/libtinfo.so.6",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 25,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 26,
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 48,
+      "path": "/dev/tty",
+      "pid": 754603,
+      "result": "-1 ENXIO (No such device or address)",
+      "syscall": "openat"
+    },
+    {
+      "line": 53,
+      "path": "/usr/lib/locale/locale-archive",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 54,
+      "path": "/usr/share/locale/locale.alias",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 55,
+      "path": "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 56,
+      "path": "/usr/lib/locale/C.utf8/LC_IDENTIFICATION",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 60,
+      "path": "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 65,
+      "path": "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 66,
+      "path": "/usr/lib/locale/C.utf8/LC_MEASUREMENT",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 70,
+      "path": "/usr/lib/locale/C.UTF-8/LC_TELEPHONE",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 71,
+      "path": "/usr/lib/locale/C.utf8/LC_TELEPHONE",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 75,
+      "path": "/usr/lib/locale/C.UTF-8/LC_ADDRESS",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 76,
+      "path": "/usr/lib/locale/C.utf8/LC_ADDRESS",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 80,
+      "path": "/usr/lib/locale/C.UTF-8/LC_NAME",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 81,
+      "path": "/usr/lib/locale/C.utf8/LC_NAME",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 85,
+      "path": "/usr/lib/locale/C.UTF-8/LC_PAPER",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 86,
+      "path": "/usr/lib/locale/C.utf8/LC_PAPER",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 90,
+      "path": "/usr/lib/locale/C.UTF-8/LC_MESSAGES",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 91,
+      "path": "/usr/lib/locale/C.utf8/LC_MESSAGES",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 94,
+      "path": "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 98,
+      "path": "/usr/lib/locale/C.UTF-8/LC_MONETARY",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 99,
+      "path": "/usr/lib/locale/C.utf8/LC_MONETARY",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 103,
+      "path": "/usr/lib/locale/C.UTF-8/LC_COLLATE",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 104,
+      "path": "/usr/lib/locale/C.utf8/LC_COLLATE",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 108,
+      "path": "/usr/lib/locale/C.UTF-8/LC_TIME",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 109,
+      "path": "/usr/lib/locale/C.utf8/LC_TIME",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 113,
+      "path": "/usr/lib/locale/C.UTF-8/LC_NUMERIC",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 114,
+      "path": "/usr/lib/locale/C.utf8/LC_NUMERIC",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 118,
+      "path": "/usr/lib/locale/C.UTF-8/LC_CTYPE",
+      "pid": 754603,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 119,
+      "path": "/usr/lib/locale/C.utf8/LC_CTYPE",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 143,
+      "path": "/workspace/zil-push-link-probes",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 144,
+      "path": ".",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 158,
+      "path": "/usr/bin/ldd",
+      "pid": 754603,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 159,
+      "path": "/usr/bin/ldd",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 173,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 174,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 175,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "faccessat2"
+    },
+    {
+      "line": 176,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "pid": 754603,
+      "result": "0",
+      "syscall": "faccessat2"
+    },
+    {
+      "line": 247,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "pid": 754605,
+      "result": "0",
+      "syscall": "execve"
+    },
+    {
+      "line": 312,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "pid": 754606,
+      "result": "0",
+      "syscall": "execve"
+    },
+    {
+      "line": 314,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754606,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 439,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "pid": 754609,
+      "result": "0",
+      "syscall": "execve"
+    },
+    {
+      "line": 449,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 464,
+      "path": "/etc/ld.so.preload",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 465,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 466,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 467,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 468,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 469,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 470,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 471,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 472,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/",
+      "pid": 754609,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 473,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 474,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 475,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 476,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 477,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 478,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 479,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 480,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/",
+      "pid": 754609,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 481,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 482,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 483,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 484,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 485,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 486,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 487,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 488,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 489,
+      "path": "/etc/ld.so.cache",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 493,
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 501,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 502,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 503,
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 511,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 512,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 513,
+      "path": "/lib/x86_64-linux-gnu/libstdc++.so.6",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 522,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 523,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 524,
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 532,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 533,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6",
+      "pid": 754609,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 534,
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "pid": 754609,
+      "result": "3",
+      "syscall": "openat"
+    }
+  ],
+  "execs": [
+    {
+      "call": "execve(\"/usr/bin/ldd\", [\"/usr/bin/ldd\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x7fff7f881670 /* 79 vars */) = 0",
+      "line": 1,
+      "path": "/usr/bin/ldd",
+      "result": "0"
+    },
+    {
+      "call": "execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"--version\"], 0x55a22c53f450 /* 79 vars */) = 0",
+      "line": 247,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "result": "0"
+    },
+    {
+      "call": "execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"--verify\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x55a22c536810 /* 79 vars */) = 0",
+      "line": 312,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "result": "0"
+    },
+    {
+      "call": "execve(\"/lib64/ld-linux-x86-64.so.2\", [\"/lib64/ld-linux-x86-64.so.2\", \"/workspace/.zil-environment/llvm-23.1.4/bin/clang-23\"], 0x55a22c542cf0 /* 83 vars */ )            = 0",
+      "line": 439,
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "result": "0"
+    }
+  ],
+  "paths": {
+    ".": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/dev/tty": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENXIO": 1
+      }
+    },
+    "/etc/ld.so.cache": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/etc/ld.so.preload": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/lib/x86_64-linux-gnu/libc.so.6": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/lib/x86_64-linux-gnu/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libtinfo.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib64/ld-linux-x86-64.so.2": {
+      "calls": {
+        "execve": 3,
+        "faccessat2": 1
+      },
+      "results": {
+        "success": 4
+      }
+    },
+    "/usr/bin/ldd": {
+      "calls": {
+        "execve": 1,
+        "newfstatat": 1,
+        "openat": 1
+      },
+      "results": {
+        "success": 3
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_ADDRESS": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_COLLATE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_CTYPE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_MESSAGES": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_MONETARY": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_NAME": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_NUMERIC": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_PAPER": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_TELEPHONE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.UTF-8/LC_TIME": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_ADDRESS": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_COLLATE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_CTYPE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_IDENTIFICATION": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_MEASUREMENT": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_MESSAGES": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_MONETARY": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_NAME": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_NUMERIC": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_PAPER": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_TELEPHONE": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/C.utf8/LC_TIME": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/locale/locale-archive": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/share/locale/locale.alias": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23": {
+      "calls": {
+        "faccessat2": 1,
+        "newfstatat": 2,
+        "openat": 2
+      },
+      "results": {
+        "success": 5
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libtinfo.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libtinfo.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libtinfo.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libtinfo.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/zil-push-link-probes": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    }
+  },
+  "raw_argument_syscalls": [
+    "futex",
+    "getegid",
+    "geteuid",
+    "getgid",
+    "getpgrp",
+    "getpid",
+    "getppid",
+    "getrandom",
+    "getuid",
+    "ioctl",
+    "pipe2",
+    "pread64",
+    "read",
+    "uname",
+    "write",
+    "writev"
+  ],
+  "syscalls": {
+    "access": 2,
+    "arch_prctl": 2,
+    "brk": 9,
+    "clone": 6,
+    "close": 42,
+    "dup2": 7,
+    "execve": 4,
+    "exit_group": 7,
+    "faccessat2": 2,
+    "fcntl": 10,
+    "fstat": 26,
+    "futex": 1,
+    "getcwd": 1,
+    "getegid": 1,
+    "geteuid": 1,
+    "getgid": 1,
+    "getpgrp": 1,
+    "getpid": 9,
+    "getppid": 3,
+    "getrandom": 1,
+    "getuid": 1,
+    "ioctl": 6,
+    "lseek": 4,
+    "mmap": 65,
+    "mprotect": 8,
+    "munmap": 5,
+    "newfstatat": 21,
+    "openat": 66,
+    "pipe2": 3,
+    "pread64": 4,
+    "prlimit64": 3,
+    "read": 23,
+    "rseq": 2,
+    "rt_sigaction": 76,
+    "rt_sigprocmask": 88,
+    "rt_sigreturn": 6,
+    "set_robust_list": 8,
+    "set_tid_address": 2,
+    "uname": 1,
+    "wait4": 12,
+    "write": 6,
+    "writev": 8
+  },
+  "trace_sha256": "9c1967fce4a38093088d577377c1d07a7725c669c83f1c42b363ff286b920653"
+}

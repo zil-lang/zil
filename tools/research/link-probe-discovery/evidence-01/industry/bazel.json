@@ -1,0 +1,7 @@
+{
+  "repository": "bazelbuild/bazel",
+  "revision": "9ba2ab4062387b9b6b8240520c188c99cc102cb0",
+  "path": "site/en/docs/sandboxing.md",
+  "url": "https://raw.githubusercontent.com/bazelbuild/bazel/9ba2ab4062387b9b6b8240520c188c99cc102cb0/site/en/docs/sandboxing.md",
+  "sha256": "755549848a7b126331a9eb4123b0da0a665ab4b4452765deff23f02eae1f5908"
+}

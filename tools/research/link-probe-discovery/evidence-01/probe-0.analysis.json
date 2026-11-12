@@ -1,0 +1,3243 @@
+{
+  "closure_proven": false,
+  "enumerations": [
+    {
+      "directory": "/usr/lib/gcc/x86_64-linux-gnu",
+      "fd": 3,
+      "line": 670,
+      "names_recorded": false,
+      "pid": 754599,
+      "result": "72"
+    },
+    {
+      "directory": "/usr/lib/gcc/x86_64-linux-gnu",
+      "fd": 3,
+      "line": 678,
+      "names_recorded": false,
+      "pid": 754599,
+      "result": "0"
+    },
+    {
+      "directory": "/usr/lib/gcc/x86_64-linux-gnu",
+      "fd": 3,
+      "line": 686,
+      "names_recorded": false,
+      "pid": 754599,
+      "result": "72"
+    },
+    {
+      "directory": "/usr/lib/gcc/x86_64-linux-gnu",
+      "fd": 3,
+      "line": 687,
+      "names_recorded": false,
+      "pid": 754599,
+      "result": "0"
+    }
+  ],
+  "errors": {
+    "EINVAL": 5,
+    "ENOENT": 160,
+    "ENOTTY": 1,
+    "ESPIPE": 2
+  },
+  "events": [
+    {
+      "line": 1,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "execve"
+    },
+    {
+      "line": 4,
+      "path": "/proc/self/exe",
+      "pid": 754599,
+      "result": "52",
+      "syscall": "readlinkat"
+    },
+    {
+      "line": 5,
+      "path": "/etc/ld.so.preload",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 6,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 7,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 8,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 9,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 10,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 11,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 12,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 13,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 14,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 15,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 16,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 17,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 18,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 19,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 20,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 21,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 22,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 23,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 24,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 25,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 26,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 27,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 28,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 29,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 30,
+      "path": "/etc/ld.so.cache",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 34,
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 42,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 43,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 44,
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 52,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 53,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 54,
+      "path": "/lib/x86_64-linux-gnu/libstdc++.so.6",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 63,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 64,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 65,
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 73,
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 74,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 76,
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 614,
+      "path": "/proc/self/exe",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 615,
+      "path": "/proc/self/exe",
+      "pid": 754599,
+      "result": "52",
+      "syscall": "readlink"
+    },
+    {
+      "line": 616,
+      "path": "/workspace",
+      "pid": 754599,
+      "result": "-1 EINVAL (Invalid argument)",
+      "syscall": "readlink"
+    },
+    {
+      "line": 617,
+      "path": "/workspace/.zil-environment",
+      "pid": 754599,
+      "result": "-1 EINVAL (Invalid argument)",
+      "syscall": "readlink"
+    },
+    {
+      "line": 618,
+      "path": "/workspace/.zil-environment/llvm-23.1.4",
+      "pid": 754599,
+      "result": "-1 EINVAL (Invalid argument)",
+      "syscall": "readlink"
+    },
+    {
+      "line": 619,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin",
+      "pid": 754599,
+      "result": "-1 EINVAL (Invalid argument)",
+      "syscall": "readlink"
+    },
+    {
+      "line": 620,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23",
+      "pid": 754599,
+      "result": "-1 EINVAL (Invalid argument)",
+      "syscall": "readlink"
+    },
+    {
+      "line": 638,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-clang.cfg",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 639,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang.cfg",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 640,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu.cfg",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 641,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 642,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 643,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 644,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/x86_64",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 645,
+      "path": "/opt/rh",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 646,
+      "path": "/etc/env.d/gcc",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 647,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/..",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 648,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib64",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 649,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 650,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 651,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 652,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../libx32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 653,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 654,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 655,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 656,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 657,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 658,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 659,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 660,
+      "path": "/usr",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 661,
+      "path": "/usr/lib64",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 662,
+      "path": "/usr/lib64/gcc",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 663,
+      "path": "/usr/lib64/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 664,
+      "path": "/usr/lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 665,
+      "path": "/usr/lib/gcc",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 666,
+      "path": "/usr/lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 667,
+      "path": "/usr/lib/gcc/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 668,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 671,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/64/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 672,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/sparcv8plus/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 673,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 674,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/64/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 675,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/32/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 676,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/x32/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 677,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/sparcv8plus/crtbegin.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 680,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include/c++/14",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 681,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../gcc/x86_64-linux-gnu/14/include/c++/",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 682,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 683,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 684,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 689,
+      "path": "/usr/lib/gcc/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 690,
+      "path": "/usr/lib/gcc/x86_64-pc-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 691,
+      "path": "/usr/lib/gcc/x86_64-redhat-linux6E",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 692,
+      "path": "/usr/lib/gcc/x86_64-redhat-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 693,
+      "path": "/usr/lib/gcc/x86_64-suse-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 694,
+      "path": "/usr/lib/gcc/x86_64-manbo-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 695,
+      "path": "/usr/lib/gcc/x86_64-slackware-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 696,
+      "path": "/usr/lib/gcc/x86_64-unknown-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 697,
+      "path": "/usr/lib/gcc/x86_64-amazon-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 698,
+      "path": "/usr/libx32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 699,
+      "path": "/usr/lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 700,
+      "path": "/usr/lib/gcc",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 701,
+      "path": "/usr/lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 702,
+      "path": "/usr/lib/gcc/i386-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 703,
+      "path": "/usr/lib/gcc/x86_64-linux-gnux32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 704,
+      "path": "/usr/lib/gcc/x86_64-pc-linux-gnux32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 705,
+      "path": "/usr/lib/gcc/i586-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 706,
+      "path": "/usr/lib/gcc/i686-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 707,
+      "path": "/usr/lib/gcc/i686-pc-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 708,
+      "path": "/usr/lib/gcc/i386-redhat-linux6E",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 709,
+      "path": "/usr/lib/gcc/i686-redhat-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 710,
+      "path": "/usr/lib/gcc/i386-redhat-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 711,
+      "path": "/usr/lib/gcc/i586-suse-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 712,
+      "path": "/usr/lib/gcc/i686-montavista-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 713,
+      "path": "/usr/lib/gcc/i386-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 714,
+      "path": "/usr/lib32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 715,
+      "path": "/usr/lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 716,
+      "path": "/usr/lib/gcc",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 717,
+      "path": "/usr/lib/gcc-cross",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 718,
+      "path": "/usr/lib/gcc/i386-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 719,
+      "path": "/usr/lib/gcc/x86_64-linux-gnux32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 720,
+      "path": "/usr/lib/gcc/x86_64-pc-linux-gnux32",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 721,
+      "path": "/usr/lib/gcc/i586-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 722,
+      "path": "/usr/lib/gcc/i686-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 723,
+      "path": "/usr/lib/gcc/i686-pc-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 724,
+      "path": "/usr/lib/gcc/i386-redhat-linux6E",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 725,
+      "path": "/usr/lib/gcc/i686-redhat-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 726,
+      "path": "/usr/lib/gcc/i386-redhat-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 727,
+      "path": "/usr/lib/gcc/i586-suse-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 728,
+      "path": "/usr/lib/gcc/i686-montavista-linux",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 729,
+      "path": "/usr/lib/gcc/i386-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 730,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 731,
+      "path": "/etc/os-release",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 732,
+      "path": "/proc/self/fd",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 733,
+      "path": "/proc/self/fd/3",
+      "pid": 754599,
+      "result": "19",
+      "syscall": "readlink"
+    },
+    {
+      "line": 739,
+      "path": "/etc/lsb-release",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 740,
+      "path": "/etc/redhat-release",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "openat"
+    },
+    {
+      "line": 741,
+      "path": "/etc/debian_version",
+      "pid": 754599,
+      "result": "3",
+      "syscall": "openat"
+    },
+    {
+      "line": 742,
+      "path": "/proc/self/fd/3",
+      "pid": 754599,
+      "result": "19",
+      "syscall": "readlink"
+    },
+    {
+      "line": 748,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 749,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../lib64",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 750,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib/../lib64",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 751,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 752,
+      "path": "/lib/x86_64-linux-gnu",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 753,
+      "path": "/lib/../lib64",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 754,
+      "path": "/usr/lib/x86_64-linux-gnu",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 755,
+      "path": "/usr/lib64",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 756,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 757,
+      "path": "/lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 758,
+      "path": "/usr/lib",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 770,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 771,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 772,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 773,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 774,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 775,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 776,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 777,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 778,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 779,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 780,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 781,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 782,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 783,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 784,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 785,
+      "path": "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    },
+    {
+      "line": 786,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 787,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 788,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 789,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 790,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 791,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 792,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/Scrt1.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 793,
+      "path": "/lib/x86_64-linux-gnu/Scrt1.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 794,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 795,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 796,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 797,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 798,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 799,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 800,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crti.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 801,
+      "path": "/lib/x86_64-linux-gnu/crti.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 802,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtbeginS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 803,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtbeginS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 804,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../crtbeginS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 805,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtbeginS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 806,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtbeginS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 807,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 808,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtendS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 809,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtendS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 810,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../crtendS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 811,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtendS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 812,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtendS.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 813,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 814,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 815,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 816,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/../crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 817,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 818,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 819,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 820,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crtn.o",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 821,
+      "path": "/lib/x86_64-linux-gnu/crtn.o",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 822,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 823,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 824,
+      "path": "/home/agent/.local/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 825,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 826,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 827,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 828,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 829,
+      "path": "/opt/codex/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 830,
+      "path": "/usr/local/sbin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 831,
+      "path": "/usr/local/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 832,
+      "path": "/usr/sbin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 833,
+      "path": "/usr/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 834,
+      "path": "/sbin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 835,
+      "path": "/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 836,
+      "path": "/home/agent/.local/bin/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 837,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback/x86_64-unknown-linux-gnu-ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 838,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 839,
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 840,
+      "path": "/home/agent/.local/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 841,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 842,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 843,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 844,
+      "path": "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 845,
+      "path": "/opt/codex/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 846,
+      "path": "/usr/local/sbin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 847,
+      "path": "/usr/local/bin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 848,
+      "path": "/usr/sbin/ld",
+      "pid": 754599,
+      "result": "-1 ENOENT (No such file or directory)",
+      "syscall": "access"
+    },
+    {
+      "line": 849,
+      "path": "/usr/bin/ld",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "access"
+    },
+    {
+      "line": 850,
+      "path": "/usr/bin/ld",
+      "pid": 754599,
+      "result": "0",
+      "syscall": "newfstatat"
+    }
+  ],
+  "execs": [
+    {
+      "call": "execve(\"/workspace/.zil-environment/llvm-23.1.4/bin/clang\", [\"/workspace/.zil-environment/llvm-23.1.4/bin/clang\", \"-###\", \"--target=x86_64-unknown-linux-gnu\", \"-O2\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o\", \"-o\", \"/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/program\"], 0x7ffcd3946a20 /* 79 vars */) = 0",
+      "line": 1,
+      "path": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+      "result": "0"
+    }
+  ],
+  "paths": {
+    "/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/etc/debian_version": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/etc/env.d/gcc": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/etc/ld.so.cache": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/etc/ld.so.preload": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/etc/lsb-release": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/etc/os-release": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/etc/redhat-release": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/home/agent/.local/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/home/agent/.local/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/lib": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/../lib64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libc.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/lib/x86_64-linux-gnu/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/opt/codex/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/fallback/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/override/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/opt/rh": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/proc/self/exe": {
+      "calls": {
+        "access": 1,
+        "readlink": 1,
+        "readlinkat": 1
+      },
+      "results": {
+        "success": 3
+      }
+    },
+    "/proc/self/fd": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/proc/self/fd/3": {
+      "calls": {
+        "readlink": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/sbin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/bin/ld": {
+      "calls": {
+        "access": 1,
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/usr/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib": {
+      "calls": {
+        "newfstatat": 4
+      },
+      "results": {
+        "success": 4
+      }
+    },
+    "/usr/lib/gcc": {
+      "calls": {
+        "newfstatat": 3
+      },
+      "results": {
+        "success": 3
+      }
+    },
+    "/usr/lib/gcc-cross": {
+      "calls": {
+        "newfstatat": 3
+      },
+      "results": {
+        "failure:ENOENT": 3
+      }
+    },
+    "/usr/lib/gcc/i386-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i386-redhat-linux": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i386-redhat-linux6E": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i386-unknown-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i586-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i586-suse-linux": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i686-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i686-montavista-linux": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i686-pc-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/i686-redhat-linux": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-amazon-linux": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include/c++/14": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/lib/../lib64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../../../gcc/x86_64-linux-gnu/14/include/c++/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/../lib64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/32/crtbegin.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/64/crtbegin.o": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/sparcv8plus/crtbegin.o": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnu/14/x32/crtbegin.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-linux-gnux32": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-manbo-linux-gnu": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-pc-linux-gnu": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-pc-linux-gnux32": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/gcc/x86_64-redhat-linux": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-redhat-linux6E": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-slackware-linux": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-suse-linux": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-unknown-linux": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib/gcc/x86_64-unknown-linux-gnu": {
+      "calls": {
+        "openat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/usr/lib/x86_64-linux-gnu": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/usr/lib32": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib64": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/usr/lib64/gcc": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/lib64/gcc-cross": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/libx32": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/local/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/local/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/local/sbin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/local/sbin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/sbin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/usr/sbin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace": {
+      "calls": {
+        "readlink": 1
+      },
+      "results": {
+        "failure:EINVAL": 1
+      }
+    },
+    "/workspace/.zil-environment": {
+      "calls": {
+        "readlink": 1
+      },
+      "results": {
+        "failure:EINVAL": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4": {
+      "calls": {
+        "readlink": 1
+      },
+      "results": {
+        "failure:EINVAL": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin": {
+      "calls": {
+        "readlink": 1
+      },
+      "results": {
+        "failure:EINVAL": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/..": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtbeginS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtendS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib": {
+      "calls": {
+        "newfstatat": 3
+      },
+      "results": {
+        "success": 3
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc": {
+      "calls": {
+        "newfstatat": 3
+      },
+      "results": {
+        "failure:ENOENT": 3
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/gcc-cross": {
+      "calls": {
+        "newfstatat": 3
+      },
+      "results": {
+        "failure:ENOENT": 3
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib32": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../lib64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/../libx32": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang": {
+      "calls": {
+        "execve": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23": {
+      "calls": {
+        "readlink": 1
+      },
+      "results": {
+        "failure:EINVAL": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/clang.cfg": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-clang.cfg": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu-ld": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/bin/x86_64-unknown-linux-gnu.cfg": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtbeginS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtendS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/Scrt1.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtbeginS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtendS.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crti.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/crtn.o": {
+      "calls": {
+        "access": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/linux/x86_64": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu": {
+      "calls": {
+        "newfstatat": 2
+      },
+      "results": {
+        "success": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/Scrt1.o": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtbeginS.o": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtendS.o": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crti.o": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu/crtn.o": {
+      "calls": {
+        "access": 2
+      },
+      "results": {
+        "failure:ENOENT": 2
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1": {
+      "calls": {
+        "openat": 1
+      },
+      "results": {
+        "failure:ENOENT": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    },
+    "/workspace/zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o": {
+      "calls": {
+        "newfstatat": 1
+      },
+      "results": {
+        "success": 1
+      }
+    }
+  },
+  "raw_argument_syscalls": [
+    "futex",
+    "getrandom",
+    "ioctl",
+    "pread64",
+    "read",
+    "sigaltstack",
+    "write"
+  ],
+  "syscalls": {
+    "access": 67,
+    "arch_prctl": 1,
+    "brk": 6,
+    "close": 10,
+    "execve": 1,
+    "exit_group": 1,
+    "fstat": 15,
+    "futex": 465,
+    "getdents64": 4,
+    "getrandom": 1,
+    "ioctl": 1,
+    "lseek": 2,
+    "mmap": 27,
+    "mprotect": 7,
+    "munmap": 1,
+    "newfstatat": 89,
+    "openat": 66,
+    "pread64": 4,
+    "prlimit64": 1,
+    "read": 5,
+    "readlink": 8,
+    "readlinkat": 1,
+    "rseq": 1,
+    "rt_sigaction": 42,
+    "rt_sigprocmask": 12,
+    "set_robust_list": 1,
+    "set_tid_address": 1,
+    "sigaltstack": 2,
+    "write": 2050
+  },
+  "trace_sha256": "9cce48e9b8632066da9d201abd5aa4f5a9586f601a3bc8698f63130986891002"
+}

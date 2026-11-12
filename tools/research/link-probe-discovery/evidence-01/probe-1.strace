@@ -1,0 +1,624 @@
+754603 execve("/usr/bin/ldd", ["/usr/bin/ldd", "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23"], 0x7fff7f881670 /* 79 vars */) = 0
+754603 brk(NULL)                        = 0x55a22c522000
+754603 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f9cb7a14000
+754603 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/", 0x7ffcaaad6f20, 0) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/", 0x7ffcaaad6f20, 0) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/", 0x7ffcaaad6f20, 0) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/", {st_mode=S_IFDIR|0700, st_size=4096, ...}, 0) = 0
+754603 openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=141123, ...}) = 0
+754603 mmap(NULL, 141123, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb79f1000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = 3
+754603 read(0x3, 0x7ffcaaad7098, 0x340) = 0x340
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=220464, ...}) = 0
+754603 mmap(NULL, 219456, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f9cb79bb000
+754603 mmap(0x7f9cb79ca000, 81920, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xf000) = 0x7f9cb79ca000
+754603 mmap(0x7f9cb79de000, 57344, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x23000) = 0x7f9cb79de000
+754603 mmap(0x7f9cb79ec000, 20480, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x31000) = 0x7f9cb79ec000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+754603 read(0x3, 0x7ffcaaad7078, 0x340) = 0x340
+754603 pread64(0x3, 0x7ffcaaad6c30, 0x348, 0x40) = 0x348
+754603 fstat(3, {st_mode=S_IFREG|0755, st_size=1995216, ...}) = 0
+754603 pread64(0x3, 0x7ffcaaad6b10, 0x348, 0x40) = 0x348
+754603 mmap(NULL, 2047568, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f9cb77c7000
+754603 mmap(0x7f9cb77ef000, 1454080, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x28000) = 0x7f9cb77ef000
+754603 mmap(0x7f9cb7952000, 352256, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x18b000) = 0x7f9cb7952000
+754603 mmap(0x7f9cb79a8000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1e0000) = 0x7f9cb79a8000
+754603 mmap(0x7f9cb79ae000, 52816, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7f9cb79ae000
+754603 close(3)                         = 0
+754603 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f9cb77c5000
+754603 arch_prctl(ARCH_SET_FS, 0x7f9cb77c5b80) = 0
+754603 set_tid_address(0x7f9cb77c5e50)  = 754603
+754603 set_robust_list(0x7f9cb77c5e60, 24) = 0
+754603 rseq(0x7f9cb77c5ac0, 0x20, 0, 0x53053053) = 0
+754603 mprotect(0x7f9cb79a8000, 16384, PROT_READ) = 0
+754603 mprotect(0x7f9cb79ec000, 16384, PROT_READ) = 0
+754603 mprotect(0x55a21dfaa000, 16384, PROT_READ) = 0
+754603 mprotect(0x7f9cb7a52000, 8192, PROT_READ) = 0
+754603 prlimit64(0, RLIMIT_STACK, NULL, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+754603 munmap(0x7f9cb79f1000, 141123)   = 0
+754603 openat(AT_FDCWD, "/dev/tty", O_RDWR|O_NONBLOCK) = -1 ENXIO (No such device or address)
+754603 ioctl(0, 0x5401, 0x7ffcaaad7b00) = -1 ENOTTY (Inappropriate ioctl for device)
+754603 getrandom(0x7f9cb79b3218, 0x8, 0x1) = 0x8
+754603 brk(NULL)                        = 0x55a22c522000
+754603 brk(0x55a22c543000)              = 0x55a22c543000
+754603 openat(AT_FDCWD, "/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/share/locale/locale.alias", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_IDENTIFICATION", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=258, ...}) = 0
+754603 mmap(NULL, 258, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a13000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=27028, ...}) = 0
+754603 mmap(NULL, 27028, PROT_READ, MAP_SHARED, 3, 0) = 0x7f9cb7a0c000
+754603 close(3)                         = 0
+754603 futex(0x7f9cb79ad72c, 0x81, 0x7fffffff, 0, 0x3, 0) = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_MEASUREMENT", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_MEASUREMENT", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=23, ...}) = 0
+754603 mmap(NULL, 23, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a0b000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_TELEPHONE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_TELEPHONE", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=47, ...}) = 0
+754603 mmap(NULL, 47, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a0a000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_ADDRESS", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_ADDRESS", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=127, ...}) = 0
+754603 mmap(NULL, 127, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a09000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_NAME", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_NAME", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=62, ...}) = 0
+754603 mmap(NULL, 62, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a08000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_PAPER", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_PAPER", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=34, ...}) = 0
+754603 mmap(NULL, 34, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a07000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_MESSAGES", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_MESSAGES", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFDIR|0755, st_size=54, ...}) = 0
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=48, ...}) = 0
+754603 mmap(NULL, 48, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a06000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_MONETARY", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_MONETARY", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=270, ...}) = 0
+754603 mmap(NULL, 270, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a05000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_COLLATE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_COLLATE", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=1406, ...}) = 0
+754603 mmap(NULL, 1406, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a04000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_TIME", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_TIME", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=3360, ...}) = 0
+754603 mmap(NULL, 3360, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a03000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_NUMERIC", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_NUMERIC", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=50, ...}) = 0
+754603 mmap(NULL, 50, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb7a02000
+754603 close(3)                         = 0
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.UTF-8/LC_CTYPE", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754603 openat(AT_FDCWD, "/usr/lib/locale/C.utf8/LC_CTYPE", O_RDONLY|O_CLOEXEC) = 3
+754603 fstat(3, {st_mode=S_IFREG|0644, st_size=367708, ...}) = 0
+754603 mmap(NULL, 367708, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f9cb776b000
+754603 close(3)                         = 0
+754603 getuid()                         = 0x3e8
+754603 getgid()                         = 0x3e8
+754603 geteuid()                        = 0x3e8
+754603 getegid()                        = 0x3e8
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=0}, 8) = 0
+754603 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 rt_sigaction(SIGQUIT, {sa_handler=SIG_IGN, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 uname(0x7ffcaaad78d0)            = 0
+754603 newfstatat(AT_FDCWD, "/workspace/zil-push-link-probes", {st_mode=S_IFDIR|0700, st_size=4096, ...}, 0) = 0
+754603 newfstatat(AT_FDCWD, ".", {st_mode=S_IFDIR|0700, st_size=4096, ...}, 0) = 0
+754603 getcwd("/workspace/zil-push-main", 4096) = 25
+754603 getpid()                         = 0xb83ab
+754603 getppid()                        = 0xb83a8
+754603 getpid()                         = 0xb83ab
+754603 getppid()                        = 0xb83a8
+754603 getpid()                         = 0xb83ab
+754603 getppid()                        = 0xb83a8
+754603 getpgrp()                        = 0xb839f
+754603 ioctl(0x2, 0x540f, 0x7ffcaaad7a54) = -1 ENOTTY (Inappropriate ioctl for device)
+754603 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 ioctl(0x2, 0x540f, 0x7ffcaaad7a34) = -1 ENOTTY (Inappropriate ioctl for device)
+754603 prlimit64(0, RLIMIT_NPROC, NULL, {rlim_cur=136275, rlim_max=136275}) = 0
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 openat(AT_FDCWD, "/usr/bin/ldd", O_RDONLY) = 3
+754603 newfstatat(AT_FDCWD, "/usr/bin/ldd", {st_mode=S_IFREG|0755, st_size=5356, ...}, 0) = 0
+754603 ioctl(0x3, 0x5401, 0x7ffcaaad7b10) = -1 ENOTTY (Inappropriate ioctl for device)
+754603 lseek(3, 0, SEEK_CUR)            = 0
+754603 read(0x3, 0x7ffcaaad7ca0, 0x50)  = 0x50
+754603 lseek(3, 0, SEEK_SET)            = 0
+754603 prlimit64(0, RLIMIT_NOFILE, NULL, {rlim_cur=16*1024, rlim_max=16*1024}) = 0
+754603 fcntl(255, F_GETFD)              = -1 EBADF (Bad file descriptor)
+754603 dup2(3, 255)                     = 255
+754603 close(3)                         = 0
+754603 fcntl(255, F_SETFD, FD_CLOEXEC)  = 0
+754603 fcntl(255, F_GETFL)              = 0x8000 (flags O_RDONLY|O_LARGEFILE)
+754603 fstat(255, {st_mode=S_IFREG|0755, st_size=5356, ...}) = 0
+754603 lseek(255, 0, SEEK_CUR)          = 0
+754603 read(0xff, 0x55a22c536090, 0x14ec) = 0x14ec
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23", {st_mode=S_IFREG|0700, st_size=282507120, ...}, 0) = 0
+754603 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23", {st_mode=S_IFREG|0700, st_size=282507120, ...}, 0) = 0
+754603 faccessat2(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23", R_OK, AT_EACCESS) = 0
+754603 faccessat2(AT_FDCWD, "/lib64/ld-linux-x86-64.so.2", X_OK, AT_EACCESS) = 0
+754603 pipe2(0x7ffcaaad6928, 0)         = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754603 lseek(255, -52, SEEK_CUR)        = 5304
+754603 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754603 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754604
+754603 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD], NULL, 8) = 0
+754604 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754603 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754604 <... set_robust_list resumed>)   = 0
+754603 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70},  <unfinished ...>
+754604 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754603 <... rt_sigaction resumed>{sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 close(4 <unfinished ...>
+754604 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 <... close resumed>)             = 0
+754603 rt_sigprocmask(SIG_BLOCK, [INT],  <unfinished ...>
+754604 getpid( <unfinished ...>
+754603 <... rt_sigprocmask resumed>[], 8) = 0
+754603 read(0x3, 0x7ffcaaad58c0, 0x1000 <unfinished ...>
+754604 <... getpid resumed>)            = 0xb83ac
+754604 close(255)                       = 0
+754604 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754604 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_IGN, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 dup2(4, 1)                       = 1
+754604 close(4)                         = 0
+754604 close(3)                         = 0
+754604 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754604 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754604 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754604 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754604 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754605
+754604 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD], NULL, 8) = 0
+754605 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754604 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754605 <... set_robust_list resumed>)   = 0
+754604 <... rt_sigprocmask resumed>NULL, 8) = 0
+754605 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754604 rt_sigprocmask(SIG_BLOCK, [CHLD],  <unfinished ...>
+754605 <... rt_sigprocmask resumed>NULL, 8) = 0
+754604 <... rt_sigprocmask resumed>[], 8) = 0
+754604 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754605 getpid( <unfinished ...>
+754604 rt_sigprocmask(SIG_BLOCK, [CHLD],  <unfinished ...>
+754605 <... getpid resumed>)            = 0xb83ad
+754604 <... rt_sigprocmask resumed>[], 8) = 0
+754605 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754604 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70},  <unfinished ...>
+754605 <... rt_sigprocmask resumed>NULL, 8) = 0
+754604 <... rt_sigaction resumed>{sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70},  <unfinished ...>
+754604 wait4(-1,  <unfinished ...>
+754605 <... rt_sigaction resumed>{sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754605 dup2(1, 2)                       = 2
+754605 fcntl(1, F_GETFD)                = 0
+754605 execve("/lib64/ld-linux-x86-64.so.2", ["/lib64/ld-linux-x86-64.so.2", "--version"], 0x55a22c53f450 /* 79 vars */) = 0
+754605 brk(NULL)                        = 0x55558db65000
+754605 writev(0x1, 0x7fff4c7301b0, 0x1) = 0x10a
+754603 <... read resumed>)              = 0x10a
+754605 exit_group(0 <unfinished ...>
+754603 read(0x3, 0x7ffcaaad58c0, 0x1000 <unfinished ...>
+754605 <... exit_group resumed>)        = ?
+754604 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 754605
+754604 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754604 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754604 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754605, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754604 wait4(-1, 0x7ffcaaad5890, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754604 rt_sigreturn({mask=[]})          = 0
+754604 exit_group(0)                    = ?
+754603 <... read resumed>)              = 0
+754603 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754604, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754603 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], WNOHANG, NULL) = 754604
+754603 wait4(-1, 0x7ffcaaad4b90, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754603 rt_sigreturn({mask=[INT]})       = 0
+754603 close(3)                         = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 pipe2(0x7ffcaaad6528, 0)         = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754603 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754606
+754603 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754606 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754603 <... rt_sigprocmask resumed>NULL, 8) = 0
+754606 <... set_robust_list resumed>)   = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754606 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754603 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70},  <unfinished ...>
+754606 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 <... rt_sigaction resumed>{sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 close(4 <unfinished ...>
+754606 getpid( <unfinished ...>
+754603 <... close resumed>)             = 0
+754606 <... getpid resumed>)            = 0xb83ae
+754603 rt_sigprocmask(SIG_BLOCK, [INT], [], 8) = 0
+754606 close(255 <unfinished ...>
+754603 read(0x3, 0x7ffcaaad54c0, 0x1000 <unfinished ...>
+754606 <... close resumed>)             = 0
+754606 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754606 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_IGN, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 dup2(4, 1)                       = 1
+754606 close(4)                         = 0
+754606 close(3)                         = 0
+754606 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754606 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754606 execve("/lib64/ld-linux-x86-64.so.2", ["/lib64/ld-linux-x86-64.so.2", "--verify", "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23"], 0x55a22c536810 /* 79 vars */) = 0
+754606 brk(NULL)                        = 0x555579355000
+754606 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23", O_RDONLY|O_CLOEXEC) = 3
+754606 read(0x3, 0x7ffc1a593708, 0x340) = 0x340
+754606 mmap(NULL, 250200324, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_DENYWRITE, -1, 0) = 0x7fbccb4e3000
+754606 mmap(0x7fbccb600000, 248103172, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0) = 0x7fbccb600000
+754606 munmap(0x7fbccb4e3000, 1167360)  = 0
+754606 munmap(0x7fbcda29d000, 925956)   = 0
+754606 mprotect(0x7fbcd09ea000, 107044864, PROT_NONE) = 0
+754606 mmap(0x7fbcd09ea000, 101687296, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x53e9000) = 0x7fbcd09ea000
+754606 mmap(0x7fbcd6ae4000, 2633728, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb4e2000) = 0x7fbcd6ae4000
+754606 mmap(0x7fbcd6d67000, 65536, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb764000) = 0x7fbcd6d67000
+754606 mmap(0x7fbcd6d77000, 749162, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7fbcd6d77000
+754606 mmap(0x7fbcd7000000, 53071872, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb800000) = 0x7fbcd7000000
+754606 mprotect(0x7ffc1a593000, 4096, PROT_READ|PROT_WRITE|PROT_EXEC|PROT_GROWSDOWN) = 0
+754606 close(3)                         = 0
+754606 exit_group(0)                    = ?
+754603 <... read resumed>)              = 0
+754603 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754606, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754603 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], WNOHANG, NULL) = 754606
+754603 wait4(-1, 0x7ffcaaad4790, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754603 rt_sigreturn({mask=[INT]})       = 0
+754603 close(3)                         = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [INT TERM CHLD], 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD], NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754603 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754607
+754603 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754607 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754603 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754607 <... set_robust_list resumed>)   = 0
+754603 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD],  <unfinished ...>
+754607 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754603 <... rt_sigprocmask resumed>[], 8) = 0
+754607 <... rt_sigprocmask resumed>NULL, 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754607 getpid( <unfinished ...>
+754603 <... rt_sigprocmask resumed>NULL, 8) = 0
+754607 <... getpid resumed>)            = 0xb83af
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754607 close(255 <unfinished ...>
+754603 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70},  <unfinished ...>
+754607 <... close resumed>)             = 0
+754603 <... rt_sigaction resumed>{sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754603 wait4(-1,  <unfinished ...>
+754607 <... rt_sigprocmask resumed>NULL, 8) = 0
+754607 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_IGN, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754607 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754607 ioctl(0x2, 0x540f, 0x7ffcaaad6e64) = -1 ENOTTY (Inappropriate ioctl for device)
+754607 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754607 pipe2(0x7ffcaaad6338, 0)         = 0
+754607 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754607 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754607 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754607 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754607 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754607 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754608
+754607 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754608 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754607 <... rt_sigprocmask resumed>NULL, 8) = 0
+754608 <... set_robust_list resumed>)   = 0
+754607 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754607 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 close(4)                         = 0
+754607 rt_sigprocmask(SIG_BLOCK, [INT], [], 8) = 0
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754608 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD], NULL, 8) = 0
+754608 getpid()                         = 0xb83b0
+754608 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754608 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGCHLD, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 dup2(4, 1)                       = 1
+754608 close(4)                         = 0
+754608 close(3)                         = 0
+754608 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754608 fcntl(2, F_GETFD)                = 0
+754608 fcntl(2, F_DUPFD, 10)            = 10
+754608 fcntl(2, F_GETFD)                = 0
+754608 fcntl(10, F_SETFD, FD_CLOEXEC)   = 0
+754608 dup2(1, 2)                       = 2
+754608 fcntl(1, F_GETFD)                = 0
+754608 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754608 brk(0x55a22c564000)              = 0x55a22c564000
+754608 rt_sigprocmask(SIG_BLOCK, NULL, [], 8) = 0
+754608 rt_sigprocmask(SIG_BLOCK, [INT TERM CHLD], [], 8) = 0
+754608 rt_sigprocmask(SIG_BLOCK, ~[], [INT TERM CHLD], 8) = 0
+754608 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7f9cb77c5e50) = 754609
+754609 set_robust_list(0x7f9cb77c5e60, 24 <unfinished ...>
+754608 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD],  <unfinished ...>
+754609 <... set_robust_list resumed>)   = 0
+754608 <... rt_sigprocmask resumed>NULL, 8) = 0
+754609 rt_sigprocmask(SIG_SETMASK, [INT TERM CHLD], NULL, 8) = 0
+754609 getpid()                         = 0xb83b1
+754608 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754609 rt_sigprocmask(SIG_SETMASK, [],  <unfinished ...>
+754608 <... rt_sigprocmask resumed>NULL, 8) = 0
+754609 <... rt_sigprocmask resumed>NULL, 8) = 0
+754609 rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21dedaf50, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754609 execve("/lib64/ld-linux-x86-64.so.2", ["/lib64/ld-linux-x86-64.so.2", "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23"], 0x55a22c542cf0 /* 83 vars */ <unfinished ...>
+754608 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754609 <... execve resumed>)            = 0
+754608 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754609 brk(NULL <unfinished ...>
+754608 rt_sigprocmask(SIG_BLOCK, [CHLD],  <unfinished ...>
+754609 <... brk resumed>)               = 0x555574017000
+754608 <... rt_sigprocmask resumed>[], 8) = 0
+754608 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 wait4(-1,  <unfinished ...>
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/clang-23", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852f1b8, 0x340) = 0x340
+754609 mmap(NULL, 250200324, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_DENYWRITE, -1, 0) = 0x7f3095d9e000
+754609 mmap(0x7f3095e00000, 248103172, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0) = 0x7f3095e00000
+754609 munmap(0x7f3095d9e000, 401408)   = 0
+754609 munmap(0x7f30a4a9d000, 1691908)  = 0
+754609 mprotect(0x7f309b1ea000, 107044864, PROT_NONE) = 0
+754609 mmap(0x7f309b1ea000, 101687296, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x53e9000) = 0x7f309b1ea000
+754609 mmap(0x7f30a12e4000, 2633728, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb4e2000) = 0x7f30a12e4000
+754609 mmap(0x7f30a1567000, 65536, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb764000) = 0x7f30a1567000
+754609 mmap(0x7f30a1577000, 749162, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7f30a1577000
+754609 mmap(0x7f30a1800000, 53071872, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xb800000) = 0x7f30a1800000
+754609 mprotect(0x7fff8852f000, 4096, PROT_READ|PROT_WRITE|PROT_EXEC|PROT_GROWSDOWN) = 0
+754609 close(3)                         = 0
+754609 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f30a4c39000
+754609 access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v4/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v3/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/glibc-hwcaps/x86-64-v2/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/", {st_mode=S_IFDIR|0700, st_size=4096, ...}, 0) = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v4/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v3/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/glibc-hwcaps/x86-64-v2/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/", {st_mode=S_IFDIR|0700, st_size=12288, ...}, 0) = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v4/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v3/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/glibc-hwcaps/x86-64-v2/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 newfstatat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/x86_64-unknown-linux-gnu/", 0x7fff8852e9c0, 0) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+754609 fstat(3, {st_mode=S_IFREG|0644, st_size=141123, ...}) = 0
+754609 mmap(NULL, 141123, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f30a4c16000
+754609 close(3)                         = 0
+754609 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libm.so.6", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852eb38, 0x340) = 0x340
+754609 fstat(3, {st_mode=S_IFREG|0644, st_size=977112, ...}) = 0
+754609 mmap(NULL, 978968, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f30a4b26000
+754609 mmap(0x7f30a4b37000, 512000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x11000) = 0x7f30a4b37000
+754609 mmap(0x7f30a4bb4000, 393216, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x8e000) = 0x7f30a4bb4000
+754609 mmap(0x7f30a4c14000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xed000) = 0x7f30a4c14000
+754609 close(3)                         = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libz.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libz.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libz.so.1", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852eb18, 0x340) = 0x340
+754609 fstat(3, {st_mode=S_IFREG|0644, st_size=125376, ...}) = 0
+754609 mmap(NULL, 127376, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f30a4b06000
+754609 mmap(0x7f30a4b09000, 81920, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x3000) = 0x7f30a4b09000
+754609 mmap(0x7f30a4b1d000, 28672, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x17000) = 0x7f30a4b1d000
+754609 mmap(0x7f30a4b24000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1d000) = 0x7f30a4b24000
+754609 close(3)                         = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libstdc++.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libstdc++.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libstdc++.so.6", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852eaf8, 0x340) = 0x340
+754609 fstat(3, {st_mode=S_IFREG|0644, st_size=2497768, ...}) = 0
+754609 mmap(NULL, 2511040, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f3095b9a000
+754609 mmap(0x7f3095c37000, 1216512, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x9d000) = 0x7f3095c37000
+754609 mmap(0x7f3095d60000, 581632, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1c6000) = 0x7f3095d60000
+754609 mmap(0x7f3095dee000, 57344, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x254000) = 0x7f3095dee000
+754609 mmap(0x7f3095dfc000, 12480, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7f3095dfc000
+754609 close(3)                         = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libgcc_s.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libgcc_s.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libgcc_s.so.1", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852ead8, 0x340) = 0x340
+754609 fstat(3, {st_mode=S_IFREG|0644, st_size=182856, ...}) = 0
+754609 mmap(NULL, 181160, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f30a4ad9000
+754609 mmap(0x7f30a4add000, 143360, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x4000) = 0x7f30a4add000
+754609 mmap(0x7f30a4b00000, 16384, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x27000) = 0x7f30a4b00000
+754609 mmap(0x7f30a4b04000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2b000) = 0x7f30a4b04000
+754609 close(3)                         = 0
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-function-products-v15/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/workspace/.zil-environment/llvm-23.1.4/bin/../lib/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+754609 openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+754609 read(0x3, 0x7fff8852eab8, 0x340) = 0x340
+754609 pread64(0x3, 0x7fff8852e670, 0x348, 0x40) = 0x348
+754609 fstat(3, {st_mode=S_IFREG|0755, st_size=1995216, ...}) = 0
+754609 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f30a4ad7000
+754609 pread64(0x3, 0x7fff8852e550, 0x348, 0x40) = 0x348
+754609 mmap(NULL, 2047568, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f30959a6000
+754609 mmap(0x7f30959ce000, 1454080, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x28000) = 0x7f30959ce000
+754609 mmap(0x7f3095b31000, 352256, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x18b000) = 0x7f3095b31000
+754609 mmap(0x7f3095b87000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1e0000) = 0x7f3095b87000
+754609 mmap(0x7f3095b8d000, 52816, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7f3095b8d000
+754609 close(3)                         = 0
+754609 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f30a4ad5000
+754609 arch_prctl(ARCH_SET_FS, 0x7f30a4ad5c00) = 0
+754609 set_tid_address(0x7f30a4ad5ed0)  = 754609
+754609 set_robust_list(0x7f30a4ad5ee0, 24) = 0
+754609 rseq(0x7f30a4ad5ae0, 0x20, 0, 0x53053053) = 0
+754609 writev(0x1, 0x7fff8852eb20, 0x5) = 0x26
+754609 writev(0x1, 0x7fff8852eb20, 0x7 <unfinished ...>
+754607 <... read resumed>)              = 0x26
+754609 <... writev resumed>)            = 0x43
+754609 writev(0x1, 0x7fff8852eb20, 0x7 <unfinished ...>
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754609 <... writev resumed>)            = 0x43
+754609 writev(0x1, 0x7fff8852eb20, 0x7 <unfinished ...>
+754607 <... read resumed>)              = 0x86
+754609 <... writev resumed>)            = 0x4d
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754609 writev(0x1, 0x7fff8852eb20, 0x7 <unfinished ...>
+754607 <... read resumed>)              = 0x4d
+754609 <... writev resumed>)            = 0x4b
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754609 writev(0x1, 0x7fff8852eb20, 0x7 <unfinished ...>
+754607 <... read resumed>)              = 0x4b
+754609 <... writev resumed>)            = 0x43
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754609 writev(0x1, 0x7fff8852eb20, 0x5 <unfinished ...>
+754607 <... read resumed>)              = 0x43
+754609 <... writev resumed>)            = 0x32
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754609 exit_group(0 <unfinished ...>
+754607 <... read resumed>)              = 0x32
+754609 <... exit_group resumed>)        = ?
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754608 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 754609
+754608 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754608 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754608 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754609, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754608 wait4(-1, 0x7ffcaaad4b90, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754608 rt_sigreturn({mask=[]})          = 0
+754608 dup2(10, 2)                      = 2
+754608 fcntl(10, F_GETFD)               = 0x1 (flags FD_CLOEXEC)
+754608 close(10)                        = 0
+754608 fstat(1, {st_mode=S_IFIFO|0600, st_size=0, ...}) = 0
+754608 write(0x1, 0x55a22c543160, 0x1)  = 0x1
+754607 <... read resumed>)              = 0x1
+754607 read(0x3, 0x7ffcaaad52d0, 0x1000 <unfinished ...>
+754608 exit_group(0)                    = ?
+754607 <... read resumed>)              = 0
+754607 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754608, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754607 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], WNOHANG, NULL) = 754608
+754607 wait4(-1, 0x7ffcaaad4590, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754607 rt_sigreturn({mask=[INT]})       = 0
+754607 close(3)                         = 0
+754607 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754607 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754607 rt_sigaction(SIGINT, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigaction(SIGINT, {sa_handler=0x55a21defe640, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754607 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754607 brk(0x55a22c564000)              = 0x55a22c564000
+754607 brk(0x55a22c563000)              = 0x55a22c563000
+754607 fstat(1, {st_mode=S_IFIFO|0600, st_size=0, ...}) = 0
+754607 write(0x1, 0x55a22c542a70, 0x26) = 0x26
+754607 write(0x1, 0x55a22c542a70, 0x43) = 0x43
+754607 write(0x1, 0x55a22c542a70, 0x90) = 0x90
+754607 write(0x1, 0x55a22c542a70, 0x4b) = 0x4b
+754607 write(0x1, 0x55a22c542a70, 0x75) = 0x75
+754607 exit_group(0)                    = ?
+754603 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 754607
+754603 rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, {sa_handler=0x55a21ded7e60, sa_mask=[], sa_flags=SA_RESTORER, sa_restorer=0x7f9cb7806d70}, 8) = 0
+754603 ioctl(0x2, 0x5413, 0x7ffcaaad6d60) = -1 ENOTTY (Inappropriate ioctl for device)
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=754607, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+754603 wait4(-1, 0x7ffcaaad6090, WNOHANG, NULL) = -1 ECHILD (No child processes)
+754603 rt_sigreturn({mask=[]})          = 0
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 read(0xff, 0x55a22c536090, 0x14ec) = 0x34
+754603 rt_sigprocmask(SIG_BLOCK, [CHLD], [], 8) = 0
+754603 rt_sigprocmask(SIG_SETMASK, [], NULL, 8) = 0
+754603 exit_group(0)                    = ?
