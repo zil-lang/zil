@@ -6216,8 +6216,19 @@ fn summarize(
             }
         }
     }
-    if b.closure_receiver_borrows {
+    if b.closure_receiver_borrows || b.dyn_contexts {
         for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            if !b.closure_receiver_borrows {
+                let local = f
+                    .parameters
+                    .get(parameter)
+                    .and_then(|id| f.locals.get(id.0 as usize))
+                    .ok_or_else(|| err("stable external input has no actual parameter"))?;
+                if !matches!(&local.ty, Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                {
+                    continue;
+                }
+            }
             for (path, initial) in &payload.leaves {
                 let mut stable = true;
                 let mut returned = false;

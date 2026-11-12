@@ -1185,3 +1185,62 @@ fn reborrow_call_retains_distinct_head_and_data_children_without_publishing_head
             .is_empty()
     );
 }
+
+#[test]
+fn actual_static_target_or_empty_data_does_not_discharge_a_retained_activation_head() {
+    let (module, mut f, mut actual) = boundary();
+    // The output class is not supplied by either input scope. Static data
+    // alone cannot erase an additional activation-dependent parent loan.
+    let c = f.storage_life.as_mut().unwrap();
+    c.fixed_binder_count = 1;
+    c.classes[0].binder = StorageBinder::Fixed(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    let mut static_source = actual.0[0].1.permission.sources[0].clone();
+    static_source.base = HoldRoot::Static;
+    for head in [HoldRoot::Parameter(0), HoldRoot::Local(LocalId(0))] {
+        let mut head_source = static_source.clone();
+        head_source.base = head;
+        let loans = vec![
+            Loan {
+                sources: vec![head_source.clone()],
+                exclusive: true,
+                ..Loan::default()
+            },
+            Loan {
+                sources: vec![static_source.clone()],
+                parents: vec![0],
+                ..Loan::default()
+            },
+        ];
+        actual.0[0].1.permission = Permission {
+            sources: vec![static_source.clone()],
+            loans: vec![1],
+        };
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        pending::register(&module, &f, &mut b).unwrap();
+        // Reconstruct actual ancestry from the loan arena. The source upper
+        // supplies neither this head fact nor the static data fact.
+        actual.0[0].1.parent_sources = parents(&actual.0[0].1.permission, &loans, &mut b).unwrap();
+        assert!(actual.0[0].1.parent_sources.contains(&head_source));
+        assert!(pending::discharge(&f, &actual, &mut b).is_err());
+        assert_eq!(
+            b.dyn_static_classes[0].grounding,
+            DynClassGrounding::Unknown
+        );
+        actual.0[0].1.permission.sources.clear();
+        assert!(
+            pending::discharge(&f, &actual, &mut b).is_err(),
+            "empty data cannot erase the actual retained head"
+        );
+        // Drop only the additional head dependency, retaining the exact same
+        // static data target and original output class. This now proves Static.
+        actual.0[0].1.permission.sources = vec![static_source.clone()];
+        actual.0[0].1.parent_sources = vec![static_source.clone()];
+        pending::discharge(&f, &actual, &mut b).unwrap();
+        assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    }
+}

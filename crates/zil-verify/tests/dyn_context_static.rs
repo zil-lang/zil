@@ -258,3 +258,88 @@ fn actual_no_input_static_factory_keeps_its_complete_original_invocation_class()
         }
     }
 }
+
+#[test]
+fn actual_static_factory_preserves_unused_nominal_classes_without_inventing_a_port() {
+    let limits = Limits::default();
+    let bytes = include_bytes!("fixtures/dyn-context/context-static-phantom.candidate.wire");
+    let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    let target = module.target.clone();
+    let create = module
+        .functions
+        .iter()
+        .position(|f| f.name == "create")
+        .unwrap();
+    let relation = module.functions[create].storage_life.as_ref().unwrap();
+    assert_eq!(
+        (
+            relation.fixed_binder_count,
+            relation.invocation_binder_count
+        ),
+        (0, 2)
+    );
+    assert_eq!(relation.classes.len(), 2);
+    for (class, row) in relation.classes.iter().enumerate() {
+        assert_eq!(row.position.class, class as u32);
+        assert_eq!(row.binder, zil_ir::StorageBinder::Invocation(class as u32));
+    }
+    let owner = module
+        .dyn_interfaces
+        .iter()
+        .position(|i| i.context.is_some())
+        .unwrap();
+    assert_eq!(module.dyn_interfaces[owner].retained_life.binder_count, 2);
+    assert_eq!(module.dyn_interfaces[owner].retained_life.ports.len(), 1);
+    assert_eq!(
+        module.dyn_interfaces[owner]
+            .retained_life
+            .nominal_arguments
+            .len(),
+        2
+    );
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(bytes, &target, &limits).unwrap();
+    for case in 0..3 {
+        let mut attack = module.clone();
+        match case {
+            0 => {
+                let life = attack.functions[create].storage_life.as_mut().unwrap();
+                life.classes.pop();
+                life.invocation_binder_count = 1
+            }
+            1 => {
+                attack.dyn_interfaces[owner]
+                    .retained_life
+                    .nominal_arguments
+                    .pop();
+            }
+            _ => attack.functions[create]
+                .retained_return_sources
+                .as_mut()
+                .unwrap()[0]
+                .sources
+                .clear(),
+        }
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = attack.fingerprint();
+        for wire in [false, true] {
+            let errors = if wire {
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&attack, &candidate, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+            } else {
+                zil_verify::verify_module(attack.clone(), candidate.clone(), &target, &limits)
+                    .unwrap_err()
+            };
+            let code = match case {
+                0 => "E-VERIFY-SIGNATURE-CLASS",
+                1 => "E-VERIFY-DYN-CONTEXT",
+                _ => "E-VERIFY-DYN-SOURCE",
+            };
+            assert!(
+                errors.iter().any(|d| d.code == code),
+                "{case}, {wire}: {errors:?}"
+            );
+        }
+    }
+}

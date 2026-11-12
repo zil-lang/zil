@@ -164,9 +164,9 @@ fn prove(
         }
         for parent in actual.parent_sources.iter().chain(&actual.head_sources) {
             source_work(std::slice::from_ref(parent), b)?;
-            if !matches!(parent.base, HoldRoot::Static | HoldRoot::Parameter(_)) {
+            if !static_target(parent) {
                 return Err(bad(
-                    "pending static result retains an activation-local parent",
+                    "pending static result retains an unproved activation-dependent parent",
                 ));
             }
         }
