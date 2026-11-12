@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-13T00:05:33.983110+08:00",
-  "goal_before": "ce6a326279a13bb02749fcf8e2f3b19921547326",
+  "recorded_at": "2026-11-13T01:38:36.270712+08:00",
+  "goal_before": "6aa4c73fe93e569640f056d449fd9cfcfc8df531",
   "authorization": "Complete all foundation tasks in parallel; keep every construction branch recoverable from GitHub; no partial parent acceptance.",
   "accepted_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
   "main_prs": [
@@ -15,14 +15,14 @@
   },
   "receiver": {
     "branch": "task/closure-receiver-proof",
-    "latest_checkpoint": "c806d02af",
+    "latest_checkpoint": "2a7051a73934d6a89649397921b95df8f9f46360",
     "finite_static_review_accept": [
       "7de31c623224cb9a8dd52b46cb2207a30d647aa7",
       "0b23cc5c72802c634167c3d74988c9a0a4957eed"
     ],
     "tenth": "5 genuine Source/raw Verify/Wire Verify consumers, 20 native Clang/API O0/O2 processes passed",
     "thirteenth": "7 selected tests passed; six genuine Source/raw/Wire/native consumers include escaping short view, one Analyze-only source attack group; explicit FnOnce Source entry remains one excluded unresolved case",
-    "latest_test": "fifteenth queued: adds real shared Fixed pointer, captured holder Fixed data, two helpers, inferred FnOnce and original holder after-state consumers; fourteenth failed compile due missing author dispatch helper, retained in logs and repaired in c806",
+    "latest_test": "twentyfirst: 15/17 selected pass, one explicit FnOnce skipped. Cross-two-helper view now independently Verify/raw/Wire/four-native pass. Remaining FnOnce Fixed result dispatch and originalHolder old-target live-loan failure under repair; twentysecond queued.",
     "verification_rule": "head is strong public Hold debt reconstructed from actual non-target loan ancestry, never a data pointee target",
     "log_root": "/workspace/zil-receiver-proof/out/runs/receiver/"
   },
@@ -32,7 +32,8 @@
     "finite_metadata_static_accept": "718d3edb0cbe34914ee8c262e9964297f8e59ac5",
     "execution": "workspace LLVM-api all-targets check passed; identity 1/1 and bounded CT copy/node N,N-1,fresh 1/1 passed; later Verify/Analyze all-targets check passed at 150",
     "unaccepted": "new expected-life verifier requires real Source bridge and adversarial integration; Core owner original scope identity/formal/input association still being closed",
-    "source_scope_api_checkpoint": "7ab1287cc90121f74f233a3cf12541089d046367"
+    "source_scope_api_checkpoint": "7ab1287cc90121f74f233a3cf12541089d046367",
+    "actual_source_owner_scope": "ownership 2cea98dcc+09ef491dd compare independently preserved original owner scope; f114 original Source 11/11 and scope5/5 actual Types/Analyze; not yet all independently Verify/native"
   },
   "anonymous": {
     "branch": "task/anonymous-integration",
@@ -43,26 +44,38 @@
   },
   "async": {
     "branch": "task/language-async",
-    "checkpoint": "202f0ccd1692b4293984ebdf2212984d464451ed",
-    "actual": "45/45 aggregate7/create_owned24/owner_transport4/thread_transfer10; 20 native plus allocation failure cleanup; same Type/same class actual parameter/capture source attacks A/V raw/Wire reject",
+    "checkpoint": "a1e8716479dd29fe852e1d7fa764c2dbb2ee67b3",
+    "actual": "45/45 aggregate7/create_owned24/owner_transport4/thread_transfer10; 20 native plus allocation failure cleanup; same Type/same class actual parameter/capture source attacks A/V raw/Wire reject; 38aec strict all-targets passed; Task-return two real producers now Types pass, remaining A/V/Backend being implemented",
     "first_failure_retained": "ce467 initially V accepted wrong actual parameter with same class; independently repaired actual terminal per-port source verification in 202f, not accepted before this repair",
     "remaining": "strict/full targets pending; FnMut, Task as callable result, ordinary Package with Task, fresh parent transport across Dyn remain open"
   },
   "dyn": {
     "runtime_verified_tag_checkpoint": "f458ec32656e8da3b284bae5fde4134e8003b07f",
     "runtime_error_only_candidate": "09b2bc245",
-    "full_recipe_schema": "cb2d888cb7972fd9257dbc5574f127f2d8441484",
+    "full_recipe_schema": "e527e72e02390761d99b7dc7980bcc8188ebd8b4",
     "schema_actual": "workspace alltargets pass and independent byte oracle4/4 including depth112 roundtrip and depth130 ResourceLimit; no stack size or budget increase",
-    "unaccepted": "new static witness proposals remain failclosed until independently consumed by A and V; full CT DAG metadata still being implemented"
+    "unaccepted": "Original scope/equality recipe independent V scalar math finite checks pass; lexical instantiation/header embeddings and Desc semantic lifetime fields in progress, all new witness proposals remain failclosed until actual proof consumers"
   },
   "source_atoms": {
     "branch": "task/storage-source-atoms",
-    "initial_published_checkpoint": "150305296c4e79eef169e08f86df987432780bd2",
+    "initial_published_checkpoint": "0d472c950ef62d4d32ec0f80c68370cfc1483691",
     "sole_public_writer": "stdlib_graph",
     "astra_decision": "Explicit StorageSource Exact/PlaceAddress/OwnedView/ReborrowedLeaf/Static required. Empty root keeps actual outer address meaning. Preserve original data class and parent loans; fresh child scope comes from actual head and actual owner-retains-port proof. Phantom identity grants no target/outlives. Empty source is not Static.",
     "required_consumers": "Runtime+CT DAG/codec/fingerprint/bounded prepay and actual holding nodes; A dyn independently, V numeric independently. Concrete Self retained-port envelope remains actual borrowed leaf positions.",
-    "final_versions": "Runtime49/CT9 jointly after all new fields and actual independent consumers; not sealed yet"
+    "final_versions": "Runtime49/CT9 jointly after all new fields and actual independent consumers; not sealed yet",
+    "actual": "Runtime workspace alltargets pass, atom oracle3/3, Dyn oracle4/4, identity17/17, IR complete114/114; independent V new atoms still being implemented"
   },
   "backup_rule": "All branch checkpoints are pushed and exact remote SHA checked; publication is WIP preservation, not acceptance. Continue pushing checkpoints. Ignored reproducible logs/targets/native artifacts are not source backups.",
-  "parent_status": "Language usability completion remains open; do not deliver a final partial handoff."
+  "parent_status": "Language usability completion remains open; do not deliver a final partial handoff.",
+  "public_integration": {
+    "branch": "task/language-public-integration",
+    "checkpoint": "9baefad0bb254ed0580a3101e02aac013640f21a",
+    "content": "root integration + callable return150 + original Core scope7ab + complete StorageSource atoms0d + complete recipe/equality metadata + anonymous f894 + Source417 + independent ordinary head A/V fixes",
+    "checks": "prior b08 workspace lib LLVM pass; new all-targets LLVM queued, no joint acceptance yet"
+  },
+  "ct_catalogue": {
+    "branch": "task/storage-source-atoms-ct",
+    "checkpoint": "f514bcd147ab19b6e8c1c0f41ca00f44de9c78ab",
+    "status": "new complete DAG and bounded inventory graph held in Artifact; earlier workspace alltargets passed. None/Someempty semantics corrected; actual full frozen Core binding and byte/budget/source tests in progress, no Type-query permission upgrade"
+  }
 }
