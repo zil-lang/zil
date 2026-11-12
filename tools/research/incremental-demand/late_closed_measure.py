@@ -50,7 +50,7 @@ class ClosedOutputQuality:
         return {'schema': 'post-o2-closed-machine-quality-v1',
                 'nm': {'path': str(nm), 'sha256': native_measure.digest(nm),
                        'version_stdout_hex': version.stdout.hex(), 'version_stderr_hex': version.stderr.hex()},
-                'contract': 'Candidate explicitly grants no generated ZIL symbol exports. Original O2 and CGU policy are retained; source-private classification is not inferred.',
+                'contract': 'Caller explicitly waives the generated ZIL symbol export contract for a closed executable. Original O2 and CGU policy are retained; source-private classification is not inferred.',
                 'files': files,
                 'checks': 'Current Verify, exact raw input diagnostics except the preexisting push identity comment, full native oracle, actual retained machine instructions and authorized current removals. ELF byte equality remains separately reported; unknown normalization fails.'}
 
