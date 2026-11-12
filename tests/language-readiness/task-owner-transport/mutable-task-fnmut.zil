@@ -8,10 +8,10 @@ fn keep<life a>(give original:Task<i32,&'a mut i32>)->impl FnMut()->i32 {
   }
  };
 }
-fn use<life a>(give original:Task<i32,&'a mut i32>)->i32 {
+fn drive_callback<life a>(give original:Task<i32,&'a mut i32>)->i32 {
  var callback=keep(give original);if callback()!=-1{return 91;}return callback();
 }
 fn main()->TaskCreateError!i32 {
- var number=37;let original=task_create(worker,&mut number)?;let answer=use(give original);
+ var number=37;let original=task_create(worker,&mut number)?;let answer=drive_callback(give original);
  if number!=42{return 92;}number=9;return answer-42;
 }
