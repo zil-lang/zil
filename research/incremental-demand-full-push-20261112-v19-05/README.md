@@ -1,0 +1,7 @@
+# V19 integrated inventory/dense-capture checkpoint
+
+Four storage shards preserve the complete original profile13 run496files/415587451B plus two immutable compiler binaries, source snapshots, both complete gate batches, exact7c13 documentation/reviews and recovery chains. See V19-INDEX.json for every fixed commit, archive/manifest digest and bootstrap SHA256.
+
+For each shard, download its exact bootstrap_url, verify bootstrap_sha256, then run `python3 DOWNLOADED_BOOTSTRAP.py FIXED_ARCHIVE_COMMIT --receipt UNIQUE_RECEIPT.json`. The tested bootstrap freshly fetches only that fixed Git content, restores all selected files, and checks complete SHA256/size/mode. Assemble workspace-relative payload paths from shards01..03 for the original run; shard04 contains immutable release14/15 compilers and all metadata/proofs/source trees. Duplicate auxiliary metadata must agree. No old skipped parts need restoration for this checkpoint.
+
+Profile13 compiled03b and intermediate batch04 compiled1453 are distinct from documentation7c13. Original qualifier passed before retirement. Exact per-shard byte/mode union is verified; no simultaneous assembled fresh qualifier run or physical rehash of overwritten historical executables is claimed. Candidate-only profiling is diagnostic, not a new six-block Rust comparison or prior-candidate timing ratio. All unique source/immutable/SDK/runtime/Git objects remain. Only full-manifest/fresh-verified original raw materializations were retired.

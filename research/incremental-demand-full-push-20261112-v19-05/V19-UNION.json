@@ -1,0 +1,52 @@
+{
+  "schema": "fixed-shard-profile13-exact-union-v1",
+  "complete": true,
+  "original_files": 496,
+  "original_bytes": 415587451,
+  "master_sha256": "988a97de30354c2b75ede12d1a58b0cea014753defaf40510cb5b6ca97141e69",
+  "exact_disjoint_union": true,
+  "all_original_payload_fresh_https_full_hash_mode_verified_before_retirement": true,
+  "original_qualifier4716_passed": true,
+  "original_controller_root_observed_exit": 0,
+  "original_counts": {
+    "rows": 34,
+    "measured": 18,
+    "parents": 16,
+    "pairs": 17,
+    "successful_pairs": 15,
+    "safe_error_pairs": 2,
+    "native_outcomes_recomputed": 180,
+    "files": 22,
+    "functions": 425
+  },
+  "whole_assembled_fresh_qualifier_rerun": false,
+  "shards": [
+    {
+      "fixed_archive_commit": "283f865653e14bc7a5e9b3aefe48b053118cd68a",
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-01",
+      "manifest_sha256": "f5451429de77023cb95c1fb21c5632d6a59835c1cfd1dafce49cd9c4e2cdf44a",
+      "archive_sha256": "f042f1c3de4fe1cee84599a1b31e6f79e89009f49ccf44437d37b2e518705ddc",
+      "files": 221,
+      "raw_bytes": 153635643,
+      "archive_bytes": 7178617
+    },
+    {
+      "fixed_archive_commit": "df97cd732aea819babb9d6666f0db84646d9bc3f",
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-02",
+      "manifest_sha256": "2fb6169656cf24e90148ca8b70ea962c8ea38ef32930e6e29641bb3e87739088",
+      "archive_sha256": "0c0871bd6814a7abfbd4d19a4b0bc58b1d1cb8103d39a1b37dd1d0bd233919c2",
+      "files": 15,
+      "raw_bytes": 112352530,
+      "archive_bytes": 647734
+    },
+    {
+      "fixed_archive_commit": "bc1d4865510b31de19ee7fa44e50c28c0163201f",
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-03",
+      "manifest_sha256": "0b5b0b962c2a4047fd123c933e5d560fe6554513caaf7eb415ecbcab1f4dab9c",
+      "archive_sha256": "e3e3370e86121c63bfb1a8c06527c4e3628a254c7c1c52349004109d7ed5bcc7",
+      "files": 262,
+      "raw_bytes": 149734820,
+      "archive_bytes": 51464747
+    }
+  ]
+}

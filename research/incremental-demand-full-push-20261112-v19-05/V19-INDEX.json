@@ -1,0 +1,88 @@
+{
+  "baseline_source": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "documentation_source": "7c13a883b87df17c59855fa9433984726ae62f1e",
+  "exact_disjoint_original_union": true,
+  "finished_utc": "2026-11-12T20:57:35.226881+00:00",
+  "intermediate_batch04_binary_sha256": "fef4ae454e36823553ee9b103313e7b270873e60b5b6cd21044afbd1177d34b0",
+  "intermediate_batch04_source": "1453e6e0e2bbe7af214f309b099f1a7e97534463",
+  "master_sha256": "988a97de30354c2b75ede12d1a58b0cea014753defaf40510cb5b6ca97141e69",
+  "metadata_and_immutable_binaries_shard": 4,
+  "original_bytes": 415587451,
+  "original_files": 496,
+  "original_qualifier_counts": {
+    "files": 22,
+    "functions": 425,
+    "measured": 18,
+    "native_outcomes_recomputed": 180,
+    "pairs": 17,
+    "parents": 16,
+    "rows": 34,
+    "safe_error_pairs": 2,
+    "successful_pairs": 15
+  },
+  "original_qualifier_exit": 0,
+  "original_root_observed_controller_exit": 0,
+  "payload_shards": [
+    1,
+    2,
+    3
+  ],
+  "profile_candidate_binary_sha256": "d0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c",
+  "profile_compiled_source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+  "profile_compiled_tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+  "qualification_receipt_sha256": "929baa4050e702a7d55aae9a8c7eb2c6c1fa6929cf57818b6fe1815ccaa36192",
+  "qualifier_author_source": "4716ec537e2bd27c5b8f7bb5dbe30f7c5c5eed99",
+  "qualifier_root_cherry_pick": "c6a06ae3e870c04c17613f4cdb850e5ff357f2fe",
+  "remote_ref": "refs/heads/archive/source-history",
+  "schema": "profile13-v19-fixed-archive-index-v1",
+  "scope": "All496 original profile13 files freshly HTTPS restored and full SHA256/size/mode verified per shard before exact-master-matched local raw materialization retirement. Exact disjoint union equals whole pre-retirement master. Original independent qualifier4716 passed34rows/18measured16parents/17pairs15success2safeerrors/180recordednative oracle outcomes/22files425functions16CGU and current independentVerify/source/tool/build/DSO/LLVM bindings. Historical overwritten ELF equality compares recorded full SHA values; all archived LLVM and mapped DSO bytes were rehashed; only unique exact second-line hex64 identity is normalized. No native re-execution or simultaneous whole assembled fresh qualifier rerun claimed. Candidate profiled versus unprofiled main3ec, original425/20x20x16/CGU16/O2/jobs1/cacheall/cap256; no Rust or priorcandidate cross-window timing ratios. Intermediate1453 and actual03b compiled source snapshots and immutable release14/15 binaries are separately bound/preserved in shard04. Complete batch04/05 controllers, all gate logs/JSON/exit, documentation7c13 exact checkpoint/reviews/bothAstrareviews/linkwatchnegative, qualification/tool-registry4716-rootc6 equality, and latest V16/V17/V18 receipts included. SDK15 original DSO/runtime/Gitobjects/source/immutable binaries untouched. This appends only the authorized fixed archive/source-history branch; no rejected raw-ref retry or alternate publication destination.",
+  "shards": [
+    {
+      "archive_bytes": 7178617,
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-01",
+      "archive_sha256": "f042f1c3de4fe1cee84599a1b31e6f79e89009f49ccf44437d37b2e518705ddc",
+      "bootstrap_sha256": "9dd9550d607bfe953f5e0cd9ceb757f562e5d34ab8a0893480f6f921e1e01955",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/283f865653e14bc7a5e9b3aefe48b053118cd68a/research/incremental-demand-full-push-20261112-v19-01/restore_https.py",
+      "files": 221,
+      "fixed_archive_commit": "283f865653e14bc7a5e9b3aefe48b053118cd68a",
+      "manifest_sha256": "f5451429de77023cb95c1fb21c5632d6a59835c1cfd1dafce49cd9c4e2cdf44a",
+      "raw_bytes": 153635643
+    },
+    {
+      "archive_bytes": 647734,
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-02",
+      "archive_sha256": "0c0871bd6814a7abfbd4d19a4b0bc58b1d1cb8103d39a1b37dd1d0bd233919c2",
+      "bootstrap_sha256": "5dba26aecbd4d29291d43fd705fbfd946f2621fb31ce28547610629447b88d25",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/df97cd732aea819babb9d6666f0db84646d9bc3f/research/incremental-demand-full-push-20261112-v19-02/restore_https.py",
+      "files": 15,
+      "fixed_archive_commit": "df97cd732aea819babb9d6666f0db84646d9bc3f",
+      "manifest_sha256": "2fb6169656cf24e90148ca8b70ea962c8ea38ef32930e6e29641bb3e87739088",
+      "raw_bytes": 112352530
+    },
+    {
+      "archive_bytes": 51464747,
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-03",
+      "archive_sha256": "e3e3370e86121c63bfb1a8c06527c4e3628a254c7c1c52349004109d7ed5bcc7",
+      "bootstrap_sha256": "48caf11ecf13ab8b67cee1fdb8fbadaf2501019515b74e13f038e36325002894",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/bc1d4865510b31de19ee7fa44e50c28c0163201f/research/incremental-demand-full-push-20261112-v19-03/restore_https.py",
+      "files": 262,
+      "fixed_archive_commit": "bc1d4865510b31de19ee7fa44e50c28c0163201f",
+      "manifest_sha256": "0b5b0b962c2a4047fd123c933e5d560fe6554513caaf7eb415ecbcab1f4dab9c",
+      "raw_bytes": 149734820
+    },
+    {
+      "archive_bytes": 36480281,
+      "archive_path": "research/incremental-demand-full-push-20261112-v19-04",
+      "archive_sha256": "260b59d9b2d315e026e9b438df26a9489038536bebc66d7ea9dc3847b380268f",
+      "bootstrap_sha256": "6e5c5aa1ea761aef7d39f95c4c729da0f2610b3100d6893b8b569715990e9cab",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/07236b82179c3833f3c06adb30423b936042169a/research/incremental-demand-full-push-20261112-v19-04/restore_https.py",
+      "files": 133,
+      "fixed_archive_commit": "07236b82179c3833f3c06adb30423b936042169a",
+      "manifest_sha256": "c769ab270412b9c50aa1f12cd5216b0eb6cccc251318fef14ef4dd01f0ecb442",
+      "raw_bytes": 71682457
+    }
+  ],
+  "source_tool_build_bindings_sha256": "50884948f31a63016686c60a5e90bbb86361fc2b8237144553497b8d2802effe",
+  "status": "complete_all4_storage_shards_fixed_remote_fresh_https_full_file_verified",
+  "whole_assembled_fresh_qualifier_rerun": false
+}
