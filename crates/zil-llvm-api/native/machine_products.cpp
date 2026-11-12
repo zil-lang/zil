@@ -111,7 +111,6 @@ bool inputDomain(const llvm::Function &F) {
 
 bool snapshotDomain(llvm::MachineFunction &MF) {
   const auto &Frame = MF.getFrameInfo();
-  llvm::errs() << "ZIL MIR domain " << MF.getName() << " frame=" << Frame.getObjectIndexBegin() << ":" << Frame.getObjectIndexEnd() << " stack=" << Frame.getStackSize() << " calls=" << Frame.hasCalls() << " jt=" << bool(MF.getJumpTableInfo()) << " cp=" << MF.getConstantPool()->getConstants().size() << " cfi=" << MF.getFrameInstructions().size() << "\n";
   // MIR renumbers stack objects and drops dead slots. No frame index may enter
   // the opaque target-info copy until a separate relocation proof exists.
   if (Frame.getObjectIndexBegin() != 0 || Frame.getObjectIndexEnd() != 0 ||
@@ -120,7 +119,6 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       !MF.getFrameInstructions().empty())
     return false;
   auto *X = MF.getInfo<llvm::X86MachineFunctionInfo>();
-  if (X) llvm::errs() << "ZIL MIR target " << MF.getName() << " ra=" << X->getRAIndex() << " fa=" << X->getFAIndex() << " va=" << X->getVarArgsFrameIndex() << " regsave=" << X->getRegSaveFrameIndex() << " seh=" << X->getSEHFramePtrSaveIndex() << " sret=" << unsigned(X->getSRetReturnReg()) << " global=" << unsigned(X->getGlobalBaseReg()) << "\n";
   if (!X || X->getRAIndex() || X->getFAIndex() || X->getVarArgsFrameIndex() ||
       X->getRegSaveFrameIndex() || X->getSEHFramePtrSaveIndex() ||
       X->getSwiftAsyncContextFrameIdx() || X->getSRetReturnReg() ||
@@ -173,7 +171,7 @@ bool providers(Snapshot &S) {
       if (Step.id != Current) continue;
       // Required providers run on restored final MIR. Only genuinely
       // non-transforming providers are admissible, not registry analysis tags.
-      if (Step.machine && !Step.preservesAll) { llvm::errs() << "ZIL MIR provider rejected " << Current << "\n"; return false; }
+      if (Step.machine && !Step.preservesAll) return false;
       Pending.insert(Pending.end(), Step.dependencies.begin(), Step.dependencies.end());
     }
   }
@@ -235,19 +233,13 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       C.recording = std::make_shared<Snapshot>();
       if (!bindPipeline(P, *C.recording)) C.recording.reset();
     }
-    llvm::errs() << "ZIL MIR begin " << F.getName() << " pass=" << P.getPassName() << " recording=" << bool(C.recording) << " prior=" << bool(R.prior) << "\n";
     if (C.recording) {
       C.recording->input = functionText(F);
       C.recording->world = worldText(R.module, &F);
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
       if (R.prior && R.prior->config == R.config) {
         auto Old = R.prior->functions.find(F.getName().str());
-        llvm::errs() << "ZIL MIR lookup " << F.getName() << " old=" << (Old != R.prior->functions.end()) << " mf=" << bool(MMI.getMachineFunction(F)) << "\n";
-        if (Old != R.prior->functions.end()) {
-          llvm::errs() << "ZIL MIR binding input=" << (Old->second->input == C.recording->input) << " world=" << (Old->second->world == C.recording->world) << " pipeline=" << (Old->second->pipeline == C.recording->pipeline) << " first=" << (Old->second->firstMachine == C.recording->firstMachine) << "\n";
-          if (Old->second->input != C.recording->input) llvm::errs() << "ZIL MIR old input\n" << Old->second->input << "ZIL MIR current input\n" << C.recording->input;
-          if (Old->second->world != C.recording->world) llvm::errs() << "ZIL MIR old world\n" << Old->second->world << "ZIL MIR current world\n" << C.recording->world;
-        }
+
         if (Old != R.prior->functions.end() &&
             Old->second->input == C.recording->input &&
             Old->second->world == C.recording->world &&
@@ -298,7 +290,6 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     ++R.stats.asm_printer_runs;
     C.emitted = true;
     if (!C.replay && C.recording) {
-      llvm::errs() << "ZIL MIR printer " << F.getName() << " inputeq=" << (C.recording->input == functionText(F)) << " worldeq=" << (C.recording->world == worldText(R.module, &F)) << "\n";
       auto *MF = MMI.getMachineFunction(F);
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
@@ -364,9 +355,7 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
         Step.machine = false;
         Complete = Step == C.recording->pipeline[C.recording->firstMachine + I];
       }
-      const bool Providers = providers(*C.recording);
-      llvm::errs() << "ZIL MIR finish " << F->getName() << " complete=" << Complete << " providers=" << Providers << " first=" << C.recording->firstMachine << " seq=" << C.recording->sequence.size() << " pipe=" << C.recording->pipeline.size() << "\n";
-      if (Complete && Providers) S = std::move(C.recording);
+      if (Complete && providers(*C.recording)) S = std::move(C.recording);
     }
     if (S) {
       R.stats.retained_bytes += S->input.size() + S->world.size() + S->mir.size() +
