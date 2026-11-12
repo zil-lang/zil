@@ -676,6 +676,7 @@ pub(super) fn contract_with_sources(
     }
     Ok((
         StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: u32::try_from(fixed.len())
                 .map_err(|_| invalid(span, "fixed binder overflow"))?,
             invocation_binder_count: u32::try_from(invocation.len())
