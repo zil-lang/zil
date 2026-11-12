@@ -11,7 +11,8 @@ pub(super) fn direct_owner_failure(ty: &Type) -> bool {
 }
 
 pub(super) fn owned(ty: &Type, sum_extension: bool) -> bool {
-    direct_owner_failure(ty) || matches!(ty, Type::ErrorUnion { error, result }
+    direct_owner_failure(ty)
+        || matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
             || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_) | Type::OwnedDyn { .. })
             || (sum_extension && (sums::owned(error) || sums::owned(result)

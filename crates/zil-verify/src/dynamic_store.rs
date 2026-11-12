@@ -2,11 +2,11 @@
 use super::*;
 
 mod carrier_cache;
+#[cfg(test)]
+mod nested_windows_tests;
 mod owned_elements;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod nested_windows_tests;
 pub(super) use carrier_cache::{Cache as CarrierCache, register_actual_carrier_root};
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
@@ -160,7 +160,10 @@ fn pod_type_work(ty: &Type, budget: &mut Budget) -> Check<()> {
 }
 
 fn pod_name_work(element: &Type, budget: &mut Budget) -> Check<()> {
-    if matches!(element, Type::Tuple(_) | Type::Array { .. } | Type::Managed(_)) {
+    if matches!(
+        element,
+        Type::Tuple(_) | Type::Array { .. } | Type::Managed(_)
+    ) {
         pod_type_work(element, budget)?;
         return budget.spend(PREFIX.len().saturating_add(80));
     }

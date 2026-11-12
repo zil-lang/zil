@@ -109,10 +109,21 @@ pub(super) fn check_type_for(
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
-        if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. })) {
+        if let Type::ErrorUnion { error, result } = ty
+            && let Type::OwnedDyn { interface } = result.as_ref()
+        {
             // Borrowing the allocation outcome for tag inspection uses the
             // same exact erased-owner route as the owning value itself.
-            errors::check_type_for(module, ty, span, budget)?;
+            // Authenticate this route directly: recursively redispatching an
+            // arbitrary owning error through errors::needs_shape could loop.
+            budget.spend(2)?;
+            if error.as_ref() != &dynamic_dispatch::create_error() {
+                return Err(bad(
+                    span,
+                    "erased-owner allocation outcome has a different error route",
+                ));
+            }
+            dynamic_dispatch::type_owned(module, *interface, budget)?;
             continue;
         }
         if owning_container {
@@ -188,7 +199,7 @@ pub(super) fn check_type_for(
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
                 if errors::direct_owner_failure(ty) {
-                    pending.extend([error.as_ref(),result.as_ref()]);
+                    pending.extend([error.as_ref(), result.as_ref()]);
                     continue;
                 }
                 if matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))

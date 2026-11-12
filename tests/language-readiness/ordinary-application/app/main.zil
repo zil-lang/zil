@@ -3,7 +3,6 @@ import std.int as number
 import std.iter
 import std.owning_entries
 import std.owning_hash_map
-extern "C" fn putchar(value:i32)->i32;
 struct Select {minimum:u32}
 struct Unwrap {}
 impl iter.Predicate<owning_entries.Entry<records.Key,records.Packet>> for Select {

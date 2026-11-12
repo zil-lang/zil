@@ -904,7 +904,8 @@ fn reconstruct(
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                                 let source = &values[store.0 as usize];
                                 if budget.store_descriptions()
-                                    || source.iter().any(|root| matches!(root, Root::Window(..))) {
+                                    || source.iter().any(|root| matches!(root, Root::Window(..)))
+                                {
                                     let precise =
                                         roots::store_element_roots(f, result, source, budget)?;
                                     roots_join(&mut row, &precise, budget)?;

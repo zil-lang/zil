@@ -1442,7 +1442,8 @@ pub(super) fn qualifications(
                                 | InstructionKind::DropErrorUnion { .. }
                                 | InstructionKind::DescribePackageField { .. }
                         ))
-                    && !(b.store_descriptions() && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
+                    && !(b.store_descriptions()
+                        && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
@@ -2927,7 +2928,7 @@ fn step(
                 b.spend(2)?;
                 out.address.sources.push(Source { retained_port: None,
                     base: HoldRoot::Local(*local), leaf: Vec::new(),
-                    inline: vec![PlaceProjection::Field(*index)], heap_element: None });
+                    inline: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None });
             }
         InstructionKind::DescribePackageField { local, index }
             if pure_copy::qualified_package_description(f, i, b)? => {
@@ -2935,7 +2936,7 @@ fn step(
                 out.address.sources.push(Source {
                     retained_port: None, base: HoldRoot::Local(*local),
                     leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
-                    heap_element: None,
+                    heap_parents: Vec::new(), heap_element: None,
                 });
             }
         InstructionKind::DescribeLocal { local } => {
@@ -3698,20 +3699,20 @@ fn step(
     if let Some(id) = i.result
         && b.store_descriptions()
         && matches!(i.kind, InstructionKind::Call { .. })
-        && option_address::shape(vt(f,id)?, &b.limits.clone(), b)?
+        && option_address::shape(vt(f, id)?, &b.limits.clone(), b)?
     {
         // A returned Some is a new shared window at this actual call site,
         // rather than the caller's possibly exclusive manager loan itself.
-        let row=&mut loans[id.0 as usize];
+        let row = &mut loans[id.0 as usize];
         for ordinal in 0..out.leaves.len() {
             b.spend(1)?;
-            let permission=out.leaves.permission_mut(ordinal);
-            add_sources(&mut row.sources,&permission.sources,b)?;
-            add_loans(&mut row.parents,&permission.loans,b)?;
+            let permission = out.leaves.permission_mut(ordinal);
+            add_sources(&mut row.sources, &permission.sources, b)?;
+            add_loans(&mut row.parents, &permission.loans, b)?;
             b.spend(1)?;
-            permission.loans=vec![id.0 as usize];
+            permission.loans = vec![id.0 as usize];
         }
-        row.exclusive=false;
+        row.exclusive = false;
     }
     if let Some(id) = i.result
         && b.static_utf8
@@ -4751,6 +4752,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -4767,6 +4769,7 @@ fn windows(
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
                                 inline: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
                                 heap_element: None,
                             }],
                             loans: Vec::new(),
@@ -5524,6 +5527,7 @@ fn summarize(
                                     leaf: path.clone(),
                                     inline: Vec::new(),
                                     retained_port: None,
+                                    heap_parents: Vec::new(),
                                     heap_element: None,
                                 },
                                 b,

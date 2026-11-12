@@ -94,6 +94,7 @@ pub(super) fn class(
                 leaf: tail.to_vec(),
                 inline: Vec::new(),
                 retained_port: None,
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let StorageBinder::Fixed(local) = class(module, entry, &nested, b)? else {
@@ -220,6 +221,7 @@ pub(super) fn summarize(
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
                 retained_port: None,
+                heap_parents: Vec::new(),
                 heap_element: None,
             };
             let bound = class(module, f, &destination, b)?;
@@ -275,6 +277,7 @@ pub(super) fn receiver(
                     leaf: Vec::new(),
                     inline: Vec::new(),
                     retained_port: None,
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }],
                 loans: Vec::new(),

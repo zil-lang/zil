@@ -412,8 +412,7 @@ struct Budget {
 }
 impl Budget {
     fn store_descriptions(&self) -> bool {
-        self.nested_store_windows
-            || self.returned_environment_sources && self.actual_store_types
+        self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn new(limits: &Limits) -> Self {
         Self {

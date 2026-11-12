@@ -187,7 +187,11 @@ fn complete_direct_byte_buffer_owners() {
 
 #[test]
 fn complete_saved_some_keeps_both_heap_layers_through_helpers() {
-    pipeline(include_str!("../../../tests/fixtures/nested-store/lending.zil"),"lending",b"AR");
+    pipeline(
+        include_str!("../../../tests/fixtures/nested-store/lending.zil"),
+        "lending",
+        b"AR",
+    );
 }
 
 #[test]

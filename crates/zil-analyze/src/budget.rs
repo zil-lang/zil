@@ -941,7 +941,8 @@ pub(super) fn preflight(
         }
         if let Some(element) = store_element
             && (super::resources::product::nested(element)
-                || matches!(element, Type::Package { .. }) && super::nested_store::selected(element))
+                || matches!(element, Type::Package { .. })
+                    && super::nested_store::selected(element))
         {
             budget.spend(1, "Product Store instruction admission entry")?;
             product_store_elements.push(element);
@@ -1182,7 +1183,8 @@ pub(super) fn preflight(
                                 None,
                             )]);
                         }
-                        if context.pod_aggregate && !context.ordinary_pod_store
+                        if context.pod_aggregate
+                            && !context.ordinary_pod_store
                             && !store_element.is_some_and(super::nested_store::selected)
                         {
                             return Err(vec![Diagnostic::unsupported(
