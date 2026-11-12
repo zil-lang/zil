@@ -1510,6 +1510,7 @@ pub(super) fn preflight(
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
+                    && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
