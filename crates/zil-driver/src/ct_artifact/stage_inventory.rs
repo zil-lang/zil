@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn complete_original_headers_and_bodies_survive_epoch_freeze() {
-        let text = "pub trait Read<life unused,T>{fn read(self:&Self)->i32;}struct Cell<T>{value:T;fn number()->i32{return 42}}fn full<life p,const N:usize,T>(value:T)->T{return value}";
+        let text = "pub trait Read<life unused,T>{fn read(self:&Self)->i32;}struct Cell<T>{value:T;fn number()->i32{return 42}}fn full<life p,#N:usize,T>(value:T)->T{return value}";
         let (source, parse, origins) = original(text);
         let mut b = budget(1_000_000);
         let frozen = FrozenCtStageInventory::freeze(
