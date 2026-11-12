@@ -436,7 +436,10 @@ fn whole_machine_exact_original_emitter_budget_n_and_n_minus_one_preserve_first_
             actual, expected,
             "complete machine, remaining ledger or original first error differs at {budget}"
         );
-        assert_eq!(session.reused_machine_module, index == 1 || index == 4);
+        // The N-1 failure cannot publish or evict the completed N epoch.
+        // Returning to its exact starting ledger may therefore reuse it at
+        // index 3 as well; the failed request itself must remain a miss.
+        assert_eq!(session.reused_machine_module, budget == n && index > 0);
         if budget == n {
             assert_eq!(actual.unwrap().2, 0);
         } else {
