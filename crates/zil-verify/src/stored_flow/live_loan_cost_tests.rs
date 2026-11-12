@@ -15,6 +15,7 @@ fn solution(values: Vec<Payload>, loans: Vec<Loan>) -> Solution {
         outputs: vec![],
         entry: Frame::default(),
         sites: vec![],
+        dyn_sites: dyn_leases::Sites::default(),
     }
 }
 fn permission(ids: &[usize]) -> Permission {

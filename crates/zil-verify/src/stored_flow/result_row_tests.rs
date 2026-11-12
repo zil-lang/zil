@@ -283,6 +283,7 @@ fn fixture_for(payloads: Vec<Payload>) -> (TypedModule, TypedFunction, FunctionG
         entry: Frame::default(),
         loans: vec![],
         sites: vec![],
+        dyn_sites: dyn_leases::Sites::default(),
     };
     (module, f, graph, solution)
 }

@@ -77,6 +77,7 @@ fn solution(values: Vec<Payload>, loans: Vec<Loan>) -> Solution {
         entry: Frame::default(),
         outputs: Vec::new(),
         sites: Vec::new(),
+        dyn_sites: dyn_leases::Sites::default(),
     }
 }
 fn budget(steps: usize) -> Budget {

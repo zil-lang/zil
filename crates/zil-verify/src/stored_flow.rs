@@ -8,6 +8,7 @@ mod array_snapshot;
 mod borrowed_owned_entry_tests;
 mod byte_queries;
 mod dyn_closed;
+mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
 mod dyn_returns;
@@ -453,6 +454,7 @@ struct Solution {
     entry: Frame,
     loans: Vec<Loan>,
     sites: WriteSites,
+    dyn_sites: dyn_leases::Sites,
 }
 
 fn err(text: &str) -> Diagnostic {
@@ -2693,7 +2695,8 @@ fn step(
     values: &[Payload],
     summaries: &[Summary],
     sites: &WriteSites,
-    loans: &mut [Loan],
+    dyn_sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<Payload> {
     b.spend(1)?;
@@ -2703,7 +2706,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
-    let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, b)?;
+    let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
@@ -3304,11 +3307,14 @@ fn step(
                 module,
                 f,
                 callee,
+                i,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
                 state,
                 &mut out,
+                dyn_sites,
+                loans,
                 b,
             )?;
             task_address::call(
@@ -3366,10 +3372,14 @@ fn step(
             let dyn_updates = dyn_ports::prepare_after(
                 module,
                 f,
+                callee,
+                i,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
                 state,
+                dyn_sites,
+                loans,
                 b,
             )?;
             let mut updates = Vec::new();
@@ -3706,6 +3716,7 @@ fn solve(
     let mut loans = vec![Loan::default(); count];
     let entry = seed(module, f, &mut loans, b)?;
     let sites = write_sites(module, f, &mut loans, b)?;
+    let mut dyn_sites = dyn_leases::Sites::default();
     let mut values = vec![Payload::default(); f.values.len()];
     let mut outputs = Vec::new();
     for _ in &f.blocks {
@@ -3743,6 +3754,7 @@ fn solve(
                     &values,
                     summaries,
                     &sites,
+                    &mut dyn_sites,
                     &mut loans,
                     b,
                 )?;
@@ -3758,6 +3770,7 @@ fn solve(
             entry,
             loans,
             sites,
+            dyn_sites,
         });
     }
     loop {
@@ -3784,7 +3797,16 @@ fn solve(
             }
             for i in &f.blocks[bi].instructions {
                 let out = step(
-                    module, f, i, &mut state, &values, summaries, &sites, &mut loans, b,
+                    module,
+                    f,
+                    i,
+                    &mut state,
+                    &values,
+                    summaries,
+                    &sites,
+                    &mut dyn_sites,
+                    &mut loans,
+                    b,
                 )?;
                 if let Some(v) = i.result {
                     changed |= join_payload(&mut values[v.0 as usize], &out, b)?;
@@ -3808,6 +3830,7 @@ fn solve(
         entry,
         loans,
         sites,
+        dyn_sites,
     })
 }
 
@@ -4211,6 +4234,15 @@ fn check_call(
         .ok_or_else(|| err("call target absent"))?;
     if arguments.len() != callee.parameters.len() {
         return Err(err("call arity differs from actual body signature"));
+    }
+    if b.dyn_contexts {
+        // A helper's actual body effects retain the same caller obligations
+        // as an inlined operation. The result-source upper cannot erase an
+        // external data access or delegate an unrelated live child loan.
+        for (source, write) in &summaries[function.0 as usize].dyn_accesses {
+            let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
+            checks.check(&actual, *write, requirements, b)?;
+        }
     }
     for (position, argument) in arguments.iter().enumerate() {
         let value = &solution.values[argument.0 as usize];
@@ -4965,6 +4997,7 @@ fn windows(
                 &solution.values,
                 summaries,
                 &solution.sites,
+                &mut solution.dyn_sites,
                 &mut solution.loans,
                 b,
             )?;
@@ -6083,7 +6116,8 @@ mod tests {
                     &values,
                     &[],
                     &sites,
-                    &mut [],
+                    &mut dyn_leases::Sites::default(),
+                    &mut Vec::new(),
                     &mut budget,
                 );
                 if byte {
@@ -6122,7 +6156,8 @@ mod tests {
             &values,
             &[],
             &sites,
-            &mut [],
+            &mut dyn_leases::Sites::default(),
+            &mut Vec::new(),
             &mut Budget::new(&limits),
         )
         .unwrap_err();
