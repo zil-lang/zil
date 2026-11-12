@@ -1,0 +1,104 @@
+{
+  "schema": "full-pipeline-whole-machine-independent-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+  "candidate_tree": "d6df10d883500688f172b6f897d051ae79dc42f9",
+  "logical_delta_base": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+  "verdict": "ACCEPT bounded correctness of the whole-machine raw result reuse slice at 4bc594151f5dc8f83ecb73f88c769196318a5a44. No blocking input/dependency/authority or fee/first-error gap was established in this reviewed slice. This is not approval of general whole-pipeline minimality, performance acceptance, default enablement or main merge.",
+  "source_scope": {
+    "method": "Read the complete author source and six new tests at d1f1ada8b80639ebad3654f3cc549c2f1d151994 in /workspace/zil-demand-whole-machine, rechecked applicable AGENTS rules, then retargeted using exact root Git blobs. Verified root production whole.rs/emit.rs matches the author freeze; incremental.rs differs only in a mechanical test SharedVec constructor, and root adds two reporting fields.",
+    "frozen_files_sha256": {
+      "crates/zil-backend-llvm/src/build.rs": "4915be183cb3d7936b99ae9d9c0b778097e8ad7e8df0267200f3597473d863dc",
+      "crates/zil-backend-llvm/src/emit.rs": "7961d9bd31f193a3083f9ea071e9018bcb71533d07adb46f04c461a9a0be5e85",
+      "crates/zil-backend-llvm/src/emit/copy_aggregates.rs": "cde7e8ac5d3d7de2ee9ec283d4f38dfc85411b6d5e380377c4d34deac98ba86c",
+      "crates/zil-backend-llvm/src/emit/incremental.rs": "1b417788b26fd6586c3622c584592b8cd4b558020e3d2e5ac923441c37b2e946",
+      "crates/zil-backend-llvm/src/emit/incremental/whole.rs": "9d8937aac4044ad09f29327314f021306744eb26de587c50af45f5af91ae83b9",
+      "crates/zil-backend-llvm/src/incremental.rs": "b29f904088fd9e4b178b3d0388146920ff80afa224cf032fcd8f2d26830304c5",
+      "crates/zil-backend-llvm/src/tests.rs": "3b022f95e3d8c5f32793cc0016d070f4f73db992312197f9e2aea77f90e2d336",
+      "crates/zil-backend-llvm/src/whole_machine_tests.rs": "1a6baa90d376b70d3174c56f593d928fc85255db205136ca0c1b041072242f76",
+      "crates/zil-driver/src/lib.rs": "6bf6ab3096a6104fcc827e9dd84bda82acfbf7eef1c6d597323bf96e352cfe5d"
+    },
+    "excluded_concurrent_slice": "Candidate-array SharedVec/analysis changes integrated before the whole-machine delta have their separate non-author receipt and are not independently reapproved here. The root SHA is a complete identity anchor; this verdict covers the listed whole-machine boundary and its actual consumers. Later import-span correction/WIP is excluded.",
+    "reviewer_execution": "Read-only source/git/hash/raw-log processing. No Cargo/compiler/native/benchmark/formatter executed by reviewer, no production/helper edit and no commit; only this JSON written."
+  },
+  "independent_assessments": [
+    {
+      "area": "Current verifier and LIR prefix",
+      "assessment": "Every invocation still runs current stored callable metadata, stored binding reservation where applicable, and full bind_lir in their original order before whole-result lookup. Substituted public LIR schema/module/verified fingerprint/target/layouts/functions/resources/closures must therefore fail the same current binding checks. WholeMachine never supplies a VerifiedModule or native preflight authority."
+    },
+    {
+      "area": "Complete module and function input",
+      "assessment": "ModuleInput exhaustively projects all TypedModule fields other than functions, including source fingerprint, target, dyn/life inventories, closures/resources and unsupported markers. Function inputs are ordered and complete TypedFunction Eq, including all absolute spans. Exact per-function Entry owners are reused only if their full input equals the current function; spanless native-equality hits with different spans receive a separate exact current snapshot. This prevents old span/header/foreign data from becoming a whole-input proof. Strong retained inputs and COW prevent in-place safe mutation and ABA."
+    },
+    {
+      "area": "All emitter options, layouts, limits and current roles",
+      "assessment": "WholeOptions binds the complete EmitOptions entry, scalar policy, closed collection and requested jobs. Product additionally binds complete Limits, current scalar layouts and exact remaining ledger at the post-binding boundary. Existing fully admitted scalar eligibility is required, with no resources/closures/dyn/life/task domains. Current checked_scalar_domain independently requires empty task interfaces/worker IDs, false task/registration/stored-borrow/owned-sum modes, and no current suspend/export/ownership role for any function. No old VerifiedModule is stored or used to establish these conditions."
+    },
+    {
+      "area": "External and helper dependencies",
+      "assessment": "Read production emitter/module helper environment accesses: the admitted suffix has no mutable env/filesystem/time input. The test-only alternate copy planner disables whole reuse. Foreign declarations and every header are in the complete function input; no-entry/entry errors and foreign harness conflicts cannot cross option/input equality. Current target and all helper-affecting raw tables/roles are bound or excluded. Generated helpers/runtime/wrappers are shared only inside this narrow closed domain, not inferred from a partial mixed-function cache."
+    },
+    {
+      "area": "Exact successful result and remaining work",
+      "assessment": "Product is recorded only after complete suffix construction and into_items succeeds. It retains one exact raw machine result and collected flag, with spent=post-prefix-before minus successful final remaining. A hit requires the same complete input/options/Limits and exact post-prefix ledger, then subtracts only that recorded spent amount. This is not a renewed allowance. A changed or insufficient before value returns to the original planner, preserving its exact phase/error/remaining amount. Aggregating the successful suffix is valid here because its current inputs and start are identical and it has no other budget-state side effects in the admitted domain."
+    },
+    {
+      "area": "Cold/error/recovery lifetime",
+      "assessment": "A real miss discards the historical whole product before rebuilding; prepare also clears it. A failed replacement suffix cannot publish a partial product. Prefix errors may retain an older independently valid raw result, but lookup never runs on that failed current call; later exact recovery can lawfully reuse it. Product and function owners are a single current Session epoch, with no new unbounded history and no saved checker authority. A later native/link failure does not make a valid raw emitter subproduct a native success receipt."
+    },
+    {
+      "area": "Downstream checks and output",
+      "assessment": "Whole result sharing returns raw machine Module plus current verification fingerprint and remaining ledger. Existing transform/partition/native/object/link/output code still consumes current independently bound inputs and performs its original checks. No native Builder, LLVM verification, object integrity, external linker discovery, cancellation or guarded publication is skipped by this slice."
+    },
+    {
+      "area": "Honest tier counters",
+      "assessment": "Whole hits set reused_machine_module and actual input-function comparisons; per-function hits/misses remain zero because those consumers were not invoked. Backend and root JSON expose these separately. Existing warm tests now assert the whole tier rather than incorrectly counting every shared function as a function hit. No whole-request zero-work or allocator count is inferred."
+    }
+  ],
+  "six_new_tests_reviewed": [
+    "whole_machine_current_input_shares_output_and_tracks_edit_failure_recovery: new independent current capabilities, full fresh machine/text equality, raw item Arc sharing, edits and binding-error recovery.",
+    "whole_machine_hit_cannot_authorize_any_substituted_public_lir_shape: schema/module/fingerprint/target/layout/order/function/header/body/span/resource/closure mutations retain current E-CODEGEN-UNBOUND-LIR first failure.",
+    "whole_machine_options_full_limits_target_and_spans_remain_current_inputs: changed actual entry/scalar/closed/jobs, non-ledger limit, target and current diagnostic spans miss before later exact hits.",
+    "whole_machine_exact_original_emitter_budget_n_and_n_minus_one_preserve_first_error: test-only smaller initial ledger leaves current Verify Limits unchanged and compares complete result/remaining or exact original error.",
+    "whole_machine_native_cold_unchanged_edit_failure_recovery_match_fresh_llvm_and_elf: current API native output, complete LLVM/ELF bytes, actual process results and failure/recovery versus a fresh no-cache build.",
+    "whole_machine_post_binding_option_error_clears_the_pending_product: invalid entry after binding returns the fresh error and requires a real subsequent rebuild before whole reuse."
+  ],
+  "validation": {
+    "path": "out/runs/full-pipeline-whole-machine-01.log",
+    "sha256": "acfc69306a6d4f397a6a70443861db0a4635bd34d349726fc1125f41c431c6f3",
+    "bytes": 46868,
+    "exit_path": "out/runs/full-pipeline-whole-machine-01.exit",
+    "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "observed_exit": "0",
+    "suites": [
+      {
+        "crate": "zil-backend-llvm",
+        "passed": 230,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 17.82
+      },
+      {
+        "crate": "zil-driver",
+        "passed": 200,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 34.41
+      }
+    ],
+    "new_cases_in_raw_log": 6,
+    "attribution": "Root executed the sole targeted test window and supplied exact-root source/command attribution. Reviewer independently read raw result rows, six named case passes and exit0 file and recomputed hashes; the log does not embed its Git identity.",
+    "pending": "All-target strict Clippy, full workspace and final release/matched workflow validation for this new slice were pending at receipt creation. No new full-workspace or release performance pass is claimed. Prior693 completed6242 workspace results belong to that separate frozen source.",
+    "test_limit": "Finite raw/phase/native fixtures support this bounded input contract; no broad mixed-domain, arbitrary toolchain, concurrency or allocator/RSS matrix was independently executed."
+  },
+  "remaining_limits": [
+    "Complete actual input comparison and the current metadata/LIR-binding prefix still run. Whole reuse is not only-changed-function scheduling and is deliberately conservative across any source span/fingerprint or option change.",
+    "This domain excludes mixed resource/closure/task/stored/sum helper results. Per-function mixed caching remains separate and cannot certify whole machine equality.",
+    "No new semantic result fingerprint or dependency graph propagates through arbitrary frontend states. The cache retains a single current exact successful raw result.",
+    "Additional retained module/input headers and shared arrays have memory cost; sharing avoids whole body duplication but does not prove a global all-history byte bound.",
+    "Prior F2 explicit transform/stable-name COW, EB1 partial-failure counter scope, pack quotas/read amplification and complete-request performance caveats remain.",
+    "Task remains under construction; no full performance/Rust parity or final acceptance claim follows from passing targeted tests."
+  ]
+}
