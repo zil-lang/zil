@@ -363,12 +363,14 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
                 "environment lending requires a shared result and a non-consuming Fn/FnMut entry",
             ));
         }
+        let external_capture = closure.captures.iter().any(|ty|matches!(ty,Type::Address{..}))
+            && closure.parameters.iter().all(Type::is_copy_value);
         if closure.captures.iter().any(|ty| {
             matches!(ty, Type::Desc(_))
                 || matches!(ty, Type::Address { .. })
                     && !owning_capture_address(ty)
                     && !qualified_result(closure)
-        }) {
+        }) && !external_capture {
             return Err(unsupported(
                 f.span,
                 "environment lending requires self-contained captures, not external Address/Desc targets",
@@ -387,6 +389,7 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             if !closure.captures.get(*index as usize).is_some_and(|ty| {
                 ty.is_copy_value()
                     || owning_capture_address(ty)
+                    || external_capture && matches!(ty,Type::Address{..})
                     || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer)
             }) {
                 return Err(unsupported(

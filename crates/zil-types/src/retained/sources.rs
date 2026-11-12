@@ -5,6 +5,8 @@ use super::*;
 mod helper_classes;
 #[path = "mutable_sources.rs"]
 mod mutable_sources;
+#[path = "receiver_contracts.rs"]
+mod receiver_contracts;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {
@@ -13,6 +15,8 @@ struct Origins {
     places: BTreeSet<(LocalId, Path)>,
     local: bool,
     unknown: bool,
+    // Proposal-only invocation dependency; kernels reconstruct actual loans.
+    receiver: bool,
 }
 type Row = BTreeMap<Path, Origins>;
 #[derive(Default)]
@@ -42,12 +46,13 @@ fn join(to: &mut Row, from: &Row, left: &mut usize, span: Span) -> R<bool> {
     let mut changed = false;
     for (path, origins) in from {
         let at = to.entry(path.clone()).or_default();
-        let before = (at.inputs.len(), at.places.len(), at.local, at.unknown);
+        let before = (at.inputs.len(), at.places.len(), at.local, at.unknown, at.receiver);
         at.inputs.extend(origins.inputs.iter().cloned());
         at.places.extend(origins.places.iter().cloned());
         at.local |= origins.local;
         at.unknown |= origins.unknown;
-        changed |= before != (at.inputs.len(), at.places.len(), at.local, at.unknown);
+        at.receiver |= origins.receiver;
+        changed |= before != (at.inputs.len(), at.places.len(), at.local, at.unknown, at.receiver);
     }
     Ok(changed)
 }
@@ -156,6 +161,7 @@ fn seed(
                 local: base.is_none(),
                 unknown: base.is_none(),
                 places: BTreeSet::new(),
+                receiver: false,
             },
         );
     }
@@ -475,17 +481,22 @@ fn solve(
                             left,
                             at,
                         )?,
-                        InstructionKind::LoadStoredBorrow { storage, path, .. } => stored_read(
-                            &values[storage.0 as usize],
-                            &path
-                                .iter()
-                                .copied()
-                                .map(ContractProjection::Place)
-                                .collect::<Vec<_>>(),
-                            &state,
-                            left,
-                            at,
-                        )?,
+                        InstructionKind::LoadStoredBorrow { storage, path, mode } => {
+                            let mut row=stored_read(&values[storage.0 as usize],
+                                &path.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>(),
+                                &state,left,at)?;
+                            let ty=match &f.values[storage.0 as usize] {Type::Address{inner,..}=>inner.as_ref(),ty=>ty};
+                            if let Type::BorrowedStorage{life,..}=ty {
+                                spend(left,life.slots.len().saturating_mul(path.len().saturating_add(1)),at)?;
+                                if !matches!(mode,StoredBorrowLoad::Take)
+                                    && life.slots.iter().any(|slot|slot.path==*path && slot.mode==StoredBorrowMode::ExclusiveAddress)
+                                    && let Some(origin)=row.get_mut(&Vec::new())
+                                    && origin.inputs.iter().any(|p|matches!(p.base,StorageBase::Capture(_))) {
+                                    origin.receiver=true;
+                                }
+                            }
+                            row
+                        },
                         InstructionKind::MakeClosure { captures, .. } => {
                             let mut r = Row::new();
                             for (index, value) in captures.iter().enumerate() {
@@ -582,8 +593,17 @@ fn solve(
                             left,
                             at,
                         )?,
-                        InstructionKind::ReadCapture { index }
-                        | InstructionKind::TakeCapture { index } => {
+                        InstructionKind::ReadCapture { index } => {
+                            let mut row=copy(&state[f.locals.len() + *index as usize], left, at)?;
+                            if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                                .and_then(|d|d.captures.get(*index as usize))
+                                .is_some_and(|ty|matches!(ty,Type::Address{mutable:true,..}))
+                                && let Some(head)=row.get_mut(&Vec::new()) {
+                                head.receiver=true;
+                            }
+                            row
+                        }
+                        InstructionKind::TakeCapture { index } => {
                             copy(&state[f.locals.len() + *index as usize], left, at)?
                         }
                         InstructionKind::BorrowCapture { index, .. } => {
@@ -598,6 +618,34 @@ fn solve(
                             }
                             row
                         }
+                        kind @ (InstructionKind::CallClosureShared { .. }
+                            | InstructionKind::CallClosureMut { .. }
+                            | InstructionKind::CallClosureBorrowed { .. }
+                            | InstructionKind::CallClosureOnce { .. }
+                            | InstructionKind::CallClosure { .. }) => {
+                            let (id,receiver,arguments)=match kind {
+                                InstructionKind::CallClosureShared{callee,arguments}
+                                |InstructionKind::CallClosureMut{callee,arguments} => {
+                                    let Type::Closure(id)=f.locals[callee.0 as usize].ty else{return Err(unsupported(at,"callback source local has no actual definition"));};
+                                    (id,&state[callee.0 as usize],arguments)
+                                }
+                                InstructionKind::CallClosureBorrowed{callee,arguments,..}
+                                |InstructionKind::CallClosureOnce{callee,arguments}
+                                |InstructionKind::CallClosure{callee,arguments} => {
+                                    let ty=match &f.values[callee.0 as usize]{Type::Address{inner,..}=>inner.as_ref(),ty=>ty};
+                                    let Type::Closure(id)=ty else{return Err(unsupported(at,"callback source value has no actual definition"));};
+                                    (*id,&values[callee.0 as usize],arguments)
+                                }
+                                _=>unreachable!(),
+                            };
+                            let d=module.closures.get(id.0 as usize).ok_or_else(||unsupported(at,"callback source definition absent"))?;
+                            let mut row=Row::new();
+                            for (path,origin) in &summaries[d.function.0 as usize].returned {
+                                spend(left,path.len(),at)?;
+                                row.insert(path.clone(),mutable_sources::substitute(origin,Some(receiver),arguments,&values,&state,left,at)?);
+                            }
+                            row
+                        }
                         InstructionKind::Call {
                             function,
                             arguments,
@@ -607,6 +655,7 @@ fn solve(
                                 let mut o = Origins {
                                     local: origins.local,
                                     unknown: origins.unknown,
+                                    receiver: origins.receiver,
                                     ..Origins::default()
                                 };
                                 for source in &origins.inputs {
@@ -629,6 +678,8 @@ fn solve(
                                     if let Some(from) = selected.get(&Vec::new()) {
                                         o.inputs.extend(from.inputs.iter().cloned());
                                         o.local |= from.local;
+                                        o.unknown |= from.unknown;
+                                        o.receiver |= from.receiver;
                                     } else {
                                         o.local = true;
                                     }
@@ -885,6 +936,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     if !active {
         return Ok(());
     }
+    receiver_contracts::prepare_creators(module,left)?;
     spend(left, module.functions.len(), Span::default())?;
     let mut summaries = (0..module.functions.len())
         .map(|_| Summary::default())
@@ -1018,6 +1070,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         }
         helper_classes::populate(module, left, limits)?;
     }
+    receiver_contracts::finish(module,&summaries,left)?;
     Ok(())
 }
 
@@ -1155,6 +1208,15 @@ fn capture_class(
                 .iter()
                 .find(|row| row.position.base == base && row.position.path.is_empty())
                 .map(|row| row.binder)
+        }
+        Type::Address { inner, .. } if matches!(inner.as_ref(),Type::BorrowedStorage{..}) => {
+            let Type::BorrowedStorage{life:shape,..}=inner.as_ref() else {unreachable!()};
+            spend(left,shape.slots.len().saturating_mul(tail.len().saturating_add(1)).saturating_add(life.classes.len()),span)?;
+            let class=shape.slots.iter().find(|slot|tail.iter().copied().eq(slot.path.iter().copied().map(ContractProjection::Place)))
+                .map(|slot|slot.binder).ok_or_else(||unsupported(span,"captured pointed source is not a physical slot"))?;
+            life.classes.iter().find(|row|row.position.base==base
+                && row.position.path.as_slice()==[LifeTypeProjection::Pointee]
+                && row.position.class==class).map(|row|row.binder)
         }
         Type::BorrowedStorage { life: shape, .. } => {
             spend(
@@ -1414,9 +1476,9 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
-            if !definition.result.is_copy_value()
+            if !(definition.result.is_copy_value() || lending::supported_result(&definition.result))
                 || definition.parameters.iter().any(|ty| !ty.is_copy_value())
             {
                 return Err(unsupported(
