@@ -3883,7 +3883,7 @@ fn transfer(
                 .map_or(HoldRoot::Local(*local), HoldRoot::Capture);
             out.held.targets.insert(Target {
                 retained_port: None, base, stored: Vec::new(),
-                place: vec![PlaceProjection::Field(*index)], heap_element: None,
+                place: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None,
             });
         }
         InstructionKind::DescribeLocal { local } if b.stored_owned_fixed => {
@@ -4013,7 +4013,7 @@ fn transfer(
             out.pointer.targets.insert(Target {
                 retained_port:None,
                 base:state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local),HoldRoot::Capture),
-                stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_element:None,
+                stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_parents:Vec::new(),heap_element:None,
             });
         }
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
