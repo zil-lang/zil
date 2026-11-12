@@ -431,7 +431,6 @@ impl Expander<'_> {
             source_scope: None,
             dyn_instance: None,
             retained_return_sources: None,
-            source_scope: None,
             storage_life: None,
             call_kind,
             resume_bound,
