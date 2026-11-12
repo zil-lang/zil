@@ -3,6 +3,8 @@
 use super::*;
 
 pub(super) struct Arguments<'a> {
+    pub owner: terms::Owner,
+    pub terms: terms::Substitution,
     pub declaration: &'a [DynGenericActual],
     pub method: &'a [DynGenericActual],
     pub invocation: &'a [DynLifeEmbedding],
@@ -12,7 +14,7 @@ impl Arguments<'_> {
     fn life(
         &mut self,
         pattern: DynLifePattern,
-        actual: StorageBinder,
+        actual: terms::LifeTerm,
         b: &mut Budget,
     ) -> Check<()> {
         b.spend(1)?;
@@ -28,11 +30,12 @@ impl Arguments<'_> {
                 let row = rows
                     .next()
                     .ok_or_else(|| bad("original Invocation has no actual header embedding"))?;
-                if rows.next().is_some() || row.to != actual {
+                if rows.next().is_some() || row.to != actual.image {
                     return Err(bad(
                         "original Invocation differs from its exact actual header occurrence",
                     ));
                 }
+                self.terms.bind(pattern, actual, b)?;
                 return Ok(());
             }
             DynLifePattern::ImplicitDeclaration(i) => {
@@ -40,14 +43,15 @@ impl Arguments<'_> {
                     bad("original implicit life is outside its declaration directory")
                 })?;
                 match slot {
-                    Some(expected) if *expected != actual => {
+                    Some(expected) if *expected != actual.image => {
                         return Err(bad(
                             "one original implicit life has inconsistent actual occurrences",
                         ));
                     }
-                    None => *slot = Some(actual),
+                    None => *slot = Some(actual.image),
                     _ => {}
                 }
+                self.terms.bind(pattern, actual, b)?;
                 return Ok(());
             }
             DynLifePattern::Bound { .. } => {
@@ -56,14 +60,15 @@ impl Arguments<'_> {
                 ));
             }
         };
-        if !matches!(expected, Some(DynGenericActual::Life(class)) if *class == actual) {
+        if !matches!(expected, Some(DynGenericActual::Life(class)) if *class == actual.image) {
             return Err(bad(
                 "original life formal differs from its exact actual occurrence",
             ));
         }
+        self.terms.bind(pattern, actual, b)?;
         Ok(())
     }
-    fn formal(&self, index: u32, method: bool) -> Check<&DynGenericActual> {
+    pub(super) fn formal(&self, index: u32, method: bool) -> Check<&DynGenericActual> {
         (if method {
             self.method
         } else {
@@ -101,18 +106,19 @@ fn class(value: &DynTypeValue, intrinsic: u32, b: &mut Budget) -> Check<StorageB
         .ok_or_else(|| bad("actual nominal occurrence has no complete intrinsic class map"))
 }
 fn nested(
-    parent: &DynTypeValue,
+    parent: &terms::Value,
     ty: &Type,
     life: &StorageLifeShape,
     path: LifeTypeProjection,
     b: &mut Budget,
-) -> Check<DynTypeValue> {
+) -> Check<terms::Value> {
     dynamic_metadata::ty(ty, b)?;
     if life.binder_count as usize > b.limits.max_nodes {
         return Err(limit("nested actual type scope exceeds selected bound"));
     }
     b.spend((life.binder_count as usize).saturating_add(parent.life.retained.len()))?;
     let mut classes = Vec::with_capacity(life.binder_count as usize);
+    let mut terms = Vec::with_capacity(life.binder_count as usize);
     for intrinsic in 0..life.binder_count {
         let mut rows = parent
             .life
@@ -126,24 +132,31 @@ fn nested(
             return Err(bad("actual type argument repeats a child class occurrence"));
         }
         classes.push(class(parent, row.binder, b)?);
+        terms.push(parent.term(row.binder, b)?);
     }
-    Ok(DynTypeValue {
-        ty: ty.clone(),
-        life: life.clone(),
-        classes,
+    Ok(terms::Value {
+        raw: DynTypeValue {
+            ty: ty.clone(),
+            life: life.clone(),
+            classes,
+        },
+        terms,
     })
 }
-fn empty(ty: &Type, b: &mut Budget) -> Check<DynTypeValue> {
+fn empty(ty: &Type, b: &mut Budget) -> Check<terms::Value> {
     dynamic_metadata::ty(ty, b)?;
-    Ok(DynTypeValue {
-        ty: ty.clone(),
-        life: StorageLifeShape {
-            binder_count: 0,
-            slots: vec![],
-            retained: vec![],
-            nominal_arguments: vec![],
+    Ok(terms::Value {
+        raw: DynTypeValue {
+            ty: ty.clone(),
+            life: StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            classes: vec![],
         },
-        classes: vec![],
+        terms: vec![],
     })
 }
 
@@ -158,13 +171,15 @@ pub(super) fn ty(
     b: &mut Budget,
 ) -> Check<()> {
     dynamic_metadata::recipe(pattern, b)?;
-    walk(module, pattern, actual, receiver, args, b, 0)
+    let actual = terms::Value::anchored(actual, args.owner, terms::Root::Receiver, b)?;
+    let receiver = terms::Value::anchored(receiver, args.owner, terms::Root::Receiver, b)?;
+    walk(module, pattern, &actual, &receiver, args, b, 0)
 }
 fn walk(
     module: &TypedModule,
     pattern: &DynTypePattern,
-    actual: &DynTypeValue,
-    receiver: &DynTypeValue,
+    actual: &terms::Value,
+    receiver: &terms::Value,
     args: &mut Arguments<'_>,
     b: &mut Budget,
     depth: usize,
@@ -175,9 +190,9 @@ fn walk(
     }
     match pattern {
         DynTypePattern::SelfType => {
-            dynamic_metadata::recipe(receiver, b)?;
-            dynamic_metadata::recipe(actual, b)?;
-            if receiver != actual {
+            dynamic_metadata::recipe(&receiver.raw, b)?;
+            dynamic_metadata::recipe(&actual.raw, b)?;
+            if receiver.raw != actual.raw || receiver.terms != actual.terms {
                 return Err(bad("Self recipe differs from the complete actual receiver"));
             }
         }
@@ -202,13 +217,19 @@ fn walk(
                         return Err(bad("original Type formal differs from its closed actual"));
                     }
                 }
-                DynGenericActual::QualifiedType(expected) if expected == actual => {}
+                DynGenericActual::QualifiedType(expected) if expected == &actual.raw => {}
                 _ => {
                     return Err(bad(
                         "original Type formal differs from its full intrinsic type and lexical map",
                     ));
                 }
             }
+            args.terms.bind_type(
+                matches!(pattern, DynTypePattern::MethodParameter(_)),
+                *i,
+                actual,
+                b,
+            )?;
         }
         DynTypePattern::Nominal(pattern) => {
             let instance = nominal(module, &actual.ty, b)?;
@@ -244,7 +265,7 @@ fn walk(
                                 "actual original nominal life occurrence differs from its full instance",
                             ));
                         }
-                        args.life(*pattern, class(actual, *intrinsic, b)?, b)?;
+                        args.life(*pattern, actual.term(*intrinsic, b)?, b)?;
                     }
                     (DynPatternActual::Type(pattern), LifeNominalActual::Type(child)) => {
                         let child = match child {
@@ -297,11 +318,11 @@ fn walk(
 }
 fn intrinsic_child(
     module: &TypedModule,
-    parent: &DynTypeValue,
+    parent: &terms::Value,
     child: &Type,
     path: LifeTypeProjection,
     b: &mut Budget,
-) -> Check<DynTypeValue> {
+) -> Check<terms::Value> {
     match child {
         Type::BorrowedStorage { life, .. } => nested(parent, child, life, path, b),
         Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
@@ -323,8 +344,8 @@ fn intrinsic_child(
 fn structural(
     module: &TypedModule,
     pattern: &DynTypePattern,
-    actual: &DynTypeValue,
-    receiver: &DynTypeValue,
+    actual: &terms::Value,
+    receiver: &terms::Value,
     args: &mut Arguments<'_>,
     b: &mut Budget,
     depth: usize,
@@ -349,7 +370,7 @@ fn structural(
             if actual.life.slots.len() != 1 || !actual.life.slots[0].path.is_empty() {
                 return Err(bad("actual Address outer occurrence is absent"));
             }
-            args.life(life, class(actual, actual.life.slots[0].binder, b)?, b)?;
+            args.life(life, actual.term(actual.life.slots[0].binder, b)?, b)?;
             let child = intrinsic_child(module, actual, child, LifeTypeProjection::Pointee, b)?;
             walk(module, inner, &child, receiver, args, b, depth)?;
         }
@@ -358,7 +379,7 @@ fn structural(
             if actual.life.slots.len() != 1 || !actual.life.slots[0].path.is_empty() {
                 return Err(bad("actual Description outer occurrence is absent"));
             }
-            args.life(life, class(actual, actual.life.slots[0].binder, b)?, b)?;
+            args.life(life, actual.term(actual.life.slots[0].binder, b)?, b)?;
             let child = intrinsic_child(module, actual, child, LifeTypeProjection::Pointee, b)?;
             walk(module, inner, &child, receiver, args, b, depth)?;
         }
@@ -452,7 +473,23 @@ pub(super) fn application(
     for (pattern, actual) in pattern.arguments.iter().zip(&actual.actuals) {
         match (pattern, actual) {
             (DynPatternActual::Life(pattern), DynGenericActual::Life(actual)) => {
-                args.life(*pattern, *actual, b)?
+                let expected = match *pattern {
+                    DynLifePattern::DeclarationParameter(i) => args.declaration.get(i as usize),
+                    DynLifePattern::MethodParameter(i) => args.method.get(i as usize),
+                    _ => None,
+                };
+                if !matches!(expected, Some(DynGenericActual::Life(image)) if image == actual) {
+                    return Err(bad(
+                        "implemented trait lifetime differs from the original formal image",
+                    ));
+                }
+                if let Ok(term) = args.terms.life(*pattern, b) {
+                    if term.image != *actual {
+                        return Err(bad(
+                            "implemented trait loses the matched intrinsic lifetime image",
+                        ));
+                    }
+                }
             }
             (DynPatternActual::Const(pattern), DynGenericActual::Const(actual)) => {
                 if constant(module, pattern, &actual.ty(), args, b)? != *actual {
@@ -462,12 +499,12 @@ pub(super) fn application(
                 }
             }
             (DynPatternActual::Type(pattern), DynGenericActual::QualifiedType(actual)) => {
-                ty(module, pattern, actual, receiver, args, b)?;
+                super::instantiate::against(module, pattern, actual, receiver, args, b)?;
             }
             (DynPatternActual::Type(pattern), DynGenericActual::Type(actual)) => {
                 values::closed(module, actual, b)?;
                 let actual = empty(actual, b)?;
-                ty(module, pattern, &actual, receiver, args, b)?;
+                super::instantiate::against(module, pattern, &actual.raw, receiver, args, b)?;
             }
             _ => {
                 return Err(bad(
@@ -477,6 +514,53 @@ pub(super) fn application(
         }
     }
     Ok(())
+}
+
+/// Preserve the matched origin substitution across the implemented-trait
+/// boundary. Public actuals check images only; they never replace this map.
+pub(super) fn transfer_application(
+    module: &TypedModule,
+    pattern: &DynSelfPattern,
+    actual: &DynTraitApplication,
+    receiver: &DynTypeValue,
+    args: &mut Arguments<'_>,
+    b: &mut Budget,
+) -> Check<terms::Substitution> {
+    application(module, pattern, actual, receiver, args, b)?;
+    let mut result = terms::Substitution::default();
+    for (i, (pattern, actual)) in pattern.arguments.iter().zip(&actual.actuals).enumerate() {
+        b.spend(1)?;
+        match (pattern, actual) {
+            (DynPatternActual::Life(pattern), DynGenericActual::Life(image)) => {
+                // An unused unanchored formal remains present in the full
+                // original actual vector. It supplies no invented RHS origin.
+                if let Ok(term) = args.terms.life(*pattern, b) {
+                    if term.image != *image {
+                        return Err(bad("trait formal changes the matched lifetime image"));
+                    }
+                    result.bind(DynLifePattern::DeclarationParameter(i as u32), term, b)?;
+                }
+            }
+            (DynPatternActual::Type(pattern), DynGenericActual::QualifiedType(actual)) => {
+                let value =
+                    super::instantiate::against(module, pattern, actual, receiver, args, b)?;
+                result.bind_type(false, i as u32, &value, b)?;
+            }
+            (DynPatternActual::Type(pattern), DynGenericActual::Type(actual)) => {
+                let actual = empty(actual, b)?;
+                let value =
+                    super::instantiate::against(module, pattern, &actual.raw, receiver, args, b)?;
+                result.bind_type(false, i as u32, &value, b)?;
+            }
+            (DynPatternActual::Const(_), DynGenericActual::Const(_)) => {}
+            _ => {
+                return Err(bad(
+                    "trait substitution changes an original mixed formal kind",
+                ));
+            }
+        }
+    }
+    Ok(result)
 }
 
 fn carrier(
@@ -651,6 +735,8 @@ mod tests {
                 &mut b,
             )?;
             let mut arguments = Arguments {
+                owner: terms::Owner::Function(FunctionId(0)),
+                terms: terms::Substitution::default(),
                 declaration,
                 method: &[],
                 invocation: &[],
@@ -686,6 +772,110 @@ mod tests {
         assert_ne!(other_actual.ty, actual.ty);
     }
     #[test]
+    fn fresh_nominal_rhs_uses_intrinsic_origins_not_equal_lexical_images() {
+        let (mut module, p2, pab) = nominal(2);
+        let (other, p1, _) = nominal(1);
+        module.life_instances.extend(other.life_instances);
+        let actuals = vec![DynGenericActual::Life(StorageBinder::Fixed(0)); 2];
+        let mut args = Arguments {
+            owner: terms::Owner::Function(FunctionId(0)),
+            terms: terms::Substitution::default(),
+            declaration: &actuals,
+            method: &[],
+            invocation: &[],
+            implicit: vec![],
+        };
+        let mut b = Budget::new(&Limits::default());
+        ty(&module, &pab, &p2, &p2, &mut args, &mut b).unwrap();
+        let a = args
+            .terms
+            .life(DynLifePattern::DeclarationParameter(0), &mut b)
+            .unwrap();
+        let other = args
+            .terms
+            .life(DynLifePattern::DeclarationParameter(1), &mut b)
+            .unwrap();
+        assert_eq!(a.image, other.image);
+        assert_ne!(a.origin, other.origin);
+        super::super::instantiate::against(&module, &pab, &p2, &p2, &mut args, &mut b).unwrap();
+        assert!(
+            super::super::instantiate::against(&module, &pab, &p1, &p2, &mut args, &mut b).is_err()
+        );
+        let mut paa = pab.clone();
+        if let DynTypePattern::Nominal(pattern) = &mut paa {
+            pattern.arguments[1] = pattern.arguments[0].clone();
+        }
+        super::super::instantiate::against(&module, &paa, &p1, &p2, &mut args, &mut b).unwrap();
+        assert!(
+            super::super::instantiate::against(&module, &paa, &p2, &p2, &mut args, &mut b).is_err()
+        );
+        let trait_pattern = if let DynTypePattern::Nominal(pattern) = &pab {
+            pattern.as_ref().clone()
+        } else {
+            unreachable!()
+        };
+        let application = DynTraitApplication {
+            declaration: trait_pattern.declaration,
+            actuals: actuals.clone(),
+        };
+        let transferred = transfer_application(
+            &module,
+            &trait_pattern,
+            &application,
+            &p2,
+            &mut args,
+            &mut b,
+        )
+        .unwrap();
+        let mut default_args = Arguments {
+            owner: args.owner,
+            terms: transferred,
+            declaration: &application.actuals,
+            method: &[],
+            invocation: &[],
+            implicit: vec![],
+        };
+        super::super::instantiate::against(&module, &pab, &p2, &p2, &mut default_args, &mut b)
+            .unwrap();
+        assert!(
+            super::super::instantiate::against(&module, &pab, &p1, &p2, &mut default_args, &mut b)
+                .is_err()
+        );
+        let mut shared = Arguments {
+            owner: args.owner,
+            terms: terms::Substitution::default(),
+            declaration: &actuals,
+            method: &[],
+            invocation: &[],
+            implicit: vec![],
+        };
+        ty(&module, &pab, &p1, &p1, &mut shared, &mut b).unwrap();
+        super::super::instantiate::against(&module, &pab, &p1, &p1, &mut shared, &mut b).unwrap();
+        assert!(
+            super::super::instantiate::against(&module, &pab, &p2, &p1, &mut shared, &mut b)
+                .is_err()
+        );
+        let mut repeated = Arguments {
+            owner: args.owner,
+            terms: terms::Substitution::default(),
+            declaration: &actuals,
+            method: &[],
+            invocation: &[],
+            implicit: vec![],
+        };
+        assert!(ty(&module, &paa, &p2, &p2, &mut repeated, &mut b).is_err());
+        let mut repeated = Arguments {
+            owner: args.owner,
+            terms: terms::Substitution::default(),
+            declaration: &actuals,
+            method: &[],
+            invocation: &[],
+            implicit: vec![],
+        };
+        ty(&module, &paa, &p1, &p1, &mut repeated, &mut b).unwrap();
+    }
+
+    #[test]
     fn original_constant_formals_substitute_before_exact_carrier_evaluation() {
         let (module, _) = crate::tests::baseline();
         let declaration = [
@@ -693,6 +883,8 @@ mod tests {
             DynGenericActual::Const(Constant::I8(120)),
         ];
         let args = Arguments {
+            owner: terms::Owner::Function(FunctionId(0)),
+            terms: terms::Substitution::default(),
             declaration: &declaration,
             method: &[],
             invocation: &[],

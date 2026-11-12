@@ -110,6 +110,8 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                     .as_ref()
                     .ok_or_else(|| bad("original implementation Self recipe is Unknown"))?;
                 let mut arguments = matching::Arguments {
+                    owner: terms::Owner::Function(actual.id),
+                    terms: terms::Substitution::default(),
                     declaration: &original.declaration_actuals,
                     method: &original.method_actuals,
                     invocation: &original.header_embedding,

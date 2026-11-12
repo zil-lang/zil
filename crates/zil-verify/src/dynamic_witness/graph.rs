@@ -103,6 +103,7 @@ fn application_image(
 fn arguments<'a>(
     decl: &DynDeclaration,
     actuals: &'a [DynGenericActual],
+    owner: terms::Owner,
     b: &mut Budget,
 ) -> Check<matching::Arguments<'a>> {
     let count = decl
@@ -112,6 +113,8 @@ fn arguments<'a>(
         .len();
     b.spend(count)?;
     Ok(matching::Arguments {
+        owner,
+        terms: terms::Substitution::default(),
         declaration: actuals,
         method: &[],
         invocation: &[],
@@ -165,7 +168,7 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
             classes: table.self_classes.clone(),
         };
         let mut roots = 0;
-        for witness in witnesses {
+        for (node, witness) in witnesses.iter().enumerate() {
             dynamic_metadata::recipe(witness, b)?;
             scopes::embedding(witness.scope, context, &witness.to_context, b)?;
             values::check(module, &witness.receiver, witness.scope, b)?;
@@ -191,7 +194,8 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 witness.scope,
                 b,
             )?;
-            let mut args = arguments(implementation, &witness.actuals, b)?;
+            let owner = terms::Owner::Witness(table.id, node as u32);
+            let mut args = arguments(implementation, &witness.actuals, owner, b)?;
             let self_recipe = implementation
                 .self_pattern
                 .as_ref()
@@ -216,7 +220,7 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 &mut args,
                 b,
             )?;
-            associated(module, witness, application, implementation, b)?;
+            associated(module, witness, application, implementation, owner, b)?;
             if witness.implementation == table.implementation
                 && witness.receiver.ty == table.self_type
                 && witness.receiver.life == *self_life
@@ -282,6 +286,7 @@ fn associated(
     witness: &DynImplementationWitness,
     trait_decl: &DynDeclaration,
     impl_decl: &DynDeclaration,
+    scope_owner: terms::Owner,
     b: &mut Budget,
 ) -> Check<()> {
     let mut seen = vec![false; trait_decl.members.len()];
@@ -326,7 +331,8 @@ fn associated(
                 .carrier
                 .as_ref()
                 .ok_or_else(|| bad("original trait constant carrier is Unknown"))?;
-            let mut trait_args = arguments(trait_decl, &witness.application.actuals, b)?;
+            let mut trait_args =
+                arguments(trait_decl, &witness.application.actuals, scope_owner, b)?;
             matching::ty(module, carrier, ty, &witness.receiver, &mut trait_args, b)?;
         }
         let (owner, own_member, actuals) = match resolution.source {
@@ -393,7 +399,47 @@ fn associated(
             .value
             .as_ref()
             .ok_or_else(|| bad("associated source RHS is abstract or Unknown"))?;
-        let mut args = arguments(owner, actuals, b)?;
+        let mut args = arguments(owner, actuals, scope_owner, b)?;
+        if owner.kind == DynDeclarationKind::Impl {
+            let self_pattern = owner
+                .self_pattern
+                .as_ref()
+                .ok_or_else(|| bad("associated original Self recipe is Unknown"))?;
+            matching::ty(
+                module,
+                self_pattern,
+                &witness.receiver,
+                &witness.receiver,
+                &mut args,
+                b,
+            )?;
+        } else {
+            let mut original = arguments(impl_decl, &witness.actuals, scope_owner, b)?;
+            let self_pattern = impl_decl
+                .self_pattern
+                .as_ref()
+                .ok_or_else(|| bad("default implementation Self recipe is Unknown"))?;
+            matching::ty(
+                module,
+                self_pattern,
+                &witness.receiver,
+                &witness.receiver,
+                &mut original,
+                b,
+            )?;
+            let implemented = impl_decl
+                .implemented_trait
+                .as_ref()
+                .ok_or_else(|| bad("default implemented trait recipe is Unknown"))?;
+            args.terms = matching::transfer_application(
+                module,
+                implemented,
+                &witness.application,
+                &witness.receiver,
+                &mut original,
+                b,
+            )?;
+        }
         match (recipe, &resolution.value, &member.kind) {
             (
                 DynAssociatedValueRecipe::Type(pattern),
@@ -401,7 +447,7 @@ fn associated(
                 DynMemberKind::Type,
             ) => {
                 values::check(module, actual, witness.scope, b)?;
-                matching::ty(module, pattern, actual, &witness.receiver, &mut args, b)?;
+                instantiate::against(module, pattern, actual, &witness.receiver, &mut args, b)?;
             }
             (
                 DynAssociatedValueRecipe::Constant { ty, value },

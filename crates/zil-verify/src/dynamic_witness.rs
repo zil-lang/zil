@@ -12,6 +12,8 @@ mod matching;
 mod graph;
 mod compound;
 mod keys;
+mod terms;
+mod instantiate;
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-WITNESS", None, message)
