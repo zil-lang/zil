@@ -300,6 +300,12 @@ std::string snapshot(Function &F) {
   }
   SmallVector<ReturnInst *, 8> Returns;
   CloneFunctionInto(NF, &F, Map, CloneFunctionChangeType::DifferentModule, Returns);
+  // DifferentModule creates llvm.dbg.cu even when this metadata-free function
+  // contributes no compile units. Do not serialize an invented empty root.
+  if (auto *CU = Out.getNamedMetadata("llvm.dbg.cu")) {
+    if (CU->getNumOperands()) return {};
+    Out.eraseNamedMetadata(CU);
+  }
   if (!preserveLocalUseOrder(F, Map) || verifyModule(Out, nullptr)) return {};
   std::string S; raw_string_ostream OS(S); WriteBitcodeToFile(Out, OS, true); return S;
 }
@@ -327,7 +333,16 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   F.deleteBody(); F.setLinkage(SF->getLinkage()); F.copyAttributesFrom(SF);
   A = F.arg_begin(); for (const Argument &SA : SF->args()) (A++)->setName(SA.getName());
   SmallVector<ReturnInst *, 8> Returns;
+  const bool HadCompileUnits = R.M.getNamedMetadata("llvm.dbg.cu") != nullptr;
   CloneFunctionInto(&F, SF, Map, CloneFunctionChangeType::DifferentModule, Returns);
+  // Preserve every original module field. Only undo the empty root invented
+  // by this clone; an unexpected nonempty contribution invalidates replay.
+  if (!HadCompileUnits) {
+    if (auto *CU = R.M.getNamedMetadata("llvm.dbg.cu")) {
+      if (CU->getNumOperands()) return false;
+      R.M.eraseNamedMetadata(CU);
+    }
+  }
   if (!preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
       functionText(F) != P.OutputText) return false;
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
