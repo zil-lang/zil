@@ -123,8 +123,11 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
     d.kind == CallableKind::FnOnce
         && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
         && fixed_result(d)
-        && !d.storage_life.as_ref().is_some_and(|life| life.bindings.iter()
-            .any(|row| row.position.base == StorageBase::Receiver))
+        && !d.storage_life.as_ref().is_some_and(|life| {
+            life.bindings
+                .iter()
+                .any(|row| row.position.base == StorageBase::Receiver)
+        })
 }
 
 // A scheduling tag, never qualification. definitions() rechecks the complete
