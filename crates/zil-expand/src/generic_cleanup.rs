@@ -12,7 +12,7 @@ impl Check<'_, '_, '_> {
                     && self.bounds.get(&path[0]).is_some_and(|bounds| {
                         bounds
                             .iter()
-                            .any(|bound| matches!(bound, trait_bounds::Bound::Value))
+                            .any(|bound| matches!(bound, trait_bounds::Bound::Value | trait_bounds::Bound::StoreElement | trait_bounds::Bound::SyncDrop))
                     });
                 for arg in args {
                     if let GenericArg::Type(ty) = arg {

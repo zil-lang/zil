@@ -81,7 +81,7 @@ impl Index<'_> {
         }
         let sync = matches!(capability, Bound::SyncDrop);
         let accepts = |b: &Bound| {
-            b == capability || matches!(b, Bound::Copy) || !sync && matches!(b, Bound::StoreElement)
+            b == capability || matches!(b, Bound::Copy | Bound::StoreElement)
         };
         let symbolic = plain(ty).filter(|name| variables.contains(*name));
         let projected = associated::parts(ty).is_some();
