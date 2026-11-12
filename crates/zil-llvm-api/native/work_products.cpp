@@ -380,23 +380,27 @@ std::string snapshot(Function &F) {
   std::string S; raw_string_ostream OS(S); WriteBitcodeToFile(Out, OS, true); return S;
 }
 bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P) {
+  auto Fail = [&](const char *Site) {
+    if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
+    return false;
+  };
   auto Buffer = MemoryBuffer::getMemBufferCopy(P.Output, "zil.function.product");
   auto Parsed = parseBitcodeFile(Buffer->getMemBufferRef(), F.getContext());
-  if (!Parsed) { consumeError(Parsed.takeError()); return false; }
+  if (!Parsed) { consumeError(Parsed.takeError()); return Fail("bitcode-parse"); }
   std::unique_ptr<Module> Source = std::move(*Parsed);
   Function *SF = Source->getFunction(F.getName());
   if (!SF || !eligibleFunction(*SF) || SF->getFunctionType() != F.getFunctionType() ||
-      verifyModule(*Source, nullptr)) return false;
+      verifyModule(*Source, nullptr)) return Fail("snapshot-function-or-verifier");
   ValueToValueMapTy Map; Map[SF] = &F;
   auto A = F.arg_begin();
   for (const Argument &SA : SF->args()) Map[&SA] = &*A++;
   for (Function &D : *Source) if (&D != SF) {
     Function *Current = R.M.getFunction(D.getName());
     if (!D.isDeclaration() || !Current || Current->getFunctionType() != D.getFunctionType() ||
-        Current->getAttributes() != D.getAttributes()) return false;
+        Current->getAttributes() != D.getAttributes()) return Fail("current-declaration-binding");
     Map[&D] = Current;
   }
-  for (const void *K : P.ExitKeys) if (!symbols().has(&AM, K)) return false;
+  for (const void *K : P.ExitKeys) if (!symbols().has(&AM, K)) return Fail("exit-analysis-registration");
   // invalidate(none) deliberately does not suffice: some immutable analyses
   // self-preserve. Destroy the complete old function cache before body replace.
   AM.clear(F, F.getName());
@@ -409,18 +413,21 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   // by this clone; an unexpected nonempty contribution invalidates replay.
   if (!HadCompileUnits) {
     if (auto *CU = R.M.getNamedMetadata("llvm.dbg.cu")) {
-      if (CU->getNumOperands()) return false;
+      if (CU->getNumOperands()) return Fail("unexpected-module-debug-metadata");
       R.M.eraseNamedMetadata(CU);
     }
   }
   if (!symbols().restoreNumbers(&F, P.OutputNextBlock, P.OutputBlockEpoch,
-                               P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size()) ||
-      !preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
-      functionText(F) != P.OutputText) return false;
+                               P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size())) return Fail("block-number-restore");
+  if (!preserveLocalUseOrder(*SF, Map)) return Fail("local-use-order");
+  if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
+  if (functionText(F) != P.OutputText) return Fail("complete-output-text");
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
-  if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return false;
+  if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return Fail("empty-analysis-state-restore");
   std::string Facts;
-  if (analysisKeys(AM, F) != P.ExitKeys || !analysisFacts(F, AM, P.ExitKeys, Facts) || Facts != P.ExitFacts) return false;
+  if (analysisKeys(AM, F) != P.ExitKeys) return Fail("exit-analysis-availability-order");
+  if (!analysisFacts(F, AM, P.ExitKeys, Facts)) return Fail("exit-analysis-domain");
+  if (Facts != P.ExitFacts) return Fail("exit-analysis-facts");
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
 }
 int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
@@ -428,9 +435,8 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   auto &AM = *static_cast<FunctionAnalysisManager *>(Manager);
   *Token = nullptr;
   if (F.getParent() != &R.M || R.Phase != 1) return 0;
-  if (R.Failed || !eligibleFunction(F)) {
-    ++R.Stats.optimizer_function_stage_executions; return 0;
-  }
+  if (R.Failed) { *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1; }
+  if (!eligibleFunction(F)) { ++R.Stats.optimizer_function_stage_executions; return 0; }
   // Bind actual supported result fields, not merely analysis names or IDs.
   Keys Entry = analysisKeys(AM, F);
   describeAnalyses(AM, F, "entry", Entry);
@@ -449,7 +455,10 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
     if (It != R.Prior->Stages.end()) {
       const auto &Old = *It->second;
       if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
-        if (!replay(R, F, AM, Old)) { R.Failed = true; ++R.Stats.failed_replays; return 0; }
+        if (!replay(R, F, AM, Old)) {
+          R.Failed = true; ++R.Stats.failed_replays;
+          *static_cast<PreservedAnalyses *>(PA) = PreservedAnalyses::none(); return 1;
+        }
         describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
         *static_cast<PreservedAnalyses *>(PA) = Old.PA;
         retainStage(R, Slot, It->second); ++R.Stats.optimizer_function_stage_reuses; return 1;
