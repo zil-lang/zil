@@ -71,6 +71,7 @@ pub(super) fn current(
             join(&mut out, &pointed(row, &path, left, span)?, left, span)?;
         }
     }
+    Ok(out)
 }
 
 pub(super) fn replace(

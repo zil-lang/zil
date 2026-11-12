@@ -187,7 +187,7 @@ pub(super) fn receiver_result(
     let result_is_head = signature_life::outer(life, StorageBase::Result)
         == signature_life::outer(life, StorageBase::Receiver);
     if result_is_head || !summary.receiver_results.is_empty() {
-        let retained = retain_written_slot(&receiver, i, HEAD_SITE, &[], sites, loans, b)?;
+        let retained = retain_written_slot(&receiver, i, HEAD_SITE, &Vec::new(), sites, loans, b)?;
         // Preserve the head as a non-target parent, never add it to data roots.
         add_loans(&mut out.address.loans, &retained.loans, b)?;
     }
