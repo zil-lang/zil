@@ -65,7 +65,11 @@ mod enabled {
         ) -> Handle;
         fn ZilNativeProductsSetPhase(request: Handle, phase: c_uint);
         fn ZilNativeProductsFailed(request: *const std::ffi::c_void) -> c_int;
-        fn ZilNativeProductsFinish(request: Handle, stats: *mut WireStats) -> Handle;
+        fn ZilNativeProductsFinish(
+            request: Handle,
+            stats: *mut WireStats,
+            failed: *mut c_int,
+        ) -> Handle;
         fn ZilNativeProductsAbort(request: Handle, stats: *mut WireStats);
         fn ZilNativeProductsDispose(products: Handle);
     }
@@ -172,9 +176,20 @@ mod enabled {
             }
             let raw = std::mem::replace(&mut self.raw, ptr::null_mut());
             let mut stats = WireStats::default();
-            // SAFETY: all native phases succeeded; Finish consumes this request and
-            // restores prior TLS. No native owner escapes in the returned product.
-            let product = unsafe { ZilNativeProductsFinish(raw, &mut stats) };
+            // Fail closed if the adapter cannot confirm final machine-product
+            // binding. Finish can discover a late replay mismatch after Emit.
+            let mut failed = 1;
+            // SAFETY: Finish consumes this request and restores prior TLS. Its
+            // separate status covers failures found while closing machine state;
+            // a null product alone is never treated as proof of successful replay.
+            let product = unsafe { ZilNativeProductsFinish(raw, &mut stats, &mut failed) };
+            #[cfg(test)]
+            match NEXT_FINISH_FAILURE.with(|value| value.replace(0)) {
+                1 => stats.failed_replays = stats.failed_replays.saturating_add(1),
+                2 => failed = 1,
+                _ => {}
+            }
+            *self.failed |= failed != 0 || stats.failed_replays > 0;
             *self.stats = stats.into();
             (!product.is_null()).then(|| NativeWorkProducts {
                 inner: Arc::new(Product(product)),
@@ -196,6 +211,26 @@ mod enabled {
     }
 
     #[cfg(test)]
+    thread_local! {
+        static NEXT_FINISH_FAILURE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+    }
+    // Thread-local, test-only injection happens *after* actual CPP Finish. It
+    // exercises the late-status/counter boundary with real optimized objects.
+    #[cfg(test)]
+    pub(crate) struct LateFailureGuard(u8, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for LateFailureGuard {
+        fn drop(&mut self) {
+            NEXT_FINISH_FAILURE.with(|value| value.set(self.0));
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn fail_next_finish_for_test(counter_only: bool) -> LateFailureGuard {
+        let old = NEXT_FINISH_FAILURE.with(|value| value.replace(if counter_only { 1 } else { 2 }));
+        LateFailureGuard(old, std::marker::PhantomData)
+    }
+
+    #[cfg(test)]
     mod tests {
         use super::*;
 
@@ -213,6 +248,8 @@ mod enabled {
     }
 }
 
+#[cfg(all(test, feature = "native-products"))]
+pub(crate) use enabled::fail_next_finish_for_test;
 #[cfg(feature = "native-products")]
 pub(crate) use enabled::{Product, Scope, Suspension};
 
