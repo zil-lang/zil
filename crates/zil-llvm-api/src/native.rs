@@ -835,11 +835,13 @@ mod native_product_tests {
             stats.available, 1,
             "strict native-products acceptance requires the audited extension DSO"
         );
+        eprintln!("cold native work: {stats:?}");
         assert!(stats.optimizer_function_stage_executions > 0);
         assert_eq!(stats.machine_function_executions, 2);
         let products = products.expect("successful cold compilation publishes native products");
         let (warm, _, _) = compile_products(&source, Some(&products));
         let stats = warm.receipt.native_products.unwrap();
+        eprintln!("warm native work: {stats:?}");
         assert_eq!(stats.available, 1);
         assert!(stats.optimizer_function_stage_reuses > 0);
         assert_eq!(stats.machine_function_reuses, 2);
