@@ -69,5 +69,15 @@ bool replay(const Product &, const llvm::MachineBasicBlock &, void *, EmitMC,
             EmitCFI, Summary &, Stats &);
 size_t payloadBytes(const Product &);
 bool domain(const llvm::MachineFunction &);
+void saveLastStats(const Stats &);
+int testMode();
+uint32_t counterexamples(const Product &, const llvm::MachineFunction &, PeekSymbol);
 } // namespace zil::emission
+
+// Independent V1 observer. The live-request getter is defined by work_products;
+// the last-copy and mode below are private same-thread test/probe helpers.
+extern "C" int ZilNativeProductsLastMachineEmissionStatsV1(void *, size_t);
+extern "C" int ZilNativeProductsMachineEmissionModeForTestsV1(int);
+extern "C" uint32_t ZilNativeProductsMachineEmissionCounterexamplesV1();
+
 #endif

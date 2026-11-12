@@ -136,6 +136,15 @@ mod enabled {
         fn ZilNativeProductsMachineFrameTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineFrameObservationResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsLastMachineEmissionStatsV1(
+            out: *mut MachineEmissionStats,
+            bytes: usize,
+        ) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionModeForTestsV1(mode: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineEmissionCounterexamplesV1() -> u32;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -345,6 +354,60 @@ mod enabled {
 
     /// Explicit same-thread scratch checks. The bitmask reports observations;
     /// it is not permission to reuse a machine function or bypass verification.
+    #[cfg(test)]
+    #[repr(C)]
+    #[derive(Default, Debug)]
+    pub(crate) struct MachineEmissionStats {
+        pub available: u64,
+        pub captured_functions: u64,
+        pub captured_blocks: u64,
+        pub replayed_functions: u64,
+        pub replayed_blocks: u64,
+        pub machine_instructions_skipped: u64,
+        pub mc_replay_events: u64,
+        pub current_cfi_events: u64,
+        pub declined_functions: u64,
+        pub budget_declines: u64,
+        pub captured_capacity_bytes: u64,
+        pub capture_ns: u64,
+        pub preflight_ns: u64,
+        pub replay_ns: u64,
+        pub failed_replays: u64,
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_stats_for_test() -> MachineEmissionStats {
+        let mut out = MachineEmissionStats::default();
+        // SAFETY: an exact private V1 size is supplied; the C++ shim copies only
+        // current same-thread scalar observations, never a native owner.
+        let ok = unsafe {
+            ZilNativeProductsLastMachineEmissionStatsV1(&mut out, std::mem::size_of_val(&out))
+        };
+        assert_eq!(ok, 1);
+        out
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_counterexamples_for_test() -> u32 {
+        // SAFETY: same-thread scalar test mask only, no proof/owner crosses.
+        unsafe { ZilNativeProductsMachineEmissionCounterexamplesV1() }
+    }
+    #[cfg(test)]
+    pub(crate) struct MachineEmissionModeGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for MachineEmissionModeGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the previous explicit same-thread test mode.
+            unsafe {
+                ZilNativeProductsMachineEmissionModeForTestsV1(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_emission_mode_for_test(mode: c_int) -> MachineEmissionModeGuard {
+        // SAFETY: private same-thread test mode only; default zero is unchanged.
+        let old = unsafe { ZilNativeProductsMachineEmissionModeForTestsV1(mode) };
+        MachineEmissionModeGuard(old, std::marker::PhantomData)
+    }
+
     #[cfg(test)]
     pub(crate) struct MachineNumberingTestsGuard(c_int, std::marker::PhantomData<*mut ()>);
     #[cfg(test)]

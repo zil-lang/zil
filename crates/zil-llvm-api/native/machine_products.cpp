@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -1652,6 +1653,7 @@ struct MachineRequest {
     llvm::MachineFunction *emissionMF = nullptr;
     std::unique_ptr<emission::Capture> emissionCapture;
     bool emissionAllowed = false;
+    bool emissionProvidersClean = true;
     size_t emissionBaseReservation = 0;
     size_t position() const { return replay ? replayPosition : sequence.size(); }
   };
@@ -1706,12 +1708,14 @@ namespace {
 struct EmissionAPI {
   const ZilLLVMMachineEmissionHooksV1 *(*set)(const ZilLLVMMachineEmissionHooksV1 *);
   emission::PeekSymbol peek;
-  bool available() const { return set && peek; }
+  int (*readOnlyProvider)(const void *);
+  bool available() const { return set && peek && readOnlyProvider; }
 };
 const EmissionAPI &emissionAPI() {
   static const EmissionAPI A{
     reinterpret_cast<decltype(EmissionAPI::set)>(dlsym(RTLD_DEFAULT,"ZilLLVMSetMachineEmissionHooksV1")),
-    reinterpret_cast<emission::PeekSymbol>(dlsym(RTLD_DEFAULT,"ZilLLVMPeekMachineBlockSymbolV1"))};
+    reinterpret_cast<emission::PeekSymbol>(dlsym(RTLD_DEFAULT,"ZilLLVMPeekMachineBlockSymbolV1")),
+    reinterpret_cast<int(*)(const void *)>(dlsym(RTLD_DEFAULT,"ZilLLVMReadOnlyMachineEmissionProviderV1"))};
   return A;
 }
 struct EmissionBudget { MachineRequest *request; MachineRequest::Current *current; size_t base; };
@@ -1723,11 +1727,12 @@ bool reserveEmission(void *P, size_t Bytes) {
 }
 int beginEmission(void *P, void *AP, void *MF, void *Streamer, const void *STI) {
   auto &R=*static_cast<MachineRequest *>(P);auto &M=*static_cast<llvm::MachineFunction *>(MF);
-  if(R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
+  if(emission::testMode()==1 || R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
   auto It=R.current.find(&M.getFunction());
   if(It==R.current.end())return 0;auto &C=It->second;
   if(!C.emissionAllowed || C.emissionMF!=&M)return 0;
   bool Replay=C.replay && C.replay->emission && emission::preflight(C.replay->emission,M,R.emissionStats);
+  if(Replay && emission::testMode()==4) emission::counterexamples(C.replay->emission,M,emissionAPI().peek);
   if(!Replay && C.recording) {
     C.emissionBaseReservation=C.reservation;
     EmissionBudget Budget{&R,&C,C.reservation};
@@ -1773,8 +1778,19 @@ void endEmissionBlock(void *P,const void *BB,ZilLLVMMachineEmissionSummaryV1 S) 
 void endEmissionFunction(void *P,void *AP) {
   auto &R=*static_cast<MachineRequest *>(P);if(AP!=R.activeAP)return;
   if(R.emissionReplaying && R.activeMF && R.emissionBlocks==R.activeMF->size())++R.emissionStats.replayed_functions;
-  if(R.activeEmission && R.activeEmission->emissionCapture && !R.activeEmission->emissionCapture->active()) {
-    R.activeEmission->emissionCapture.reset();R.reserve(*R.activeEmission,R.activeEmission->emissionBaseReservation);
+  if(R.activeEmission && R.activeEmission->emissionCapture) {
+    auto &C=*R.activeEmission;
+    // Seal only the completed MI body now so LIVE observers see real capture
+    // work. It remains pending under this request; object/Finish failure still
+    // discards the entire snapshot and cannot publish this product.
+    auto Tape=C.emissionCapture->finish();
+    C.emissionCapture.reset();
+    if(C.recording) {
+      C.recording->emission=std::move(Tape);
+      if(!R.reserve(C,recordingReservation(*C.recording,R.activeMF->getName().size()))) {
+        C.recording->emission.reset();R.reserve(C,C.emissionBaseReservation);
+      }
+    }
   }
   R.activeEmission=nullptr;R.activeMF=nullptr;R.activeBlock=nullptr;R.activeAP=nullptr;
   R.activeStreamer=nullptr;R.activeSTI=nullptr;R.emissionReplaying=false;
@@ -1791,7 +1807,7 @@ MachineRequest::~MachineRequest() {
 void installMachineEmission(MachineRequest &R,const void *Owner) {
   if(!emissionAPI().available())return;
   R.emissionStats.available=1;
-  R.emissionHooks={1,static_cast<const ZilLLVMFunctionProductHooks *>(Owner),&R,beginEmission,replayEmissionBlock,
+  R.emissionHooks={1,static_cast<const ZilLLVMFunctionProductHooks *>(Owner),&R.module,&R,beginEmission,replayEmissionBlock,
     beforeEmissionInstruction,emissionCFI,endEmissionBlock,endEmissionFunction,observeEmissionMC};
   R.previousEmissionHooks=emissionAPI().set(&R.emissionHooks);
 }
@@ -2044,7 +2060,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         }
       }
     }
-    C.emissionAllowed = C.emissionMF && (C.replay || C.recording);
+    C.emissionAllowed = C.emissionMF && (C.replay ? C.emissionProvidersClean : bool(C.recording));
     return 0; // The actual target AsmPrinter/streamer always emits this object.
   }
   if (C.replay && !C.replay->emissionProviders.count(P.getPassID())) {
@@ -2063,6 +2079,17 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   C.pendingMachine = nullptr;
   const bool Skipped = C.skipped == &P;
   C.skipped = nullptr;
+  // Snapshot restoration is followed by fresh providers. preservesAll is NOT
+  // permission to assume they leave MIR unchanged. Only the fixed, typed
+  // ORE(no-hotness)/lazy-BFI wrappers are proved read-only. Every other actual
+  // executed slot (including non-MFP) disables optional MC reuse before AP.
+  if(C.replay && !C.emitted && !Skipped &&
+     (!Machine || F.getContext().getDiagnosticsHotnessRequested() ||
+      !emissionAPI().available() || !emissionAPI().readOnlyProvider(&P))) {
+    if(C.emissionProvidersClean)diagnose(F,"mc-emission-unproved-executed-provider",P.getPassName());
+    C.emissionProvidersClean=false;
+  }
+
   // Unsupported current functions execute the original pipeline without
   // allocating a duplicate per-pass dependency trace that cannot be reused.
   if (!C.recording && !C.replay) return Skipped;
@@ -2086,8 +2113,6 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       // is publication only; an incomplete observed tail discards the product.
       if (C.emitted && C.replayPosition == C.replay->sequence.size()) S = C.replay;
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
-      if (C.emissionCapture) C.recording->emission = C.emissionCapture->finish();
-      C.emissionCapture.reset();
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
       if (completeSequence(*C.recording) && providers(*C.recording)) S = std::move(C.recording);

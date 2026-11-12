@@ -12,6 +12,7 @@ struct ZilLLVMMachineEmissionHooksV1 {
   // Must equal the currently installed ABI2 pointer. Suspension/reentrant
   // ordinary compiles therefore disable the outer emitter without new guards.
   const ZilLLVMFunctionProductHooks *stage_owner;
+  const void *module;
   void *context;
   // Called after the original function prologue, before blockStart/first event.
   // SDK must supply the strict CURRENT AP state gate; false runs original code.
@@ -33,5 +34,6 @@ LLVM_ABI const ZilLLVMMachineEmissionHooksV1 *ZilLLVMGetMachineEmissionHooksV1()
 LLVM_ABI int ZilLLVMX86MachineEmissionStateV1(const void *);
 LLVM_ABI int ZilLLVMEmitAndCountX86InstructionV1(void *, void *);
 LLVM_ABI const void *ZilLLVMPeekMachineBlockSymbolV1(const void *);
+LLVM_ABI int ZilLLVMReadOnlyMachineEmissionProviderV1(const void *);
 }
 #endif
