@@ -61,6 +61,7 @@ fn actual_anonymous_tuple_sources_verify_raw_wire() {
         ("nested-exclusive", NESTED_EXCLUSIVE),
         ("elided", ELIDED),
         ("elided-relay", ELIDED_RELAY),
+        ("phantom", PHANTOM),
     ] {
         let (module, candidate) = prepare(text);
         if let Some(dir) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
@@ -85,6 +86,7 @@ fn anonymous_tuple_values_run_both_backends_with_real_cleanup() {
         ("nested-exclusive", NESTED_EXCLUSIVE, b"".as_slice()),
         ("elided", ELIDED, b"".as_slice()),
         ("elided-relay", ELIDED_RELAY, b"".as_slice()),
+        ("phantom", PHANTOM, b"".as_slice()),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -292,6 +294,7 @@ fn anonymous_tuple_verification_has_exact_fresh_work_boundaries() {
         ("nested-exclusive", NESTED_EXCLUSIVE),
         ("elided", ELIDED),
         ("elided-relay", ELIDED_RELAY),
+        ("phantom", PHANTOM),
     ] {
         let (module, candidate) = prepare(text);
         let limits = Limits::default();
@@ -724,6 +727,7 @@ fn assert_raw_wire_reject(
 
 #[test]
 fn anonymous_phantom_child_keeps_a_nonempty_semantic_domain() {
+    use zil_ir::{LifeTypeProjection, PlaceProjection, Type};
     let (module, candidate) = prepare(PHANTOM);
     if let Some(dir) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
         fs::create_dir_all(&dir).unwrap();
@@ -733,5 +737,64 @@ fn anonymous_phantom_child_keeps_a_nonempty_semantic_domain() {
         )
         .unwrap();
     }
-    verify(module, candidate);
+    verify(module.clone(), candidate.clone());
+    let f = module.functions.iter().find(|f| f.name == "read").unwrap();
+    let (index, life) = f
+        .values
+        .iter()
+        .enumerate()
+        .find_map(|(index, ty)| {
+            let Type::BorrowedStorage { storage, life } = ty else {
+                return None;
+            };
+            matches!(storage.as_ref(), Type::Tuple(_)).then_some((index, life))
+        })
+        .unwrap();
+    assert_eq!(life.binder_count, 2);
+    assert_eq!(life.slots.len(), 1);
+    assert_eq!(life.slots[0].binder, 1);
+    assert_eq!(life.retained.len(), 1);
+    assert_eq!(life.retained[0].binder, 0);
+    assert_eq!(life.nominal_arguments.len(), 1);
+    assert_eq!(life.nominal_arguments[0].binder, 0);
+    assert_eq!(
+        life.nominal_arguments[0].path,
+        vec![LifeTypeProjection::Place(PlaceProjection::Field(0))]
+    );
+    for attack in 0..4 {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "read")
+            .unwrap();
+        let Type::BorrowedStorage { life, .. } = &mut f.values[index] else {
+            unreachable!()
+        };
+        match attack {
+            0 => {
+                life.nominal_arguments.clear();
+            }
+            1 => {
+                life.nominal_arguments[0].argument = 1;
+            }
+            2 => {
+                life.nominal_arguments[0].path.clear();
+            }
+            3 => {
+                life.retained[0].binder = 1;
+            }
+            _ => unreachable!(),
+        }
+        assert_raw_wire_reject(
+            changed,
+            candidate.clone(),
+            &format!("phantom-child-{attack}"),
+            if attack == 0 {
+                "omits or fabricates a physical child occurrence"
+            } else {
+                "nominal occurrence differs from its complete actual child"
+            },
+        );
+    }
 }
