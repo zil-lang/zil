@@ -1777,6 +1777,15 @@ mod tests {
         // The first failed raw epoch changes a SECOND module and all positions.
         // The next error and recovery only change module zero. Its last sparse
         // delta cannot describe all differences from the successful Types owner.
+        // Model the resident parser's unchanged snapshot owner. Reparsing the
+        // same text would intentionally mint a new module revision and would
+        // put this module in every delta, defeating this counterexample.
+        let edited_other = parse(
+            1,
+            &format!("\n\n{}", other.replacen("x+3", "x+8", 1)),
+            &limits,
+        );
+        let mut skipped_module_revision = None;
         for invalid in ["missing", "unknown"] {
             let input = produced(
                 &mut expand,
@@ -1786,14 +1795,17 @@ mod tests {
                         &format!("\n\n{}", root.replacen("x+1", &format!("x+{invalid}"), 1)),
                         &limits,
                     ),
-                    parse(
-                        1,
-                        &format!("\n\n{}", other.replacen("x+3", "x+8", 1)),
-                        &limits,
-                    ),
+                    edited_other.clone(),
                 ],
                 &limits,
             );
+            let revision = input.module_revision(ModuleId(1)).unwrap();
+            assert_ne!(Some(revision), initial.module_revision(ModuleId(1)));
+            if let Some(previous) = &skipped_module_revision {
+                assert_eq!(revision, previous);
+            } else {
+                skipped_module_revision = Some(revision.clone());
+            }
             let current = prepared(&input, &limits);
             let actual = apply(&mut session, &current, &limits).unwrap_err();
             assert_eq!(actual, fresh(&current, &limits).unwrap_err());
@@ -1807,13 +1819,13 @@ mod tests {
                     &format!("\n\n{}", root.replacen("x+1", "x+9", 1)),
                     &limits,
                 ),
-                parse(
-                    1,
-                    &format!("\n\n{}", other.replacen("x+3", "x+8", 1)),
-                    &limits,
-                ),
+                edited_other,
             ],
             &limits,
+        );
+        assert_eq!(
+            recovered.module_revision(ModuleId(1)),
+            skipped_module_revision.as_ref()
         );
         assert_eq!(recovered.change_batch().changed_modules(), &[0]);
         let current = prepared(&recovered, &limits);
