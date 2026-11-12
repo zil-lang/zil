@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify the frozen 25c/3ec7 scalar diagnostic profile; never run a compiler.
+"""Qualify frozen push/3ec7 scalar diagnostic profile records; never run a compiler.
 
 This is deliberately separate from the historical 990/producer-reuse validator.
 Historical executable SHA values are compared as recorded, not rehashed from
@@ -21,6 +21,9 @@ SOURCE = '25c8607ab77584e423605793bbcb553ff8099330'
 BASELINE = '3ec7e8a960ca69368cd9a90f1a15ac063fec5a02'
 BASELINE_BINARY = '1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405'
 CANDIDATE_BINARY = '50c316a9de2a6f422147ee3543ca32fde15979df7042dd61f8e440bf38336801'
+CANDIDATES = {SOURCE: CANDIDATE_BINARY,
+              '328eb392d8d88148a75a743d899b43aebae73587':
+              'e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a'}
 GENERATOR = 'tools/research/reactive-query-graph/native_workloads.py'
 RUNNER = 'tools/research/reactive-query-graph/native_measure.py'
 HELPER = 'tools/research/incremental-demand/push_counters.py'
@@ -64,7 +67,7 @@ def pairs():
         yield index, label, True, parent
 
 
-def check_arguments(arguments):
+def check_arguments(arguments, source=SOURCE):
     expected = {'case': 'scalar', 'modules': 20, 'functions': 20, 'steps': 16,
                 'blocks': 1, 'request': None, 'mode': 'O2', 'backend': 'llvm-api',
                 'cache': 'all', 'source_cache': False, 'closed_executable': False,
@@ -76,7 +79,7 @@ def check_arguments(arguments):
         require(arguments.get(key) == value, f'fixed argument differs: {key}')
     for arm, library in LIBRARIES.items():
         require(arguments[arm + '_llvm_library_path'] == library, f'{arm} library argument')
-    require(arguments['baseline_source'] == BASELINE and arguments['candidate_source'] == SOURCE, 'argument source pins')
+    require(arguments['baseline_source'] == BASELINE and arguments['candidate_source'] == source, 'argument source pins')
 
 
 def expected_controller_command(repo, raw, arguments):
@@ -92,26 +95,42 @@ def expected_controller_command(repo, raw, arguments):
                       '--candidate-extra-arg=--profile-compilation']
 
 
-def check_controller_record(record, repo, raw, arguments):
-    require(record['source'] == SOURCE and record['binary_sha256'] == CANDIDATE_BINARY, 'controller source/binary')
+def check_controller_record(record, repo, raw, arguments, source=SOURCE):
+    require(record['source'] == source and record['binary_sha256'] == CANDIDATES[source], 'controller source/binary')
     require(record['command'] == expected_controller_command(repo, raw, arguments), 'complete controller argv')
 
 
-def qualify(repo, raw, build_path, controller_exit):
+def controller_status(controller_exit, persisted_exit):
+    require(persisted_exit == 0, 'persisted helper failed')
+    require(controller_exit is None or type(controller_exit) is int and controller_exit == 0,
+            'external controller failed')
+    return {'controller_exit': controller_exit, 'persisted_helper_exit': persisted_exit,
+            'controller_agreement': None if controller_exit is None else True,
+            'timing_window_verified': controller_exit is not None}
+
+
+def parse_controller_exit(value):
+    return None if value == 'unknown' else int(value)
+
+
+def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     manifest, rows, summary, build = read(raw/'manifest.json'), lines(raw/'rows.jsonl'), read(raw/'summary.json'), read(build_path)
     a = manifest['arguments']
-    check_arguments(a)
-    require(controller_exit == int(raw.with_suffix('.exit').read_text()) == build['exit_code'] == 0, 'controller/build failure')
-    require(manifest['requests'] == REQUESTS and manifest['source_shas'] == {'baseline': BASELINE, 'candidate': SOURCE}, 'manifest source/request pins')
-    require(build['source'] == build['source_after'] == SOURCE, 'build source binding')
+    require(source in CANDIDATES, 'unsupported source pin')
+    candidate_binary_sha256 = CANDIDATES[source]
+    check_arguments(a, source)
+    controller = controller_status(controller_exit, int(raw.with_suffix('.exit').read_text()))
+    require(build['exit_code'] == 0, 'build failure')
+    require(manifest['requests'] == REQUESTS and manifest['source_shas'] == {'baseline': BASELINE, 'candidate': source}, 'manifest source/request pins')
+    require(build['source'] == build['source_after'] == source, 'build source binding')
     git = lambda *args: subprocess.check_output(['git', *args], cwd=repo)
-    require(build['tree'] == git('rev-parse', SOURCE + '^{tree}').decode().strip(), 'source tree binding')
+    require(build['tree'] == git('rev-parse', source + '^{tree}').decode().strip(), 'source tree binding')
     require(build['command'] == ['cargo', 'build', '--locked', '--release', '-p', 'zil-cli', '--features', 'native-products'], 'build command')
-    require(build['sha256'] == CANDIDATE_BINARY, 'fixed build binary')
+    require(build['sha256'] == candidate_binary_sha256, 'fixed build binary')
     require(file_sha(build_path.with_suffix('.log')) == build['log_sha256'] and int(build_path.with_suffix('.exit').read_text()) == 0, 'build log/exit receipt')
     require(file_sha(Path(build['binary'])) == build['sha256'], 'actual build receipt binary path/hash')
     require(build['llvm_library']['sha256'] == DSOS['candidate'], 'build LLVM DSO')
-    for arm, expected in [('baseline', BASELINE_BINARY), ('candidate', CANDIDATE_BINARY)]:
+    for arm, expected in [('baseline', BASELINE_BINARY), ('candidate', candidate_binary_sha256)]:
         binary = manifest['binaries'][arm]
         require(binary['path'] == a[arm] and binary['sha256'] == expected, f'{arm} binary metadata')
         require(file_sha(Path(binary['path'])) == expected, f'{arm} actual binary hash')
@@ -120,7 +139,7 @@ def qualify(repo, raw, build_path, controller_exit):
     for path, name, key in [(RUNNER, 'native_measure.py', 'runner_sha256'),
                             (GENERATOR, 'native_workloads.py', 'generator_sha256'),
                             (HELPER, 'push_counters.py', 'llvm_comparison_helper_sha256')]:
-        data = git('show', SOURCE + ':' + path)
+        data = git('show', source + ':' + path)
         require((raw/name).read_bytes() == data and sha(data) == manifest[key], f'pinned Git tool bytes: {name}')
         pinned[name] = data
         tool_hashes[path] = sha(data)
@@ -128,9 +147,9 @@ def qualify(repo, raw, build_path, controller_exit):
     # generator's sole source-file read uses another pinned Git blob below.
     workload = types.ModuleType('native_workloads')
     workload.__file__ = str(repo/GENERATOR)
-    exec(compile(pinned['native_workloads.py'], SOURCE+':'+GENERATOR, 'exec'), workload.__dict__)
+    exec(compile(pinned['native_workloads.py'], source+':'+GENERATOR, 'exec'), workload.__dict__)
     pc = types.ModuleType('pinned_push_counters')
-    exec(compile(pinned['push_counters.py'], SOURCE+':'+HELPER, 'exec'), pc.__dict__)
+    exec(compile(pinned['push_counters.py'], source+':'+HELPER, 'exec'), pc.__dict__)
     old = sys.modules.get('native_workloads')
     old_bytecode = sys.dont_write_bytecode
     sys.dont_write_bytecode = True  # Pinned runner imports its archived helper; never add raw pycache.
@@ -138,7 +157,7 @@ def qualify(repo, raw, build_path, controller_exit):
     try:
         runner = types.ModuleType('pinned_native_measure')
         runner.__file__ = str(raw/'native_measure.py')
-        exec(compile(pinned['native_measure.py'], SOURCE+':'+RUNNER, 'exec'), runner.__dict__)
+        exec(compile(pinned['native_measure.py'], source+':'+RUNNER, 'exec'), runner.__dict__)
     finally:
         sys.dont_write_bytecode = old_bytecode
         if old is None:
@@ -182,7 +201,7 @@ def qualify(repo, raw, build_path, controller_exit):
         fixture_root = Path(directory)
         io = fixture_root/'examples/mainline/resource_closures/io.zil'
         io.parent.mkdir(parents=True)
-        io.write_bytes(git('show', SOURCE+':examples/mainline/resource_closures/io.zil'))
+        io.write_bytes(git('show', source+':examples/mainline/resource_closures/io.zil'))
         workload.ROOT = fixture_root
         for ordinal, (index, label, measured_flag, parent) in enumerate(pairs(), 1):
             name = f'{index}-' + ('' if measured_flag else 'prepare-') + label
@@ -279,17 +298,18 @@ def qualify(repo, raw, build_path, controller_exit):
                          'baseline_range_ms': [b, b], 'candidate_range_ms': [c, c],
                          'median_candidate_over_baseline': c/b, 'median_saved_ms': b-c}, label+' summary')
     command = read(raw.with_name(raw.name+'-command.json'))
-    check_controller_record(command, repo, raw, a)
+    check_controller_record(command, repo, raw, a, source)
     return {'schema': 'push-profile-qualification-v1', 'valid': True,
-            'source': SOURCE, 'tree': build['tree'], 'baseline': BASELINE,
-            'candidate_binary_sha256': CANDIDATE_BINARY, 'baseline_binary_sha256': BASELINE_BINARY,
+            'source': source, 'tree': build['tree'], 'baseline': BASELINE,
+            'candidate_binary_sha256': candidate_binary_sha256, 'baseline_binary_sha256': BASELINE_BINARY,
             'counts': {'rows': 34, 'measured': 18, 'parents': 16, 'pairs': 17, 'successful_pairs': 15, 'safe_error_pairs': 2, 'native_outcomes_recomputed': native_count, 'files': 22, 'functions': 425},
             'raw': str(raw), 'build_receipt': {'path': str(build_path), 'sha256': file_sha(build_path)},
             'raw_sha256': {name: file_sha(raw/name) for name in ['manifest.json', 'rows.jsonl', 'summary.json']},
             'pinned_tools_sha256': tool_hashes, 'checked_archived_blobs': len(blob_cache),
-            'runtime_dso_sha256': DSOS, 'controller_exit': controller_exit,
-            'historical_validator_incompatibility': {'path': 'tools/research/incremental-demand/profile_validate.py', 'sha256': sha(git('show', SOURCE+':tools/research/incremental-demand/profile_validate.py')), 'independently_reexecuted': False, 'reason': 'Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile.'},
+            'runtime_dso_sha256': DSOS, **controller,
+            'historical_validator_incompatibility': {'path': 'tools/research/incremental-demand/profile_validate.py', 'sha256': sha(git('show', source+':tools/research/incremental-demand/profile_validate.py')), 'independently_reexecuted': False, 'reason': 'Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile.'},
             'scope': ['Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.',
+                      *(['External controller completion/continuous timing were not observed after environment reconnect; recorded quality may be checked, performance attribution is excluded.'] if controller_exit is None else []),
                       'ELF equality uses all historical recorded full-file SHA256 values; overwritten historical executable bytes were not physically rehashed.',
                       'Every archived LLVM blob was rehashed; only the unique exact second-line hex64 verified-fingerprint value is normalized, all other bytes must agree.',
                       'Original pinned runner removes output before each request; this diagnostic workflow differs from retaining historical output.',
@@ -301,9 +321,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['repo', 'run-dir', 'build-receipt', 'output']:
         parser.add_argument('--'+name, required=True, type=Path)
-    parser.add_argument('--controller-exit', required=True, type=int)
+    parser.add_argument('--source', default=SOURCE, choices=sorted(CANDIDATES))
+    parser.add_argument('--controller-exit', required=True, type=parse_controller_exit, help='externally observed exit, or unknown after a lost controller; persisted helper exit remains required')
     args = parser.parse_args()
-    result = qualify(args.repo.resolve(), args.run_dir.resolve(), args.build_receipt.resolve(), args.controller_exit)
+    result = qualify(args.repo.resolve(), args.run_dir.resolve(), args.build_receipt.resolve(), args.controller_exit, args.source)
     result['qualifier_sha256'] = file_sha(Path(__file__))
     args.output.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps({'valid': True, 'counts': result['counts'], 'receipt': str(args.output)}))

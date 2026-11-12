@@ -62,6 +62,32 @@ class PushProfileQualification(unittest.TestCase):
                 validator.check_controller_record(bad, Path('/fixed/repo'), Path('/fixed/raw'), self.arguments())
         self.assertEqual(expected.count('--codegen-units'), 1)
 
+    def test_unknown_controller_preserves_quality_scope_without_timing_claim(self):
+        self.assertIsNone(validator.parse_controller_exit('unknown'))
+        self.assertEqual(validator.controller_status(None, 0),
+                         {'controller_exit': None, 'persisted_helper_exit': 0,
+                          'controller_agreement': None, 'timing_window_verified': False})
+        self.assertEqual(validator.controller_status(0, 0),
+                         {'controller_exit': 0, 'persisted_helper_exit': 0,
+                          'controller_agreement': True, 'timing_window_verified': True})
+        for external, persisted in [(None, 1), (0, 1), (1, 0), (True, 0)]:
+            with self.subTest(external=external, persisted=persisted), self.assertRaises(ValueError):
+                validator.controller_status(external, persisted)
+
+    def test_second_frozen_source_has_its_own_exact_binary_binding(self):
+        source = '328eb392d8d88148a75a743d899b43aebae73587'
+        arguments = self.arguments()
+        arguments['candidate_source'] = source
+        validator.check_arguments(arguments, source)
+        with self.assertRaises(ValueError):
+            validator.check_arguments(arguments)
+        command = validator.expected_controller_command(Path('/repo'), Path('/raw'), arguments)
+        record = {'source': source, 'binary_sha256': validator.CANDIDATES[source], 'command': command}
+        validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+        record['binary_sha256'] = validator.CANDIDATE_BINARY
+        with self.assertRaises(ValueError):
+            validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+
     def test_only_second_line_fingerprint_is_normalized(self):
         prefix = b'; ZIL verified LLVM module\n; verified-fingerprint: '
         a = prefix + b'a'*64 + b'\ndefine i64 @f() { ret i64 1 }\n'
