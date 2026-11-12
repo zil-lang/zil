@@ -77,7 +77,7 @@ bool acyclic(const Function &F) {
 bool eligibleFunction(const Function &F) {
   if (F.isDeclaration() || F.isVarArg() || F.getCallingConv() != CallingConv::C ||
       !F.getReturnType()->isIntegerTy() || F.hasPersonalityFn() || F.hasGC() ||
-      F.hasPrefixData() || F.hasPrologueData() || !acyclic(F)) return false;
+      F.hasPrefixData() || F.hasPrologueData() || F.hasComdat() || !acyclic(F)) return false;
   for (const Argument &A : F.args()) if (!A.getType()->isIntegerTy()) return false;
   SmallVector<std::pair<unsigned, MDNode *>, 4> Metadata;
   F.getAllMetadata(Metadata);
@@ -120,9 +120,30 @@ std::string functionText(const Function &F) {
 std::string worldText(const Module &M, const Function *Subject) {
   ValueToValueMapTy Map;
   auto World = CloneModule(M, Map, [](const GlobalValue *G) { return !isa<Function>(G); });
+  // CloneModule canonicalizes stripped definitions to external declarations.
+  // Undo that canonicalization, and explicitly bind header fields/metadata it
+  // intentionally omits when not cloning a body. This projection is a key,
+  // never submitted as an executable LLVM module.
+  for (const Function &F : M) {
+    auto *D = cast<Function>(Map[&F]);
+    D->setLinkage(F.getLinkage());
+    if (F.hasPersonalityFn()) D->setPersonalityFn(MapValue(F.getPersonalityFn(), Map));
+    if (F.hasComdat()) {
+      auto *C = World->getOrInsertComdat(F.getComdat()->getName());
+      C->setSelectionKind(F.getComdat()->getSelectionKind()); D->setComdat(C);
+    }
+  }
   // Keep all function headers, including the subject. Its body is separately
   // bound and its header participates in module-level analysis/configuration.
   std::string S; raw_string_ostream OS(S); World->print(OS, nullptr, true);
+  for (const Function &F : M) {
+    SmallVector<std::pair<unsigned, MDNode *>, 4> MD;
+    F.getAllMetadata(MD);
+    for (const auto &E : MD) {
+      OS << "\n; original header metadata " << F.getName() << ':' << E.first << '\n';
+      E.second->print(OS, &M);
+    }
+  }
   if (Subject) {
     // Passes can inspect direct users. A changed caller is an actual dependency
     // even when this closed arithmetic function has no outbound user calls.
@@ -237,7 +258,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   // invalidate(none) deliberately does not suffice: some immutable analyses
   // self-preserve. Destroy the complete old function cache before body replace.
   AM.clear(F, F.getName());
-  F.deleteBody(); F.copyAttributesFrom(SF);
+  F.deleteBody(); F.setLinkage(SF->getLinkage()); F.copyAttributesFrom(SF);
   A = F.arg_begin(); for (const Argument &SA : SF->args()) (A++)->setName(SA.getName());
   SmallVector<ReturnInst *, 8> Returns;
   CloneFunctionInto(&F, SF, Map, CloneFunctionChangeType::DifferentModule, Returns);
