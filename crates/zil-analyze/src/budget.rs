@@ -17,6 +17,15 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) type TaskRetainedRoots =
     std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<zil_ir::HoldRoot>>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum TaskPortSource {
+    External(zil_ir::StoragePosition),
+    Local(zil_ir::LocalId),
+    Static,
+    Unknown,
+}
+pub(super) type TaskRetainedSources =
+    std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<TaskPortSource>>;
 pub(super) struct Budget {
     remaining: usize,
     // Only shape nodes borrowed from this request's immutable module enter.
@@ -91,6 +100,8 @@ pub(super) struct Budget {
     pub(super) task_borrowed_results: bool,
     pub(super) task_retained_environments: bool,
     pub(super) task_retained_roots: Vec<Vec<TaskRetainedRoots>>,
+    pub(super) task_callable_results: bool,
+    pub(super) task_retained_sources: Vec<Vec<TaskRetainedSources>>,
     // Qualified Option with a shared owning Package pointee needs both the
     // stored Sum proof and ordinary Store/resource proof on the same CFG.
     pub(super) store_option_results: bool,
@@ -215,6 +226,8 @@ impl Budget {
             task_borrowed_results: false,
             task_retained_environments: false,
             task_retained_roots: Vec::new(),
+            task_callable_results: false,
+            task_retained_sources: Vec::new(),
             dyn_contexts: false,
             store_option_results: false,
             qualified_package_returns: false,
@@ -1829,6 +1842,7 @@ pub(super) fn preflight(
             }
         }
         let task_result = matches!(&closure.result,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}));
+        budget.task_callable_results |= task_result;
         if task_result
             && (closure.kind != zil_ir::CallableKind::FnOnce || !closure.parameters.is_empty())
         {

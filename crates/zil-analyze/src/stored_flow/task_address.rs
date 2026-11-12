@@ -3,6 +3,63 @@ use super::*;
 use zil_ir::ContractProjection;
 mod carriers;
 
+pub(super) fn source_snapshot(
+    value: &Value,
+    b: &mut Budget,
+) -> CompileResult<crate::budget::TaskRetainedSources> {
+    use crate::budget::TaskPortSource;
+    let mut out = crate::budget::TaskRetainedSources::new();
+    work(value, b)?;
+    for (path, permission) in &value.task_ports {
+        let mut sources = Vec::new();
+        for target in &permission.targets {
+            fee(
+                b,
+                target_width(target)
+                    .saturating_add(path.len())
+                    .saturating_add(2),
+            )?;
+            let source = match target.base {
+                HoldRoot::Static => TaskPortSource::Static,
+                HoldRoot::Local(local) => TaskPortSource::Local(local),
+                HoldRoot::Parameter(index) | HoldRoot::Capture(index) => {
+                    if target.heap_element.is_some()
+                        || !target.heap_parents.is_empty()
+                        || matches!(&target.retained_port, Some(PortOrigin::Dyn { .. }))
+                    {
+                        TaskPortSource::Unknown
+                    } else {
+                        let base = if matches!(target.base, HoldRoot::Parameter(_)) {
+                            StorageBase::Parameter(index)
+                        } else {
+                            StorageBase::Capture(index)
+                        };
+                        let mut selected = target
+                            .stored
+                            .iter()
+                            .copied()
+                            .map(ContractProjection::Place)
+                            .collect::<Vec<_>>();
+                        if let Some(PortOrigin::Task { carrier, port }) = &target.retained_port {
+                            selected.extend_from_slice(carrier);
+                            selected.push(ContractProjection::RetainedPort(*port));
+                        }
+                        selected
+                            .extend(target.place.iter().copied().map(ContractProjection::Place));
+                        TaskPortSource::External(zil_ir::StoragePosition {
+                            base,
+                            path: selected,
+                        })
+                    }
+                }
+            };
+            sources.push(source);
+        }
+        out.insert(path.clone(), sources);
+    }
+    Ok(out)
+}
+
 pub(super) fn has_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(!carriers::ports(module, ty, b)?.is_empty())
 }

@@ -677,6 +677,7 @@ pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pointer_values: Vec<Vec<HoldRoot>>,
     task_port_values: Vec<crate::budget::TaskRetainedRoots>,
+    task_source_values: Vec<crate::budget::TaskRetainedSources>,
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     // Actual external leaves of returned concrete environments. Each row
@@ -1049,6 +1050,19 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             fee(b, row.len())?;
             for target in row {
                 fee(b, target_width(target))?;
+            }
+        }
+        if b.task_callable_results {
+            fee(b,f.task_source_values.len())?;
+            for ports in &f.task_source_values {
+                for (path,sources) in ports {
+                    fee(b,path.len().saturating_add(sources.len()).saturating_add(1))?;
+                    for source in sources {
+                        if let crate::budget::TaskPortSource::External(position)=source {
+                            fee(b,position.path.len())?;
+                        }
+                    }
+                }
             }
         }
     }
@@ -6830,6 +6844,7 @@ fn derive_cfg(
                 values: Vec::with_capacity(values.len()),
                 pointer_values: Vec::new(),
                 task_port_values: Vec::new(),
+                task_source_values: Vec::new(),
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_environment: BTreeMap::new(),
@@ -6893,6 +6908,9 @@ fn derive_cfg(
                         ports.insert(path.clone(), roots.into_iter().collect());
                     }
                     actual.task_port_values.push(ports);
+                    if b.task_callable_results {
+                        actual.task_source_values.push(task_address::source_snapshot(value,b)?);
+                    }
                     fee(b, value.pointer.targets.len().saturating_add(1))?;
                     let roots = value
                         .pointer
@@ -7730,6 +7748,10 @@ pub(super) fn infer(
                 fee(b, count)?;
                 b.task_retained_roots
                     .push(vec![crate::budget::TaskRetainedRoots::new(); count]);
+                if b.task_callable_results {
+                    fee(b,count)?;
+                    b.task_retained_sources.push(vec![crate::budget::TaskRetainedSources::new();count]);
+                }
                 fee(b, count)?;
                 b.task_pointer_parents.push(vec![Vec::new(); count]);
             }
@@ -7765,6 +7787,13 @@ pub(super) fn infer(
                 ));
             }
             b.task_retained_roots.push(function.task_port_values);
+            if b.task_callable_results {
+                fee(b,function.task_source_values.len())?;
+                if function.task_source_values.len()!=function.values.len() {
+                    return Err(failure("Task full-source proof omitted an actual SSA value"));
+                }
+                b.task_retained_sources.push(function.task_source_values);
+            }
             if b.masked_stored_tasks() {
                 if function.pointer_parents.len() != function.values.len() {
                     return Err(failure("Task physical parent proof omitted an SSA value"));

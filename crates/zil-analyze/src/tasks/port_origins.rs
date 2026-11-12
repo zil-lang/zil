@@ -198,6 +198,51 @@ fn transfer(
         .result
         .filter(|v| f.values.get(v.0 as usize).and_then(shape).is_some());
     let result = match &instruction.kind {
+        InstructionKind::TakeCapture { .. } | InstructionKind::CallClosureOnce { .. }
+            if output.is_some() && b.task_callable_results =>
+        {
+            use crate::budget::TaskPortSource;
+            let value = output.unwrap();
+            let shape = shape(&f.values[value.0 as usize]).unwrap();
+            let rows = b
+                .task_retained_sources
+                .get(fi)
+                .and_then(|rows| rows.get(value.0 as usize))
+                .ok_or_else(|| {
+                    bad("Task returned frame lacks a complete actual source inventory")
+                })?;
+            let work = rows.iter().fold(1usize, |work, (path, sources)| {
+                sources.iter().fold(
+                    work.saturating_add(path.len())
+                        .saturating_add(sources.len()),
+                    |work, source| {
+                        work.saturating_add(match source {
+                            TaskPortSource::External(position) => position.path.len(),
+                            _ => 0,
+                        })
+                    },
+                )
+            });
+            fee(b, work)?;
+            let rows = &b.task_retained_sources[fi][value.0 as usize];
+            let mut carrier = Carrier::empty(shape.ports.len());
+            carrier.success = true;
+            for (port, sources) in carrier.ports.iter_mut().enumerate() {
+                let path = [ContractProjection::RetainedPort(port as u32)];
+                let actual = rows
+                    .get(path.as_slice())
+                    .ok_or_else(|| bad("Task returned frame omitted an actual retained port"))?;
+                for source in actual {
+                    sources.insert(match source {
+                        TaskPortSource::External(position) => Origin::Input(position.clone()),
+                        TaskPortSource::Local(local) => Origin::Local(*local),
+                        TaskPortSource::Static => Origin::Static,
+                        TaskPortSource::Unknown => Origin::Unknown,
+                    });
+                }
+            }
+            Some(carrier)
+        }
         InstructionKind::TaskCreate {
             arguments,
             port_bindings,
