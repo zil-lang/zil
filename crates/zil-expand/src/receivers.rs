@@ -408,6 +408,8 @@ impl Expander<'_> {
             return None;
         };
         Some(CoreCallableReturn {
+            life: None,
+            source_life: None,
             kind,
             parameters: parameters.iter().map(|t| self.type_ref(t)).collect(),
             result: self.type_ref(result),

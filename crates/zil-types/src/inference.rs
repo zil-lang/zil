@@ -1112,7 +1112,47 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
     }
     Ok(())
 }
+pub(super) fn charge_returned_snapshot(
+    bound: &CoreCallableReturn,
+    span: Span,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let mut budget = Budget::new(limits);
+    budget.work = *left;
+    returned_metadata(bound, span, &mut budget)?;
+    *left = budget.work;
+    Ok(())
+}
+fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    let work =
+        callable_return_metadata_work(bound, budget.limits.max_nodes, budget.limits.max_call_depth)
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "callable return metadata exceeds bounds",
+                    Some(span),
+                )
+            })?;
+    budget.work(work, span)?;
+    if let Some(context) = &bound.source_life {
+        for formal in &context.parameters {
+            if let LifeParameterKind::Const(ty) = formal {
+                validate_type(ty, 0, span, budget)?;
+            }
+        }
+    }
+    if bound.life.is_some() || bound.source_life.is_some() {
+        return Err(Diagnostic::unsupported(
+            Phase::Types,
+            "callable return life bridge requires a checked concrete environment",
+            Some(span),
+        ));
+    }
+    Ok(())
+}
 fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    returned_metadata(bound, span, budget)?;
     budget.work(bound.parameters.len().saturating_add(1), span)?;
     for ty in &bound.parameters {
         validate_type(ty, 0, span, budget)?;

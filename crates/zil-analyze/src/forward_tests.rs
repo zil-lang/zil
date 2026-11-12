@@ -86,6 +86,7 @@ fn base(kind: CallableKind) -> TypedModule {
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
+            life: None,
             capture_sources: Some(Vec::new()),
             source: CallableReturnSource::Parameter(1),
             closure: ClosureId(0),

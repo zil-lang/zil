@@ -1755,6 +1755,18 @@ pub(super) fn preflight(
         if let Some(contract) = &function.callable_return_contract {
             // This precedes CandidatePlan::empty_for and module hashing. Raw
             // source metadata must pay before encoding can walk its vectors.
+            if let Some(life) = &contract.life {
+                let work = zil_ir::storage_relation_metadata_work(
+                    life,
+                    limits.max_nodes,
+                    limits.max_call_depth,
+                )
+                .ok_or_else(|| bad("callable return relation exceeds bounds"))?;
+                budget.input(work, "callable return relation")?;
+                return Err(bad(
+                    "callable return relation requires independent concrete environment proof",
+                ));
+            }
             if let Some(bindings) = &contract.capture_sources {
                 count(
                     0,

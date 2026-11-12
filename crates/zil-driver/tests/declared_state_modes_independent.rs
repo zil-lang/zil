@@ -537,6 +537,8 @@ fn unused_raw_state_headers_validate_every_binding_and_real_field_selector() {
             }),
             13 => {
                 f.callable_return = Some(CoreCallableReturn {
+                    life: None,
+                    source_life: None,
                     kind: CallableKind::Fn,
                     parameters: vec![],
                     result: Type::I32,

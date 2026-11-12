@@ -378,6 +378,7 @@ fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory(
     let mut raw = dispatch();
     raw.module.functions[2].return_type = env();
     raw.module.functions[2].callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(0),
@@ -432,6 +433,7 @@ fn slot_through_reused_local(replace: bool) -> Raw {
         }]),
     });
     keep.f.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Parameter(0),
         lending_captures: vec![],

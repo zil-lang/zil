@@ -143,6 +143,7 @@ fn contract(flow: bool) -> CallableParameterContract {
 }
 fn return_contract(kind: CallableKind) -> CallableReturnContract {
     CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(11),
@@ -953,4 +954,42 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     let plan = CandidatePlan::empty_for(&raw);
     let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     assert_eq!(wire::decode_module_candidate(&bytes, &limits).unwrap().0, raw);
+}
+
+#[test]
+fn callable_return_expected_life_is_distinct_and_lossless() {
+    let limits = zil_base::Limits::default();
+    let mut raw = module(false);
+    let mut returned = return_contract(CallableKind::FnOnce);
+    let absent = callable_return_contract_fingerprint(&returned);
+    let relation = StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 0,
+        bindings: vec![StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Fixed(1),
+        }],
+        classes: vec![],
+    };
+    returned.life = Some(relation);
+    let present = callable_return_contract_fingerprint(&returned);
+    assert_ne!(absent, present);
+    assert_eq!(
+        present,
+        legacy::callable_return_contract_fingerprint(&returned)
+    );
+    for binder in [StorageBinder::Fixed(0), StorageBinder::Invocation(0)] {
+        let mut forged = returned.clone();
+        forged.life.as_mut().unwrap().bindings[0].binder = binder;
+        assert_ne!(present, callable_return_contract_fingerprint(&forged));
+    }
+    raw.functions[0].callable_return_contract = Some(returned);
+    let candidate = CandidatePlan::empty_for(&raw);
+    let bytes = wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let (decoded, _) = wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_eq!(raw, decoded);
+    assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
 }

@@ -80,6 +80,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
     factory.locals = vec![local(0, input.clone())];
     factory.return_type = output.clone();
     factory.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(1),
