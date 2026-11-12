@@ -413,6 +413,43 @@ mod tests {
         );
     }
     #[test]
+    fn trait_equations_keep_full_typed_rhs_outside_formal_actuals() {
+        let module = ok(
+            "trait A<T>{type Item;const COUNT:usize;}fn use_bound<X:A<i32,Item=&i32,const COUNT:usize=(8usize >> 1usize)+2usize>>(){}",
+        );
+        let ItemKind::Function(function) = &module.items[1].kind else {
+            panic!("function");
+        };
+        let GenericParamKind::Type(bounds) = &function.generics[0].kind else {
+            panic!("type formal");
+        };
+        let TypeKind::Named { args, .. } = &bounds[0].kind else {
+            panic!("trait application");
+        };
+        assert_eq!(args.len(), 3);
+        assert!(
+            matches!(&args[0], GenericArg::Type(TypeRef { kind: TypeKind::Named { path, .. }, .. }) if path == &["i32"])
+        );
+        let GenericArg::AssociatedBinding(binding) = &args[1] else {
+            panic!("type premise");
+        };
+        assert!(
+            matches!(&binding.kind, DynBindingKind::Type { member, value: TypeRef { kind: TypeKind::Reference { .. }, .. } } if member == &["Item"])
+        );
+        let GenericArg::AssociatedBinding(binding) = &args[2] else {
+            panic!("constant premise");
+        };
+        assert!(
+            matches!(&binding.kind, DynBindingKind::Constant { member, ty: TypeRef { kind: TypeKind::Named { path, .. }, .. }, value: Expr { kind: ExprKind::Binary { op: BinaryOp::Add, .. }, .. } } if member == &["COUNT"] && path == &["usize"])
+        );
+        assert_eq!(function.generics.len(), 1);
+    }
+    #[test]
+    fn associated_constant_comparisons_and_nested_type_closers_are_distinct() {
+        ok("trait Flag{const OK:bool;}fn f<T:Flag<const OK:bool=(3u32>2u32)>>(){}");
+        ok("trait Outer<T>{}trait Flag{const OK:bool;}fn f<T:Outer<Flag<const OK:bool=true>>>(){}");
+    }
+    #[test]
     fn closures_pipelines_and_compile_time_forms() {
         ok(
             "#[cfg(true)]\nfn f<T, #N: usize>(x: T) -> [T; N] where T: Copy { let cb = move (n: i32) => n + 1; let p = 1 |> ((x) => x + 1); let a = #(1 + 2); let b = #{ yield a }; #if (true) { cb(p) } else { cb(0) } }\n#if (true) { const N = 2 } else { const N = 3 }\nsyntax use build.tokens as b\nfn island() { b.tokens!{ fn x ( [a] ) } }",
