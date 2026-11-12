@@ -611,7 +611,8 @@ pub(super) fn transfer(
             match &slot.contract.result {
                 Some(DynResultSource::Value) => {}
                 Some(DynResultSource::Borrow { sources, .. }) => {
-                    for source in sources {
+                    for atom in sources {
+                        let source=crate::exact_storage_source(atom)?;
                         join_permission(
                             &mut out.address,
                             &slot_source(module, f, source, &args, values, state, b)?,
@@ -655,7 +656,8 @@ pub(super) fn transfer(
                     return Err(bad("dynamic method after destination is not its receiver"));
                 }
                 let mut permission = Permission::default();
-                for source in &binding.sources {
+                for atom in &binding.sources {
+                    let source=crate::exact_storage_source(atom)?;
                     join_permission(
                         &mut permission,
                         &slot_source(module, f, source, &args, values, state, b)?,

@@ -394,13 +394,13 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: vec![StoragePosition {
+        sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![
                 ContractProjection::Capture(0),
                 ContractProjection::Place(PlaceProjection::Field(0)),
             ],
-        }],
+        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
     }]);
     let retained = RetainedLifeShape {
         binder_count: 1,

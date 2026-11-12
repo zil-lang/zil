@@ -263,7 +263,7 @@ impl Writer<'_> {
             self.u32(value.port)?;
             self.count(value.sources.len(), self.limits.max_nodes)?;
             for source in &value.sources {
-                self.storage_source(source)?;
+                self.storage_position(source)?;
             }
         }
         self.count(value.entries.len(), self.limits.max_nodes)?;

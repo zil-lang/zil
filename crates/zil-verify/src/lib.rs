@@ -41,6 +41,14 @@ pub(crate) fn exact_storage_source(source: &zil_ir::StorageSource) -> Result<&zi
     }
 }
 
+pub(crate) fn exact_storage_sources_contain(sources: &[zil_ir::StorageSource], position: &zil_ir::StoragePosition) -> Result<bool, zil_base::Diagnostic> {
+    let mut present=false;
+    for source in sources {
+        present |= exact_storage_source(source)? == position;
+    }
+    Ok(present)
+}
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,

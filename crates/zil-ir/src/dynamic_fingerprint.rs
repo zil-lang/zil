@@ -142,7 +142,7 @@ pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable)
         encode_u32(b, value.port);
         encode_len(b, value.sources.len());
         for source in &value.sources {
-            encode_storage_source(b, source);
+            encode_storage_position(b, source);
         }
     }
     encode_len(b, value.entries.len());

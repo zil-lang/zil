@@ -1492,7 +1492,8 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                         if !selected {
                             continue;
                         }
-                        for source in &row.sources {
+                        for atom in &row.sources {
+                            let source=crate::exact_storage_source(atom)?;
                             let key = if pointed_classes > 0 && class > 0 {
                                 let StorageBase::Parameter(input) = source.base else {
                                     return Err(unsupported(

@@ -2470,7 +2470,8 @@ fn infer_with_private(
                                 && let Some(bindings) = &contract.capture_sources
                             {
                                 for binding in bindings {
-                                    for source in &binding.sources {
+                                    for atom in &binding.sources {
+                                        let source=crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut found,
                                             &factory_source_roots(

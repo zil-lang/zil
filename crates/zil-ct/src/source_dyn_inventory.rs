@@ -394,7 +394,7 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         for port in &table.ports {
             w.node(1)?;
             for source in &port.sources {
-                w.source(source, 2)?;
+                w.position(source, 2)?;
             }
         }
         w.path(table.entries.len(), 1)?;
