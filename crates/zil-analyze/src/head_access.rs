@@ -195,7 +195,7 @@ fn entry(module: &TypedModule, ty: &Type) -> Option<FunctionId> {
 fn scan(
     module: &TypedModule,
     f: &TypedFunction,
-    graph: &(Vec<Vec<usize>>, Vec<bool>),
+    graph: &crate::CfgFacts,
     summaries: &[Summary],
     b: &mut Budget,
 ) -> CompileResult<Summary> {
@@ -416,7 +416,7 @@ fn scan(
 }
 pub(super) fn check(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<Vec<Summary>> {
     if !b.head_descriptions && !b.invocation_callbacks {

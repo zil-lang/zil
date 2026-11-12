@@ -186,7 +186,7 @@ fn transfer(
     state: &mut State,
     memo: &mut [Option<Summary>],
     active: &mut [bool],
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, 1)?;
@@ -403,7 +403,7 @@ fn summarize(
     module: &TypedModule,
     plan: &CandidatePlan,
     fi: usize,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     memo: &mut [Option<Summary>],
     active: &mut [bool],
     b: &mut Budget,
@@ -564,7 +564,7 @@ fn check_contract(f: &TypedFunction, carrier: &Carrier, b: &mut Budget) -> Compi
 pub(super) fn check(
     module: &TypedModule,
     plan: &CandidatePlan,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<()> {
     // Hold values are independently produced by Analyze; they identify actual

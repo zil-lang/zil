@@ -227,12 +227,14 @@ fn accepts_raw_candidate_with_independent_provider_proof() {
                 value: ValueId(2),
                 roots: vec![],
             },
-        ],
+        ]
+        .into(),
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     plan.module_fingerprint = module.fingerprint();
     verify_module(
@@ -334,7 +336,8 @@ fn call_candidate() -> (TypedModule, CandidatePlan) {
             value: ValueId(4),
             roots: vec![],
         },
-    ];
+    ]
+    .into();
     plan.functions.push(FunctionPlan {
         function: FunctionId(1),
         holds: vec![
@@ -350,12 +353,14 @@ fn call_candidate() -> (TypedModule, CandidatePlan) {
                 value: ValueId(2),
                 roots: vec![],
             },
-        ],
+        ]
+        .into(),
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     plan.module_fingerprint = module.fingerprint();
     (module, plan)

@@ -121,7 +121,8 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: (0..3)
             .map(|i| ValueHold {
                 value: ValueId(i),

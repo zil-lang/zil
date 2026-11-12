@@ -54,8 +54,8 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
 }
 pub(super) fn returns(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    facts: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    facts: &[crate::HoldRows],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     for ((f, (_, reachable)), values) in module.functions.iter().zip(graphs).zip(facts) {

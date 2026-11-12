@@ -619,12 +619,14 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
         holds: vec![ValueHold {
             value: ValueId(0),
             roots: vec![],
-        }],
+        }]
+        .into(),
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![LocalId(0)],
-        }],
+        }]
+        .into(),
     });
     (module, plan)
 }

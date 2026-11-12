@@ -160,7 +160,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
                 block: BlockId(0),
                 initialized_in: vec![],
                 initialized_out: vec![LocalId(0)],
-            }],
+            }]
+            .into(),
         },
         FunctionPlan {
             function: FunctionId(1),
@@ -174,7 +175,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
                 block: BlockId(0),
                 initialized_in: vec![LocalId(0)],
                 initialized_out: vec![LocalId(0)],
-            }],
+            }]
+            .into(),
         },
     ];
     (module, plan)

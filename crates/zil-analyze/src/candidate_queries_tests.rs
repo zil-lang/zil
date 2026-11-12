@@ -562,3 +562,71 @@ fn resource_query_costs_preserve_n_minus_one_and_failed_epochs() {
     run(&mut session, &Arc::new((*source).clone()), &exact);
     assert_eq!(session.last_stats().resource_transfers_reused, 6);
 }
+
+#[test]
+fn reused_initialization_and_holds_are_the_actual_candidate_arrays_and_mutate_in_isolation() {
+    let source = program();
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let first = run(&mut session, &source, &limits);
+    let mut moved = (*source).clone();
+    moved.module.source_fingerprint = Fingerprint::of(b"current unchanged function products");
+    let moved = Arc::new(moved);
+    let second = run(&mut session, &moved, &limits);
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert_eq!(session.last_stats().candidate_reused_functions, 3);
+    for (old, current) in first.functions.iter().zip(&second.functions) {
+        assert!(old.blocks.ptr_eq(&current.blocks));
+        assert!(old.holds.ptr_eq(&current.holds));
+    }
+    let before = zil_ir::wire::encode_module_candidate(&moved.module, &second, &limits).unwrap();
+    let fresh = analyze_program(&moved, &limits).unwrap();
+    assert_eq!(
+        before,
+        zil_ir::wire::encode_module_candidate(&moved.module, &fresh, &limits).unwrap()
+    );
+
+    let mut changed = (*second).clone();
+    changed.functions[0].blocks[0]
+        .initialized_in
+        .push(LocalId(99));
+    assert!(
+        !changed.functions[0]
+            .blocks
+            .ptr_eq(&second.functions[0].blocks)
+    );
+    assert!(
+        changed.functions[0]
+            .holds
+            .ptr_eq(&second.functions[0].holds)
+    );
+    assert!(second.functions[0].blocks[0].initialized_in.is_empty());
+    changed.functions[0].holds[0]
+        .roots
+        .push(HoldRoot::Local(LocalId(99)));
+    assert!(
+        !changed.functions[0]
+            .holds
+            .ptr_eq(&second.functions[0].holds)
+    );
+    assert!(second.functions[0].holds[0].roots.is_empty());
+    assert!(
+        changed.functions[1]
+            .blocks
+            .ptr_eq(&second.functions[1].blocks)
+    );
+    assert!(
+        changed.functions[1]
+            .holds
+            .ptr_eq(&second.functions[1].holds)
+    );
+    assert_eq!(
+        before,
+        zil_ir::wire::encode_module_candidate(&moved.module, &second, &limits).unwrap()
+    );
+    let third = run(&mut session, &Arc::new((*moved).clone()), &limits);
+    for (old, current) in second.functions.iter().zip(&third.functions) {
+        assert!(old.blocks.ptr_eq(&current.blocks));
+        assert!(old.holds.ptr_eq(&current.holds));
+    }
+}

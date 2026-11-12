@@ -361,3 +361,103 @@ fn shared_body_mutation_cannot_retain_the_old_instruction_or_flow_authority() {
 }
 
 mod empty_borrows;
+
+#[test]
+fn shared_candidate_columns_preserve_verified_bytes_without_proving_current_cfgs() {
+    let (module, plan) = pair();
+    let module = Arc::new(module);
+    let plan = Arc::new(plan);
+    let limits = Limits::default();
+    let target = module.target.clone();
+    let mut session = VerifySession::new();
+    let sealed = session
+        .verify_shared_module(module.clone(), plan.clone(), &target, &limits)
+        .unwrap();
+    let before =
+        zil_ir::wire::encode_module_candidate(sealed.module(), sealed.plan(), &limits).unwrap();
+    let copied = Arc::new((*plan).clone());
+    for (old, current) in plan.functions.iter().zip(&copied.functions) {
+        assert!(old.blocks.ptr_eq(&current.blocks));
+        assert!(old.holds.ptr_eq(&current.holds));
+    }
+    session
+        .verify_shared_module(module.clone(), copied.clone(), &target, &limits)
+        .unwrap();
+    assert_eq!(session.stats().full_receipts_reused, 0);
+    assert_eq!(session.stats().function_proofs_reused, 2);
+
+    let mut false_claim = (*copied).clone();
+    false_claim.functions[0].blocks[0]
+        .initialized_in
+        .push(LocalId(0));
+    assert!(
+        !false_claim.functions[0]
+            .blocks
+            .ptr_eq(&copied.functions[0].blocks)
+    );
+    assert!(
+        false_claim.functions[0]
+            .holds
+            .ptr_eq(&copied.functions[0].holds)
+    );
+    let fresh =
+        verify_module((*module).clone(), false_claim.clone(), &target, &limits).unwrap_err();
+    let actual = session
+        .verify_shared_module(module.clone(), Arc::new(false_claim), &target, &limits)
+        .unwrap_err();
+    assert_eq!(actual, fresh);
+    assert_eq!(
+        before,
+        zil_ir::wire::encode_module_candidate(sealed.module(), sealed.plan(), &limits).unwrap()
+    );
+
+    let mut false_hold = (*copied).clone();
+    false_hold.functions[0].holds[0]
+        .roots
+        .push(HoldRoot::Local(LocalId(0)));
+    assert!(
+        false_hold.functions[0]
+            .blocks
+            .ptr_eq(&copied.functions[0].blocks)
+    );
+    assert!(
+        !false_hold.functions[0]
+            .holds
+            .ptr_eq(&copied.functions[0].holds)
+    );
+    let fresh = verify_module((*module).clone(), false_hold.clone(), &target, &limits).unwrap_err();
+    assert_eq!(
+        session
+            .verify_shared_module(module.clone(), Arc::new(false_hold), &target, &limits)
+            .unwrap_err(),
+        fresh
+    );
+    assert_eq!(
+        before,
+        zil_ir::wire::encode_module_candidate(sealed.module(), sealed.plan(), &limits).unwrap()
+    );
+
+    // Both candidate columns remain shared with the old successful claim, but
+    // the same-ID current raw function no longer initializes its local.
+    let mut broken = (*module).clone();
+    broken.functions[0].blocks[0].instructions[3].kind = InstructionKind::StorageDead(LocalId(0));
+    let mut stale = (*copied).clone();
+    stale.module_fingerprint = broken.fingerprint();
+    assert!(
+        stale.functions[0]
+            .blocks
+            .ptr_eq(&copied.functions[0].blocks)
+    );
+    assert!(stale.functions[0].holds.ptr_eq(&copied.functions[0].holds));
+    let fresh = verify_module(broken.clone(), stale.clone(), &target, &limits).unwrap_err();
+    assert_eq!(
+        session
+            .verify_shared_module(Arc::new(broken), Arc::new(stale), &target, &limits)
+            .unwrap_err(),
+        fresh
+    );
+    assert_eq!(
+        before,
+        zil_ir::wire::encode_module_candidate(sealed.module(), sealed.plan(), &limits).unwrap()
+    );
+}

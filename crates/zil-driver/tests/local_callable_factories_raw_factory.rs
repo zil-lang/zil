@@ -214,7 +214,8 @@ fn plan(module: &TypedModule) -> CandidatePlan {
                 block: BlockId(0),
                 initialized_in: f.parameters.clone(),
                 initialized_out: initialized.into_iter().collect(),
-            }],
+            }]
+            .into(),
             holds: f
                 .values
                 .iter()

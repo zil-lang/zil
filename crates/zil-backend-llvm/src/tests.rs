@@ -89,7 +89,7 @@ fn function(
         environment: None,
         parameters: Vec::new(),
         return_type,
-        locals: (Vec::new()).into(),
+        locals: Vec::new().into(),
         values: values.into(),
         blocks: blocks.into(),
         entry: BlockId(0),
@@ -245,12 +245,14 @@ fn checked_static_utf8(bytes: &[u8]) -> VerifiedModule {
                 value: ValueId(1),
                 roots: vec![],
             },
-        ],
+        ]
+        .into(),
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     let target = module.target.clone();
     verify_module(module, plan, &target, &Limits::default()).unwrap()
@@ -1146,7 +1148,7 @@ fn loop_and_branch_execute_mutable_local_dataflow() {
             block(3, vec![load(9, 1)], Terminator::Return(Some(ValueId(9)))),
         ],
     );
-    sum.locals = (vec![local(0, Type::I64, true), local(1, Type::I64, true)]).into();
+    sum.locals = vec![local(0, Type::I64, true), local(1, Type::I64, true)].into();
     let initialized = vec![0, 1];
     let verified = checked(
         vec![sum],
@@ -1217,7 +1219,7 @@ fn recursion_and_direct_calls_use_identity_symbols_not_source_names() {
             ),
         ],
     );
-    factorial.locals = (vec![local(0, Type::I64, false)]).into();
+    factorial.locals = vec![local(0, Type::I64, false)].into();
     factorial.parameters = vec![LocalId(0)];
     let check = function(
         1,
@@ -1307,7 +1309,7 @@ fn unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification(
         )],
     );
     callee.parameters = vec![LocalId(0), LocalId(1)];
-    callee.locals = (vec![local(0, Type::Unit, true), local(1, Type::Bool, false)]).into();
+    callee.locals = vec![local(0, Type::Unit, true), local(1, Type::Bool, false)].into();
     let check = function(
         1,
         "check",
@@ -1527,11 +1529,11 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
         )],
     );
     calculate.parameters = vec![LocalId(0)];
-    calculate.locals = (vec![
+    calculate.locals = vec![
         local(0, Type::I64, true),
         local(1, closure_type.clone(), true),
         local(2, closure_type, false),
-    ])
+    ]
     .into();
     let mut closure = function(
         2,
@@ -1550,7 +1552,7 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
     );
     closure.environment = Some(ClosureId(0));
     closure.parameters = vec![LocalId(0)];
-    closure.locals = (vec![local(0, Type::I64, false)]).into();
+    closure.locals = vec![local(0, Type::I64, false)].into();
     let verified = checked_with_closures(
         vec![check, calculate, closure],
         vec![ClosureDefinition {
@@ -1703,7 +1705,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         vec![block(0, vec![load(0, 0)], Terminator::Return(None))],
     );
     unit.environment = Some(ClosureId(1));
-    unit.locals = (vec![local(0, Type::Unit, false)]).into();
+    unit.locals = vec![local(0, Type::Unit, false)].into();
     unit.parameters = vec![LocalId(0)];
     let mut empty = function(
         3,
@@ -1717,7 +1719,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         )],
     );
     empty.environment = Some(ClosureId(2));
-    empty.locals = (vec![local(0, Type::Unit, false), local(1, Type::I64, false)]).into();
+    empty.locals = vec![local(0, Type::Unit, false), local(1, Type::I64, false)].into();
     empty.parameters = vec![LocalId(0), LocalId(1)];
     let mixed_initialized = (0..6).collect::<Vec<_>>();
     let verified = checked_with_closures(

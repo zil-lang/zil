@@ -158,7 +158,8 @@ fn candidate(m: &TypedModule) -> CandidatePlan {
                 block: BlockId(0),
                 initialized_in: f.parameters.clone(),
                 initialized_out: f.parameters.clone(),
-            }],
+            }]
+            .into(),
             holds: f
                 .values
                 .iter()

@@ -739,7 +739,8 @@ fn pod_plan(m: &TypedModule, roots: Vec<Vec<HoldRoot>>) -> CandidatePlan {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     plan
 }

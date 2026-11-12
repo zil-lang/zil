@@ -267,7 +267,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![LocalId(0)],
-        }],
+        }]
+        .into(),
         // Scalar SSA values have no address roots, with one row per ValueId.
         holds: vec![
             ValueHold {
@@ -278,7 +279,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
                 value: ValueId(1),
                 roots: vec![],
             },
-        ],
+        ]
+        .into(),
     });
     (module, plan)
 }

@@ -111,11 +111,16 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
         unsupported: vec![],
     }
 }
-fn graphs(module: &TypedModule) -> Vec<(Vec<Vec<usize>>, Vec<bool>)> {
+fn graphs(module: &TypedModule) -> Vec<crate::CfgFacts> {
     module
         .functions
         .iter()
-        .map(|f| (vec![vec![]; f.blocks.len()], vec![true; f.blocks.len()]))
+        .map(|f| {
+            (
+                vec![vec![]; f.blocks.len()].into(),
+                vec![true; f.blocks.len()].into(),
+            )
+        })
         .collect()
 }
 fn compare(module: &TypedModule) -> (usize, usize) {

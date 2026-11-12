@@ -367,12 +367,12 @@ pub(crate) fn signature(ty: &Type) -> bool {
 // Only a completed proof on the original graph may supply these None facts.
 // The caller invokes this once; the replacement solve cannot refine again.
 pub(super) struct Refinement {
-    pub(super) graphs: Vec<(Vec<Vec<usize>>, Vec<bool>)>,
+    pub(super) graphs: Vec<crate::CfgFacts>,
     pub(super) inactive: Vec<BTreeSet<ValueId>>,
 }
 pub(super) fn refine(
     module: &TypedModule,
-    original: &[(Vec<Vec<usize>>, Vec<bool>)],
+    original: &[crate::CfgFacts],
     frozen: &[Facts],
     b: &mut Budget,
 ) -> CompileResult<Option<Refinement>> {
@@ -496,7 +496,7 @@ pub(super) fn refine(
                 }
             }
         }
-        proof.graphs.push((predecessors, reachable));
+        proof.graphs.push((predecessors.into(), reachable.into()));
         proof.inactive.push(inactive);
     }
     Ok(changed.then_some(proof))

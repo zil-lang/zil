@@ -227,12 +227,13 @@ impl Body {
         self.f.blocks[0].terminator = Terminator::Return(returned);
         let plan = FunctionPlan {
             function: self.f.id,
-            holds: self.holds,
+            holds: (self.holds).into(),
             blocks: vec![BlockPlan {
                 block: BlockId(0),
                 initialized_in: self.f.parameters.clone(),
                 initialized_out: self.initialized.into_iter().collect(),
-            }],
+            }]
+            .into(),
         };
         (self.f, plan)
     }
@@ -775,7 +776,8 @@ fn branch_joins_preserve_all_slice_return_origins_and_mutable_carrier_state() {
                 initialized_in: all.clone(),
                 initialized_out: if mutable { params } else { all },
             },
-        ];
+        ]
+        .into();
         let mut test = case(vec![(f, plan)]);
         test.pass();
         let verified = verify_module(

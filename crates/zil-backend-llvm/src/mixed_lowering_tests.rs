@@ -11,12 +11,14 @@ fn mixed(value: i32) -> VerifiedModule {
         holds: vec![ValueHold {
             value: ValueId(0),
             roots: vec![],
-        }],
+        }]
+        .into(),
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     module.functions.push(leaf);
     plan.module_fingerprint = module.fingerprint();

@@ -652,7 +652,7 @@ fn function(
 }
 pub(crate) fn module(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     retirement: bool,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {

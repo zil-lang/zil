@@ -1131,12 +1131,13 @@ impl Body {
         self.function.blocks[0].terminator = Terminator::Return(value);
         let plan = FunctionPlan {
             function: self.function.id,
-            holds: self.holds,
+            holds: (self.holds).into(),
             blocks: vec![BlockPlan {
                 block: BlockId(0),
                 initialized_in: self.function.parameters.clone(),
                 initialized_out: self.initialized.into_iter().collect(),
-            }],
+            }]
+            .into(),
         };
         (self.function, plan)
     }
@@ -1172,8 +1173,8 @@ fn external(parameters: Vec<Type>) -> (TypedFunction, FunctionPlan) {
         f,
         FunctionPlan {
             function: FunctionId(0),
-            blocks: vec![],
-            holds: vec![],
+            blocks: vec![].into(),
+            holds: vec![].into(),
         },
     )
 }

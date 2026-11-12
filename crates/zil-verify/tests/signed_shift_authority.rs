@@ -82,7 +82,8 @@ fn plan(module: &TypedModule) -> CandidatePlan {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
     });
     plan
 }

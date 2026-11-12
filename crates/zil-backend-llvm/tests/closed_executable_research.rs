@@ -58,9 +58,9 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
             environment: None,
             parameters: vec![],
             return_type: Type::I32,
-            locals: (vec![]).into(),
-            values: (vec![Type::I32]).into(),
-            blocks: (vec![BasicBlock {
+            locals: vec![].into(),
+            values: vec![Type::I32].into(),
+            blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(0)),
@@ -75,7 +75,7 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }])
+            }]
             .into(),
             entry: BlockId(0),
             span: Span {
@@ -106,12 +106,14 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
             holds: vec![ValueHold {
                 value: ValueId(0),
                 roots: vec![],
-            }],
+            }]
+            .into(),
             blocks: vec![BlockPlan {
                 block: BlockId(0),
                 initialized_in: vec![],
                 initialized_out: vec![],
-            }],
+            }]
+            .into(),
         })
         .collect();
     let verified = verify_module(module, candidate, &target, &Limits::default()).unwrap();

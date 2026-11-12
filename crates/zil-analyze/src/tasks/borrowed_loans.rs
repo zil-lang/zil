@@ -613,7 +613,7 @@ fn access(
 fn prove_apart(
     module: &TypedModule,
     plan: &CandidatePlan,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     apart: &mut [Apart],
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -701,7 +701,7 @@ fn prove_apart(
 pub(super) fn check(
     module: &TypedModule,
     plan: &CandidatePlan,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<()> {
     fee(b, module.functions.len())?;

@@ -120,20 +120,20 @@ fn fixture(mode: u8) -> zil_ir::TypedModule {
         environment: None,
         parameters: vec![],
         return_type: Type::I64,
-        locals: (vec![zil_ir::LocalDecl {
+        locals: vec![zil_ir::LocalDecl {
             id: LocalId(0),
             name: "stored".into(),
             ty: stored,
             mutable: false,
             span: Span::default(),
-        }])
+        }]
         .into(),
         values: values.into(),
-        blocks: (vec![zil_ir::BasicBlock {
+        blocks: vec![zil_ir::BasicBlock {
             id: BlockId(0),
             instructions,
             terminator: Terminator::Return(Some(ValueId(answer))),
-        }])
+        }]
         .into(),
         entry: BlockId(0),
         span: Span::default(),
@@ -193,7 +193,8 @@ fn checked(module: zil_ir::TypedModule) -> VerifiedModule {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![LocalId(0)],
-        }],
+        }]
+        .into(),
     });
     let target = module.target.clone();
     zil_verify::verify_module(module, candidate, &target, &Limits::default()).unwrap()

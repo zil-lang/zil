@@ -4983,8 +4983,8 @@ impl<'a> Reader<'a> {
             }
             functions.push(FunctionPlan {
                 function,
-                blocks,
-                holds,
+                blocks: blocks.into(),
+                holds: holds.into(),
             });
         }
         let count = self.count(self.limits.max_nodes, 9)?;

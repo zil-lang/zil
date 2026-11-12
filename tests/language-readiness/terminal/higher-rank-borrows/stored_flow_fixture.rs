@@ -86,7 +86,8 @@ fn function(
             id: BlockId(0),
             instructions,
             terminator: Terminator::Return(Some(ValueId(result))),
-        }].into(),
+        }]
+        .into(),
         span: s(),
     }
 }
@@ -268,7 +269,8 @@ pub(super) fn module() -> TypedModule {
             mutable: true,
             span: s(),
         },
-    ].into();
+    ]
+    .into();
     let identity = function(
         4,
         vec![shared.clone()],
@@ -911,12 +913,13 @@ pub(super) fn class_candidate(m: &TypedModule) -> CandidatePlan {
         }
         c.functions.push(FunctionPlan {
             function: f.id,
-            holds,
+            holds: holds.into(),
             blocks: vec![BlockPlan {
                 block: BlockId(0),
                 initialized_in: f.parameters.clone(),
                 initialized_out: f.parameters.clone(),
-            }],
+            }]
+            .into(),
         });
     }
     c

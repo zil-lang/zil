@@ -4935,14 +4935,14 @@ fn windows(
 /// reference summaries. No declared life bound fabricates a nonempty result.
 pub(super) fn derive(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
     derive_cfg(module, graphs, None, b)
 }
 fn derive_cfg(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     inactive: Option<&[BTreeSet<ValueId>]>,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
@@ -5408,7 +5408,7 @@ fn derive_cfg(
 
 pub(super) fn infer(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     byte_queries::authenticate(module, b)?;
@@ -5672,7 +5672,7 @@ fn address_result(
 fn actual_instructions(
     module: &TypedModule,
     f: &TypedFunction,
-    graph: &(Vec<Vec<usize>>, Vec<bool>),
+    graph: &crate::CfgFacts,
     b: &mut Budget,
 ) -> CompileResult<bool> {
     // A stored exclusive leaf moves with its complete SSA carrier. Two copies

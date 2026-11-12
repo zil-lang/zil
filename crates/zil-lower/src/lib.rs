@@ -783,9 +783,9 @@ mod tests {
                 environment: None,
                 parameters: vec![],
                 return_type: Type::I32,
-                locals: (vec![]).into(),
-                values: (vec![Type::I32]).into(),
-                blocks: (vec![BasicBlock {
+                locals: vec![].into(),
+                values: vec![Type::I32].into(),
+                blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![Instruction {
                         result: Some(ValueId(0)),
@@ -793,7 +793,7 @@ mod tests {
                         span: Span::default(),
                     }],
                     terminator: Terminator::Return(Some(ValueId(0))),
-                }])
+                }]
                 .into(),
                 entry: BlockId(0),
                 span: Span::default(),
@@ -814,7 +814,8 @@ mod tests {
                 block: BlockId(0),
                 initialized_in: vec![],
                 initialized_out: vec![],
-            }],
+            }]
+            .into(),
         });
         verify_module(module, plan, &target, &Limits::default()).unwrap()
     }
@@ -909,8 +910,7 @@ mod tests {
     #[test]
     fn preserves_the_verified_environment_table_and_closure_operands_exactly() {
         let mut module = checked(TargetProfile::host_llvm()).module().clone();
-        module.functions[0].values =
-            (vec![Type::I32, Type::Closure(ClosureId(0)), Type::I32]).into();
+        module.functions[0].values = vec![Type::I32, Type::Closure(ClosureId(0)), Type::I32].into();
         module.functions[0].blocks[0].instructions.extend([
             Instruction {
                 result: Some(ValueId(1)),
@@ -944,9 +944,9 @@ mod tests {
             environment: Some(ClosureId(0)),
             parameters: vec![],
             return_type: Type::I32,
-            locals: (vec![]).into(),
-            values: (vec![Type::I32]).into(),
-            blocks: (vec![BasicBlock {
+            locals: vec![].into(),
+            values: vec![Type::I32].into(),
+            blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(0)),
@@ -954,7 +954,7 @@ mod tests {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }])
+            }]
             .into(),
             entry: BlockId(0),
             span: Span::default(),
@@ -983,7 +983,8 @@ mod tests {
                     block: BlockId(0),
                     initialized_in: vec![],
                     initialized_out: vec![],
-                }],
+                }]
+                .into(),
             })
             .collect();
         let target = module.target.clone();
