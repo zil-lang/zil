@@ -837,9 +837,9 @@
       "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
     },
     "full_push_native": {
-      "read_goal": "22ea292d3a967a43562254a6c26fcf971718e8dc",
+      "read_goal": "ded56ee971b0eed6706321483d7205f77fc3a80c",
       "branch": "research/full-push-native",
-      "checkpoint": "e8f598c85910e9a44d2a28c11bd0d16df1d2dc7b",
+      "checkpoint": "8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec",
       "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
       "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
       "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
@@ -859,16 +859,29 @@
           "failed": 0,
           "ignored": 0
         },
-        "overlap": "前面的105/424测试与1588重叠，不累加"
+        "overlap": "前面的105/424测试与1588重叠，不累加",
+        "driver_actual_425": "2 actual driver tests pass; private edit/current semantic restore with fresh complete oracle. Subsequent integrated run03 fixed panic and adjacent invalidation regressions; remaining old item-work assertion corrected, full workspace retry in progress.",
+        "latest_verify": "646 library tests passed through bd21; next exact raw_nodes run04 23/23 passed including symbol-header obligation; overlap not summed.",
+        "latest_compile": "workspace all-targets llvm-api check09 passed; whole workspace test01 failed at link due ENOSPC, raw preserved; retry02 running, no acceptance claimed",
+        "measurement_tools": "23 light tests passed; full actual ZIL/Cargo argv binding, strict diagnostic identity comment normalization only, full raw LLVM/ELF still retained"
       },
       "llvm_extension": {
         "base_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
         "v1_patch_sha256": "06b915cdd128d0ba42c33b2bf8abb8161e07b4b5012dd7d3aa1fcb2fc06546ba",
-        "status": "isolated CodeGen object relink succeeded; default hook null; original SDK/DSO retained; optimization/MIR consumer under implementation"
+        "status": "v2 four pinned LLVM TUs/three archives built and linked successfully; optimization and MIR native consumers remain unaccepted; Cargo native-products feature and runtime push switch both explicit/default off",
+        "v2_patch_sha256": "0f92df0a1695b002c8676c6b5f23864fd3a2a1f33014f5cd359e52256486e195"
       },
       "remaining": "rich/global obligations/位置绑定/整项目外层key、driver完整验收及native产品链仍施工；无新性能/Rust领先/全部完成声明",
-      "raw": "本轮out/runs与SDK扩展日志仍本地，尚未新归档；旧900/v4远端恢复证据保持可恢复，不能把本轮本地目录称持久备份",
-      "handoff": "https://github.com/zil-lang/zil/blob/e8f598c85910e9a44d2a28c11bd0d16df1d2dc7b/.task/full-push-native.md"
+      "raw": {
+        "archive_commit": "b122d56f2a13a3e710ce3e56cdb70df6f843f037",
+        "path": "research/incremental-demand-full-push-20261112-v5",
+        "files": 194,
+        "raw_bytes": 7745404,
+        "compressed_sha256": "da16160f46b845cb406fc3299ad41d5be6662614097e4feca0f8c39027c4bba4",
+        "recovery": "fresh HTTPS retrieval and full file/part verification passed; receipt source85c68a5c5",
+        "scope": "Intermediate consumer tests including failures and pinned upstream sources through 4d90; later tests/native work need next archive. Original lost old-environment raw not recovered."
+      },
+      "handoff": "https://github.com/zil-lang/zil/blob/8150e8790e9bbfb62f2b51a8ba6853bd22bea0ec/.task/full-push-native.md"
     }
   }
 }
