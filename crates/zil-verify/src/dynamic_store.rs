@@ -2,6 +2,7 @@
 use super::*;
 
 mod carrier_cache;
+mod owned_elements;
 #[cfg(test)]
 mod tests;
 pub(super) use carrier_cache::{Cache as CarrierCache, register_actual_carrier_root};
@@ -157,7 +158,7 @@ fn pod_type_work(ty: &Type, budget: &mut Budget) -> Check<()> {
 }
 
 fn pod_name_work(element: &Type, budget: &mut Budget) -> Check<()> {
-    if matches!(element, Type::Tuple(_) | Type::Array { .. }) {
+    if matches!(element, Type::Tuple(_) | Type::Array { .. } | Type::Managed(_)) {
         pod_type_work(element, budget)?;
         return budget.spend(PREFIX.len().saturating_add(80));
     }
@@ -603,6 +604,9 @@ fn check_element_admission(
         return check_pod_element(element, &module.target, span, budget);
     }
     resources::charge_payload(element, budget)?;
+    if budget.nested_store_windows && owned_elements::candidate(element, budget)? {
+        return owned_elements::check(module, element, span, budget);
+    }
     if packages::has_children(element) {
         if !product_container {
             return Err(unsupported(
@@ -960,6 +964,9 @@ fn layout(
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
+    if matches!(element, Type::Managed(_)) {
+        return format!("{PREFIX}owner:{}>", element.fingerprint());
+    }
     if matches!(element, Type::Tuple(_)) {
         return format!("{PREFIX}tuple:{}>", element.fingerprint());
     }
@@ -1124,6 +1131,7 @@ pub(super) fn check_instruction(
                 instruction.kind,
                 InstructionKind::OwnedStoreBorrowMut { .. }
             ) && !plain_element(element)
+                && !budget.nested_store_windows
                 && packages::has_children(element)
             {
                 return Err(unsupported(
