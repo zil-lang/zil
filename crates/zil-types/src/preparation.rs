@@ -11,10 +11,14 @@ pub struct InferredProgram<'a> {
     limits: Limits,
     shared: Option<&'a Arc<CoreProgram>>,
     producer: Option<&'a zil_expand::ProducedProgram>,
+    inference_stats: Option<RawInferenceStats>,
 }
 impl InferredProgram<'_> {
     pub fn program(&self) -> &CoreProgram {
         &self.core
+    }
+    pub fn raw_inference_stats(&self) -> Option<&RawInferenceStats> {
+        self.inference_stats.as_ref()
     }
     /// Retain the current raw input without claiming CT evaluation or Verify.
     /// Only identical inference is reusable; callers still perform all stages.
@@ -92,6 +96,7 @@ pub fn infer_program_for_ct<'a>(
         limits: limits.clone(),
         shared: None,
         producer: None,
+        inference_stats: None,
     })
 }
 
@@ -114,6 +119,23 @@ pub fn infer_produced_program_for_ct<'a>(
     let mut inferred = infer_shared_program_for_ct(program.program(), limits)?;
     inferred.producer = Some(program);
     Ok(inferred)
+}
+
+/// Reuse only private successful raw identity receipts. CT and later current
+/// checking still consume this exact Core; no downstream Typed seal is read.
+pub fn infer_produced_program_for_ct_with_session<'a>(
+    program: &'a zil_expand::ProducedProgram,
+    limits: &Limits,
+    session: &mut RawInferenceSession,
+) -> CompileResult<InferredProgram<'a>> {
+    let (core, stats) = session.infer(program, limits)?;
+    Ok(InferredProgram {
+        core,
+        limits: limits.clone(),
+        shared: Some(program.program()),
+        producer: Some(program),
+        inference_stats: Some(stats),
+    })
 }
 
 pub fn check_prepared_program(
