@@ -688,6 +688,9 @@ fn ground_output_obligations(
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if b.pending_dyn_outputs.is_empty() {
+        return Ok(());
+    }
     ordered(b, b.pending_dyn_outputs.len(), 0)?;
     // Detach the immutable directory while charging ancestry through Budget.
     let Some(obligations) = b.pending_dyn_outputs.remove(&f.id) else {
