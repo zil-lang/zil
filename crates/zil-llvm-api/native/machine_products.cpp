@@ -1018,7 +1018,8 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       C.recording->input = functionText(F);
       C.recording->world = worldText(R.module, &F, &R.stats);
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
-      if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
+      if (C.recording->input.empty() || C.recording->world.empty() ||
+          !R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
         R.discardRecording(C);
     }
     if (C.recording) {

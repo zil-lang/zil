@@ -6,6 +6,7 @@
 #include "machine_products.h"
 #include "analysis_facts.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/CFG.h"
@@ -16,6 +17,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/Verifier.h"
@@ -182,12 +184,13 @@ bool incomingCallersHaveCurrentOwners(const Function &F) {
   for (const User *U : F.users()) {
     const auto *C = dyn_cast<CallBase>(U);
     if (!C || C->getCalledOperand() != &F || !C->getParent()) return false;
-    const Function *Caller = C->getFunction();
+    const Function *Caller = C->getParent()->getParent();
     if (!Caller || Caller->getParent() != F.getParent()) return false;
   }
   return true;
 }
 bool eligibleFunction(const Function &F) {
+  if (!incomingCallersHaveCurrentOwners(F)) return admissionFailure(F, nullptr, "unbound-incoming-owner");
   if (F.isDeclaration() || F.isVarArg() || F.getCallingConv() != CallingConv::C ||
       !F.getReturnType()->isIntegerTy() || F.hasPersonalityFn() || F.hasGC() ||
       F.hasPrefixData() || F.hasPrologueData() || F.hasComdat() || !acyclic(F)) return admissionFailure(F, nullptr, "function-signature-or-CFG");
@@ -198,7 +201,7 @@ bool eligibleFunction(const Function &F) {
   for (const User *U : F.users()) {
     const auto *C = dyn_cast<CallBase>(U);
     if (!C || C->getCalledOperand() != &F) return admissionFailure(F, nullptr, "noncall-function-use");
-    const Function *Caller = C->getFunction();
+    const Function *Caller = C->getParent()->getParent();
     if (!Caller || Caller->getParent() != F.getParent() || nameState(*Caller).present < 0 ||
         !ownedUseSequence(*Caller, nullptr))
       return admissionFailure(F, nullptr, "unbound-incoming-caller");
@@ -263,13 +266,93 @@ bool eligibleFunction(const Function &F) {
   if (!ownedUseSequence(F, nullptr)) return admissionFailure(F, nullptr, "unbound-owned-use");
   return true;
 }
+// Function::print does not emit definitions of body-only identified types.
+// Collect the actual reachable type graph once, in deterministic root/operand
+// order. Type::print emits each named definition with all packed/opaque/element
+// fields; separately visiting subtypes closes every referenced definition.
+// No borrowed type or LLVM owner escapes this local projection.
+struct FunctionTypeProjection {
+  SmallPtrSet<const Type *, 16> Types;
+  SmallPtrSet<const Constant *, 16> Constants;
+  SmallVector<const StructType *, 4> Definitions;
+  bool addType(Type *Root) {
+    auto Leaf = [](Type *T) { return T->isIntegerTy() || T->isVoidTy() || T->isPointerTy() ||
+                                    T->isFloatingPointTy() || T->isLabelTy() || T->isTokenTy(); };
+    if (!Root) return false;
+    // The overwhelmingly common scalar/opaque-pointer types have no subtype
+    // definitions. Avoid even a pointer-set operation for these leaves.
+    if (Leaf(Root)) return true;
+    SmallVector<Type *, 8> Pending{Root};
+    while (!Pending.empty()) {
+      Type *T = Pending.pop_back_val();
+      if (!T) return false;
+      if (Leaf(T) || !Types.insert(T).second) continue;
+      if (const auto *ST = dyn_cast<StructType>(T)) if (!ST->isLiteral()) {
+        // The standalone Type printer gives an unnamed identified struct a
+        // transient address. Refuse this optional product, not compilation.
+        if (!ST->hasName()) return false;
+        Definitions.push_back(ST);
+      }
+      for (Type *Sub : T->subtypes()) Pending.push_back(Sub);
+    }
+    return true;
+  }
+  bool addAttributes(AttributeList Attrs) {
+    for (AttributeSet Set : Attrs) for (Attribute A : Set)
+      if (A.isTypeAttribute() && !addType(A.getValueAsType())) return false;
+    return true;
+  }
+  bool addValue(const Value *Root) {
+    auto Scan = [&](const Value *V) {
+      if (!V || !addType(V->getType()) || isa<BlockAddress>(V)) return false;
+      if (const auto *GEP = dyn_cast<GEPOperator>(V))
+        if (!addType(GEP->getSourceElementType())) return false;
+      return true;
+    };
+    if (!Scan(Root)) return false;
+    const auto *C = dyn_cast<Constant>(Root);
+    // Global definitions are independently bound by the complete world.
+    if (!C || isa<GlobalValue>(C) || !C->getNumOperands()) return true;
+    SmallVector<const Constant *, 8> Pending{C};
+    while (!Pending.empty()) {
+      C = Pending.pop_back_val();
+      if (!Constants.insert(C).second) continue;
+      for (const Use &U : C->operands()) {
+        const Value *V = U.get();
+        if (!Scan(V)) return false;
+        if (const auto *Sub = dyn_cast<Constant>(V))
+          if (!isa<GlobalValue>(Sub) && Sub->getNumOperands()) Pending.push_back(Sub);
+      }
+    }
+    return true;
+  }
+  bool addInstruction(const Instruction &I) {
+    if (!addType(I.getType())) return false;
+    if (const auto *A = dyn_cast<AllocaInst>(&I))
+      if (!addType(A->getAllocatedType())) return false;
+    if (const auto *GEP = dyn_cast<GetElementPtrInst>(&I))
+      if (!addType(GEP->getSourceElementType())) return false;
+    if (const auto *C = dyn_cast<CallBase>(&I))
+      if (!addType(C->getFunctionType()) || !addAttributes(C->getAttributes())) return false;
+    for (const Use &U : I.operands()) if (!addValue(U.get())) return false;
+    return true;
+  }
+  void print(raw_ostream &OS) const {
+    if (Definitions.empty()) return;
+    OS << "\n; complete-body-type-definitions-v1\n";
+    for (size_t I = 0; I != Definitions.size(); ++I) {
+      OS << I << ':'; Definitions[I]->print(OS, false, false); OS << '\n';
+    }
+  }
+};
 std::string projectFunctionText(const Function &F, bool *EligibilityTypesBound) {
   if (EligibilityTypesBound) *EligibilityTypesBound = false;
   std::vector<uint32_t> Uses;
   if (!ownedUseSequence(F, &Uses)) return {};
   NameState Names = nameState(F);
   if (Names.present < 0) return {};
-  bool CompleteTypeReads = true;
+  FunctionTypeProjection Types;
+  if (!Types.addType(F.getFunctionType()) || !Types.addAttributes(F.getAttributes())) return {};
   std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true);
   OS << "\n; block-number-state " << F.getMaxBlockNumber() << ':' << F.getBlockNumberEpoch();
   for (const BasicBlock &B : F) OS << ':' << B.getNumber();
@@ -285,19 +368,7 @@ std::string projectFunctionText(const Function &F, bool *EligibilityTypesBound) 
   }
   uint64_t Ordinal = 0;
   for (const BasicBlock &B : F) for (const Instruction &I : B) {
-    if (EligibilityTypesBound) {
-      auto Identified = [](Type *T) {
-        const auto *ST = dyn_cast<StructType>(T); return ST && !ST->isLiteral();
-      };
-      // numeric() reads struct ELEMENT types. The printer may emit only a
-      // local identified type's name; do not infer that predicate from text.
-      // All other previously eligible aggregate values have literal integer
-      // fields. ExtractValue is the sole eligible instruction that can read
-      // an aggregate operand while producing a scalar rather than that type.
-      if (Identified(I.getType())) CompleteTypeReads = false;
-      if (const auto *E = dyn_cast<ExtractValueInst>(&I))
-        if (Identified(E->getAggregateOperand()->getType())) CompleteTypeReads = false;
-    }
+    if (!Types.addInstruction(I)) return {};
     if (const auto *C = dyn_cast<CallBase>(&I)) if (!C->getAttributes().isEmpty()) {
       OS << "\n; complete-call-attributes " << Ordinal << ' ';
       C->getAttributes().print(OS);
@@ -309,11 +380,12 @@ std::string projectFunctionText(const Function &F, bool *EligibilityTypesBound) 
     }
     ++Ordinal;
   }
+  Types.print(OS);
   OS << "\n; owned-use-sequence-v1\n";
   // A private resident byte projection, never LLVM source or a disk format.
   OS.write(reinterpret_cast<const char *>(Uses.data()), Uses.size() * sizeof(uint32_t));
   OS << '\n';
-  if (EligibilityTypesBound) *EligibilityTypesBound = CompleteTypeReads;
+  if (EligibilityTypesBound) *EligibilityTypesBound = true;
   return S;
 }
 std::string functionText(const Function &F) { return projectFunctionText(F, nullptr); }
@@ -354,7 +426,7 @@ std::string worldText(const Module &M, const Function *Subject, ZilNativeProduct
     // even when this closed arithmetic function has no outbound user calls.
     std::set<const Function *> Callers;
     for (const User *U : Subject->users())
-      if (const auto *I = dyn_cast<Instruction>(U)) Callers.insert(I->getFunction());
+      if (const auto *I = dyn_cast<Instruction>(U)) Callers.insert(I->getParent()->getParent());
     for (const Function &F : M)
       if (Callers.count(&F)) {
         std::string Caller = functionText(F);
@@ -368,7 +440,7 @@ std::string worldText(const Module &M, const Function *Subject, ZilNativeProduct
     for (const Use &U : Subject->uses()) {
       const auto *I = dyn_cast<Instruction>(U.getUser());
       if (!I) { U.getUser()->print(OS); OS << '\n'; continue; }
-      const Function *Caller = I->getFunction();
+      const Function *Caller = I->getParent()->getParent();
       size_t Block = 0, Inst = 0;
       for (const BasicBlock &B : *Caller) {
         if (&B == I->getParent()) {
@@ -744,8 +816,8 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
 }
 // Entry eligibility was freshly established before the original stage. A
 // complete current equality of every field it read is a producer proof, not a
-// Function* identity memo. Unknown/local-identified type domains still execute
-// the original predicate. Current owners/hidden projection state are checked
+// Function* identity memo. Unknown type projections refuse the product.
+// Current owners/hidden projection state are checked
 // independently before equality can be used.
 bool projectAdmittedStageExit(const Module &M, const Function &F, const Stage &P,
                              ZilNativeProductStats *Stats, std::string &Output,
@@ -1096,9 +1168,9 @@ extern "C" int ZilNativeProductsEligibilityProducerCounterexample() {
   new GlobalVariable(M, Address->getType(), true, GlobalValue::ExternalLinkage, Address, "taken");
   if (zil::incomingCallersHaveCurrentOwners(*F) ||
       zil::projectAdmittedStageExit(M, *F, P, nullptr, Output, &Reused) || Reused) return 0;
-  // Same official function/header text does NOT encode a body-only identified
-  // struct's elements. The producer proof must refuse that domain and run the
-  // original predicate, which rejects the hidden pointer field here.
+  // Keep the original true/false predicate counterexample. Official function
+  // text does not encode these elements; the GENERAL key must now bind them,
+  // rather than only making the new fast eligibility branch conservative.
   auto BuildAggregate = [](LLVMContext &C, Module &Mod, bool PointerField) {
     auto *Int = Type::getInt32Ty(C);
     auto *Pair = StructType::create(C, "local.only");
@@ -1113,7 +1185,86 @@ extern "C" int ZilNativeProductsEligibilityProducerCounterexample() {
   if (verifyModule(MA, nullptr) || verifyModule(MB, nullptr) ||
       !zil::eligibleFunction(*FA) || zil::eligibleFunction(*FBad)) return 0;
   zil::Stage Identified; Identified.Input = zil::functionText(*FA); Identified.World = zil::worldText(MA, FA);
-  if (Identified.Input != zil::functionText(*FBad) || Identified.World != zil::worldText(MB, FBad) ||
+  auto Official = [](const Function &Fn) { std::string S; raw_string_ostream OS(S); Fn.print(OS, nullptr, true); return S; };
+  if (Official(*FA) != Official(*FBad) || Identified.Input.empty() ||
+      Identified.Input == zil::functionText(*FBad) || Identified.World != zil::worldText(MB, FBad) ||
       zil::projectAdmittedStageExit(MB, *FBad, Identified, nullptr, Output, &Reused) || Reused) return 0;
   return !verifyModule(M, nullptr);
+}
+
+extern "C" int ZilNativeProductsTypeAndOwnerCounterexamples() {
+  if (!zil::symbols().available) return 0;
+  auto Fail = [](const char *Site) {
+    if (zil::AnalysisDiagnostics) std::fprintf(stderr, "ZIL type/owner counterexample: %s\n", Site);
+    return 0;
+  };
+  auto Official = [](const Function &F) {
+    std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true); return S;
+  };
+  auto Build = [](LLVMContext &C, Module &M, unsigned Width, unsigned Mode) {
+    auto *I32 = Type::getInt32Ty(C); auto *Ptr = PointerType::getUnqual(C);
+    auto *T = StructType::create(C, "local.only"); T->setBody({I32, IntegerType::get(C, Width)});
+    auto *Subject = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "subject", &M);
+    Subject->getArg(0)->setName("x");
+    auto *Entry = BasicBlock::Create(C, "entry", Subject); IRBuilder<> SB(Entry);
+    if (!Mode) {
+      // Force a real extract instruction: IRBuilder's constant folder would
+      // otherwise erase the very body-only type reference under test.
+      auto *Value = ExtractValueInst::Create(ConstantAggregateZero::get(T), {0}, "value", Entry);
+      SB.CreateRet(Value); return std::make_pair(Subject, Subject);
+    }
+    SB.CreateRet(Subject->getArg(0));
+    SmallVector<Type *, 2> Params;
+    if (Mode == 2) Params.push_back(Ptr);
+    if (Mode == 3) { Params.push_back(Ptr); Params.push_back(Ptr); }
+    auto *Caller = Function::Create(FunctionType::get(Mode == 4 ? static_cast<Type *>(Ptr) : I32, Params, false),
+                                    GlobalValue::ExternalLinkage, "caller", &M);
+    unsigned Index = 0; for (Argument &A : Caller->args()) A.setName(Index++ ? "data" : "input");
+    IRBuilder<> B(BasicBlock::Create(C, "entry", Caller));
+    if (Mode == 1) B.CreateAlloca(T, nullptr, "storage");
+    if (Mode == 2) B.CreateGEP(T, Caller->getArg(0), {B.getInt32(0), B.getInt32(1)}, "field");
+    if (Mode == 3) {
+      auto *Call = B.CreateCall(FunctionType::get(Type::getVoidTy(C), {Ptr}, false),
+                                Caller->getArg(0), {Caller->getArg(1)});
+      Call->addParamAttr(0, Attribute::getWithByValType(C, T));
+    }
+    auto *Call = B.CreateCall(Subject, {B.getInt32(7)}, "call");
+    if (Mode == 4) {
+      auto *Storage = new GlobalVariable(M, Type::getInt8Ty(C), false,
+                                          GlobalValue::ExternalLinkage, nullptr, "storage");
+      Constant *Indices[] = {B.getInt32(0), B.getInt32(1)};
+      auto *GEP = ConstantExpr::getGetElementPtr(T, Storage, Indices);
+      B.CreateRet(GEP);
+    } else B.CreateRet(Call);
+    return std::make_pair(Subject, Caller);
+  };
+  // Every pair is valid; both scalar subjects are admitted. The official body
+  // and header-only world collide while a complete current type graph differs.
+  // Cover ordinary aggregate operands, alloca allocated type, GEP source type,
+  // call-site byval type and ConstantExpr GEP source independently.
+  for (unsigned Mode = 0; Mode != 5; ++Mode) {
+    LLVMContext A, B; Module MA("complete-type-projection", A), MB("complete-type-projection", B);
+    auto Left = Build(A, MA, 8, Mode), Right = Build(B, MB, 16, Mode);
+    if (verifyModule(MA, nullptr) || verifyModule(MB, nullptr)) return Fail("module-verifier");
+    if (!zil::eligibleFunction(*Left.first) || !zil::eligibleFunction(*Right.first)) return Fail("two-admitted-subjects");
+    if (Official(*Left.second) != Official(*Right.second)) return Fail("official-body-must-collide");
+    auto LP = zil::functionText(*Left.second), RP = zil::functionText(*Right.second);
+    if (LP.empty() || RP.empty() || LP == RP) return Fail("complete-type-definitions-must-differ");
+    if (zil::worldText(MA, nullptr) != zil::worldText(MB, nullptr)) return Fail("headers-must-collide");
+    if (Mode && zil::worldText(MA, Left.first) == zil::worldText(MB, Right.first)) return Fail("incoming-world-must-differ");
+  }
+  LLVMContext C; Module M("orphan-owners", C);
+  auto *I32 = Type::getInt32Ty(C);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  IRBuilder<> B(BasicBlock::Create(C, "entry", F)); B.CreateRet(F->getArg(0));
+  auto *Detached = CallInst::Create(F->getFunctionType(), F, {B.getInt32(7)});
+  bool Refused = !zil::incomingCallersHaveCurrentOwners(*F) && !zil::eligibleFunction(*F) && zil::worldText(M, F).empty();
+  Detached->deleteValue();
+  if (!Refused) return Fail("parentless-call");
+  auto *Orphan = BasicBlock::Create(C, "orphan");
+  CallInst::Create(F->getFunctionType(), F, {B.getInt32(7)}, "call", Orphan);
+  Refused = !zil::incomingCallersHaveCurrentOwners(*F) && !zil::eligibleFunction(*F) && zil::worldText(M, F).empty();
+  Orphan->deleteValue();
+  if (!Refused) return Fail("parentless-block");
+  return !verifyModule(M, nullptr) && zil::eligibleFunction(*F);
 }

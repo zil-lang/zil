@@ -66,6 +66,7 @@ int ZilNativeProductsAttributeMetadataCounterexample(void);
 int ZilNativeProductsModuleHeaderCounterexample(void);
 int ZilNativeProductsUnchangedStageCounterexample(void);
 int ZilNativeProductsEligibilityProducerCounterexample(void);
+int ZilNativeProductsTypeAndOwnerCounterexamples(void);
 int ZilNativeAnalysisUnsupportedKeysCounterexample(void);
 #ifdef __cplusplus
 }
