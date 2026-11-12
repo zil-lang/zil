@@ -67,6 +67,43 @@ struct Snapshot {
   std::set<ID> emissionProviders;
 };
 
+// Optional cache capacity is independent of every compilation/work budget.
+// This measures logical retained payload, not allocator capacity or process RSS.
+constexpr size_t MaxMachinePayload = 64 * 1024 * 1024;
+constexpr size_t MaxMachineSlots = 4096;
+size_t boundedAdd(size_t A, size_t B) {
+  if (A > MaxMachinePayload || B > MaxMachinePayload - A)
+    return MaxMachinePayload + 1;
+  return A + B;
+}
+size_t stepsPayload(const std::vector<PassStep> &Steps) {
+  size_t N = 0;
+  for (const auto &Step : Steps) {
+    N = boundedAdd(N, sizeof(PassStep));
+    for (ID Dependency : Step.dependencies) {
+      (void)Dependency;
+      N = boundedAdd(N, sizeof(ID));
+    }
+  }
+  return N;
+}
+size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
+  size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
+  for (const auto *Text : {&S.input, &S.world, &S.mir}) N = boundedAdd(N, Text->size());
+  N = boundedAdd(N, stepsPayload(S.pipeline));
+  N = boundedAdd(N, stepsPayload(S.sequence));
+  for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
+  return N;
+}
+size_t recordingReservation(const Snapshot &S, size_t NameBytes) {
+  // Until the function finishes, reserve its full remaining trace and the
+  // largest possible dependency closure, before accumulating either of them.
+  size_t N = boundedAdd(snapshotPayload(S, NameBytes), stepsPayload(S.pipeline));
+  for (const auto &Step : S.pipeline)
+    for (ID Dependency : Step.dependencies) { (void)Dependency; N = boundedAdd(N, sizeof(ID)); }
+  return N;
+}
+
 // Inspect the actual current legacy container before touching current MIR.
 // IDs name fixed-DSO passes; no Pass/PM instance pointer is retained.
 bool bindPipeline(llvm::Pass &P, Snapshot &S) {
@@ -191,6 +228,9 @@ struct MachineRequest {
     llvm::Pass *pendingMachine = nullptr;
     llvm::Pass *skipped = nullptr;
     bool emitted = false;
+    size_t reservation = 0;
+    size_t replayPosition = 0;
+    size_t position() const { return replay ? replayPosition : sequence.size(); }
   };
   llvm::Module &module;
   llvm::TargetMachine &machine;
@@ -199,7 +239,26 @@ struct MachineRequest {
   ZilNativeProductStats &stats;
   bool &failed;
   std::map<const llvm::Function *, Current> current;
+  size_t reservedBytes = 0;
+  size_t reservedSlots = 0;
 
+  bool reserve(Current &C, size_t Bytes) {
+    const size_t Other = reservedBytes - C.reservation;
+    if (Bytes > MaxMachinePayload || Other > MaxMachinePayload - Bytes ||
+        (!C.reservation && reservedSlots == MaxMachineSlots))
+      return false;
+    if (!C.reservation) ++reservedSlots;
+    reservedBytes = Other + Bytes;
+    C.reservation = Bytes;
+    return true;
+  }
+  void discardRecording(Current &C) {
+    C.recording.reset();
+    std::vector<PassStep>().swap(C.sequence);
+    reservedBytes -= C.reservation;
+    if (C.reservation) --reservedSlots;
+    C.reservation = 0;
+  }
   void fail() {
     if (!failed) ++stats.failed_replays;
     failed = true;
@@ -210,9 +269,9 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     llvm::Module &M, llvm::TargetMachine &TM, const std::string &Config,
     std::shared_ptr<const MachineProducts> Prior, ZilNativeProductStats &Stats,
     bool &Failed) {
-  if (!targetInfoAPI().available())
+  if (!targetInfoAPI().available() || Config.size() > MaxMachinePayload)
     return {nullptr, [](MachineRequest *R) { delete R; }};
-  return {new MachineRequest{M, TM, Config, std::move(Prior), Stats, Failed, {}},
+  return {new MachineRequest{M, TM, Config, std::move(Prior), Stats, Failed, {}, Config.size(), 0},
           [](MachineRequest *R) { delete R; }};
 }
 
@@ -229,6 +288,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
   if (New) {
     const auto &Triple = R.machine.getTargetTriple();
     if (Triple.getArch() == llvm::Triple::x86_64 && Triple.isOSLinux() &&
+        R.reservedSlots < MaxMachineSlots && R.reservedBytes < MaxMachinePayload &&
         inputDomain(F)) {
       C.recording = std::make_shared<Snapshot>();
       if (!bindPipeline(P, *C.recording)) C.recording.reset();
@@ -237,6 +297,10 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       C.recording->input = functionText(F);
       C.recording->world = worldText(R.module, &F);
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
+      if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
+        R.discardRecording(C);
+    }
+    if (C.recording) {
       if (R.prior && R.prior->config == R.config) {
         auto Old = R.prior->functions.find(F.getName().str());
 
@@ -247,8 +311,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             Old->second->firstMachine == C.recording->firstMachine &&
             !Old->second->sequence.empty() &&
             Old->second->sequence.front() == describe(P, true) &&
-            !MMI.getMachineFunction(F)) {
+            !MMI.getMachineFunction(F) &&
+            R.reserve(C, snapshotPayload(*Old->second, F.getName().size()))) {
           C.replay = Old->second;
+          // Current keys have proved the complete binding. Retain the shared
+          // sealed snapshot, not a second copy of its identical input/world.
+          C.recording.reset();
           auto Parser = llvm::createMIRParser(
               llvm::MemoryBuffer::getMemBufferCopy(C.replay->mir, "zil-current-machine"),
               R.module.getContext());
@@ -279,8 +347,8 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (!C.replay) ++R.stats.machine_function_executions;
   }
   if (C.replay &&
-      (C.sequence.size() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.sequence.size()] == describe(P, true))))
+      (C.position() >= C.replay->sequence.size() ||
+       !(C.replay->sequence[C.position()] == describe(P, true))))
     R.fail();
   if (R.failed) {
     C.skipped = &P;
@@ -294,16 +362,18 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
           C.recording->world != worldText(R.module, &F)) {
-        C.recording.reset();
+        R.discardRecording(C);
       } else {
         void *Info = targetInfoAPI().clone(MF);
         if (!Info) {
-          C.recording.reset();
+          R.discardRecording(C);
         } else {
           C.recording->targetInfo = {Info, targetInfoAPI().dispose};
           C.recording->properties = MF->getProperties();
           C.recording->mir = machineText(MMI, *MF);
           R.stats.mir_snapshot_bytes += C.recording->mir.size();
+          if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
+            R.discardRecording(C);
         }
       }
     }
@@ -330,22 +400,37 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   if (!C.recording && !C.replay) return Skipped;
   auto Step = describe(P, Machine);
   if (C.replay &&
-      (C.sequence.size() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.sequence.size()] == Step)))
+      (C.position() >= C.replay->sequence.size() ||
+       !(C.replay->sequence[C.position()] == Step)))
     R.fail();
-  C.sequence.push_back(std::move(Step));
+  if (C.replay) {
+    ++C.replayPosition;
+  } else {
+    // An unplanned nested/extra pass cannot issue a cold receipt. Stop its
+    // optional trace immediately instead of growing past the reserved bound.
+    const size_t Position = C.recording->firstMachine + C.sequence.size();
+    auto ContainerStep = Step;
+    ContainerStep.machine = false;
+    if (Position >= C.recording->pipeline.size() ||
+        !(ContainerStep == C.recording->pipeline[Position])) {
+      R.discardRecording(C);
+    } else {
+      C.sequence.push_back(std::move(Step));
+    }
+  }
   return Skipped;
 }
 
 std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
   auto Next = std::make_shared<MachineProducts>();
   Next->config = R.config;
+  R.stats.retained_bytes += R.config.size();
   for (auto &[F, C] : R.current) {
     std::shared_ptr<const Snapshot> S;
     if (C.replay) {
       // The whole actual container was bound before any restoration. Finish
       // is publication only; an incomplete observed tail discards the product.
-      if (C.emitted && C.sequence.size() == C.replay->sequence.size()) S = C.replay;
+      if (C.emitted && C.replayPosition == C.replay->sequence.size()) S = C.replay;
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
       C.recording->sequence = std::move(C.sequence);
       bool Complete = C.recording->firstMachine + C.recording->sequence.size() ==
@@ -358,12 +443,7 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       if (Complete && providers(*C.recording)) S = std::move(C.recording);
     }
     if (S) {
-      R.stats.retained_bytes += S->input.size() + S->world.size() + S->mir.size() +
-                                sizeof(llvm::X86MachineFunctionInfo);
-      for (const auto *Steps : {&S->sequence, &S->pipeline})
-        for (const auto &Step : *Steps)
-          R.stats.retained_bytes += sizeof(PassStep) + Step.dependencies.size() * sizeof(ID);
-      R.stats.retained_bytes += S->emissionProviders.size() * sizeof(ID);
+      R.stats.retained_bytes += snapshotPayload(*S, F->getName().size());
       Next->functions.emplace(F->getName().str(), std::move(S));
     }
   }
