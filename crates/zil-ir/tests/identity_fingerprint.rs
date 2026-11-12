@@ -926,3 +926,46 @@ fn returned_capture_sources_bind_identity_including_unknown_empty_and_actual_pat
         zil_ir::callable_return_contract_fingerprint(&contract)
     );
 }
+
+#[test]
+fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
+    let limits = zil_base::Limits::default();
+    for sources in [
+        None,
+        Some(vec![]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            sources: vec![StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            }],
+        }]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![ContractProjection::Capture(1)],
+            },
+            sources: vec![StoragePosition {
+                base: StorageBase::Parameter(1),
+                path: vec![ContractProjection::Place(PlaceProjection::Field(2))],
+            }],
+        }]),
+    ] {
+        // Transport controls deliberately assert no semantic kernel admission.
+        let mut raw = module(false);
+        let mut c = return_contract(CallableKind::Fn);
+        c.capture_sources = sources;
+        raw.functions[0].callable_return_contract = Some(c);
+        let plan = CandidatePlan::empty_for(&raw);
+        let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(raw, decoded.0);
+        assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
+        let mut previous = bytes.clone();
+        previous[8..12].copy_from_slice(&47u32.to_le_bytes());
+        assert!(wire::decode_module_candidate(&previous, &limits).is_err());
+    }
+}

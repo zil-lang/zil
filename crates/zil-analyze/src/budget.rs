@@ -1718,6 +1718,57 @@ pub(super) fn preflight(
         budget.input(1, "function preflight")?;
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
+            budget.input(1, "callable source presence")?;
+            if let Some(bindings) = &contract.capture_sources {
+                count(
+                    0,
+                    bindings.len(),
+                    limits.max_nodes,
+                    "callable source binding",
+                )?;
+                budget.input(
+                    bindings.len().saturating_add(1),
+                    "callable source binding inventory",
+                )?;
+                for binding in bindings {
+                    count(
+                        0,
+                        binding.position.path.len(),
+                        limits.max_call_depth,
+                        "callable capture path",
+                    )?;
+                    count(
+                        0,
+                        binding.sources.len(),
+                        limits.max_nodes,
+                        "callable actual source",
+                    )?;
+                    budget.input(
+                        binding
+                            .position
+                            .path
+                            .len()
+                            .saturating_mul(4)
+                            .saturating_add(binding.sources.len())
+                            .saturating_add(4),
+                        "callable source paths",
+                    )?;
+                    for source in &binding.sources {
+                        count(
+                            0,
+                            source.path.len(),
+                            limits.max_call_depth,
+                            "callable source path",
+                        )?;
+                        budget.input(
+                            source.path.len().saturating_mul(4).saturating_add(3),
+                            "callable actual source path",
+                        )?;
+                    }
+                }
+            }
+
             count(
                 0,
                 contract.lending_captures.len(),
