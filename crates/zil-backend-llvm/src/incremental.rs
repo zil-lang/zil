@@ -245,8 +245,15 @@ impl DiagnosticText {
         }
     }
     pub(crate) fn write(&self, path: &std::path::Path) -> std::io::Result<()> {
+        self.write_to(std::fs::File::create(path)?)
+    }
+    fn write_to(&self, output: impl std::io::Write) -> std::io::Result<()> {
         use std::io::Write;
-        let mut file = std::io::BufWriter::new(std::fs::File::create(path)?);
+        // Preserve the entire current header and every diagnostic fragment.
+        // A default 8 KiB buffer bypasses aggregation for most function bodies;
+        // this fixed, request-local bound groups those writes without a second
+        // whole-module String or any retained/unchecked filesystem receipt.
+        let mut file = std::io::BufWriter::with_capacity(1024 * 1024, output);
         let prefix = "; ZIL verified LLVM module\n; verified-fingerprint: ";
         if let Some(fingerprint) = &self.fingerprint
             && let Some(rest) = self.text.strip_prefix(prefix)
@@ -867,5 +874,72 @@ pub(crate) mod native_history_tests {
         assert_eq!(history.payload_bytes(), 0);
         assert!(history.candidates(&owner(0)).0.is_none());
         assert!(history.candidates(&owner(0)).1.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_stream_tests {
+    use super::*;
+    use std::io::{self, Write};
+
+    #[derive(Default)]
+    struct ObservedWriter {
+        bytes: Vec<u8>,
+        calls: usize,
+        fail_write: bool,
+        fail_flush: bool,
+    }
+    impl Write for ObservedWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.calls += 1;
+            if self.fail_write {
+                return Err(io::Error::other("write rejected"));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            if self.fail_flush {
+                Err(io::Error::other("flush rejected"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    #[test]
+    fn diagnostic_stream_keeps_current_full_bytes_while_bounding_write_aggregation() {
+        let fragment = Arc::new("; exact diagnostic fragment\n".repeat(2400));
+        let diagnostic = DiagnosticText {
+            text: Arc::new(
+                Module {
+                    triple: "x86_64-unknown-linux-gnu".into(),
+                    fingerprint: "prior-fingerprint".into(),
+                    items: Vec::new().into(),
+                }
+                .to_text(),
+            ),
+            fragments: vec![fragment; 20].into(),
+            fingerprint: Some("current-fingerprint".into()),
+        };
+        let expected = diagnostic.to_text();
+        assert!(expected.len() > 1024 * 1024);
+        let mut observed = ObservedWriter::default();
+        diagnostic.write_to(&mut observed).unwrap();
+        assert_eq!(observed.bytes, expected.as_bytes());
+        assert!(
+            observed.calls <= 3,
+            "must aggregate the original twenty large fragments"
+        );
+        for (fail_write, fail_flush) in [(true, false), (false, true)] {
+            let mut rejected = ObservedWriter {
+                fail_write,
+                fail_flush,
+                ..ObservedWriter::default()
+            };
+            assert_eq!(
+                diagnostic.write_to(&mut rejected).unwrap_err().kind(),
+                io::ErrorKind::Other
+            );
+        }
     }
 }

@@ -75,6 +75,92 @@ fn probe(command: &mut Command, commands: &mut Vec<Vec<String>>) -> Option<std::
     commands.push(recorded);
     command.output().ok()
 }
+/// Parse the same closed ldd row domain for both single and multi-input probes.
+/// Paths returned here remain observations: Inputs::file still binds each
+/// current canonical owner and complete installed-tool identity below.
+fn dependency_rows(text: &str) -> Option<Vec<PathBuf>> {
+    let mut paths = Vec::new();
+    if text.trim().is_empty() {
+        return None;
+    }
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let fields = line.split_whitespace().collect::<Vec<_>>();
+        if fields.first().is_some_and(|s| s.starts_with("linux-vdso.")) {
+            continue;
+        }
+        let path = if fields.get(1) == Some(&"=>") {
+            *fields.get(2)?
+        } else {
+            *fields.first()?
+        };
+        if !path.starts_with('/') || paths.len() >= MAX_FILES {
+            return None;
+        }
+        paths.push(PathBuf::from(path));
+    }
+    Some(paths)
+}
+/// Multi-file ldd prefixes each result with its exact input spelling. Preserve
+/// input ORDER, including duplicate paths; a map would silently lose a section.
+/// Unknown/missing/extra/reordered headers cannot prove either executable's
+/// dependencies and cause the caller to repeat the two original single probes.
+fn dependency_pair_rows(text: &str, executables: [&Path; 2]) -> Option<[Vec<PathBuf>; 2]> {
+    let mut headers = Vec::with_capacity(2);
+    for executable in executables {
+        let path = executable.to_str()?;
+        if path.contains(['\n', '\r']) {
+            return None;
+        }
+        headers.push(format!("{path}:"));
+    }
+    let mut bodies = [String::new(), String::new()];
+    let mut next = 0;
+    for line in text.lines() {
+        if next < headers.len() && line == headers[next] {
+            if next > 0 && bodies[next - 1].trim().is_empty() {
+                return None;
+            }
+            next += 1;
+        } else if line.trim().is_empty() {
+            continue;
+        } else {
+            // Header-like data is never interpreted as a dependency path.
+            // A legitimate unusual filename can still use single-input ldd.
+            if next == 0 || line.trim_end().ends_with(':') {
+                return None;
+            }
+            bodies[next - 1].push_str(line);
+            bodies[next - 1].push('\n');
+        }
+    }
+    if next != 2 {
+        return None;
+    }
+    Some([dependency_rows(&bodies[0])?, dependency_rows(&bodies[1])?])
+}
+fn probe_dependency_pair(
+    executables: [&Path; 2],
+    mut run: impl FnMut(&[&Path]) -> Option<std::process::Output>,
+) -> Option<[Vec<PathBuf>; 2]> {
+    if let Some(output) = run(&executables)
+        && output.status.success()
+        && let Ok(text) = std::str::from_utf8(&output.stdout)
+        && let Some(paths) = dependency_pair_rows(text, executables)
+    {
+        return Some(paths);
+    }
+    // Keep the complete original fallback for unsupported ldd variants. No
+    // partial multi-probe paths enter the input hash or the file identity set.
+    let mut paths = [Vec::new(), Vec::new()];
+    for (index, executable) in executables.iter().enumerate() {
+        let output = run(&[*executable])?;
+        if !output.status.success() {
+            return None;
+        }
+        paths[index] = dependency_rows(std::str::from_utf8(&output.stdout).ok()?)?;
+    }
+    Some(paths)
+}
 struct Inputs<'a> {
     hash: FingerprintBuilder,
     seen: BTreeSet<(PathBuf, bool)>,
@@ -247,32 +333,20 @@ impl Inputs<'_> {
         }
         (!format).then_some(())
     }
-    fn dynamic_dependencies(
+    fn dynamic_dependency_pair(
         &mut self,
-        executable: &Path,
+        executables: [&Path; 2],
         commands: &mut Vec<Vec<String>>,
     ) -> Option<()> {
         let ldd = Path::new("/usr/bin/ldd");
         self.file(ldd, false)?;
-        let output = probe(Command::new(ldd).arg(executable), commands)?;
-        if !output.status.success() {
-            return None;
-        }
-        let text = std::str::from_utf8(&output.stdout).ok()?;
-        for line in text.lines() {
-            let fields = line.split_whitespace().collect::<Vec<_>>();
-            if fields.first().is_some_and(|s| s.starts_with("linux-vdso.")) {
-                continue;
+        let paths = probe_dependency_pair(executables, |executables| {
+            probe(Command::new(ldd).args(executables), commands)
+        })?;
+        for group in paths {
+            for path in group {
+                self.file(&path, false)?;
             }
-            let path = if fields.get(1) == Some(&"=>") {
-                *fields.get(2)?
-            } else {
-                *fields.first()?
-            };
-            if !path.starts_with('/') {
-                return None;
-            }
-            self.file(Path::new(path), false)?;
         }
         Some(())
     }
@@ -340,7 +414,7 @@ pub(crate) fn key(
         #[cfg(test)]
         content_bytes_hashed: 0,
     };
-    input.field(b"ZIL-SESSION-FINAL-LINK-v1");
+    input.field(b"ZIL-SESSION-FINAL-LINK-v2");
     let mut environment = std::env::vars_os().collect::<Vec<(OsString, OsString)>>();
     environment.sort();
     for (name, value) in environment {
@@ -348,9 +422,8 @@ pub(crate) fn key(
         input.field(value.as_encoded_bytes());
     }
     input.file(&clang, false)?;
-    input.dynamic_dependencies(&clang, commands)?;
     input.file(linker, false)?;
-    input.dynamic_dependencies(linker, commands)?;
+    input.dynamic_dependency_pair([&clang, linker], commands)?;
     // The built-in GNU linker script adds search roots beyond clang's -L.
     // Capture the complete script and every root, including currently absent
     // directories whose later creation can change resolution.
@@ -1020,5 +1093,133 @@ mod dependency_tests {
             content_bytes_hashed: 0,
         };
         assert!(inputs.file(&script, true).is_none());
+    }
+}
+
+#[cfg(test)]
+mod paired_dependency_tests {
+    use super::*;
+    const LEFT: &str = "/toolchain/clang";
+    const RIGHT: &str = "/usr/bin/ld";
+    const BODY_A: &str = "\tlinux-vdso.so.1 (0x1000)\n\tlibc.so.6 => /lib/libc.so.6 (0x2000)\n\t/lib64/ld-linux-x86-64.so.2 (0x3000)\n";
+    const BODY_B: &str =
+        "\tlibbfd.so => /lib/libbfd.so (0x4000)\n\t/lib64/ld-linux-x86-64.so.2 (0x5000)\n";
+
+    #[test]
+    fn paired_ldd_sections_preserve_all_paths_and_duplicate_input_order() {
+        let pair = [Path::new(LEFT), Path::new(RIGHT)];
+        let text = format!("{LEFT}:\n{BODY_A}\n{RIGHT}:\n{BODY_B}");
+        let expected = [
+            dependency_rows(BODY_A).unwrap(),
+            dependency_rows(BODY_B).unwrap(),
+        ];
+        assert_eq!(dependency_pair_rows(&text, pair), Some(expected.clone()));
+        // Repeated exact paths are two observations, not a map entry overwrite.
+        let duplicates = format!("{LEFT}:\n{BODY_A}{LEFT}:\n{BODY_B}");
+        assert_eq!(
+            dependency_pair_rows(&duplicates, [Path::new(LEFT), Path::new(LEFT)]),
+            Some(expected)
+        );
+        for text in [
+            format!("{BODY_A}{RIGHT}:\n{BODY_B}"), // missing first header
+            format!("{RIGHT}:\n{BODY_B}{LEFT}:\n{BODY_A}"), // wrong order
+            format!("{LEFT}:\n{RIGHT}:\n{BODY_B}"), // empty first section
+            format!("{LEFT}:\n{BODY_A}{RIGHT}:\n"), // empty final section
+            format!("{LEFT}:\n{BODY_A}/wrong/path:\n{BODY_B}"),
+            format!("{LEFT}:\n{BODY_A}  {RIGHT}:\n{BODY_B}"),
+            format!("{LEFT}:\n{BODY_A}{RIGHT}:\n{BODY_B}{RIGHT}:\n{BODY_B}"),
+            format!("{LEFT}:\n{BODY_A}{RIGHT}:\n\tlibmissing.so => not found\n"),
+            format!("{LEFT}:\n{BODY_A}{RIGHT}:\n\tstatically linked\n"),
+        ] {
+            assert!(dependency_pair_rows(&text, pair).is_none(), "{text}");
+        }
+        assert!(
+            dependency_pair_rows(
+                &format!("{LEFT}:\n{BODY_A}{RIGHT}:\n{BODY_B}"),
+                [Path::new("/tool\nchain/clang"), Path::new(RIGHT)]
+            )
+            .is_none()
+        );
+    }
+
+    #[cfg(unix)]
+    fn output(success: bool, text: impl AsRef<[u8]>) -> std::process::Output {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::Output {
+            status: std::process::ExitStatus::from_raw(if success { 0 } else { 256 }),
+            stdout: text.as_ref().to_vec(),
+            stderr: Vec::new(),
+        }
+    }
+    #[test]
+    #[cfg(unix)]
+    fn paired_probe_uses_one_process_or_the_two_complete_original_probes() {
+        let pair = [Path::new(LEFT), Path::new(RIGHT)];
+        let expected = [
+            dependency_rows(BODY_A).unwrap(),
+            dependency_rows(BODY_B).unwrap(),
+        ];
+        let mut calls = Vec::new();
+        let paths = probe_dependency_pair(pair, |arguments| {
+            calls.push(
+                arguments
+                    .iter()
+                    .map(|p| p.to_path_buf())
+                    .collect::<Vec<_>>(),
+            );
+            Some(output(true, format!("{LEFT}:\n{BODY_A}{RIGHT}:\n{BODY_B}")))
+        });
+        assert_eq!(paths, Some(expected.clone()));
+        assert_eq!(calls, [vec![PathBuf::from(LEFT), PathBuf::from(RIGHT)]]);
+        // An unfamiliar combined format, failed status, invalid UTF-8 or absent
+        // result must not leak partial paths into the authoritative file walk.
+        for combined in [
+            Some(output(
+                true,
+                format!("{LEFT}:\n{BODY_A}not-a-header\n{BODY_B}"),
+            )),
+            Some(output(
+                false,
+                format!("{LEFT}:\n{BODY_A}{RIGHT}:\n{BODY_B}"),
+            )),
+            Some(output(true, vec![0xff])),
+            None,
+        ] {
+            let mut combined = combined;
+            let mut calls = Vec::new();
+            let paths = probe_dependency_pair(pair, |arguments| {
+                calls.push(
+                    arguments
+                        .iter()
+                        .map(|p| p.to_path_buf())
+                        .collect::<Vec<_>>(),
+                );
+                if arguments.len() == 2 {
+                    combined.take()
+                } else if arguments[0] == pair[0] {
+                    Some(output(true, BODY_A))
+                } else {
+                    Some(output(true, BODY_B))
+                }
+            });
+            assert_eq!(paths, Some(expected.clone()));
+            assert_eq!(
+                calls,
+                [
+                    vec![pair[0].to_path_buf(), pair[1].to_path_buf()],
+                    vec![pair[0].to_path_buf()],
+                    vec![pair[1].to_path_buf()]
+                ]
+            );
+        }
+        let mut calls = 0;
+        assert!(
+            probe_dependency_pair(pair, |_| {
+                calls += 1;
+                Some(output(false, "failed"))
+            })
+            .is_none()
+        );
+        assert_eq!(calls, 2); // failed first single probe disables link reuse
     }
 }
