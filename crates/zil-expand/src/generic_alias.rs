@@ -677,9 +677,11 @@ impl Visitor<'_, '_, '_> {
         }
         Ok(names.clone())
     }
-    fn bound(&mut self,ty:&mut TypeRef,types:&Names,depth:usize)->R<()> {
-        if trait_bounds::value::is_bound(ty) {return self.resolver.budget.ty_depth(ty,depth);}
-        self.ty(ty,types,depth)
+    fn bound(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
+        if trait_bounds::value::is_bound(ty) {
+            return self.resolver.budget.ty_depth(ty, depth);
+        }
+        self.ty(ty, types, depth)
     }
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.resolver.budget.node(ty.span, depth)?;

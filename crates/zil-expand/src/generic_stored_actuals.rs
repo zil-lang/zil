@@ -166,6 +166,70 @@ impl Engine<'_> {
         }))
     }
 
+    /// Match only fragments for which the parameter already carries an actual
+    /// produced physical instance. Source generic variables remain semantic.
+    /// This changes layout hints, never lifetime classes or origin evidence.
+    pub(super) fn materialize_unification_actual(
+        &mut self,
+        pattern: &TypeRef,
+        actual: &mut TypeRef,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(actual.span, depth)?;
+        let pattern = grouped(pattern);
+        if let TypeKind::Group(inner) = &mut actual.kind {
+            return self.materialize_unification_actual(pattern, inner, depth + 1);
+        }
+        if matches!(&pattern.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
+            && self.qualified_actual_syntax(pattern, depth + 1)?
+        {
+            return self.ty(actual, depth + 1);
+        }
+        match (&pattern.kind, &mut actual.kind) {
+            (TypeKind::Reference { inner: p, .. }, TypeKind::Reference { inner: a, .. })
+            | (TypeKind::Array { element: p, .. }, TypeKind::Array { element: a, .. })
+            | (TypeKind::Optional(p), TypeKind::Optional(a)) => {
+                self.materialize_unification_actual(p, a, depth + 1)?;
+            }
+            (
+                TypeKind::Named { path: p, args: ps },
+                TypeKind::Named {
+                    path: a,
+                    args: actuals,
+                },
+            ) if p == a && ps.len() == actuals.len() => {
+                for (p, a) in ps.iter().zip(actuals) {
+                    if let (GenericArg::Type(p), GenericArg::Type(a)) = (p, a) {
+                        self.materialize_unification_actual(p, a, depth + 1)?;
+                    }
+                }
+            }
+            (TypeKind::Tuple(ps), TypeKind::Tuple(actuals))
+            | (TypeKind::Union(ps), TypeKind::Union(actuals))
+                if ps.len() == actuals.len() =>
+            {
+                for (p, a) in ps.iter().zip(actuals) {
+                    self.materialize_unification_actual(p, a, depth + 1)?;
+                }
+            }
+            (
+                TypeKind::Error {
+                    error: pe,
+                    result: pr,
+                },
+                TypeKind::Error {
+                    error: ae,
+                    result: ar,
+                },
+            ) => {
+                self.materialize_unification_actual(pe, ae, depth + 1)?;
+                self.materialize_unification_actual(pr, ar, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn joint_class_key(
         &mut self,
         classes: &[LexicalLife],
@@ -323,8 +387,10 @@ impl Engine<'_> {
         &mut self,
         source: &BTreeMap<String, TypeRef>,
         parameters: &[&GenericParam],
+        item: &Item,
         span: Span,
     ) -> R<(BTreeMap<String, TypeRef>, Vec<GenericParam>)> {
+        let mut occupied = occupied_value_lives(item, &mut self.budget)?;
         let mut rebound = BTreeMap::new();
         let mut joint = Vec::new();
         let mut formals = Vec::new();
@@ -348,9 +414,31 @@ impl Engine<'_> {
                     ordinal
                 } else {
                     self.budget.identity_work(64, span)?;
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<GenericParam>()
+                            .saturating_add(std::mem::size_of::<LexicalLife>()),
+                        span,
+                    )?;
                     joint.push(class);
-                    let name = format!("$value_life_{}", joint.len() - 1);
+                    let mut nonce = joint.len() - 1;
+                    let name = loop {
+                        self.budget.identity_work(64, span)?;
+                        let candidate = format!("$value_life_{nonce}");
+                        self.budget.identity_work(
+                            candidate.len().saturating_add(1).saturating_mul(
+                                occupied.len().saturating_add(1).ilog2() as usize + 2,
+                            ),
+                            span,
+                        )?;
+                        if !occupied.contains(&candidate) {
+                            break candidate;
+                        }
+                        nonce = nonce
+                            .checked_add(1)
+                            .ok_or_else(|| error(span, "Value life binder namespace exhausted"))?;
+                    };
                     self.budget.text(&name, span)?;
+                    occupied.insert(name.clone());
                     formals.push(GenericParam {
                         name,
                         kind: GenericParamKind::Lifetime,
@@ -492,4 +580,38 @@ pub(super) fn source_unification_key(
     }
     visit(ty, source, budget, &mut key, 0)?;
     Ok(key)
+}
+
+fn occupied_value_lives(item: &Item, budget: &mut Budget<'_>) -> R<BTreeSet<String>> {
+    use crate::ct_selection::Visitor;
+    struct Occupied<'b, 'l> {
+        budget: &'b mut Budget<'l>,
+        names: BTreeSet<String>,
+    }
+    impl Visitor for Occupied<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|error| vec![error])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|error| vec![error])?;
+            if text.strip_prefix("$value_life_").is_some_and(|suffix| {
+                !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
+            }) {
+                self.budget
+                    .lineage_bytes(
+                        text.len().saturating_add(std::mem::size_of::<String>()),
+                        span,
+                    )
+                    .map_err(|error| vec![error])?;
+                self.names.insert(text.to_owned());
+            }
+            Ok(())
+        }
+    }
+    let mut scan = Occupied {
+        budget,
+        names: BTreeSet::new(),
+    };
+    scan.item(item, 0).map_err(|mut errors| errors.remove(0))?;
+    Ok(scan.names)
 }

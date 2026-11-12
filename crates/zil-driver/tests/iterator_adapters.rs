@@ -750,9 +750,20 @@ fn structural_bound_names_preserve_existing_ordinary_nominal_types() {
             report.to_json()
         );
     }
-    let aliases="type Value=i32;type SyncDrop=i32;fn identity<T:Value+SyncDrop>(value:T)->T{return value}fn main()->i32{let value:Value=42;return identity(value)-42}";
-    for report in [compile_project(&project(aliases),&CompileOptions::default()),zil_driver::compile_source(&SourceUnit::new(FileId(0),ModuleId(0),"aliases.zil",aliases),&CompileOptions::default())] {
-        assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    let aliases = "type Value=i32;type SyncDrop=i32;fn identity<T:Value+SyncDrop>(value:T)->T{return value}fn main()->i32{let value:Value=42;return identity(value)-42}";
+    for report in [
+        compile_project(&project(aliases), &CompileOptions::default()),
+        zil_driver::compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "aliases.zil", aliases),
+            &CompileOptions::default(),
+        ),
+    ] {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     for bad in [
         "fn bad<Value>(value:Value)->Value{return value}",
@@ -768,5 +779,60 @@ fn structural_bound_names_preserve_existing_ordinary_nominal_types() {
             "{bad}: {}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn observing_zero_debt_children_does_not_restore_a_partially_taken_parent() {
+    let source = "package Pair{value:i32}package Parent{left:Pair;right:Pair}fn consume(value:Parent)->i32{return value.left.value}fn main()->i32{let parent=Parent{left:Pair{value:1},right:Pair{value:2}};let other=Parent{left:Pair{value:4},right:Pair{value:5}};let child=parent.left;return child.value+consume(other)-5}";
+    let (mut typed, mut plan) = raw(source);
+    let main = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let parent = main
+        .locals
+        .iter()
+        .find(|local| local.name == "parent")
+        .unwrap()
+        .id;
+    let other = main
+        .locals
+        .iter()
+        .find(|local| local.name == "other")
+        .unwrap()
+        .id;
+    assert!(main.blocks.iter().flat_map(|b| &b.instructions).any(
+        |i| matches!(i.kind,zil_ir::InstructionKind::TakePackageField{local,..} if local==parent)
+    ));
+    let mut changed = 0;
+    for instruction in main.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let zil_ir::InstructionKind::TakeLocal { local } = &mut instruction.kind
+            && *local == other
+        {
+            *local = parent;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    plan.module_fingerprint = typed.fingerprint();
+    let limits = Limits::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for (raw, plan) in [
+        (typed.clone(), plan),
+        zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap(),
+    ] {
+        for errors in [
+            zil_analyze::analyze(&raw, &limits).unwrap_err(),
+            zil_verify::verify_module(raw.clone(), plan, &raw.target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(
+                    |e| e.category == ResultCategory::SafeReject && e.code != "E-VERIFY-MODULE"
+                ),
+                "{errors:?}"
+            );
+        }
     }
 }

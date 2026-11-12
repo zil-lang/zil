@@ -1681,6 +1681,12 @@ mod source_tests {
     }
 
     #[test]
+    fn scoped_enum_payload_cannot_exchange_distinct_phantom_lifetime_actuals() {
+        let source = "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn read<life a,life b>(p:&'a i32,q:&'b i32)->i32{let x:Boxed<Leaf<'a>>=Boxed::<Leaf<'a>>.V(Leaf::<'b>{n:3});match x{Boxed.V(v)=>{return v.n}}}fn main(){}";
+        assert!(expand_text(source).is_err());
+    }
+
+    #[test]
     fn stored_const_actuals_preserve_full_life_type_const_ordinals_and_bits() {
         for (domain, literal, expected) in [
             ("i32", "7", Constant::I32(7)),

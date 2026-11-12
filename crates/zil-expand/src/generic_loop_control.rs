@@ -76,6 +76,7 @@ impl Check<'_, '_, '_> {
     ) -> R<BlockFlow> {
         self.loop_body_pattern(body, state, iteration, span, aliases, None, always_enters)
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn loop_body_pattern(
         &mut self,
         body: &Block,

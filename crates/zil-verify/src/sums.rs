@@ -145,8 +145,14 @@ pub(super) fn check_type_for(
                         matches!(field, Type::Managed(_) | Type::Package { .. }) || owned(field);
                     pending.push(field);
                 }
-                if !owns {
-                    return Err(bad(span, "ordinary Product requires a real owning child"));
+                // A nonempty all-Copy field layout is the existing affine
+                // zero-cleanup Package family. Its nominal token still moves;
+                // this structural check grants no whole-value Copy permission.
+                if !owns && !fields.iter().all(|(_, field)| field.is_copy_value()) {
+                    return Err(bad(
+                        span,
+                        "ordinary Product requires an owning child or complete finite Copy fields",
+                    ));
                 }
             }
             Type::Enum { name, variants } => {
