@@ -37,6 +37,12 @@ impl ParsedSource {
         self.parsed.clone()
     }
 
+    /// Equal parser settings only; this never establishes source/AST equality.
+    /// Incremental producers separately compare their actual source fragments.
+    pub fn same_parse_configuration(&self, other: &Self) -> bool {
+        self.limits == other.limits && self.context == other.context
+    }
+
     pub fn same_revision(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.parsed, &other.parsed)
     }
