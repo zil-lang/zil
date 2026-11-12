@@ -118,7 +118,7 @@ pub(super) fn seed(
             place: vec![],
             heap_parents: Vec::new(),
             heap_element: None,
-            retained_port: Some(ordinal as u32),
+            retained_port: Some(PortOrigin::Task(ordinal as u32)),
         };
         let id = loans.len();
         fee(b, path.len().saturating_add(3))?;
@@ -184,7 +184,10 @@ pub(super) fn source_binding(
     let HoldRoot::Parameter(index) = source.base else {
         return Err(failure("Task result source is not an external input"));
     };
-    if let Some(port) = source.retained_port {
+    if let Some(origin) = source.retained_port {
+        let PortOrigin::Task(port) = origin else {
+            return Err(failure("Dyn dependency cannot use a Task port relation"));
+        };
         let c = f
             .storage_life
             .as_ref()

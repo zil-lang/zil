@@ -37,6 +37,26 @@ fn key(path: &[PlaceProjection], port: u32) -> Vec<ContractProjection> {
         .chain([ContractProjection::RetainedPort(port)])
         .collect()
 }
+/// Substitute only an explicitly known dyn row. Missing is not empty, and
+/// borrowing the owner retains its actual head/address ancestors as well.
+pub(super) fn select(
+    value: &Value,
+    path: &[PlaceProjection],
+    port: u32,
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    let key = key(path, port);
+    ordered(b, value.dyn_ports.len(), key.len())?;
+    let permission = value
+        .dyn_ports
+        .get(&key)
+        .ok_or_else(|| failure("dyn source has no complete actual opaque-port row"))?;
+    let mut out = Permission::default();
+    union(&mut out, permission, b)?;
+    fee(b, value.pointer.loans.len())?;
+    out.loans.extend(&value.pointer.loans);
+    Ok(out)
+}
 fn directory<'a>(
     module: &'a TypedModule,
     ty: &Type,
@@ -140,7 +160,7 @@ pub(super) fn seed(
             let target = Target {
                 base,
                 stored: path.clone(),
-                retained_port: Some(port as u32),
+                retained_port: Some(PortOrigin::Dyn(port as u32)),
                 place: vec![],
                 heap_parents: Vec::new(),
                 heap_element: None,
@@ -485,4 +505,66 @@ pub(super) fn propagate(
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn substitution_separates_same_numbered_task_and_dyn_ports_and_keeps_head_parents() {
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        b.task_borrowed_results = true;
+        let target = |base, origin| Target {
+            base,
+            retained_port: origin,
+            stored: vec![],
+            place: vec![],
+            heap_element: None,
+        };
+        let mut value = Value::default();
+        value.pointer.loans.insert(77);
+        value.task_ports.insert(
+            key(&[], 0),
+            Permission {
+                targets: Targets::from([target(HoldRoot::Local(LocalId(1)), None)]),
+                loans: Loans::from([11]),
+            },
+        );
+        value.dyn_ports.insert(
+            key(&[], 0),
+            Permission {
+                targets: Targets::from([target(HoldRoot::Local(LocalId(2)), None)]),
+                loans: Loans::from([22]),
+            },
+        );
+        let values = vec![value];
+        let arguments = vec![ValueId(0)];
+        let state = State::default();
+        let dyn_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Dyn(0)));
+        let task_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Task(0)));
+        let dyn_actual = substitute(&dyn_source, &arguments, &values, &state, &mut b).unwrap();
+        let task_actual = substitute(&task_source, &arguments, &values, &state, &mut b).unwrap();
+        assert!(
+            dyn_actual
+                .targets
+                .contains(&target(HoldRoot::Local(LocalId(2)), None))
+        );
+        assert!(
+            !dyn_actual
+                .targets
+                .contains(&target(HoldRoot::Local(LocalId(1)), None))
+        );
+        assert_eq!(dyn_actual.loans, Loans::from([22, 77]));
+        assert_ne!(dyn_actual.targets, task_actual.targets);
+        let missing = target(HoldRoot::Parameter(0), Some(PortOrigin::Dyn(1)));
+        assert!(substitute(&missing, &arguments, &values, &state, &mut b).is_err());
+        let mut explicit_empty = values[0].clone();
+        explicit_empty
+            .dyn_ports
+            .insert(key(&[], 1), Permission::default());
+        let known = substitute(&missing, &arguments, &[explicit_empty], &state, &mut b).unwrap();
+        assert!(known.targets.is_empty());
+        assert_eq!(known.loans, Loans::from([77]));
+    }
 }
