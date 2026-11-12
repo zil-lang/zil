@@ -41,7 +41,7 @@ pub(super) struct Node {
 }
 
 impl Attempt<'_> {
-    pub(super) fn check_shape_tree(
+    pub(crate) fn check_shape_tree(
         &mut self,
         module: &TypedModule,
         b: &mut Budget,

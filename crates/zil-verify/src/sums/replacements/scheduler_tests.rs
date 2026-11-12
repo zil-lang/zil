@@ -334,7 +334,7 @@ fn callback_environment_and_ordinary_input_effects_propagate_in_the_original_rou
     let address = module.functions[1].locals[1].ty.clone();
     let owner = module.functions[1].locals[2].ty.clone();
     module.closures[0].captures = vec![address.clone()];
-    for f in &mut module.functions[..2] {
+    for f in module.functions.iter_mut().take(2) {
         let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
         role.hold = vec![0];
         role.writes = vec![0];
