@@ -182,6 +182,7 @@ fn analyze_budgeted(
                 function.holds = holds;
             }
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
+            retained::check_pending_sources(budget)?;
             return Ok(plan);
         }
     }
@@ -335,6 +336,7 @@ fn analyze_budgeted(
     }
     dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
+    retained::check_pending_sources(budget)?;
     Ok(plan)
 }
 

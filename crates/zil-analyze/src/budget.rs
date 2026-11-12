@@ -42,6 +42,8 @@ pub(super) struct Budget {
     pub(super) owning_address_captures: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
+    pub(super) pending_returned_source_proofs:BTreeSet<zil_ir::FunctionId>,
+    pub(super) callable_receiver_roles:BTreeMap<(zil_ir::FunctionId,usize),u32>,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
@@ -146,6 +148,8 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             returned_borrowed_environments: BTreeSet::new(),
+            pending_returned_source_proofs:BTreeSet::new(),
+            callable_receiver_roles:BTreeMap::new(),
             replacement_functions: BTreeSet::new(),
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),

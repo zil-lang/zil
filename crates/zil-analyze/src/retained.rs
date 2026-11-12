@@ -3,6 +3,10 @@
 use super::*;
 
 mod sources;
+pub(super) fn check_pending_sources(b:&Budget)->CompileResult<()> {
+    if b.pending_returned_source_proofs.is_empty() {Ok(())}
+    else {Err(bad("returned callable has no completed actual terminal memory source proof"))}
+}
 pub(super) fn check_sources(module:&TypedModule,function:&TypedFunction,budget:&mut Budget)->CompileResult<()> {
     sources::check(module,function,budget)
 }

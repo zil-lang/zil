@@ -3,6 +3,8 @@
 use super::*;
 #[path = "helper_classes.rs"]
 mod helper_classes;
+#[path="mutable_sources.rs"]
+mod mutable_sources;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {
@@ -13,6 +15,9 @@ struct Origins {
     unknown: bool,
 }
 type Row = BTreeMap<Path, Origins>;
+#[derive(Default)]
+struct Summary { returned:Row, captures:Row, external:BTreeMap<u32,Row> }
+
 fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
     spend(left, row.len(), span)?;
     for (path, origins) in row {
@@ -229,11 +234,14 @@ fn stored_read(
 fn solve(
     module: &TypedModule,
     f: &TypedFunction,
-    summaries: &[Row],
+    summaries: &[Summary],
     left: &mut usize,
     limit: usize,
-) -> R<Row> {
+) -> R<Summary> {
     let span = f.span;
+    let captures=f.environment.and_then(|id|module.closures.get(id.0 as usize)).map_or(&[][..],|definition|definition.captures.as_slice());
+    let width=f.locals.len().saturating_add(captures.len());
+
     spend(
         left,
         f.values
@@ -243,7 +251,8 @@ fn solve(
         span,
     )?;
     let mut values = vec![Row::new(); f.values.len()];
-    let mut outputs = vec![vec![Row::new(); f.locals.len()]; f.blocks.len()];
+    spend(left,captures.len().saturating_mul(f.blocks.len().saturating_add(1)),span)?;
+    let mut outputs = vec![vec![Row::new(); width]; f.blocks.len()];
     let mut predecessors = vec![Vec::new(); f.blocks.len()];
     let mut reachable = vec![false; f.blocks.len()];
     let mut pending = vec![f.entry.0 as usize];
@@ -268,7 +277,7 @@ fn solve(
             pending.push(target.0 as usize);
         }
     }
-    let mut initial = vec![Row::new(); f.locals.len()];
+    let mut initial = vec![Row::new(); width];
     for (index, local) in f.parameters.iter().enumerate() {
         initial[local.0 as usize] = seed(
             module,
@@ -279,6 +288,16 @@ fn solve(
             limit,
         )?;
     }
+    for (index,ty) in captures.iter().enumerate() {
+        initial[f.locals.len()+index]=seed(module,ty,Some(StorageBase::Capture(index as u32)),left,span,limit)?;
+    }
+    for (position,local) in f.parameters.iter().enumerate() {
+        if let Type::Address{inner,..}=&f.locals[local.0 as usize].ty && matches!(inner.as_ref(),Type::Closure(_)) {
+            let environment=seed(module,inner,Some(StorageBase::Parameter(position as u32)),left,span,limit)?;
+            join(&mut initial[local.0 as usize],&environment,left,span)?;
+            if let Some(head)=initial[local.0 as usize].get_mut(&Vec::new()) {head.places.insert((*local,Vec::new()));}
+        }
+    }
     loop {
         let mut changed = false;
         for (index, block) in f.blocks.iter().enumerate() {
@@ -286,7 +305,7 @@ fn solve(
             if !reachable[index] {
                 continue;
             }
-            let mut state = vec![Row::new(); f.locals.len()];
+            let mut state = vec![Row::new(); width];
             if index == f.entry.0 as usize {
                 for (to, from) in state.iter_mut().zip(&initial) {
                     join(to, from, left, span)?;
@@ -441,20 +460,21 @@ fn solve(
                             at,
                         )?,
                         InstructionKind::ReadCapture { index }
-                        | InstructionKind::TakeCapture { index } => seed(
-                            module,
-                            &f.values[result.0 as usize],
-                            Some(StorageBase::Capture(*index)),
-                            left,
-                            at,
-                            limit,
-                        )?,
+                        | InstructionKind::TakeCapture { index } => copy(&state[f.locals.len()+*index as usize],left,at)?,
+                        InstructionKind::BorrowCapture{index,..} => {
+                            let mut row=seed(module,&f.values[result.0 as usize],None,left,at,limit)?;
+                            if let Some(head)=row.get_mut(&Vec::new()) {
+                                head.unknown=false;
+                                head.places.insert((LocalId((f.locals.len()+*index as usize) as u32),Vec::new()));
+                            }
+                            row
+                        },
                         InstructionKind::Call {
                             function,
                             arguments,
                         } => {
                             let mut r = Row::new();
-                            for (path, origins) in &summaries[function.0 as usize] {
+                            for (path, origins) in &summaries[function.0 as usize].returned {
                                 let mut o = Origins {
                                     local: origins.local,
                                     unknown: origins.unknown,
@@ -466,16 +486,8 @@ fn solve(
                                         continue;
                                     };
                                     let actual = &values[arguments[index as usize].0 as usize];
-                                    let selected = if source.path.is_empty() {
-                                        select(actual, &[], left, at)?
-                                    } else {
-                                        let direct = select(actual, &source.path, left, at)?;
-                                        if direct.is_empty() {
-                                            pointed(actual, &source.path, left, at)?
-                                        } else {
-                                            direct
-                                        }
-                                    };
+                                    let selected = if source.path.is_empty() {select(actual,&[],left,at)?}
+                                        else {mutable_sources::current(actual,&source.path,&state,left,at)?};
                                     if let Some(from) = selected.get(&Vec::new()) {
                                         o.inputs.extend(from.inputs.iter().cloned());
                                         o.local |= from.local;
@@ -495,6 +507,39 @@ fn solve(
                     InstructionKind::Store { local, value } => {
                         state[local.0 as usize] = copy(&values[value.0 as usize], left, at)?
                     }
+                    InstructionKind::BindPackageCapture{local,index}=>state[local.0 as usize]=copy(&state[f.locals.len()+*index as usize],left,at)?,
+                    InstructionKind::EndPackageCapture{local,index}=>state[f.locals.len()+*index as usize]=copy(&state[local.0 as usize],left,at)?,
+                    InstructionKind::WriteCapture{index,value}=>state[f.locals.len()+*index as usize]=copy(&values[value.0 as usize],left,at)?,
+                    InstructionKind::StoreStoredBorrow{storage,path,value}=> {
+                        let prefix=path.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
+                        let address=pointed(&values[storage.0 as usize],&prefix,left,at)?;
+                        mutable_sources::publish(&address,&values[value.0 as usize],&mut state,left,at)?;
+                    },
+                    InstructionKind::StorePackageField{local,index,value}=>mutable_sources::replace(&mut state[local.0 as usize],&[ContractProjection::Place(PlaceProjection::Field(*index))],&values[value.0 as usize],false,left,at)?,
+                    InstructionKind::CallClosureMut{callee,arguments}=> {
+                        if let Type::Closure(id)=f.locals[callee.0 as usize].ty {
+                            let updates=mutable_sources::invoke(module,id,&state[callee.0 as usize],arguments,&values,&state,summaries,left,at,limit)?;
+                            mutable_sources::replace(&mut state[callee.0 as usize],&[],&updates,false,left,at)?;
+                        }
+                    },
+                    InstructionKind::CallClosureBorrowed{callee,kind:CallableKind::FnMut,arguments}=> {
+                        if let Type::Address{inner,..}=&f.values[callee.0 as usize] && let Type::Closure(id)=inner.as_ref() {
+                            let updates=mutable_sources::invoke(module,*id,&values[callee.0 as usize],arguments,&values,&state,summaries,left,at,limit)?;
+                            mutable_sources::publish(&values[callee.0 as usize],&updates,&mut state,left,at)?;
+                        }
+                    },
+                    InstructionKind::Call{function,arguments}=> {
+                        let summary=&summaries[function.0 as usize];
+                        for (parameter,effects) in &summary.external {
+                            let mut updates=Row::new();
+                            for (path,origins) in effects {
+                                let actual=mutable_sources::substitute(origins,None,arguments,&values,&state,left,at)?;
+                                updates.insert(path.clone(),actual);
+                            }
+                            mutable_sources::publish(&values[arguments[*parameter as usize].0 as usize],&updates,&mut state,left,at)?;
+                        }
+                    },
+
                     InstructionKind::TakeLocal { local }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
@@ -509,13 +554,24 @@ fn solve(
             break;
         }
     }
-    let mut returned = Row::new();
-    for (block, live) in f.blocks.iter().zip(reachable) {
-        if live && let Terminator::Return(Some(value)) = block.terminator {
-            join(&mut returned, &values[value.0 as usize], left, span)?;
+    let mut summary=Summary::default();
+    for (index,(block,live)) in f.blocks.iter().zip(reachable).enumerate() {
+        if live && matches!(block.terminator,Terminator::Return(_)) {
+            if let Terminator::Return(Some(value))=block.terminator {join(&mut summary.returned,&values[value.0 as usize],left,span)?;}
+            for capture in 0..captures.len() {
+                let row=wrap(&outputs[index][f.locals.len()+capture],ContractProjection::Capture(capture as u32),left,span)?;
+                join(&mut summary.captures,&row,left,span)?;
+            }
+            for (parameter,local) in f.parameters.iter().enumerate() {
+                if matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_))) {
+                    let mut row=copy(&outputs[index][local.0 as usize],left,span)?;
+                    row.remove(&Vec::new());
+                    join(summary.external.entry(parameter as u32).or_default(),&row,left,span)?;
+                }
+            }
         }
     }
-    Ok(returned)
+    Ok(summary)
 }
 
 pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
@@ -529,7 +585,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         return Ok(());
     }
     spend(left, module.functions.len(), Span::default())?;
-    let mut summaries = vec![Row::new(); module.functions.len()];
+    let mut summaries = (0..module.functions.len()).map(|_|Summary::default()).collect::<Vec<_>>();
     let mut relevant = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
         let mut result_leaves = Vec::new();
@@ -543,14 +599,19 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             f.span,
             limits.max_call_depth,
         )?;
-        relevant.push(!result_leaves.is_empty());
+        let mutable_environment=f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut);
+        let mutable_input=f.parameters.iter().any(|local|matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_))));
+        relevant.push(!result_leaves.is_empty() || mutable_environment || mutable_input);
     }
     loop {
         let mut changed = false;
         for f in &module.functions {
             if f.foreign.is_none() && relevant[f.id.0 as usize] {
-                let row = solve(module, f, &summaries, left, limits.max_call_depth)?;
-                changed |= join(&mut summaries[f.id.0 as usize], &row, left, f.span)?;
+                let actual=solve(module,f,&summaries,left,limits.max_call_depth)?;
+                let summary=&mut summaries[f.id.0 as usize];
+                changed|=join(&mut summary.returned,&actual.returned,left,f.span)?;
+                changed|=join(&mut summary.captures,&actual.captures,left,f.span)?;
+                for (parameter,row) in actual.external {changed|=join(summary.external.entry(parameter).or_default(),&row,left,f.span)?;}
             }
         }
         if !changed {
@@ -563,7 +624,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         };
         let mut bindings = Vec::new();
         let mut hold = BTreeSet::new();
-        for (path, origins) in &summaries[f.id.0 as usize] {
+        for (path, origins) in &summaries[f.id.0 as usize].returned {
             if origins.local
                 || origins.unknown
                 || origins.inputs.is_empty()

@@ -639,7 +639,12 @@ pub(super) fn role<'a>(
     )?;
     let position = match f.parameters.iter().position(|p| *p == local) {
         Some(position) => position,
-        None => staged::parameter(module, f, kind, b)?,
+        None => {
+            b.lookup(b.callable_receiver_roles.len(),"proved callback receiver role site")?;
+            if let Some(position)=b.callable_receiver_roles.get(&(f.id,kind as *const InstructionKind as usize)) {
+                *position as usize
+            } else {staged::parameter(module,f,kind,b)?}
+        },
     };
     let role = contract
         .roles

@@ -280,6 +280,7 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
+        ("call-before-return", include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil").to_owned()),
         ("forward-qualified", include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil").to_owned()),
         ("forward-lending", include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil").to_owned()),
         ("forward-borrowed", include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil").to_owned()),
@@ -549,4 +550,26 @@ fn qualified_owner_forwarding_preserves_late_actual_free_classes() {
     let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil");
+    let module=typed_source(source);
+    for function in module.functions.iter().filter(|f|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_)))) {
+        let c=function.callable_return_contract.as_ref().unwrap();
+        let holder=c.capture_sources.as_ref().unwrap().iter().find(|row|row.position.base==zil_ir::StorageBase::Capture(0)).unwrap();
+        assert_eq!(holder.sources,vec![zil_ir::StoragePosition{base:zil_ir::StorageBase::Parameter(0),path:vec![zil_ir::ContractProjection::Capture(1)]}],"{}",function.name);
+    }
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    for index in module.functions.iter().enumerate().filter_map(|(index,f)|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_))).then_some(index)) {
+        let mut dishonest=module.clone();
+        let c=dishonest.functions[index].callable_return_contract.as_mut().unwrap();
+        let holder=c.capture_sources.as_mut().unwrap().iter_mut().find(|row|row.position.base==zil_ir::StorageBase::Capture(0)).unwrap();
+        holder.sources[0].path=vec![zil_ir::ContractProjection::Capture(0),zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(1))];
+        let errors=zil_analyze::analyze(&dishonest,&Limits::default()).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("terminal capture source exceeds")),"{errors:?}");
+    }
+    let bad=source.replace("a=21;let answer=f()","b=23;let answer=f()");
+    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
 }
