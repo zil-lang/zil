@@ -83,6 +83,9 @@ int ZilNativeProductsTypeAndOwnerCounterexamples(void);
 int ZilNativeAnalysisUnsupportedKeysCounterexample(void);
 int ZilNativeIRScopeTimerCounterexample(void);
 int ZilNativePackedStageEntryFilterCounterexample(void);
+int ZilNativeStageEconomicsCounterexample(void);
+// Explicit same-thread fixture override; bypasses economics only, never proofs.
+int ZilNativeProductsStageAlwaysForTests(int enabled);
 #ifdef __cplusplus
 }
 #endif
