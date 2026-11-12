@@ -56,7 +56,8 @@
     "full_recipe_schema": "e527e72e02390761d99b7dc7980bcc8188ebd8b4",
     "schema_actual": "workspace alltargets pass and independent byte oracle4/4 including depth112 roundtrip and depth130 ResourceLimit; no stack size or budget increase",
     "unaccepted": "Original scope/equality recipe independent V scalar math finite checks pass; lexical instantiation/header embeddings and Desc semantic lifetime fields in progress, all new witness proposals remain failclosed until actual proof consumers",
-    "new_public_scope": "44ab700537c0498425e3df8c29a6970482fe490b + 1900cd7cd8129996f50776e6d7175fa7ebb4d4c2; independent scope/Desc oracle6/6 passed; no semantic witness acceptance"
+    "new_public_scope": "44ab700537c0498425e3df8c29a6970482fe490b + 1900cd7cd8129996f50776e6d7175fa7ebb4d4c2; independent scope/Desc oracle6/6 passed; no semantic witness acceptance",
+    "exclusive_actual": "951f7e53d5dc01c98bcab641de3dd9f519783c35 A + independent V d997/7d2a0b94b1fb942fd0c526ced4583cac70922417: direct+factory original Source both complete raw/Wire V + Clang/API O0/O2 eight native passed; strongest previously A-accepted same-Call.argument stale SSA write now independently SafeReject live incompatible loan, exact removal of only write restores positive. PlaceAddress/OwnedView/Reborrow/Static/Store/witness still open."
   },
   "source_atoms": {
     "branch": "task/storage-source-atoms",
@@ -71,9 +72,9 @@
   "parent_status": "Language usability completion remains open; do not deliver a final partial handoff.",
   "public_integration": {
     "branch": "task/language-public-integration",
-    "checkpoint": "b0c377e2c772fcc36a85249b348de5d9ddf76d15",
+    "checkpoint": "7c6a93465",
     "content": "root integration + callable return150 + original Core scope7ab + complete StorageSource atoms0d + complete recipe/equality metadata + anonymous f894 + Source417 + independent ordinary head A/V fixes",
-    "checks": "914f all workspace/all-targets LLVM-api truePASS. ee5 six actual suites: anonymous10/10, closure26/26, source_scope5/5, dynamic_context3/3, ordinary_heads1/1, task_aggregate7/7; all zero-filter. Later libraries fail under new elided-head profiles; not accepted jointly."
+    "checks": "914f all workspace/all-targets LLVM-api truePASS. ee5 six actual suites: anonymous10/10, closure26/26, source_scope5/5, dynamic_context3/3, ordinary_heads1/1, task_aggregate7/7; all zero-filter. Later libraries fail under new elided-head profiles; not accepted jointly. New public static_bindings 31769577c→1e445d662→bd01946f3→669cf: workspace alltargets truePASS and handwritten independent Runtime Wire/fingerprint oracle1/1. Qualified-current/wholeH/Slice merged276f96ad1; 7c6 actual closure33/33 (one explicitly unfinished Static Source excluded), SourceScope5/5, qualified_head_transfers3/3. Raw weak-update counterfactual now grants local mutability and is rejected by the actual retained-loan kernel in both raw/Wire. Static directory structural oracle1/1; public static permission remains failclosed pending full constructor/write proof."
   },
   "ct_catalogue": {
     "branch": "task/storage-source-atoms-ct",
@@ -84,6 +85,8 @@
     "checkpoint": "40ecd3f8ce66029331a31ca18259ce0dd62ba9f0",
     "actual": "graph0/3, iterator13/21, owning_hash3/15; first failures retained. Original Source and all budgets preserved. Prior standalone libraries passed, but new implicit lifetime headers activate unsupported ordinary Store/ByteBuffer/owned callback proof paths.",
     "source_repair": "14cbc2b55a3fe4aa2c8c212393dab92cc151dcef aligns actual compiler-prelude insertion with existing Origins; graph3/3 now crosses Source/Types on author tree, later Analyze still rejects. Real regression test2f959343e passed1/1.",
-    "analyze_author": "task/stdlib-ordinary-head-analyze; V remains independently root-owned"
+    "analyze_author": "task/stdlib-ordinary-head-analyze; V remains independently root-owned",
+    "verifier_candidate": "8d2162451; task/stdlib-ordinary-head-verify",
+    "verifier_actual": "Original complete owning collision/growth/replacement/take/set/reuse Source full raw/Wire and four-native consumer1/1 passed; complete original library suites not yet green or accepted."
   }
 }
