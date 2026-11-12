@@ -457,7 +457,14 @@ fn contract(
             rows[0].sources.as_slice()
         };
         let mut allowed = Vec::new();
-        for atom in sources {
+        for (ordinal, atom) in sources.iter().enumerate() {
+            for previous in &sources[..ordinal] {
+                crate::dyn_metadata::recipe(atom, b)?;
+                crate::dyn_metadata::recipe(previous, b)?;
+                if atom == previous {
+                    return Err(failure("retained result repeats a source atom"));
+                }
+            }
             let derived;
             let input = match atom {
                 StorageSource::Exact(source) => {

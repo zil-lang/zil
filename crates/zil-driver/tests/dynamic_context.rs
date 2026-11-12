@@ -601,3 +601,96 @@ fn exclusive_context_factory_preserves_repeated_mutations_and_cleanup() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn inline_address_contract_never_becomes_a_same_typed_field_or_stored_load() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/field-address-factory.zil");
+    let (_, module, _, _) = context_candidate(text, "place-address-attacks");
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| f.name == "create")
+        .unwrap();
+    let written = module.functions[factory]
+        .retained_return_sources
+        .as_ref()
+        .unwrap();
+    let field0 = written[0]
+        .sources
+        .iter()
+        .find(|source| {
+            matches!(source,zil_ir::StorageSource::PlaceAddress{place,..}
+        if place.path==[zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(0))])
+        })
+        .unwrap()
+        .clone();
+    let mut cases = Vec::new();
+    for mutation in 0..7 {
+        let mut attack = module.clone();
+        let rows = attack.functions[factory]
+            .retained_return_sources
+            .as_mut()
+            .unwrap();
+        rows[0].sources = vec![field0.clone()];
+        match mutation {
+            0 => {
+                let zil_ir::StorageSource::PlaceAddress { place, .. } = &mut rows[0].sources[0]
+                else {
+                    unreachable!()
+                };
+                place.path = vec![zil_ir::ContractProjection::Place(
+                    zil_ir::PlaceProjection::Field(1),
+                )]
+            }
+            1 => {
+                let zil_ir::StorageSource::PlaceAddress { place, .. } = &rows[0].sources[0] else {
+                    unreachable!()
+                };
+                rows[0].sources = vec![zil_ir::StorageSource::Exact(place.clone())]
+            }
+            2 => {
+                let zil_ir::StorageSource::PlaceAddress { place, .. } = &mut rows[0].sources[0]
+                else {
+                    unreachable!()
+                };
+                place.path = vec![zil_ir::ContractProjection::Place(
+                    zil_ir::PlaceProjection::Field(9),
+                )]
+            }
+            3 => {
+                let zil_ir::StorageSource::PlaceAddress { mode, .. } = &mut rows[0].sources[0]
+                else {
+                    unreachable!()
+                };
+                *mode = zil_ir::StoredBorrowMode::ExclusiveAddress
+            }
+            4 => rows[0].sources.clear(),
+            5 => {
+                let row = rows[0].clone();
+                rows.push(row)
+            }
+            _ => rows[0].sources.push(field0.clone()),
+        }
+        cases.push((mutation, attack));
+    }
+    let limits = zil_base::Limits::default();
+    for (case, attack) in cases {
+        let assert_rejected = |input: &zil_ir::TypedModule| {
+            let errors = zil_analyze::analyze(input, &limits)
+                .expect_err("invalid address-of source cannot authorize a result");
+            assert!(
+                errors.iter().any(|d| d.code == "E-ANALYZE-IR"),
+                "case {case}: {errors:?}"
+            );
+        };
+        assert_rejected(&attack);
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &attack,
+            &zil_ir::CandidatePlan::empty_for(&attack),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_rejected(&decoded);
+    }
+}
