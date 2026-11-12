@@ -2926,7 +2926,10 @@ fn write_sites(
                         }
                         let parameter_type = &callee.locals[local.0 as usize].ty;
                         if let Some(id) = returned_environment::closure(parameter_type)
-                            && matches!(parameter_type, Type::Closure(_) | Type::Address { mutable: true, .. })
+                            && matches!(
+                                parameter_type,
+                                Type::Closure(_) | Type::Address { mutable: true, .. }
+                            )
                         {
                             for (path, ty) in returned_environment::leaves(module, id, b)? {
                                 add(

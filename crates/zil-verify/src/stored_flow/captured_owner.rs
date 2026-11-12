@@ -412,8 +412,9 @@ pub(super) fn apply(
                     HoldRoot::Static => None,
                 }
                 .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
-                let complete = symbolic_slot_path(holder, root, tail, b)?
-                    .ok_or_else(|| err("borrowed capture update lacks a complete actual target directory"))?;
+                let complete = symbolic_slot_path(holder, root, tail, b)?.ok_or_else(|| {
+                    err("borrowed capture update lacks a complete actual target directory")
+                })?;
                 permission_work(&retained, b)?;
                 updates.push((
                     root.base,
