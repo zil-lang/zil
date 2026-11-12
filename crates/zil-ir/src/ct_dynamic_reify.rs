@@ -24,11 +24,11 @@ pub fn reify_dyn_interface_id<R: CtDynamicReifier>(
     Ok(CtDynInterfaceId {
         module: {
             reifier.node(depth + 1)?;
-            *(&value.module)
+            value.module
         },
         index: {
             reifier.node(depth + 1)?;
-            *(&value.index)
+            value.index
         },
     })
 }
@@ -41,11 +41,11 @@ pub fn reify_dyn_vtable_id<R: CtDynamicReifier>(
     Ok(CtDynVtableId {
         module: {
             reifier.node(depth + 1)?;
-            *(&value.module)
+            value.module
         },
         index: {
             reifier.node(depth + 1)?;
-            *(&value.index)
+            value.index
         },
     })
 }
@@ -56,6 +56,25 @@ pub fn reify_dyn_declaration<R: CtDynamicReifier>(
 ) -> Result<CtDynDeclaration, R::Error> {
     reifier.node(depth)?;
     Ok(CtDynDeclaration {
+        implicit_lifetimes: match &value.implicit_lifetimes {
+            Some(item) => Some({
+                reifier.rows(
+                    (item).len(),
+                    std::mem::size_of::<CtDynImplicitLifeDeclaration>(),
+                    depth + 1,
+                )?;
+                let mut output = Vec::with_capacity((item).len());
+                for item in item {
+                    output.push(reify_dyn_implicit_life_declaration(
+                        item,
+                        reifier,
+                        depth + 1,
+                    )?);
+                }
+                output
+            }),
+            None => None,
+        },
         direct_supertraits: match &value.direct_supertraits {
             Some(item) => Some({
                 reifier.rows(
@@ -144,11 +163,11 @@ pub fn reify_dyn_declaration<R: CtDynamicReifier>(
         kind: reify_dyn_declaration_kind(&value.kind, reifier, depth + 1)?,
         parameters: {
             reifier.rows(
-                (&value.parameters).len(),
+                (value.parameters).len(),
                 std::mem::size_of::<CtLifeParameterKind>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.parameters).len());
+            let mut output = Vec::with_capacity((value.parameters).len());
             for item in &value.parameters {
                 output.push(reify_life_parameter_kind(item, reifier, depth + 1)?);
             }
@@ -156,11 +175,11 @@ pub fn reify_dyn_declaration<R: CtDynamicReifier>(
         },
         members: {
             reifier.rows(
-                (&value.members).len(),
+                (value.members).len(),
                 std::mem::size_of::<CtDynMemberDeclaration>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.members).len());
+            let mut output = Vec::with_capacity((value.members).len());
             for item in &value.members {
                 output.push(reify_dyn_member_declaration(item, reifier, depth + 1)?);
             }
@@ -178,11 +197,11 @@ pub fn reify_dyn_self_pattern<R: CtDynamicReifier>(
         declaration: reify_life_declaration_id(&value.declaration, reifier, depth + 1)?,
         arguments: {
             reifier.rows(
-                (&value.arguments).len(),
+                (value.arguments).len(),
                 std::mem::size_of::<CtDynPatternActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.arguments).len());
+            let mut output = Vec::with_capacity((value.arguments).len());
             for item in &value.arguments {
                 output.push(reify_dyn_pattern_actual(item, reifier, depth + 1)?);
             }
@@ -403,10 +422,19 @@ pub fn reify_dyn_type_pattern<R: CtDynamicReifier>(
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
             Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
         }),
-        DynTypePattern::Desc(field_value_0) => CtDynTypePattern::Desc({
-            reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-            Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
-        }),
+        DynTypePattern::Desc {
+            lifetime: field_lifetime,
+            inner: field_inner,
+        } => CtDynTypePattern::Desc {
+            lifetime: match field_lifetime {
+                Some(item) => Some(reify_dyn_life_pattern(item, reifier, depth + 1)?),
+                None => None,
+            },
+            inner: {
+                reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
+                Box::new(reify_dyn_type_pattern(field_inner, reifier, depth + 1)?)
+            },
+        },
         DynTypePattern::OwnedStore(field_value_0) => CtDynTypePattern::OwnedStore({
             reifier.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
             Box::new(reify_dyn_type_pattern(field_value_0, reifier, depth + 1)?)
@@ -503,11 +531,11 @@ pub fn reify_dyn_trait_application<R: CtDynamicReifier>(
         declaration: reify_life_declaration_id(&value.declaration, reifier, depth + 1)?,
         actuals: {
             reifier.rows(
-                (&value.actuals).len(),
+                (value.actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.actuals).len());
+            let mut output = Vec::with_capacity((value.actuals).len());
             for item in &value.actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -525,7 +553,7 @@ pub fn reify_dyn_member<R: CtDynamicReifier>(
         application: reify_dyn_trait_application(&value.application, reifier, depth + 1)?,
         ordinal: {
             reifier.node(depth + 1)?;
-            *(&value.ordinal)
+            value.ordinal
         },
     })
 }
@@ -541,11 +569,11 @@ pub fn reify_dyn_associated_type<R: CtDynamicReifier>(
         life: reify_storage_life_shape(&value.life, reifier, depth + 1)?,
         classes: {
             reifier.rows(
-                (&value.classes).len(),
+                (value.classes).len(),
                 std::mem::size_of::<StorageBinder>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.classes).len());
+            let mut output = Vec::with_capacity((value.classes).len());
             for item in &value.classes {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -577,11 +605,11 @@ pub fn reify_dyn_receiver<R: CtDynamicReifier>(
     Ok(CtDynReceiver {
         mutable: {
             reifier.node(depth + 1)?;
-            *(&value.mutable)
+            value.mutable
         },
         mode: {
             reifier.node(depth + 1)?;
-            *(&value.mode)
+            value.mode
         },
     })
 }
@@ -595,11 +623,11 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
         member: reify_dyn_member(&value.member, reifier, depth + 1)?,
         actuals: {
             reifier.rows(
-                (&value.actuals).len(),
+                (value.actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.actuals).len());
+            let mut output = Vec::with_capacity((value.actuals).len());
             for item in &value.actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -608,11 +636,11 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
         receiver: reify_dyn_receiver(&value.receiver, reifier, depth + 1)?,
         parameters: {
             reifier.rows(
-                (&value.parameters).len(),
+                (value.parameters).len(),
                 std::mem::size_of::<CtDynamicTypeId>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.parameters).len());
+            let mut output = Vec::with_capacity((value.parameters).len());
             for item in &value.parameters {
                 output.push(reify_type_value(item, reifier, depth + 1)?);
             }
@@ -620,11 +648,11 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
         },
         parameter_modes: {
             reifier.rows(
-                (&value.parameter_modes).len(),
+                (value.parameter_modes).len(),
                 std::mem::size_of::<PassingMode>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.parameter_modes).len());
+            let mut output = Vec::with_capacity((value.parameter_modes).len());
             for item in &value.parameter_modes {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -636,11 +664,11 @@ pub fn reify_dyn_slot<R: CtDynamicReifier>(
         result: reify_type_value(&value.result, reifier, depth + 1)?,
         result_mode: {
             reifier.node(depth + 1)?;
-            *(&value.result_mode)
+            value.result_mode
         },
         call_kind: {
             reifier.node(depth + 1)?;
-            *(&value.call_kind)
+            value.call_kind
         },
         storage_life: match &value.storage_life {
             Some(item) => Some(reify_storage_life_contract(item, reifier, depth + 1)?),
@@ -668,11 +696,11 @@ pub fn reify_dyn_interface<R: CtDynamicReifier>(
         application: reify_dyn_trait_application(&value.application, reifier, depth + 1)?,
         inherited: {
             reifier.rows(
-                (&value.inherited).len(),
+                (value.inherited).len(),
                 std::mem::size_of::<CtDynTraitApplication>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.inherited).len());
+            let mut output = Vec::with_capacity((value.inherited).len());
             for item in &value.inherited {
                 output.push(reify_dyn_trait_application(item, reifier, depth + 1)?);
             }
@@ -680,11 +708,11 @@ pub fn reify_dyn_interface<R: CtDynamicReifier>(
         },
         associated_types: {
             reifier.rows(
-                (&value.associated_types).len(),
+                (value.associated_types).len(),
                 std::mem::size_of::<CtDynAssociatedType>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.associated_types).len());
+            let mut output = Vec::with_capacity((value.associated_types).len());
             for item in &value.associated_types {
                 output.push(reify_dyn_associated_type(item, reifier, depth + 1)?);
             }
@@ -692,11 +720,11 @@ pub fn reify_dyn_interface<R: CtDynamicReifier>(
         },
         associated_constants: {
             reifier.rows(
-                (&value.associated_constants).len(),
+                (value.associated_constants).len(),
                 std::mem::size_of::<CtDynAssociatedConstant>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.associated_constants).len());
+            let mut output = Vec::with_capacity((value.associated_constants).len());
             for item in &value.associated_constants {
                 output.push(reify_dyn_associated_constant(item, reifier, depth + 1)?);
             }
@@ -705,11 +733,11 @@ pub fn reify_dyn_interface<R: CtDynamicReifier>(
         retained_life: reify_retained_life_shape(&value.retained_life, reifier, depth + 1)?,
         slots: {
             reifier.rows(
-                (&value.slots).len(),
+                (value.slots).len(),
                 std::mem::size_of::<CtDynSlot>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.slots).len());
+            let mut output = Vec::with_capacity((value.slots).len());
             for item in &value.slots {
                 output.push(reify_dyn_slot(item, reifier, depth + 1)?);
             }
@@ -726,15 +754,15 @@ pub fn reify_core_dyn_entry<R: CtDynamicReifier>(
     Ok(CtCoreDynEntry {
         slot: {
             reifier.node(depth + 1)?;
-            *(&value.slot)
+            value.slot
         },
         module: {
             reifier.node(depth + 1)?;
-            *(&value.module)
+            value.module
         },
         function: {
             reifier.node(depth + 1)?;
-            *(&value.function)
+            value.function
         },
     })
 }
@@ -747,11 +775,11 @@ pub fn reify_dyn_entry<R: CtDynamicReifier>(
     Ok(CtDynEntry {
         slot: {
             reifier.node(depth + 1)?;
-            *(&value.slot)
+            value.slot
         },
         function: {
             reifier.node(depth + 1)?;
-            *(&value.function)
+            value.function
         },
     })
 }
@@ -764,15 +792,15 @@ pub fn reify_dyn_retained_port_binding<R: CtDynamicReifier>(
     Ok(CtDynRetainedPortBinding {
         port: {
             reifier.node(depth + 1)?;
-            *(&value.port)
+            value.port
         },
         sources: {
             reifier.rows(
-                (&value.sources).len(),
+                (value.sources).len(),
                 std::mem::size_of::<StoragePosition>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.sources).len());
+            let mut output = Vec::with_capacity((value.sources).len());
             for item in &value.sources {
                 output.push(reify_storage_position(item, reifier, depth + 1)?);
             }
@@ -808,11 +836,11 @@ pub fn reify_core_dyn_vtable<R: CtDynamicReifier>(
         },
         self_classes: {
             reifier.rows(
-                (&value.self_classes).len(),
+                (value.self_classes).len(),
                 std::mem::size_of::<StorageBinder>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.self_classes).len());
+            let mut output = Vec::with_capacity((value.self_classes).len());
             for item in &value.self_classes {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -827,11 +855,11 @@ pub fn reify_core_dyn_vtable<R: CtDynamicReifier>(
         implementation: reify_life_declaration_id(&value.implementation, reifier, depth + 1)?,
         actuals: {
             reifier.rows(
-                (&value.actuals).len(),
+                (value.actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.actuals).len());
+            let mut output = Vec::with_capacity((value.actuals).len());
             for item in &value.actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -839,11 +867,11 @@ pub fn reify_core_dyn_vtable<R: CtDynamicReifier>(
         },
         ports: {
             reifier.rows(
-                (&value.ports).len(),
+                (value.ports).len(),
                 std::mem::size_of::<CtDynRetainedPortBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.ports).len());
+            let mut output = Vec::with_capacity((value.ports).len());
             for item in &value.ports {
                 output.push(reify_dyn_retained_port_binding(item, reifier, depth + 1)?);
             }
@@ -851,11 +879,11 @@ pub fn reify_core_dyn_vtable<R: CtDynamicReifier>(
         },
         entries: {
             reifier.rows(
-                (&value.entries).len(),
+                (value.entries).len(),
                 std::mem::size_of::<CtCoreDynEntry>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.entries).len());
+            let mut output = Vec::with_capacity((value.entries).len());
             for item in &value.entries {
                 output.push(reify_core_dyn_entry(item, reifier, depth + 1)?);
             }
@@ -899,11 +927,11 @@ pub fn reify_dyn_vtable<R: CtDynamicReifier>(
         },
         self_classes: {
             reifier.rows(
-                (&value.self_classes).len(),
+                (value.self_classes).len(),
                 std::mem::size_of::<StorageBinder>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.self_classes).len());
+            let mut output = Vec::with_capacity((value.self_classes).len());
             for item in &value.self_classes {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -918,11 +946,11 @@ pub fn reify_dyn_vtable<R: CtDynamicReifier>(
         implementation: reify_life_declaration_id(&value.implementation, reifier, depth + 1)?,
         actuals: {
             reifier.rows(
-                (&value.actuals).len(),
+                (value.actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.actuals).len());
+            let mut output = Vec::with_capacity((value.actuals).len());
             for item in &value.actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -930,11 +958,11 @@ pub fn reify_dyn_vtable<R: CtDynamicReifier>(
         },
         ports: {
             reifier.rows(
-                (&value.ports).len(),
+                (value.ports).len(),
                 std::mem::size_of::<CtDynRetainedPortBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.ports).len());
+            let mut output = Vec::with_capacity((value.ports).len());
             for item in &value.ports {
                 output.push(reify_dyn_retained_port_binding(item, reifier, depth + 1)?);
             }
@@ -942,11 +970,11 @@ pub fn reify_dyn_vtable<R: CtDynamicReifier>(
         },
         entries: {
             reifier.rows(
-                (&value.entries).len(),
+                (value.entries).len(),
                 std::mem::size_of::<CtDynEntry>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.entries).len());
+            let mut output = Vec::with_capacity((value.entries).len());
             for item in &value.entries {
                 output.push(reify_dyn_entry(item, reifier, depth + 1)?);
             }
@@ -1063,11 +1091,11 @@ pub fn reify_dyn_call_access<R: CtDynamicReifier>(
     Ok(CtDynCallAccess {
         reads: {
             reifier.rows(
-                (&value.reads).len(),
+                (value.reads).len(),
                 std::mem::size_of::<StoragePosition>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.reads).len());
+            let mut output = Vec::with_capacity((value.reads).len());
             for item in &value.reads {
                 output.push(reify_storage_position(item, reifier, depth + 1)?);
             }
@@ -1075,11 +1103,11 @@ pub fn reify_dyn_call_access<R: CtDynamicReifier>(
         },
         writes: {
             reifier.rows(
-                (&value.writes).len(),
+                (value.writes).len(),
                 std::mem::size_of::<StoragePosition>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.writes).len());
+            let mut output = Vec::with_capacity((value.writes).len());
             for item in &value.writes {
                 output.push(reify_storage_position(item, reifier, depth + 1)?);
             }
@@ -1129,15 +1157,15 @@ pub fn reify_dyn_cleanup_contract<R: CtDynamicReifier>(
     Ok(CtDynCleanupContract {
         environment: {
             reifier.node(depth + 1)?;
-            *(&value.environment)
+            value.environment
         },
         positions: {
             reifier.rows(
-                (&value.positions).len(),
+                (value.positions).len(),
                 std::mem::size_of::<StoragePosition>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.positions).len());
+            let mut output = Vec::with_capacity((value.positions).len());
             for item in &value.positions {
                 output.push(reify_storage_position(item, reifier, depth + 1)?);
             }
@@ -1146,11 +1174,11 @@ pub fn reify_dyn_cleanup_contract<R: CtDynamicReifier>(
         access: reify_dyn_call_access(&value.access, reifier, depth + 1)?,
         effects: {
             reifier.rows(
-                (&value.effects).len(),
+                (value.effects).len(),
                 std::mem::size_of::<CtDynEffect>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.effects).len());
+            let mut output = Vec::with_capacity((value.effects).len());
             for item in &value.effects {
                 output.push(reify_dyn_effect(item, reifier, depth + 1)?);
             }
@@ -1178,11 +1206,11 @@ pub fn reify_dyn_thread_requirements<R: CtDynamicReifier>(
     Ok(CtDynThreadRequirements {
         transfer: {
             reifier.node(depth + 1)?;
-            *(&value.transfer)
+            value.transfer
         },
         share: {
             reifier.node(depth + 1)?;
-            *(&value.share)
+            value.share
         },
     })
 }
@@ -1282,16 +1310,146 @@ pub fn reify_dyn_type_value<R: CtDynamicReifier>(
         life: reify_storage_life_shape(&value.life, reifier, depth + 1)?,
         classes: {
             reifier.rows(
-                (&value.classes).len(),
+                (value.classes).len(),
                 std::mem::size_of::<StorageBinder>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.classes).len());
+            let mut output = Vec::with_capacity((value.classes).len());
             for item in &value.classes {
                 output.push({
                     reifier.node(depth + 1)?;
                     *(item)
                 });
+            }
+            output
+        },
+    })
+}
+pub fn reify_dyn_instantiation_scope<R: CtDynamicReifier>(
+    value: &DynInstantiationScope,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynInstantiationScope, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtDynInstantiationScope {
+        fixed_binder_count: {
+            reifier.node(depth + 1)?;
+            value.fixed_binder_count
+        },
+        invocation_binder_count: {
+            reifier.node(depth + 1)?;
+            value.invocation_binder_count
+        },
+    })
+}
+pub fn reify_dyn_life_embedding<R: CtDynamicReifier>(
+    value: &DynLifeEmbedding,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynLifeEmbedding, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtDynLifeEmbedding {
+        from: {
+            reifier.node(depth + 1)?;
+            value.from
+        },
+        to: {
+            reifier.node(depth + 1)?;
+            value.to
+        },
+    })
+}
+pub fn reify_dyn_implicit_life_kind<R: CtDynamicReifier>(
+    value: &DynImplicitLifeKind,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynImplicitLifeKind, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        DynImplicitLifeKind::Address => CtDynImplicitLifeKind::Address,
+        DynImplicitLifeKind::Description => CtDynImplicitLifeKind::Description,
+        DynImplicitLifeKind::LifetimeArgument => CtDynImplicitLifeKind::LifetimeArgument,
+    })
+}
+pub fn reify_dyn_implicit_life_root<R: CtDynamicReifier>(
+    value: &DynImplicitLifeRoot,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynImplicitLifeRoot, R::Error> {
+    reifier.node(depth)?;
+    Ok(match value {
+        DynImplicitLifeRoot::SelfPattern => CtDynImplicitLifeRoot::SelfPattern,
+        DynImplicitLifeRoot::ImplementedTrait => CtDynImplicitLifeRoot::ImplementedTrait,
+        DynImplicitLifeRoot::Supertrait(field_value_0) => CtDynImplicitLifeRoot::Supertrait({
+            reifier.node(depth + 1)?;
+            *(field_value_0)
+        }),
+        DynImplicitLifeRoot::Requirement(field_value_0) => CtDynImplicitLifeRoot::Requirement({
+            reifier.node(depth + 1)?;
+            *(field_value_0)
+        }),
+        DynImplicitLifeRoot::AssociatedDefinition(field_value_0) => {
+            CtDynImplicitLifeRoot::AssociatedDefinition({
+                reifier.node(depth + 1)?;
+                *(field_value_0)
+            })
+        }
+        DynImplicitLifeRoot::MethodSignature(field_value_0) => {
+            CtDynImplicitLifeRoot::MethodSignature({
+                reifier.node(depth + 1)?;
+                *(field_value_0)
+            })
+        }
+        DynImplicitLifeRoot::MethodDefinition(field_value_0) => {
+            CtDynImplicitLifeRoot::MethodDefinition({
+                reifier.node(depth + 1)?;
+                *(field_value_0)
+            })
+        }
+    })
+}
+pub fn reify_dyn_implicit_life_occurrence<R: CtDynamicReifier>(
+    value: &DynImplicitLifeOccurrence,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynImplicitLifeOccurrence, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtDynImplicitLifeOccurrence {
+        root: reify_dyn_implicit_life_root(&value.root, reifier, depth + 1)?,
+        path: {
+            reifier.rows((value.path).len(), std::mem::size_of::<u32>(), depth + 1)?;
+            let mut output = Vec::with_capacity((value.path).len());
+            for item in &value.path {
+                output.push({
+                    reifier.node(depth + 1)?;
+                    *(item)
+                });
+            }
+            output
+        },
+        kind: reify_dyn_implicit_life_kind(&value.kind, reifier, depth + 1)?,
+    })
+}
+pub fn reify_dyn_implicit_life_declaration<R: CtDynamicReifier>(
+    value: &DynImplicitLifeDeclaration,
+    reifier: &mut R,
+    depth: usize,
+) -> Result<CtDynImplicitLifeDeclaration, R::Error> {
+    reifier.node(depth)?;
+    Ok(CtDynImplicitLifeDeclaration {
+        occurrences: {
+            reifier.rows(
+                (value.occurrences).len(),
+                std::mem::size_of::<CtDynImplicitLifeOccurrence>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.occurrences).len());
+            for item in &value.occurrences {
+                output.push(reify_dyn_implicit_life_occurrence(
+                    item,
+                    reifier,
+                    depth + 1,
+                )?);
             }
             output
         },
@@ -1331,6 +1489,12 @@ pub fn reify_dyn_life_pattern<R: CtDynamicReifier>(
             reifier.node(depth + 1)?;
             *(field_value_0)
         }),
+        DynLifePattern::ImplicitDeclaration(field_value_0) => {
+            CtDynLifePattern::ImplicitDeclaration({
+                reifier.node(depth + 1)?;
+                *(field_value_0)
+            })
+        }
     })
 }
 pub fn reify_dyn_obligation<R: CtDynamicReifier>(
@@ -1406,7 +1570,7 @@ pub fn reify_dyn_parameter_recipe<R: CtDynamicReifier>(
         ty: reify_dyn_type_pattern(&value.ty, reifier, depth + 1)?,
         mode: {
             reifier.node(depth + 1)?;
-            *(&value.mode)
+            value.mode
         },
     })
 }
@@ -1419,11 +1583,11 @@ pub fn reify_dyn_signature_recipe<R: CtDynamicReifier>(
     Ok(CtDynSignatureRecipe {
         parameters: {
             reifier.rows(
-                (&value.parameters).len(),
+                (value.parameters).len(),
                 std::mem::size_of::<CtDynParameterRecipe>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.parameters).len());
+            let mut output = Vec::with_capacity((value.parameters).len());
             for item in &value.parameters {
                 output.push(reify_dyn_parameter_recipe(item, reifier, depth + 1)?);
             }
@@ -1432,15 +1596,15 @@ pub fn reify_dyn_signature_recipe<R: CtDynamicReifier>(
         result: reify_dyn_type_pattern(&value.result, reifier, depth + 1)?,
         result_mode: {
             reifier.node(depth + 1)?;
-            *(&value.result_mode)
+            value.result_mode
         },
         call_kind: {
             reifier.node(depth + 1)?;
-            *(&value.call_kind)
+            value.call_kind
         },
         invocation_binder_count: {
             reifier.node(depth + 1)?;
-            *(&value.invocation_binder_count)
+            value.invocation_binder_count
         },
         contract: reify_dyn_contract_recipe(&value.contract, reifier, depth + 1)?,
     })
@@ -1536,15 +1700,15 @@ pub fn reify_dyn_cleanup_recipe<R: CtDynamicReifier>(
     Ok(CtDynCleanupRecipe {
         environment: {
             reifier.node(depth + 1)?;
-            *(&value.environment)
+            value.environment
         },
         positions: {
             reifier.rows(
-                (&value.positions).len(),
+                (value.positions).len(),
                 std::mem::size_of::<StoragePosition>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.positions).len());
+            let mut output = Vec::with_capacity((value.positions).len());
             for item in &value.positions {
                 output.push(reify_storage_position(item, reifier, depth + 1)?);
             }
@@ -1553,11 +1717,11 @@ pub fn reify_dyn_cleanup_recipe<R: CtDynamicReifier>(
         access: reify_dyn_call_access(&value.access, reifier, depth + 1)?,
         effects: {
             reifier.rows(
-                (&value.effects).len(),
+                (value.effects).len(),
                 std::mem::size_of::<CtDynEffectRecipe>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.effects).len());
+            let mut output = Vec::with_capacity((value.effects).len());
             for item in &value.effects {
                 output.push(reify_dyn_effect_recipe(item, reifier, depth + 1)?);
             }
@@ -1663,11 +1827,11 @@ pub fn reify_dyn_definition_id<R: CtDynamicReifier>(
     Ok(CtDynDefinitionId {
         module: {
             reifier.node(depth + 1)?;
-            *(&value.module)
+            value.module
         },
         source: {
             reifier.node(depth + 1)?;
-            *(&value.source)
+            value.source
         },
     })
 }
@@ -1691,11 +1855,11 @@ pub fn reify_dyn_definition_declaration<R: CtDynamicReifier>(
     Ok(CtDynDefinitionDeclaration {
         requirements: {
             reifier.rows(
-                (&value.requirements).len(),
+                (value.requirements).len(),
                 std::mem::size_of::<CtDynObligation>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.requirements).len());
+            let mut output = Vec::with_capacity((value.requirements).len());
             for item in &value.requirements {
                 output.push(reify_dyn_obligation(item, reifier, depth + 1)?);
             }
@@ -1703,11 +1867,11 @@ pub fn reify_dyn_definition_declaration<R: CtDynamicReifier>(
         },
         instances: {
             reifier.rows(
-                (&value.instances).len(),
+                (value.instances).len(),
                 std::mem::size_of::<CtDynDefinitionSpecialization>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.instances).len());
+            let mut output = Vec::with_capacity((value.instances).len());
             for item in &value.instances {
                 output.push(reify_dyn_definition_specialization(
                     item,
@@ -1721,7 +1885,7 @@ pub fn reify_dyn_definition_declaration<R: CtDynamicReifier>(
         identity: reify_life_declaration_identity(&value.identity, reifier, depth + 1)?,
         member: {
             reifier.node(depth + 1)?;
-            *(&value.member)
+            value.member
         },
         scope: reify_dyn_definition_scope(&value.scope, reifier, depth + 1)?,
         signature: reify_dyn_signature_recipe(&value.signature, reifier, depth + 1)?,
@@ -1736,11 +1900,11 @@ pub fn reify_dyn_method_recipe<R: CtDynamicReifier>(
     Ok(CtDynMethodRecipe {
         requirements: {
             reifier.rows(
-                (&value.requirements).len(),
+                (value.requirements).len(),
                 std::mem::size_of::<CtDynObligation>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.requirements).len());
+            let mut output = Vec::with_capacity((value.requirements).len());
             for item in &value.requirements {
                 output.push(reify_dyn_obligation(item, reifier, depth + 1)?);
             }
@@ -1748,7 +1912,7 @@ pub fn reify_dyn_method_recipe<R: CtDynamicReifier>(
         },
         member: {
             reifier.node(depth + 1)?;
-            *(&value.member)
+            value.member
         },
         signature: reify_dyn_signature_recipe(&value.signature, reifier, depth + 1)?,
         default_definition: match &value.default_definition {
@@ -1764,15 +1928,28 @@ pub fn reify_dyn_function_instance<R: CtDynamicReifier>(
 ) -> Result<CtDynFunctionInstance, R::Error> {
     reifier.node(depth)?;
     Ok(CtDynFunctionInstance {
+        scope: reify_dyn_instantiation_scope(&value.scope, reifier, depth + 1)?,
+        header_embedding: {
+            reifier.rows(
+                (value.header_embedding).len(),
+                std::mem::size_of::<CtDynLifeEmbedding>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.header_embedding).len());
+            for item in &value.header_embedding {
+                output.push(reify_dyn_life_embedding(item, reifier, depth + 1)?);
+            }
+            output
+        },
         definition: reify_dyn_definition_id(&value.definition, reifier, depth + 1)?,
         receiver: reify_dyn_type_value(&value.receiver, reifier, depth + 1)?,
         declaration_actuals: {
             reifier.rows(
-                (&value.declaration_actuals).len(),
+                (value.declaration_actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.declaration_actuals).len());
+            let mut output = Vec::with_capacity((value.declaration_actuals).len());
             for item in &value.declaration_actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -1780,11 +1957,11 @@ pub fn reify_dyn_function_instance<R: CtDynamicReifier>(
         },
         method_actuals: {
             reifier.rows(
-                (&value.method_actuals).len(),
+                (value.method_actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.method_actuals).len());
+            let mut output = Vec::with_capacity((value.method_actuals).len());
             for item in &value.method_actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -1824,7 +2001,7 @@ pub fn reify_dyn_associated_definition<R: CtDynamicReifier>(
         },
         member: {
             reifier.node(depth + 1)?;
-            *(&value.member)
+            value.member
         },
         value: match &value.value {
             Some(item) => Some(reify_dyn_associated_value_recipe(item, reifier, depth + 1)?),
@@ -1832,11 +2009,11 @@ pub fn reify_dyn_associated_definition<R: CtDynamicReifier>(
         },
         requirements: {
             reifier.rows(
-                (&value.requirements).len(),
+                (value.requirements).len(),
                 std::mem::size_of::<CtDynObligation>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.requirements).len());
+            let mut output = Vec::with_capacity((value.requirements).len());
             for item in &value.requirements {
                 output.push(reify_dyn_obligation(item, reifier, depth + 1)?);
             }
@@ -1911,16 +2088,29 @@ pub fn reify_dyn_implementation_witness<R: CtDynamicReifier>(
 ) -> Result<CtDynImplementationWitness, R::Error> {
     reifier.node(depth)?;
     Ok(CtDynImplementationWitness {
+        scope: reify_dyn_instantiation_scope(&value.scope, reifier, depth + 1)?,
+        to_context: {
+            reifier.rows(
+                (value.to_context).len(),
+                std::mem::size_of::<CtDynLifeEmbedding>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.to_context).len());
+            for item in &value.to_context {
+                output.push(reify_dyn_life_embedding(item, reifier, depth + 1)?);
+            }
+            output
+        },
         receiver: reify_dyn_type_value(&value.receiver, reifier, depth + 1)?,
         application: reify_dyn_trait_application(&value.application, reifier, depth + 1)?,
         implementation: reify_life_declaration_id(&value.implementation, reifier, depth + 1)?,
         actuals: {
             reifier.rows(
-                (&value.actuals).len(),
+                (value.actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.actuals).len());
+            let mut output = Vec::with_capacity((value.actuals).len());
             for item in &value.actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -1928,11 +2118,11 @@ pub fn reify_dyn_implementation_witness<R: CtDynamicReifier>(
         },
         associated: {
             reifier.rows(
-                (&value.associated).len(),
+                (value.associated).len(),
                 std::mem::size_of::<CtDynAssociatedResolution>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.associated).len());
+            let mut output = Vec::with_capacity((value.associated).len());
             for item in &value.associated {
                 output.push(reify_dyn_associated_resolution(item, reifier, depth + 1)?);
             }
@@ -1977,11 +2167,11 @@ pub fn reify_dyn_definition_specialization<R: CtDynamicReifier>(
         receiver: reify_dyn_type_value(&value.receiver, reifier, depth + 1)?,
         declaration_actuals: {
             reifier.rows(
-                (&value.declaration_actuals).len(),
+                (value.declaration_actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.declaration_actuals).len());
+            let mut output = Vec::with_capacity((value.declaration_actuals).len());
             for item in &value.declaration_actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -1989,11 +2179,11 @@ pub fn reify_dyn_definition_specialization<R: CtDynamicReifier>(
         },
         method_actuals: {
             reifier.rows(
-                (&value.method_actuals).len(),
+                (value.method_actuals).len(),
                 std::mem::size_of::<CtDynGenericActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.method_actuals).len());
+            let mut output = Vec::with_capacity((value.method_actuals).len());
             for item in &value.method_actuals {
                 output.push(reify_dyn_generic_actual(item, reifier, depth + 1)?);
             }
@@ -2075,11 +2265,11 @@ pub fn reify_retained_borrow_port<R: CtDynamicReifier>(
         leaf: reify_type_value(&value.leaf, reifier, depth + 1)?,
         mode: {
             reifier.node(depth + 1)?;
-            *(&value.mode)
+            value.mode
         },
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
     })
 }
@@ -2092,15 +2282,15 @@ pub fn reify_retained_life_shape<R: CtDynamicReifier>(
     Ok(CtRetainedLifeShape {
         binder_count: {
             reifier.node(depth + 1)?;
-            *(&value.binder_count)
+            value.binder_count
         },
         ports: {
             reifier.rows(
-                (&value.ports).len(),
+                (value.ports).len(),
                 std::mem::size_of::<CtRetainedBorrowPort>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.ports).len());
+            let mut output = Vec::with_capacity((value.ports).len());
             for item in &value.ports {
                 output.push(reify_retained_borrow_port(item, reifier, depth + 1)?);
             }
@@ -2108,11 +2298,11 @@ pub fn reify_retained_life_shape<R: CtDynamicReifier>(
         },
         retained: {
             reifier.rows(
-                (&value.retained).len(),
+                (value.retained).len(),
                 std::mem::size_of::<StorageRetainedBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.retained).len());
+            let mut output = Vec::with_capacity((value.retained).len());
             for item in &value.retained {
                 output.push(reify_storage_retained_binding(item, reifier, depth + 1)?);
             }
@@ -2120,11 +2310,11 @@ pub fn reify_retained_life_shape<R: CtDynamicReifier>(
         },
         nominal_arguments: {
             reifier.rows(
-                (&value.nominal_arguments).len(),
+                (value.nominal_arguments).len(),
                 std::mem::size_of::<NominalLifeArgument>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.nominal_arguments).len());
+            let mut output = Vec::with_capacity((value.nominal_arguments).len());
             for item in &value.nominal_arguments {
                 output.push(reify_nominal_life_argument(item, reifier, depth + 1)?);
             }
@@ -2142,11 +2332,11 @@ pub fn reify_storage_source_binding<R: CtDynamicReifier>(
         position: reify_storage_position(&value.position, reifier, depth + 1)?,
         sources: {
             reifier.rows(
-                (&value.sources).len(),
+                (value.sources).len(),
                 std::mem::size_of::<CtStorageSource>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.sources).len());
+            let mut output = Vec::with_capacity((value.sources).len());
             for item in &value.sources {
                 output.push(reify_storage_source(item, reifier, depth + 1)?);
             }
@@ -2193,11 +2383,11 @@ pub fn reify_life_nominal_declaration<R: CtDynamicReifier>(
         kind: reify_life_nominal_kind(&value.kind, reifier, depth + 1)?,
         parameters: {
             reifier.rows(
-                (&value.parameters).len(),
+                (value.parameters).len(),
                 std::mem::size_of::<CtLifeParameterKind>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.parameters).len());
+            let mut output = Vec::with_capacity((value.parameters).len());
             for item in &value.parameters {
                 output.push(reify_life_parameter_kind(item, reifier, depth + 1)?);
             }
@@ -2242,11 +2432,11 @@ pub fn reify_life_nominal_instance<R: CtDynamicReifier>(
         ty: reify_type_value(&value.ty, reifier, depth + 1)?,
         arguments: {
             reifier.rows(
-                (&value.arguments).len(),
+                (value.arguments).len(),
                 std::mem::size_of::<CtLifeNominalActual>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.arguments).len());
+            let mut output = Vec::with_capacity((value.arguments).len());
             for item in &value.arguments {
                 output.push(reify_life_nominal_actual(item, reifier, depth + 1)?);
             }
@@ -2469,11 +2659,11 @@ pub fn reify_type<R: CtDynamicReifier>(
                 for item in field_variants {
                     output.push((reifier.text(&(item).0, depth + 1)?, {
                         reifier.rows(
-                            (&(item).1).len(),
+                            ((item).1).len(),
                             std::mem::size_of::<CtDynamicTypeId>(),
                             depth + 1,
                         )?;
-                        let mut output = Vec::with_capacity((&(item).1).len());
+                        let mut output = Vec::with_capacity(((item).1).len());
                         for item in &(item).1 {
                             output.push(reify_type_value(item, reifier, depth + 1)?);
                         }
@@ -2592,11 +2782,11 @@ pub fn reify_storage_life_slot<R: CtDynamicReifier>(
     Ok(StorageLifeSlot {
         path: {
             reifier.rows(
-                (&value.path).len(),
+                (value.path).len(),
                 std::mem::size_of::<PlaceProjection>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.path).len());
+            let mut output = Vec::with_capacity((value.path).len());
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -2607,11 +2797,11 @@ pub fn reify_storage_life_slot<R: CtDynamicReifier>(
         },
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
         mode: {
             reifier.node(depth + 1)?;
-            *(&value.mode)
+            value.mode
         },
     })
 }
@@ -2624,15 +2814,15 @@ pub fn reify_life_declaration_id<R: CtDynamicReifier>(
     Ok(LifeDeclarationId {
         module: {
             reifier.node(depth + 1)?;
-            *(&value.module)
+            value.module
         },
         declaration: {
             reifier.node(depth + 1)?;
-            *(&value.declaration)
+            value.declaration
         },
         compiler: {
             reifier.node(depth + 1)?;
-            *(&value.compiler)
+            value.compiler
         },
     })
 }
@@ -2645,11 +2835,11 @@ pub fn reify_storage_retained_binding<R: CtDynamicReifier>(
     Ok(StorageRetainedBinding {
         path: {
             reifier.rows(
-                (&value.path).len(),
+                (value.path).len(),
                 std::mem::size_of::<LifeTypeProjection>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.path).len());
+            let mut output = Vec::with_capacity((value.path).len());
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -2660,11 +2850,11 @@ pub fn reify_storage_retained_binding<R: CtDynamicReifier>(
         },
         class: {
             reifier.node(depth + 1)?;
-            *(&value.class)
+            value.class
         },
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
     })
 }
@@ -2677,11 +2867,11 @@ pub fn reify_nominal_life_argument<R: CtDynamicReifier>(
     Ok(NominalLifeArgument {
         path: {
             reifier.rows(
-                (&value.path).len(),
+                (value.path).len(),
                 std::mem::size_of::<LifeTypeProjection>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.path).len());
+            let mut output = Vec::with_capacity((value.path).len());
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -2693,11 +2883,11 @@ pub fn reify_nominal_life_argument<R: CtDynamicReifier>(
         declaration: reify_life_declaration_id(&value.declaration, reifier, depth + 1)?,
         argument: {
             reifier.node(depth + 1)?;
-            *(&value.argument)
+            value.argument
         },
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
     })
 }
@@ -2710,15 +2900,15 @@ pub fn reify_storage_life_shape<R: CtDynamicReifier>(
     Ok(StorageLifeShape {
         binder_count: {
             reifier.node(depth + 1)?;
-            *(&value.binder_count)
+            value.binder_count
         },
         slots: {
             reifier.rows(
-                (&value.slots).len(),
+                (value.slots).len(),
                 std::mem::size_of::<StorageLifeSlot>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.slots).len());
+            let mut output = Vec::with_capacity((value.slots).len());
             for item in &value.slots {
                 output.push(reify_storage_life_slot(item, reifier, depth + 1)?);
             }
@@ -2726,11 +2916,11 @@ pub fn reify_storage_life_shape<R: CtDynamicReifier>(
         },
         retained: {
             reifier.rows(
-                (&value.retained).len(),
+                (value.retained).len(),
                 std::mem::size_of::<StorageRetainedBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.retained).len());
+            let mut output = Vec::with_capacity((value.retained).len());
             for item in &value.retained {
                 output.push(reify_storage_retained_binding(item, reifier, depth + 1)?);
             }
@@ -2738,11 +2928,11 @@ pub fn reify_storage_life_shape<R: CtDynamicReifier>(
         },
         nominal_arguments: {
             reifier.rows(
-                (&value.nominal_arguments).len(),
+                (value.nominal_arguments).len(),
                 std::mem::size_of::<NominalLifeArgument>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.nominal_arguments).len());
+            let mut output = Vec::with_capacity((value.nominal_arguments).len());
             for item in &value.nominal_arguments {
                 output.push(reify_nominal_life_argument(item, reifier, depth + 1)?);
             }
@@ -2759,15 +2949,15 @@ pub fn reify_storage_position<R: CtDynamicReifier>(
     Ok(StoragePosition {
         base: {
             reifier.node(depth + 1)?;
-            *(&value.base)
+            value.base
         },
         path: {
             reifier.rows(
-                (&value.path).len(),
+                (value.path).len(),
                 std::mem::size_of::<ContractProjection>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.path).len());
+            let mut output = Vec::with_capacity((value.path).len());
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -2788,7 +2978,7 @@ pub fn reify_storage_life_binding<R: CtDynamicReifier>(
         position: reify_storage_position(&value.position, reifier, depth + 1)?,
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
     })
 }
@@ -2801,15 +2991,15 @@ pub fn reify_signature_life_class<R: CtDynamicReifier>(
     Ok(SignatureLifeClass {
         base: {
             reifier.node(depth + 1)?;
-            *(&value.base)
+            value.base
         },
         path: {
             reifier.rows(
-                (&value.path).len(),
+                (value.path).len(),
                 std::mem::size_of::<LifeTypeProjection>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.path).len());
+            let mut output = Vec::with_capacity((value.path).len());
             for item in &value.path {
                 output.push({
                     reifier.node(depth + 1)?;
@@ -2820,7 +3010,7 @@ pub fn reify_signature_life_class<R: CtDynamicReifier>(
         },
         class: {
             reifier.node(depth + 1)?;
-            *(&value.class)
+            value.class
         },
     })
 }
@@ -2834,7 +3024,7 @@ pub fn reify_signature_life_class_binding<R: CtDynamicReifier>(
         position: reify_signature_life_class(&value.position, reifier, depth + 1)?,
         binder: {
             reifier.node(depth + 1)?;
-            *(&value.binder)
+            value.binder
         },
     })
 }
@@ -2847,19 +3037,19 @@ pub fn reify_storage_life_contract<R: CtDynamicReifier>(
     Ok(StorageLifeContract {
         fixed_binder_count: {
             reifier.node(depth + 1)?;
-            *(&value.fixed_binder_count)
+            value.fixed_binder_count
         },
         invocation_binder_count: {
             reifier.node(depth + 1)?;
-            *(&value.invocation_binder_count)
+            value.invocation_binder_count
         },
         bindings: {
             reifier.rows(
-                (&value.bindings).len(),
+                (value.bindings).len(),
                 std::mem::size_of::<StorageLifeBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.bindings).len());
+            let mut output = Vec::with_capacity((value.bindings).len());
             for item in &value.bindings {
                 output.push(reify_storage_life_binding(item, reifier, depth + 1)?);
             }
@@ -2867,11 +3057,11 @@ pub fn reify_storage_life_contract<R: CtDynamicReifier>(
         },
         classes: {
             reifier.rows(
-                (&value.classes).len(),
+                (value.classes).len(),
                 std::mem::size_of::<SignatureLifeClassBinding>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.classes).len());
+            let mut output = Vec::with_capacity((value.classes).len());
             for item in &value.classes {
                 output.push(reify_signature_life_class_binding(
                     item,
@@ -2893,11 +3083,11 @@ pub fn reify_life_declaration_identity<R: CtDynamicReifier>(
         package: reifier.text(&value.package, depth + 1)?,
         module_path: {
             reifier.rows(
-                (&value.module_path).len(),
+                (value.module_path).len(),
                 std::mem::size_of::<String>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.module_path).len());
+            let mut output = Vec::with_capacity((value.module_path).len());
             for item in &value.module_path {
                 output.push(reifier.text(item, depth + 1)?);
             }
@@ -2905,11 +3095,11 @@ pub fn reify_life_declaration_identity<R: CtDynamicReifier>(
         },
         declaration_path: {
             reifier.rows(
-                (&value.declaration_path).len(),
+                (value.declaration_path).len(),
                 std::mem::size_of::<String>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.declaration_path).len());
+            let mut output = Vec::with_capacity((value.declaration_path).len());
             for item in &value.declaration_path {
                 output.push(reifier.text(item, depth + 1)?);
             }
@@ -2917,11 +3107,11 @@ pub fn reify_life_declaration_identity<R: CtDynamicReifier>(
         },
         generation_path: {
             reifier.rows(
-                (&value.generation_path).len(),
+                (value.generation_path).len(),
                 std::mem::size_of::<u32>(),
                 depth + 1,
             )?;
-            let mut output = Vec::with_capacity((&value.generation_path).len());
+            let mut output = Vec::with_capacity((value.generation_path).len());
             for item in &value.generation_path {
                 output.push({
                     reifier.node(depth + 1)?;

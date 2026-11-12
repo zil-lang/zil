@@ -59,6 +59,17 @@ impl CtDynamicMetadata for CtDynDeclaration {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.node(depth + 1)?;
+        if let Some(item) = &self.implicit_lifetimes {
+            visitor.rows(
+                (item).len(),
+                std::mem::size_of::<CtDynImplicitLifeDeclaration>(),
+                depth + 1,
+            )?;
+            for item in item {
+                (item).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        visitor.node(depth + 1)?;
         if let Some(item) = &self.direct_supertraits {
             visitor.rows(
                 (item).len(),
@@ -121,11 +132,11 @@ impl CtDynamicMetadata for CtDynDeclaration {
         if let Some(item) = &self.implemented_trait {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.identity).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.identity).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.parameters).len(),
+            (self.parameters).len(),
             std::mem::size_of::<CtLifeParameterKind>(),
             depth + 1,
         )?;
@@ -133,7 +144,7 @@ impl CtDynamicMetadata for CtDynDeclaration {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.members).len(),
+            (self.members).len(),
             std::mem::size_of::<CtDynMemberDeclaration>(),
             depth + 1,
         )?;
@@ -150,9 +161,9 @@ impl CtDynamicMetadata for CtDynSelfPattern {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.arguments).len(),
+            (self.arguments).len(),
             std::mem::size_of::<CtDynPatternActual>(),
             depth + 1,
         )?;
@@ -336,9 +347,16 @@ impl CtDynamicMetadata for CtDynTypePattern {
                 visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
                 ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
-            Self::Desc(field_value_0) => {
+            Self::Desc {
+                lifetime: field_lifetime,
+                inner: field_inner,
+            } => {
+                visitor.node(depth + 1)?;
+                if let Some(item) = field_lifetime {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
                 visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
-                ((field_value_0).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
+                ((field_inner).as_ref()).visit_ct_dynamic(visitor, depth + 1)?;
             }
             Self::OwnedStore(field_value_0) => {
                 visitor.rows(1, std::mem::size_of::<CtDynTypePattern>(), depth + 1)?;
@@ -379,7 +397,7 @@ impl CtDynamicMetadata for CtDynMemberDeclaration {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.text(&self.name, depth + 1)?;
-        (&self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -439,9 +457,9 @@ impl CtDynamicMetadata for CtDynTraitApplication {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.actuals).len(),
+            (self.actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -458,7 +476,7 @@ impl CtDynamicMetadata for CtDynMember {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.application).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.application).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.ordinal;
         visitor.node(depth + 1)?;
         Ok(())
@@ -471,11 +489,11 @@ impl CtDynamicMetadata for CtDynAssociatedType {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.member).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.member).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.type_reference(*&self.ty, depth + 1)?;
-        (&self.life).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.life).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.classes).len(),
+            (self.classes).len(),
             std::mem::size_of::<StorageBinder>(),
             depth + 1,
         )?;
@@ -493,7 +511,7 @@ impl CtDynamicMetadata for CtDynAssociatedConstant {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.member).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.member).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.type_reference(*&self.ty, depth + 1)?;
         visitor.constant(&self.value, depth + 1)?;
         Ok(())
@@ -508,7 +526,7 @@ impl CtDynamicMetadata for CtDynReceiver {
         visitor.node(depth)?;
         let _ = &self.mutable;
         visitor.node(depth + 1)?;
-        (&self.mode).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.mode).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -519,18 +537,18 @@ impl CtDynamicMetadata for CtDynSlot {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.member).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.member).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.actuals).len(),
+            (self.actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
         for item in &self.actuals {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.parameters).len(),
+            (self.parameters).len(),
             std::mem::size_of::<CtDynamicTypeId>(),
             depth + 1,
         )?;
@@ -538,7 +556,7 @@ impl CtDynamicMetadata for CtDynSlot {
             visitor.type_reference(*item, depth + 1)?;
         }
         visitor.rows(
-            (&self.parameter_modes).len(),
+            (self.parameter_modes).len(),
             std::mem::size_of::<PassingMode>(),
             depth + 1,
         )?;
@@ -546,13 +564,13 @@ impl CtDynamicMetadata for CtDynSlot {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.type_reference(*&self.result, depth + 1)?;
-        (&self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.node(depth + 1)?;
         if let Some(item) = &self.storage_life {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.contract).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.contract).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -571,10 +589,10 @@ impl CtDynamicMetadata for CtDynInterface {
         if let Some(item) = &self.owning_cleanup {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.application).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.application).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.inherited).len(),
+            (self.inherited).len(),
             std::mem::size_of::<CtDynTraitApplication>(),
             depth + 1,
         )?;
@@ -582,7 +600,7 @@ impl CtDynamicMetadata for CtDynInterface {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.associated_types).len(),
+            (self.associated_types).len(),
             std::mem::size_of::<CtDynAssociatedType>(),
             depth + 1,
         )?;
@@ -590,16 +608,16 @@ impl CtDynamicMetadata for CtDynInterface {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.associated_constants).len(),
+            (self.associated_constants).len(),
             std::mem::size_of::<CtDynAssociatedConstant>(),
             depth + 1,
         )?;
         for item in &self.associated_constants {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.retained_life).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.retained_life).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.slots).len(),
+            (self.slots).len(),
             std::mem::size_of::<CtDynSlot>(),
             depth + 1,
         )?;
@@ -649,7 +667,7 @@ impl CtDynamicMetadata for CtDynRetainedPortBinding {
         let _ = &self.port;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.sources).len(),
+            (self.sources).len(),
             std::mem::size_of::<StoragePosition>(),
             depth + 1,
         )?;
@@ -682,7 +700,7 @@ impl CtDynamicMetadata for CtCoreDynVtable {
             }
         }
         visitor.rows(
-            (&self.self_classes).len(),
+            (self.self_classes).len(),
             std::mem::size_of::<StorageBinder>(),
             depth + 1,
         )?;
@@ -690,12 +708,12 @@ impl CtDynamicMetadata for CtCoreDynVtable {
             let _ = item;
             visitor.node(depth + 1)?;
         }
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.interface).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.interface).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.type_reference(*&self.self_type, depth + 1)?;
-        (&self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.actuals).len(),
+            (self.actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -703,7 +721,7 @@ impl CtDynamicMetadata for CtCoreDynVtable {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.ports).len(),
+            (self.ports).len(),
             std::mem::size_of::<CtDynRetainedPortBinding>(),
             depth + 1,
         )?;
@@ -711,7 +729,7 @@ impl CtDynamicMetadata for CtCoreDynVtable {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.entries).len(),
+            (self.entries).len(),
             std::mem::size_of::<CtCoreDynEntry>(),
             depth + 1,
         )?;
@@ -752,7 +770,7 @@ impl CtDynamicMetadata for CtDynVtable {
             }
         }
         visitor.rows(
-            (&self.self_classes).len(),
+            (self.self_classes).len(),
             std::mem::size_of::<StorageBinder>(),
             depth + 1,
         )?;
@@ -760,12 +778,12 @@ impl CtDynamicMetadata for CtDynVtable {
             let _ = item;
             visitor.node(depth + 1)?;
         }
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.interface).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.interface).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.type_reference(*&self.self_type, depth + 1)?;
-        (&self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.actuals).len(),
+            (self.actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -773,7 +791,7 @@ impl CtDynamicMetadata for CtDynVtable {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.ports).len(),
+            (self.ports).len(),
             std::mem::size_of::<CtDynRetainedPortBinding>(),
             depth + 1,
         )?;
@@ -781,7 +799,7 @@ impl CtDynamicMetadata for CtDynVtable {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.entries).len(),
+            (self.entries).len(),
             std::mem::size_of::<CtDynEntry>(),
             depth + 1,
         )?;
@@ -907,7 +925,7 @@ impl CtDynamicMetadata for CtDynCallAccess {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.reads).len(),
+            (self.reads).len(),
             std::mem::size_of::<StoragePosition>(),
             depth + 1,
         )?;
@@ -915,7 +933,7 @@ impl CtDynamicMetadata for CtDynCallAccess {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.writes).len(),
+            (self.writes).len(),
             std::mem::size_of::<StoragePosition>(),
             depth + 1,
         )?;
@@ -965,16 +983,16 @@ impl CtDynamicMetadata for CtDynCleanupContract {
         let _ = &self.environment;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.positions).len(),
+            (self.positions).len(),
             std::mem::size_of::<StoragePosition>(),
             depth + 1,
         )?;
         for item in &self.positions {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.access).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.access).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.effects).len(),
+            (self.effects).len(),
             std::mem::size_of::<CtDynEffect>(),
             depth + 1,
         )?;
@@ -1090,15 +1108,127 @@ impl CtDynamicMetadata for CtDynTypeValue {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.type_reference(*&self.ty, depth + 1)?;
-        (&self.life).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.life).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.classes).len(),
+            (self.classes).len(),
             std::mem::size_of::<StorageBinder>(),
             depth + 1,
         )?;
         for item in &self.classes {
             let _ = item;
             visitor.node(depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynInstantiationScope {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.fixed_binder_count;
+        visitor.node(depth + 1)?;
+        let _ = &self.invocation_binder_count;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynLifeEmbedding {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.from;
+        visitor.node(depth + 1)?;
+        let _ = &self.to;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynImplicitLifeKind {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Address => {}
+            Self::Description => {}
+            Self::LifetimeArgument => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynImplicitLifeRoot {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::SelfPattern => {}
+            Self::ImplementedTrait => {}
+            Self::Supertrait(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Requirement(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::AssociatedDefinition(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::MethodSignature(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::MethodDefinition(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynImplicitLifeOccurrence {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.root).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.rows((self.path).len(), std::mem::size_of::<u32>(), depth + 1)?;
+        for item in &self.path {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtDynImplicitLifeDeclaration {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.rows(
+            (self.occurrences).len(),
+            std::mem::size_of::<CtDynImplicitLifeOccurrence>(),
+            depth + 1,
+        )?;
+        for item in &self.occurrences {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         Ok(())
     }
@@ -1129,6 +1259,10 @@ impl CtDynamicMetadata for CtDynLifePattern {
                 visitor.node(depth + 1)?;
             }
             Self::Invocation(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::ImplicitDeclaration(field_value_0) => {
                 let _ = field_value_0;
                 visitor.node(depth + 1)?;
             }
@@ -1198,8 +1332,8 @@ impl CtDynamicMetadata for CtDynParameterRecipe {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.ty).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.mode).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.ty).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.mode).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -1211,19 +1345,19 @@ impl CtDynamicMetadata for CtDynSignatureRecipe {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.parameters).len(),
+            (self.parameters).len(),
             std::mem::size_of::<CtDynParameterRecipe>(),
             depth + 1,
         )?;
         for item in &self.parameters {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.result).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.result).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.invocation_binder_count;
         visitor.node(depth + 1)?;
-        (&self.contract).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.contract).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -1324,16 +1458,16 @@ impl CtDynamicMetadata for CtDynCleanupRecipe {
         let _ = &self.environment;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.positions).len(),
+            (self.positions).len(),
             std::mem::size_of::<StoragePosition>(),
             depth + 1,
         )?;
         for item in &self.positions {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.access).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.access).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.effects).len(),
+            (self.effects).len(),
             std::mem::size_of::<CtDynEffectRecipe>(),
             depth + 1,
         )?;
@@ -1453,7 +1587,7 @@ impl CtDynamicMetadata for CtDynDefinitionDeclaration {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.requirements).len(),
+            (self.requirements).len(),
             std::mem::size_of::<CtDynObligation>(),
             depth + 1,
         )?;
@@ -1461,19 +1595,19 @@ impl CtDynamicMetadata for CtDynDefinitionDeclaration {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.instances).len(),
+            (self.instances).len(),
             std::mem::size_of::<CtDynDefinitionSpecialization>(),
             depth + 1,
         )?;
         for item in &self.instances {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.identity).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.identity).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.member;
         visitor.node(depth + 1)?;
-        (&self.scope).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.signature).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.scope).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.signature).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -1485,7 +1619,7 @@ impl CtDynamicMetadata for CtDynMethodRecipe {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.requirements).len(),
+            (self.requirements).len(),
             std::mem::size_of::<CtDynObligation>(),
             depth + 1,
         )?;
@@ -1494,7 +1628,7 @@ impl CtDynamicMetadata for CtDynMethodRecipe {
         }
         let _ = &self.member;
         visitor.node(depth + 1)?;
-        (&self.signature).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.signature).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.node(depth + 1)?;
         if let Some(item) = &self.default_definition {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
@@ -1509,10 +1643,19 @@ impl CtDynamicMetadata for CtDynFunctionInstance {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.definition).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.scope).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.declaration_actuals).len(),
+            (self.header_embedding).len(),
+            std::mem::size_of::<CtDynLifeEmbedding>(),
+            depth + 1,
+        )?;
+        for item in &self.header_embedding {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        (self.definition).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.rows(
+            (self.declaration_actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -1520,7 +1663,7 @@ impl CtDynamicMetadata for CtDynFunctionInstance {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.method_actuals).len(),
+            (self.method_actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -1570,7 +1713,7 @@ impl CtDynamicMetadata for CtDynAssociatedDefinition {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.requirements).len(),
+            (self.requirements).len(),
             std::mem::size_of::<CtDynObligation>(),
             depth + 1,
         )?;
@@ -1637,9 +1780,9 @@ impl CtDynamicMetadata for CtDynAssociatedResolution {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.member).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.source).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.value).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.member).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.source).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.value).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }
@@ -1650,11 +1793,20 @@ impl CtDynamicMetadata for CtDynImplementationWitness {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.application).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.scope).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.actuals).len(),
+            (self.to_context).len(),
+            std::mem::size_of::<CtDynLifeEmbedding>(),
+            depth + 1,
+        )?;
+        for item in &self.to_context {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        (self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.application).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.rows(
+            (self.actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -1662,7 +1814,7 @@ impl CtDynamicMetadata for CtDynImplementationWitness {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.associated).len(),
+            (self.associated).len(),
             std::mem::size_of::<CtDynAssociatedResolution>(),
             depth + 1,
         )?;
@@ -1704,10 +1856,10 @@ impl CtDynamicMetadata for CtDynDefinitionSpecialization {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.function).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.function).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.receiver).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.declaration_actuals).len(),
+            (self.declaration_actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -1715,7 +1867,7 @@ impl CtDynamicMetadata for CtDynDefinitionSpecialization {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.method_actuals).len(),
+            (self.method_actuals).len(),
             std::mem::size_of::<CtDynGenericActual>(),
             depth + 1,
         )?;
@@ -1814,7 +1966,7 @@ impl CtDynamicMetadata for CtRetainedLifeShape {
         let _ = &self.binder_count;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.ports).len(),
+            (self.ports).len(),
             std::mem::size_of::<CtRetainedBorrowPort>(),
             depth + 1,
         )?;
@@ -1822,7 +1974,7 @@ impl CtDynamicMetadata for CtRetainedLifeShape {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.retained).len(),
+            (self.retained).len(),
             std::mem::size_of::<StorageRetainedBinding>(),
             depth + 1,
         )?;
@@ -1830,7 +1982,7 @@ impl CtDynamicMetadata for CtRetainedLifeShape {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.nominal_arguments).len(),
+            (self.nominal_arguments).len(),
             std::mem::size_of::<NominalLifeArgument>(),
             depth + 1,
         )?;
@@ -1847,9 +1999,9 @@ impl CtDynamicMetadata for CtStorageSourceBinding {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.position).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.position).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.sources).len(),
+            (self.sources).len(),
             std::mem::size_of::<CtStorageSource>(),
             depth + 1,
         )?;
@@ -1899,11 +2051,11 @@ impl CtDynamicMetadata for CtLifeNominalDeclaration {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.id).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.identity).visit_ct_dynamic(visitor, depth + 1)?;
-        (&self.kind).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.id).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.identity).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.kind).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
-            (&self.parameters).len(),
+            (self.parameters).len(),
             std::mem::size_of::<CtLifeParameterKind>(),
             depth + 1,
         )?;
@@ -1949,10 +2101,10 @@ impl CtDynamicMetadata for CtLifeNominalInstance {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.type_reference(*&self.ty, depth + 1)?;
         visitor.rows(
-            (&self.arguments).len(),
+            (self.arguments).len(),
             std::mem::size_of::<CtLifeNominalActual>(),
             depth + 1,
         )?;
@@ -2136,7 +2288,7 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
                 for item in field_variants {
                     visitor.text(&(item).0, depth + 1)?;
                     visitor.rows(
-                        (&(item).1).len(),
+                        ((item).1).len(),
                         std::mem::size_of::<CtDynamicTypeId>(),
                         depth + 1,
                     )?;
@@ -2246,7 +2398,7 @@ impl CtDynamicMetadata for LifeDeclarationIdentity {
         visitor.node(depth)?;
         visitor.text(&self.package, depth + 1)?;
         visitor.rows(
-            (&self.module_path).len(),
+            (self.module_path).len(),
             std::mem::size_of::<String>(),
             depth + 1,
         )?;
@@ -2254,7 +2406,7 @@ impl CtDynamicMetadata for LifeDeclarationIdentity {
             visitor.text(item, depth + 1)?;
         }
         visitor.rows(
-            (&self.declaration_path).len(),
+            (self.declaration_path).len(),
             std::mem::size_of::<String>(),
             depth + 1,
         )?;
@@ -2262,7 +2414,7 @@ impl CtDynamicMetadata for LifeDeclarationIdentity {
             visitor.text(item, depth + 1)?;
         }
         visitor.rows(
-            (&self.generation_path).len(),
+            (self.generation_path).len(),
             std::mem::size_of::<u32>(),
             depth + 1,
         )?;
@@ -2317,7 +2469,7 @@ impl CtDynamicMetadata for StorageLifeSlot {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.path).len(),
+            (self.path).len(),
             std::mem::size_of::<PlaceProjection>(),
             depth + 1,
         )?;
@@ -2356,7 +2508,7 @@ impl CtDynamicMetadata for StorageRetainedBinding {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.path).len(),
+            (self.path).len(),
             std::mem::size_of::<LifeTypeProjection>(),
             depth + 1,
         )?;
@@ -2379,7 +2531,7 @@ impl CtDynamicMetadata for NominalLifeArgument {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.path).len(),
+            (self.path).len(),
             std::mem::size_of::<LifeTypeProjection>(),
             depth + 1,
         )?;
@@ -2387,7 +2539,7 @@ impl CtDynamicMetadata for NominalLifeArgument {
             let _ = item;
             visitor.node(depth + 1)?;
         }
-        (&self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.argument;
         visitor.node(depth + 1)?;
         let _ = &self.binder;
@@ -2405,7 +2557,7 @@ impl CtDynamicMetadata for StorageLifeShape {
         let _ = &self.binder_count;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.slots).len(),
+            (self.slots).len(),
             std::mem::size_of::<StorageLifeSlot>(),
             depth + 1,
         )?;
@@ -2413,7 +2565,7 @@ impl CtDynamicMetadata for StorageLifeShape {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.retained).len(),
+            (self.retained).len(),
             std::mem::size_of::<StorageRetainedBinding>(),
             depth + 1,
         )?;
@@ -2421,7 +2573,7 @@ impl CtDynamicMetadata for StorageLifeShape {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.nominal_arguments).len(),
+            (self.nominal_arguments).len(),
             std::mem::size_of::<NominalLifeArgument>(),
             depth + 1,
         )?;
@@ -2441,7 +2593,7 @@ impl CtDynamicMetadata for StoragePosition {
         let _ = &self.base;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.path).len(),
+            (self.path).len(),
             std::mem::size_of::<ContractProjection>(),
             depth + 1,
         )?;
@@ -2459,7 +2611,7 @@ impl CtDynamicMetadata for StorageLifeBinding {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.position).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.position).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.binder;
         visitor.node(depth + 1)?;
         Ok(())
@@ -2475,7 +2627,7 @@ impl CtDynamicMetadata for SignatureLifeClass {
         let _ = &self.base;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.path).len(),
+            (self.path).len(),
             std::mem::size_of::<LifeTypeProjection>(),
             depth + 1,
         )?;
@@ -2495,7 +2647,7 @@ impl CtDynamicMetadata for SignatureLifeClassBinding {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        (&self.position).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.position).visit_ct_dynamic(visitor, depth + 1)?;
         let _ = &self.binder;
         visitor.node(depth + 1)?;
         Ok(())
@@ -2513,7 +2665,7 @@ impl CtDynamicMetadata for StorageLifeContract {
         let _ = &self.invocation_binder_count;
         visitor.node(depth + 1)?;
         visitor.rows(
-            (&self.bindings).len(),
+            (self.bindings).len(),
             std::mem::size_of::<StorageLifeBinding>(),
             depth + 1,
         )?;
@@ -2521,7 +2673,7 @@ impl CtDynamicMetadata for StorageLifeContract {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.classes).len(),
+            (self.classes).len(),
             std::mem::size_of::<SignatureLifeClassBinding>(),
             depth + 1,
         )?;
@@ -2539,15 +2691,15 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         visitor.rows(
-            (&self.types).len(),
+            (self.types).len(),
             std::mem::size_of::<CtDynamicTypeNode>(),
             depth + 1,
         )?;
-        for (index, node) in (&self.types).iter().enumerate() {
+        for (index, node) in (self.types).iter().enumerate() {
             visitor.type_node(index, node, depth + 1)?;
         }
         visitor.rows(
-            (&self.life_declarations).len(),
+            (self.life_declarations).len(),
             std::mem::size_of::<CtLifeNominalDeclaration>(),
             depth + 1,
         )?;
@@ -2555,7 +2707,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.life_instances).len(),
+            (self.life_instances).len(),
             std::mem::size_of::<CtLifeNominalInstance>(),
             depth + 1,
         )?;
@@ -2563,7 +2715,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.declarations).len(),
+            (self.declarations).len(),
             std::mem::size_of::<CtDynDeclaration>(),
             depth + 1,
         )?;
@@ -2571,7 +2723,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.interfaces).len(),
+            (self.interfaces).len(),
             std::mem::size_of::<CtDynInterface>(),
             depth + 1,
         )?;
@@ -2579,7 +2731,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.vtables).len(),
+            (self.vtables).len(),
             std::mem::size_of::<CtCoreDynVtable>(),
             depth + 1,
         )?;
@@ -2587,7 +2739,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.function_instances).len(),
+            (self.function_instances).len(),
             std::mem::size_of::<CtDynFunctionInstanceRecord>(),
             depth + 1,
         )?;
@@ -2595,7 +2747,7 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
-            (&self.function_sources).len(),
+            (self.function_sources).len(),
             std::mem::size_of::<CtFunctionSourceBindings>(),
             depth + 1,
         )?;
@@ -2616,7 +2768,7 @@ impl CtDynamicMetadata for CtDynFunctionInstanceRecord {
         visitor.node(depth + 1)?;
         let _ = &self.source;
         visitor.node(depth + 1)?;
-        (&self.instance).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.instance).visit_ct_dynamic(visitor, depth + 1)?;
         Ok(())
     }
 }

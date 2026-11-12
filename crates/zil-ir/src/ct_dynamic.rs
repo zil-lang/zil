@@ -44,6 +44,7 @@ pub struct CtDynVtableId {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtDynDeclaration {
+    pub implicit_lifetimes: Option<Vec<CtDynImplicitLifeDeclaration>>,
     pub direct_supertraits: Option<Vec<CtDynSelfPattern>>,
     pub requirements: Option<Vec<CtDynObligation>>,
     pub associated_definitions: Option<Vec<CtDynAssociatedDefinition>>,
@@ -124,7 +125,10 @@ pub enum CtDynTypePattern {
     },
     Slice(Box<CtDynTypePattern>),
     Managed(Box<CtDynTypePattern>),
-    Desc(Box<CtDynTypePattern>),
+    Desc {
+        lifetime: Option<CtDynLifePattern>,
+        inner: Box<CtDynTypePattern>,
+    },
     OwnedStore(Box<CtDynTypePattern>),
     ErrorUnion {
         error: Box<CtDynTypePattern>,
@@ -371,11 +375,54 @@ pub struct CtDynTypeValue {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtDynInstantiationScope {
+    pub fixed_binder_count: u32,
+    pub invocation_binder_count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtDynLifeEmbedding {
+    pub from: StorageBinder,
+    pub to: StorageBinder,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtDynImplicitLifeKind {
+    Address,
+    Description,
+    LifetimeArgument,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtDynImplicitLifeRoot {
+    SelfPattern,
+    ImplementedTrait,
+    Supertrait(u32),
+    Requirement(u32),
+    AssociatedDefinition(u32),
+    MethodSignature(u32),
+    MethodDefinition(u32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtDynImplicitLifeOccurrence {
+    pub root: CtDynImplicitLifeRoot,
+    pub path: Vec<u32>,
+    pub kind: CtDynImplicitLifeKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtDynImplicitLifeDeclaration {
+    pub occurrences: Vec<CtDynImplicitLifeOccurrence>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtDynLifePattern {
     DeclarationParameter(u32),
     MethodParameter(u32),
     Bound { depth: u32, index: u32 },
     Invocation(u32),
+    ImplicitDeclaration(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -513,6 +560,8 @@ pub struct CtDynMethodRecipe {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtDynFunctionInstance {
+    pub scope: CtDynInstantiationScope,
+    pub header_embedding: Vec<CtDynLifeEmbedding>,
     pub definition: CtDynDefinitionId,
     pub receiver: CtDynTypeValue,
     pub declaration_actuals: Vec<CtDynGenericActual>,
@@ -563,6 +612,8 @@ pub struct CtDynAssociatedResolution {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtDynImplementationWitness {
+    pub scope: CtDynInstantiationScope,
+    pub to_context: Vec<CtDynLifeEmbedding>,
     pub receiver: CtDynTypeValue,
     pub application: CtDynTraitApplication,
     pub implementation: LifeDeclarationId,

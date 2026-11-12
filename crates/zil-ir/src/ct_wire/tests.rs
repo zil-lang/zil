@@ -1036,6 +1036,7 @@ fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees()
         .unwrap()
         .declarations
         .push(CtDynDeclaration {
+            implicit_lifetimes: None,
             id: LifeDeclarationId {
                 module: ModuleId(2),
                 declaration: NodeId(9),
@@ -1164,4 +1165,126 @@ fn ct_dynamic_wire_work_is_exact_n_minus_one_and_fresh() {
             .0,
         raw
     );
+}
+
+#[test]
+fn ct_dynamic_unused_lexical_scope_and_header_embedding_have_independent_bytes() {
+    use crate::StorageBinder;
+    let instance = CtDynFunctionInstance {
+        scope: CtDynInstantiationScope {
+            fixed_binder_count: 2,
+            invocation_binder_count: 0,
+        },
+        header_embedding: vec![],
+        definition: CtDynDefinitionId {
+            module: ModuleId(0),
+            source: NodeId(7),
+        },
+        receiver: CtDynTypeValue {
+            ty: CtDynamicTypeId(0),
+            life: crate::StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            classes: vec![],
+        },
+        declaration_actuals: vec![
+            CtDynGenericActual::Life(StorageBinder::Fixed(0)),
+            CtDynGenericActual::Life(StorageBinder::Fixed(1)),
+        ],
+        method_actuals: vec![],
+    };
+    let mut expected = vec![];
+    for word in [2u32, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 2] {
+        expected.extend(word.to_le_bytes());
+    }
+    for class in [0u32, 1] {
+        expected.extend([3, 0]);
+        expected.extend(class.to_le_bytes());
+    }
+    expected.extend(0u32.to_le_bytes());
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    instance.encode(&mut encoder).unwrap();
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    assert_eq!(
+        CtDynFunctionInstance::decode(&mut decoder).unwrap(),
+        instance
+    );
+    decoder.finish().unwrap();
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    let catalogue = raw.dynamic_catalogue.as_mut().unwrap();
+    catalogue.types.push(CtDynamicTypeNode::I32);
+    catalogue
+        .function_instances
+        .push(CtDynFunctionInstanceRecord {
+            module: ModuleId(0),
+            source: NodeId(7),
+            instance,
+        });
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue.as_mut().unwrap().function_instances[0]
+        .instance
+        .header_embedding
+        .push(CtDynLifeEmbedding {
+            from: StorageBinder::Fixed(0),
+            to: StorageBinder::Fixed(1),
+        });
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+}
+#[test]
+fn ct_dynamic_description_implicit_occurrences_preserve_kind_path_and_unknown() {
+    let pattern = CtDynTypePattern::Desc {
+        lifetime: Some(CtDynLifePattern::ImplicitDeclaration(0)),
+        inner: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(3))),
+    };
+    let limits = Limits::default();
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    pattern.encode(&mut encoder).unwrap();
+    let mut expected = vec![11, 1, 4];
+    expected.extend(0u32.to_le_bytes());
+    expected.push(3);
+    expected.extend(3u32.to_le_bytes());
+    assert_eq!(encoder.out, expected);
+    let mut decoder = Decoder::new(&expected, WireBudget::from_limits(&limits)).unwrap();
+    assert_eq!(CtDynTypePattern::decode(&mut decoder).unwrap(), pattern);
+    decoder.finish().unwrap();
+    let occurrence = CtDynImplicitLifeDeclaration {
+        occurrences: vec![CtDynImplicitLifeOccurrence {
+            root: CtDynImplicitLifeRoot::SelfPattern,
+            path: vec![0],
+            kind: CtDynImplicitLifeKind::Description,
+        }],
+    };
+    let mut encoder = Encoder::new(WireBudget::from_limits(&limits));
+    occurrence.encode(&mut encoder).unwrap();
+    let mut expected = 1u32.to_le_bytes().to_vec();
+    expected.push(0);
+    expected.extend(1u32.to_le_bytes());
+    expected.extend(0u32.to_le_bytes());
+    expected.push(1);
+    assert_eq!(encoder.out, expected);
+    let mut changed = occurrence.clone();
+    changed.occurrences[0].kind = CtDynImplicitLifeKind::Address;
+    let mut other = Encoder::new(WireBudget::from_limits(&limits));
+    changed.encode(&mut other).unwrap();
+    assert_ne!(encoder.out, other.out);
+    let unknown = CtDynTypePattern::Desc {
+        lifetime: None,
+        inner: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(3))),
+    };
+    let mut other = Encoder::new(WireBudget::from_limits(&limits));
+    unknown.encode(&mut other).unwrap();
+    assert_ne!(other.out, pattern_bytes(&pattern, &limits));
+    fn pattern_bytes(pattern: &CtDynTypePattern, limits: &Limits) -> Vec<u8> {
+        let mut encoder = Encoder::new(WireBudget::from_limits(limits));
+        pattern.encode(&mut encoder).unwrap();
+        encoder.out
+    }
 }

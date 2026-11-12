@@ -271,7 +271,10 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     if v32 {
-        assert!(f.dyn_instance.is_none(), "dynamic instances require the separate complete recipe oracle");
+        assert!(
+            f.dyn_instance.is_none(),
+            "dynamic instances require the separate complete recipe oracle"
+        );
         b.push(0);
         b.push(u8::from(f.retained_return_sources.is_some()));
         if let Some(rows) = &f.retained_return_sources {
@@ -279,7 +282,9 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
             for row in rows {
                 encode_source_position(b, &row.position);
                 encode_len(b, row.sources.len());
-                for source in &row.sources { encode_source_atom(b, source); }
+                for source in &row.sources {
+                    encode_source_atom(b, source);
+                }
             }
         }
     } else {
@@ -333,7 +338,10 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
-    assert!(f.protocol_contracts.is_empty(), "state protocols are outside this retained legacy oracle");
+    assert!(
+        f.protocol_contracts.is_empty(),
+        "state protocols are outside this retained legacy oracle"
+    );
     if v32 {
         encode_text(b, "ZIL-FUNCTION-PROTOCOLS-2");
         encode_len(b, 0);

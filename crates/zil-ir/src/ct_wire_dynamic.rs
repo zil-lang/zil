@@ -53,6 +53,7 @@ impl Wire for CtDynDeclaration {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
+            self.implicit_lifetimes.encode(e)?;
             self.direct_supertraits.encode(e)?;
             self.requirements.encode(e)?;
             self.associated_definitions.encode(e)?;
@@ -74,6 +75,7 @@ impl Wire for CtDynDeclaration {
         }
         d.descend(|d| {
             Ok(Self {
+                implicit_lifetimes: <Option<Vec<CtDynImplicitLifeDeclaration>> as Wire>::decode(d)?,
                 direct_supertraits: <Option<Vec<CtDynSelfPattern>> as Wire>::decode(d)?,
                 requirements: <Option<Vec<CtDynObligation>> as Wire>::decode(d)?,
                 associated_definitions: <Option<Vec<CtDynAssociatedDefinition>> as Wire>::decode(
@@ -315,9 +317,10 @@ impl Wire for CtDynTypePattern {
                     10u8.encode(e)?;
                     value_0.encode(e)?;
                 }
-                Self::Desc(value_0) => {
+                Self::Desc { lifetime, inner } => {
                     11u8.encode(e)?;
-                    value_0.encode(e)?;
+                    lifetime.encode(e)?;
+                    inner.encode(e)?;
                 }
                 Self::OwnedStore(value_0) => {
                     12u8.encode(e)?;
@@ -360,7 +363,10 @@ impl Wire for CtDynTypePattern {
                 },
                 9 => Self::Slice(<Box<CtDynTypePattern> as Wire>::decode(d)?),
                 10 => Self::Managed(<Box<CtDynTypePattern> as Wire>::decode(d)?),
-                11 => Self::Desc(<Box<CtDynTypePattern> as Wire>::decode(d)?),
+                11 => Self::Desc {
+                    lifetime: <Option<CtDynLifePattern> as Wire>::decode(d)?,
+                    inner: <Box<CtDynTypePattern> as Wire>::decode(d)?,
+                },
                 12 => Self::OwnedStore(<Box<CtDynTypePattern> as Wire>::decode(d)?),
                 13 => Self::ErrorUnion {
                     error: <Box<CtDynTypePattern> as Wire>::decode(d)?,
@@ -1262,6 +1268,187 @@ impl Wire for CtDynTypeValue {
         })
     }
 }
+impl Wire for CtDynInstantiationScope {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.fixed_binder_count.encode(e)?;
+            self.invocation_binder_count.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                fixed_binder_count: <u32 as Wire>::decode(d)?,
+                invocation_binder_count: <u32 as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtDynLifeEmbedding {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.from.encode(e)?;
+            self.to.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                from: <StorageBinder as Wire>::decode(d)?,
+                to: <StorageBinder as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtDynImplicitLifeKind {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Address => {
+                    0u8.encode(e)?;
+                }
+                Self::Description => {
+                    1u8.encode(e)?;
+                }
+                Self::LifetimeArgument => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Address,
+                1 => Self::Description,
+                2 => Self::LifetimeArgument,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtDynImplicitLifeRoot {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::SelfPattern => {
+                    0u8.encode(e)?;
+                }
+                Self::ImplementedTrait => {
+                    1u8.encode(e)?;
+                }
+                Self::Supertrait(value_0) => {
+                    2u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Requirement(value_0) => {
+                    3u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::AssociatedDefinition(value_0) => {
+                    4u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::MethodSignature(value_0) => {
+                    5u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::MethodDefinition(value_0) => {
+                    6u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::SelfPattern,
+                1 => Self::ImplementedTrait,
+                2 => Self::Supertrait(<u32 as Wire>::decode(d)?),
+                3 => Self::Requirement(<u32 as Wire>::decode(d)?),
+                4 => Self::AssociatedDefinition(<u32 as Wire>::decode(d)?),
+                5 => Self::MethodSignature(<u32 as Wire>::decode(d)?),
+                6 => Self::MethodDefinition(<u32 as Wire>::decode(d)?),
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtDynImplicitLifeOccurrence {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.root.encode(e)?;
+            self.path.encode(e)?;
+            self.kind.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                root: <CtDynImplicitLifeRoot as Wire>::decode(d)?,
+                path: <Vec<u32> as Wire>::decode(d)?,
+                kind: <CtDynImplicitLifeKind as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtDynImplicitLifeDeclaration {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.occurrences.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                occurrences: <Vec<CtDynImplicitLifeOccurrence> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
 impl Wire for CtDynLifePattern {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         if e.depth >= 128 {
@@ -1286,6 +1473,10 @@ impl Wire for CtDynLifePattern {
                     3u8.encode(e)?;
                     value_0.encode(e)?;
                 }
+                Self::ImplicitDeclaration(value_0) => {
+                    4u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -1303,6 +1494,7 @@ impl Wire for CtDynLifePattern {
                     index: <u32 as Wire>::decode(d)?,
                 },
                 3 => Self::Invocation(<u32 as Wire>::decode(d)?),
+                4 => Self::ImplicitDeclaration(<u32 as Wire>::decode(d)?),
                 _ => return Err(WireError::UnknownTag),
             })
         })
@@ -1797,6 +1989,8 @@ impl Wire for CtDynFunctionInstance {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
+            self.scope.encode(e)?;
+            self.header_embedding.encode(e)?;
             self.definition.encode(e)?;
             self.receiver.encode(e)?;
             self.declaration_actuals.encode(e)?;
@@ -1810,6 +2004,8 @@ impl Wire for CtDynFunctionInstance {
         }
         d.descend(|d| {
             Ok(Self {
+                scope: <CtDynInstantiationScope as Wire>::decode(d)?,
+                header_embedding: <Vec<CtDynLifeEmbedding> as Wire>::decode(d)?,
                 definition: <CtDynDefinitionId as Wire>::decode(d)?,
                 receiver: <CtDynTypeValue as Wire>::decode(d)?,
                 declaration_actuals: <Vec<CtDynGenericActual> as Wire>::decode(d)?,
@@ -1994,6 +2190,8 @@ impl Wire for CtDynImplementationWitness {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
+            self.scope.encode(e)?;
+            self.to_context.encode(e)?;
             self.receiver.encode(e)?;
             self.application.encode(e)?;
             self.implementation.encode(e)?;
@@ -2008,6 +2206,8 @@ impl Wire for CtDynImplementationWitness {
         }
         d.descend(|d| {
             Ok(Self {
+                scope: <CtDynInstantiationScope as Wire>::decode(d)?,
+                to_context: <Vec<CtDynLifeEmbedding> as Wire>::decode(d)?,
                 receiver: <CtDynTypeValue as Wire>::decode(d)?,
                 application: <CtDynTraitApplication as Wire>::decode(d)?,
                 implementation: <LifeDeclarationId as Wire>::decode(d)?,

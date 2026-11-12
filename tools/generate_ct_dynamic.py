@@ -142,15 +142,16 @@ pub trait CtDynamicMetadata {
 }
 '''
 copy_leaves={'u8','u16','u32','u64','i8','i16','i32','i64','bool','ModuleId','NodeId','FunctionId','ClosureId','BinaryOp','UnaryOp','StorageBinder','StoredBorrowMode','ContractProjection','PlaceProjection','LifeTypeProjection','StorageBase','PassingMode','CallKind','CallableKind','SyncCellKind'}
+def receiver(e):return e[1:] if e.startswith('&') else e
 def walk(t,e):
- if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+e+').as_ref()')
+ if t.startswith('Box<'):return f'visitor.rows(1,std::mem::size_of::<{t[4:-1]}>(),depth+1)?; '+walk(t[4:-1],'('+receiver(e)+').as_ref()')
  if t.startswith('('):
   return ''.join(walk(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))
- if t=='Vec<CtDynamicTypeNode>':return f'visitor.rows(({e}).len(),std::mem::size_of::<CtDynamicTypeNode>(),depth+1)?; for (index,node) in ({e}).iter().enumerate() {{ visitor.type_node(index,node,depth+1)?; }}\n'
+ if t=='Vec<CtDynamicTypeNode>':return f'visitor.rows(({receiver(e)}).len(),std::mem::size_of::<CtDynamicTypeNode>(),depth+1)?; for (index,node) in ({receiver(e)}).iter().enumerate() {{ visitor.type_node(index,node,depth+1)?; }}\n'
  if t.startswith('Vec<'):
-  inner=t[4:-1];return f'visitor.rows(({e}).len(),std::mem::size_of::<{inner}>(),depth+1)?;\nfor item in {e} {{ '+walk(inner,'item')+' }\n'
+  inner=t[4:-1];return f'visitor.rows(({receiver(e)}).len(),std::mem::size_of::<{inner}>(),depth+1)?;\nfor item in {e} {{ '+walk(inner,'item')+' }\n'
  if t.startswith('Option<'):return f'visitor.node(depth+1)?; if let Some(item)={e} {{ '+walk(t[7:-1],'item')+' }\n'
- if t in visit_items:return f'({e}).visit_ct_dynamic(visitor,depth+1)?;\n'
+ if t in visit_items:return f'({receiver(e)}).visit_ct_dynamic(visitor,depth+1)?;\n'
  if t=='CtDynamicTypeId':return f'visitor.type_reference(*{e},depth+1)?;\n'
  if t=='String':return f'visitor.text({e},depth+1)?;\n'
  if t=='Constant':return f'visitor.constant({e},depth+1)?;\n'
@@ -189,7 +190,7 @@ def expr(t,e):
  if t.startswith('Box<'):
   inner=t[4:-1];return '{ reifier.rows(1,std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; Box::new('+expr(inner,e)+') }'
  if t.startswith('Vec<'):
-  inner=t[4:-1];return '{ reifier.rows(('+e+').len(),std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; let mut output=Vec::with_capacity(('+e+').len()); for item in '+e+' { output.push('+expr(inner,'item')+'); } output }'
+  inner=t[4:-1];return '{ reifier.rows(('+receiver(e)+').len(),std::mem::size_of::<'+mapped(inner)+'>(),depth+1)?; let mut output=Vec::with_capacity(('+receiver(e)+').len()); for item in '+e+' { output.push('+expr(inner,'item')+'); } output }'
  if t.startswith('Option<'):return 'match '+e+' { Some(item)=>Some('+expr(t[7:-1],'item')+'), None=>None }'
  if t.startswith('('):return '('+', '.join(expr(v,f'&({e}).{i}') for i,v in enumerate(split(t[1:-1])))+')'
  if t=='Type':return 'reify_type_value('+e+',reifier,depth+1)?'
@@ -197,7 +198,7 @@ def expr(t,e):
  if t=='Constant':return 'reifier.constant('+e+',depth+1)?'
  if t in converters:return method(t)+'('+e+',reifier,depth+1)?'
  if t not in copy_leaves:raise ValueError('unreified CT metadata leaf: '+t)
- return '{ reifier.node(depth+1)?; *('+e+') }'
+ return '{ reifier.node(depth+1)?; '+(e[1:] if e.startswith('&') else '*('+e+')')+' }'
 for name,(kind,rows) in converters.items():
  result=names.get(name,name)
  convert+=f'pub fn {method(name)}<R:CtDynamicReifier>(value:&{name},reifier:&mut R,depth:usize)->Result<{result},R::Error>{{ reifier.node(depth)?;\n'
