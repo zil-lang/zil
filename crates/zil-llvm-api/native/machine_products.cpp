@@ -9,8 +9,11 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
@@ -23,6 +26,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -131,8 +135,56 @@ struct BlockEmissionState {
   bool forceLabel;
   std::vector<unsigned> predecessors;
 };
+// Values only. In particular, neither MachineOperand's parent/use-list links
+// nor its ConstantInt/MBB pointers may escape the current compilation.
+struct BodyOperand {
+  enum Kind { Reg, Imm, CImm, Block } kind;
+  unsigned value = 0, flags = 0, subReg = 0, targetFlags = 0;
+  int64_t immediate = 0;
+  llvm::APInt integer{1, 0};
+  bool operator==(const BodyOperand &O) const {
+    return std::tie(kind, value, flags, subReg, targetFlags, immediate) ==
+               std::tie(O.kind, O.value, O.flags, O.subReg, O.targetFlags, O.immediate) &&
+           integer == O.integer;
+  }
+};
+struct BodyInstruction {
+  unsigned opcode = 0, flags = 0, asmFlags = 0, cfiType = 0;
+  std::vector<BodyOperand> operands;
+  std::vector<std::pair<unsigned, unsigned>> ties;
+  bool operator==(const BodyInstruction &O) const {
+    return std::tie(opcode, flags, asmFlags, cfiType, operands, ties) ==
+           std::tie(O.opcode, O.flags, O.asmFlags, O.cfiType, O.operands, O.ties);
+  }
+};
+struct BodyBlock {
+  // -1 denotes a synthetic block, otherwise a CURRENT IR block's layout index.
+  int64_t irBlock = -1;
+  uint64_t alignment = 1;
+  bool probabilities = false;
+  std::vector<std::pair<unsigned, uint32_t>> successors;
+  std::vector<llvm::MachineBasicBlock::RegisterMaskPair> liveins;
+  std::vector<BodyInstruction> instructions;
+  bool operator==(const BodyBlock &O) const {
+    return std::tie(irBlock, alignment, probabilities, successors, liveins, instructions) ==
+           std::tie(O.irBlock, O.alignment, O.probabilities, O.successors, O.liveins, O.instructions);
+  }
+};
+struct BodyState {
+  std::vector<BodyBlock> blocks;
+  // Physical register -> original ordered (global MI ordinal, operand index).
+  std::map<unsigned, std::vector<std::pair<unsigned, unsigned>>> registerUses;
+  llvm::BitVector usedRegisters, reservedRegisters;
+  bool reservedFrozen = false, subRegLiveness = false;
+  bool operator==(const BodyState &O) const {
+    return blocks == O.blocks && registerUses == O.registerUses &&
+           usedRegisters == O.usedRegisters && reservedRegisters == O.reservedRegisters &&
+           reservedFrozen == O.reservedFrozen && subRegLiveness == O.subRegLiveness;
+  }
+};
 struct Snapshot {
-  std::string input, world, mir;
+  std::string input, world, mir, mirHeader;
+  BodyState body;
   std::shared_ptr<const void> targetInfo;
   llvm::MachineFunctionProperties properties;
   // MIR's parser assigns dense IDs in layout order. Preserve both original
@@ -168,7 +220,26 @@ size_t stepsPayload(const std::vector<PassStep> &Steps) {
 }
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
-  for (const auto *Text : {&S.input, &S.world, &S.mir}) N = boundedAdd(N, Text->size());
+  for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader}) N = boundedAdd(N, Text->size());
+  for (const auto &BB : S.body.blocks) {
+    N = boundedAdd(N, sizeof(BodyBlock));
+    N = boundedAdd(N, BB.successors.size() * sizeof(BB.successors.front()));
+    N = boundedAdd(N, BB.liveins.size() * sizeof(BB.liveins.front()));
+    for (const auto &MI : BB.instructions) {
+      N = boundedAdd(N, sizeof(BodyInstruction));
+      N = boundedAdd(N, MI.ties.size() * sizeof(MI.ties.front()));
+      for (const auto &MO : MI.operands) {
+        N = boundedAdd(N, sizeof(BodyOperand));
+        N = boundedAdd(N, MO.integer.getNumWords() * sizeof(uint64_t));
+      }
+    }
+  }
+  for (const auto &Uses : S.body.registerUses) {
+    N = boundedAdd(N, sizeof(Uses));
+    N = boundedAdd(N, Uses.second.size() * sizeof(Uses.second.front()));
+  }
+  N = boundedAdd(N, (S.body.usedRegisters.size() + 7) / 8);
+  N = boundedAdd(N, (S.body.reservedRegisters.size() + 7) / 8);
   // Reserve the full inverse table, including dead-ID holes, that replay
   // reconstructs, and the analysis-number span used by fresh graph analyses.
   // A tiny live-block vector must not authorize either huge sparse domain.
@@ -249,7 +320,12 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       MF.getTarget().Options.BBAddrMap ||
       MF.getTarget().Options.BBSections != llvm::BasicBlockSection::None ||
       !MF.getPrefetchTargets().empty() || !MF.getLandingPads().empty() ||
-      !MF.getTypeInfos().empty() || !MF.getFilterIds().empty())
+      !MF.getTypeInfos().empty() || !MF.getFilterIds().empty() ||
+      !MF.getLongjmpTargets().empty() || !MF.getEHContTargets().empty() ||
+      !MF.getCodeViewAnnotations().empty() || !MF.getCallSitesInfo().empty() ||
+      !MF.getCalledGlobals().empty() || MF.getObserver() || MF.hasFakeUses() ||
+      !MF.VariableDbgInfos.empty() || !MF.DebugValueSubstitutions.empty() ||
+      !MF.DebugPHIPositions.empty() || MF.DebugInstrNumberingCount)
     return false;
   // MIR renumbers stack objects and drops dead slots. No frame index may enter
   // the opaque target-info copy until a separate relocation proof exists.
@@ -271,7 +347,7 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
         BB.isEHContTarget() || BB.isEHFuncletEntry() || BB.isCleanupFuncletEntry() ||
         BB.isBeginSection() || BB.isEndSection() || BB.getBBID() ||
         BB.getSectionID() != llvm::MBBSectionID(0) || BB.getIrrLoopHeaderWeight() ||
-        BB.getCallFrameSize() != 0)
+        BB.getCallFrameSize() != 0 || BB.isInlineAsmBrIndirectTarget())
       return false;
     // The ordinary MBB iterator skips bundle members. Admission must inspect
     // every instruction that MIR serializes and the actual printer consumes.
@@ -297,6 +373,218 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
     }
   }
   return true;
+}
+
+enum OperandFlags : unsigned {
+  Def = 1, Implicit = 2, DeadOrKill = 4, Undef = 8, Early = 16,
+  Debug = 32, Internal = 64, Renamable = 128
+};
+
+bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
+  const auto &MRI = MF.getRegInfo();
+  // VirtRegRewriter clears the final vreg domain. Do not infer that fact from
+  // NoVRegs (which only describes instructions), or ignore unused vreg state.
+  // Inactive allocation hints/names after clearVirtRegs are not read by the
+  // fixed, preserves-all emission-provider closure; no allocator runs again.
+  if (MRI.getNumVirtRegs() || !MRI.getPendingVirtRegMapEntries().empty() ||
+      !MF.getFrameInfo().getSavePoints().empty() ||
+      !MF.getFrameInfo().getRestorePoints().empty())
+    return false;
+  for (auto LI : MRI.liveins()) if (LI.second) return false;
+  Out.reservedFrozen = MRI.reservedRegsFrozen();
+  Out.subRegLiveness = MRI.subRegLivenessEnabled();
+  Out.usedRegisters = MRI.getUsedPhysRegsMask();
+  if (Out.reservedFrozen) Out.reservedRegisters = MRI.getReservedRegs();
+  std::map<const llvm::BasicBlock *, unsigned> IRBlocks;
+  for (const auto &BB : MF.getFunction()) IRBlocks.emplace(&BB, IRBlocks.size());
+  std::map<const llvm::MachineBasicBlock *, unsigned> Blocks;
+  for (const auto &BB : MF) Blocks.emplace(&BB, Blocks.size());
+  std::map<const llvm::MachineOperand *, std::pair<unsigned, unsigned>> Operands;
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  unsigned InstructionIndex = 0;
+  size_t Bytes = sizeof(BodyState);
+  auto Charge = [&](size_t N) { Bytes = boundedAdd(Bytes, N); return Bytes <= MaxMachinePayload; };
+  for (const auto &BB : MF) {
+    if (!Charge(sizeof(BodyBlock))) return false;
+    BodyBlock B;
+    if (const auto *IR = BB.getBasicBlock()) {
+      auto It = IRBlocks.find(IR);
+      if (It == IRBlocks.end()) return false;
+      B.irBlock = It->second;
+    }
+    B.alignment = BB.getAlignment().value();
+    B.probabilities = BB.hasSuccessorProbabilities();
+    for (auto SI = BB.succ_begin(); SI != BB.succ_end(); ++SI) {
+      auto It = Blocks.find(*SI);
+      if (It == Blocks.end() || !Charge(sizeof(B.successors.front()))) return false;
+      B.successors.emplace_back(It->second, B.probabilities ? BB.getSuccProbability(SI).getNumerator() : 0);
+    }
+    for (auto LI : BB.liveins()) {
+      if (!Charge(sizeof(LI))) return false;
+      B.liveins.push_back(LI);
+    }
+    bool PreviousBundledSucc = false;
+    for (const auto &MI : BB.instrs()) {
+      if (!Charge(sizeof(BodyInstruction)) || MI.getOpcode() >= TII->getNumOpcodes() ||
+          &MI.getDesc() != &TII->get(MI.getOpcode()) ||
+          MI.isBundledWithPred() != PreviousBundledSucc)
+        return false;
+      PreviousBundledSucc = MI.isBundledWithSucc();
+      BodyInstruction I;
+      I.opcode = MI.getOpcode(); I.flags = MI.getFlags();
+      I.asmFlags = MI.getAsmPrinterFlags(); I.cfiType = MI.getCFIType();
+      bool Implicits = false;
+      for (const auto &MO : MI.operands()) {
+        if (!Charge(sizeof(BodyOperand))) return false;
+        BodyOperand O;
+        if (MO.isReg()) {
+          if (MO.getReg().isVirtual()) return false;
+          // Read the raw renamable bit without retaining this temporary copy's
+          // original parent/links. The contextual accessor masks that bit for
+          // descriptors with additional allocation constraints.
+          auto Detached = MO; Detached.clearParent();
+          O.kind = BodyOperand::Reg; O.value = MO.getReg().id(); O.subReg = MO.getSubReg();
+          O.flags = (MO.isDef() ? Def : 0) | (MO.isImplicit() ? Implicit : 0) |
+                    ((MO.isDef() ? MO.isDead() : MO.isKill()) ? DeadOrKill : 0) |
+                    (MO.isUndef() ? Undef : 0) | (MO.isEarlyClobber() ? Early : 0) |
+                    (MO.isDebug() ? Debug : 0) | (MO.isInternalRead() ? Internal : 0) |
+                    (MO.getReg().isPhysical() && Detached.isRenamable() ? Renamable : 0);
+          if (MO.isUse() && MO.isTied()) {
+            if (!Charge(sizeof(I.ties.front()))) return false;
+            I.ties.emplace_back(MI.findTiedOperandIdx(I.operands.size()), I.operands.size());
+          }
+          Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.size()));
+          Out.registerUses.try_emplace(O.value);
+        } else if (MO.isImm()) {
+          O.kind = BodyOperand::Imm; O.immediate = MO.getImm();
+        } else if (MO.isCImm()) {
+          O.kind = BodyOperand::CImm;
+          if (!Charge(MO.getCImm()->getValue().getNumWords() * sizeof(uint64_t))) return false;
+          O.integer = MO.getCImm()->getValue();
+        } else if (MO.isMBB()) {
+          O.kind = BodyOperand::Block;
+          auto It = Blocks.find(MO.getMBB());
+          if (It == Blocks.end()) return false;
+          O.value = It->second;
+        } else return false;
+        if (!MO.isReg()) O.targetFlags = MO.getTargetFlags();
+        const bool IsImplicit = MO.isReg() && MO.isImplicit();
+        if (Implicits && !IsImplicit) return false;
+        Implicits |= IsImplicit;
+        I.operands.push_back(std::move(O));
+      }
+      B.instructions.push_back(std::move(I));
+      ++InstructionIndex;
+    }
+    if (PreviousBundledSucc) return false;
+    Out.blocks.push_back(std::move(B));
+  }
+  size_t UseCount = 0;
+  for (auto &Entry : Out.registerUses) {
+    for (const auto &MO : MRI.reg_operands(llvm::Register(Entry.first))) {
+      auto It = Operands.find(&MO);
+      if (It == Operands.end() || !Charge(sizeof(Entry.second.front()))) return false;
+      Entry.second.push_back(It->second);
+      ++UseCount;
+    }
+  }
+  return UseCount == Operands.size();
+}
+
+bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
+  if (!MF.empty() || MF.getRegInfo().getNumVirtRegs() ||
+      !MF.getRegInfo().getPendingVirtRegMapEntries().empty()) return false;
+  auto &MRI = MF.getRegInfo();
+  if (MRI.subRegLivenessEnabled() != S.subRegLiveness ||
+      MRI.reservedRegsFrozen() != S.reservedFrozen ||
+      (S.reservedFrozen && MRI.getReservedRegs() != S.reservedRegisters)) return false;
+  std::vector<const llvm::BasicBlock *> IR;
+  for (const auto &BB : MF.getFunction()) IR.push_back(&BB);
+  std::vector<llvm::MachineBasicBlock *> Blocks;
+  for (const auto &B : S.blocks) {
+    if (B.irBlock < -1 || (B.irBlock >= 0 && uint64_t(B.irBlock) >= IR.size())) return false;
+    auto *BB = MF.CreateMachineBasicBlock(B.irBlock < 0 ? nullptr : IR[B.irBlock]);
+    MF.push_back(BB); BB->setAlignment(llvm::Align(B.alignment));
+    for (auto LI : B.liveins) BB->addLiveIn(LI);
+    Blocks.push_back(BB);
+  }
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  std::vector<llvm::MachineInstr *> Instructions;
+  for (size_t BI = 0; BI < S.blocks.size(); ++BI) {
+    const auto &B = S.blocks[BI];
+    auto *BB = Blocks[BI];
+    for (auto Edge : B.successors) {
+      if (Edge.first >= Blocks.size()) return false;
+      if (B.probabilities) BB->addSuccessor(Blocks[Edge.first], llvm::BranchProbability::getRaw(Edge.second));
+      else BB->addSuccessorWithoutProb(Blocks[Edge.first]);
+    }
+    for (const auto &I : B.instructions) {
+      if (I.opcode >= TII->getNumOpcodes()) return false;
+      auto *MI = MF.CreateMachineInstr(TII->get(I.opcode), llvm::DebugLoc(), true);
+      BB->push_back(MI); Instructions.push_back(MI);
+      for (const auto &O : I.operands) {
+        llvm::MachineOperand MO = llvm::MachineOperand::CreateImm(0);
+        switch (O.kind) {
+        case BodyOperand::Reg:
+          MO = llvm::MachineOperand::CreateReg(llvm::Register(O.value), O.flags & Def,
+              O.flags & Implicit, !(O.flags & Def) && (O.flags & DeadOrKill),
+              (O.flags & Def) && (O.flags & DeadOrKill), O.flags & Undef,
+              O.flags & Early, O.subReg, O.flags & Debug, O.flags & Internal,
+              O.flags & Renamable);
+          break;
+        case BodyOperand::Imm: MO = llvm::MachineOperand::CreateImm(O.immediate); break;
+        case BodyOperand::CImm:
+          MO = llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(MF.getFunction().getContext(), O.integer));
+          break;
+        case BodyOperand::Block:
+          if (O.value >= Blocks.size()) return false;
+          MO = llvm::MachineOperand::CreateMBB(Blocks[O.value]); break;
+        }
+        if (!MO.isReg()) MO.setTargetFlags(O.targetFlags);
+        MI->addOperand(MF, MO);
+      }
+      // Descriptor constraints can create ties during append. Replace those
+      // with the exact captured relation, which may also contain implicit ties.
+      for (unsigned OI = 0; OI < MI->getNumOperands(); ++OI)
+        if (MI->getOperand(OI).isReg()) MI->untieRegOperand(OI);
+      for (auto Tie : I.ties) MI->tieOperands(Tie.first, Tie.second);
+      MI->setFlags(I.flags);
+      MI->setAsmPrinterFlag(I.asmFlags);
+      if (I.cfiType) MI->setCFIType(MF, I.cfiType);
+    }
+    // Bundling is restored only after insertion, so list insertion cannot
+    // accidentally treat a partly reconstructed bundle as an existing bundle.
+    auto II = BB->instr_begin();
+    for (const auto &I : B.instructions) {
+      if (I.flags & llvm::MachineInstr::BundledPred) II->setFlag(llvm::MachineInstr::BundledPred);
+      if (I.flags & llvm::MachineInstr::BundledSucc) II->setFlag(llvm::MachineInstr::BundledSucc);
+      ++II;
+    }
+  }
+  // Rebind original use-def order using current operand coordinates. LLVM
+  // prepends defs and appends uses, so insert defs reversed and uses forward.
+  for (const auto &Entry : S.registerUses) {
+    std::vector<llvm::MachineOperand *> Uses;
+    std::set<llvm::MachineOperand *> Remaining;
+    for (auto &MO : MRI.reg_operands(llvm::Register(Entry.first))) Remaining.insert(&MO);
+    for (auto Pos : Entry.second) {
+      if (Pos.first >= Instructions.size() || Pos.second >= Instructions[Pos.first]->getNumOperands()) return false;
+      auto *MO = &Instructions[Pos.first]->getOperand(Pos.second);
+      if (!MO->isReg() || MO->getReg().id() != Entry.first || Remaining.erase(MO) != 1) return false;
+      Uses.push_back(MO);
+    }
+    if (!Remaining.empty()) return false;
+    for (auto *MO : Uses) MRI.removeRegOperandFromUseList(MO);
+    for (auto It = Uses.rbegin(); It != Uses.rend(); ++It)
+      if ((*It)->isDef()) MRI.addRegOperandToUseList(*It);
+    for (auto *MO : Uses) if (MO->isUse()) MRI.addRegOperandToUseList(MO);
+  }
+  if (MRI.getUsedPhysRegsMask().size() != S.usedRegisters.size()) return false;
+  std::vector<uint32_t> Preserved((S.usedRegisters.size() + 31) / 32, ~uint32_t(0));
+  for (int Bit = S.usedRegisters.find_first(); Bit >= 0; Bit = S.usedRegisters.find_next(Bit))
+    Preserved[Bit / 32] &= ~(uint32_t(1) << (Bit % 32));
+  MRI.addPhysRegsUsedFromRegMask(Preserved.data());
+  return MRI.getUsedPhysRegsMask() == S.usedRegisters;
 }
 
 // Validate all predecessor multisets before changing any current block. The
@@ -594,18 +882,26 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             // empty-header destruction, so parse/restore timings do not overlap.
             ScopedNS ParseTime(R.stats.mir_parse_ns);
             auto Parser = llvm::createMIRParser(
-                llvm::MemoryBuffer::getMemBufferCopy(C.replay->mir, "zil-current-machine"),
+                llvm::MemoryBuffer::getMemBufferCopy(C.replay->mirHeader, "zil-current-machine-header"),
                 R.module.getContext());
             // Required to initialize the YAML cursor. This header is empty;
             // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
             auto EmptyHeader = Parser->parseIRModule();
             const bool ParseFailed = EmptyHeader && Parser->parseMachineFunctions(R.module, MMI);
+            bool BodyFailed = false;
+            if (EmptyHeader && !ParseFailed) {
+              auto *CurrentMF = MMI.getMachineFunction(F);
+              BodyFailed = !CurrentMF || !restoreBody(*CurrentMF, C.replay->body);
+            }
             ParseTime.pause();
             if (!EmptyHeader) {
               diagnose(F, "parse-header");
               R.fail();
             } else if (ParseFailed) {
               diagnose(F, "parse-machine");
+              R.fail();
+            } else if (BodyFailed) {
+              diagnose(F, "restore-typed-machine-body");
               R.fail();
             } else {
               ScopedNS RestoreTime(R.stats.mir_restore_validate_ns);
@@ -627,7 +923,11 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                 R.fail();
               } else {
                 MF->getProperties() = C.replay->properties;
-                if (!snapshotDomain(*MF)) {
+                BodyState CurrentBody;
+                if (!captureBody(*MF, CurrentBody) || !(CurrentBody == C.replay->body)) {
+                  diagnose(F, "typed-machine-body-difference");
+                  R.fail();
+                } else if (!snapshotDomain(*MF)) {
                   diagnose(F, "restored-snapshot-domain");
                   R.fail();
                 } else if (!MF->verify(nullptr, "ZIL current MIR replay", nullptr, false)) {
@@ -680,7 +980,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       auto *MF = MMI.getMachineFunction(F);
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
-          C.recording->world != worldText(R.module, &F)) {
+          C.recording->world != worldText(R.module, &F) ||
+          !captureBody(*MF, C.recording->body)) {
+        if (MachineDiagnostics && MF) {
+          diagnose(F, "cold-typed-body-not-retained",
+                   "virtual-registers=" + std::to_string(MF->getRegInfo().getNumVirtRegs()));
+        }
         R.discardRecording(C);
       } else {
         void *Info = targetInfoAPI().clone(MF);
@@ -700,6 +1005,16 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             C.recording->blockEmission.push_back(std::move(State));
           }
           C.recording->mir = machineText(MMI, *MF);
+          // The fixed MIR writer emits the literal body as its final field.
+          // Preserve every header field verbatim, but let LLVM construct only
+          // the empty current MF/MRI/frame/target state. Instruction parsing is
+          // replaced by the typed, current-owner reconstruction above.
+          const auto BodyAt = C.recording->mir.find("\nbody:");
+          if (BodyAt == std::string::npos) {
+            R.discardRecording(C);
+            return 0;
+          }
+          C.recording->mirHeader = C.recording->mir.substr(0, BodyAt) + "\nbody:             |\n\n...\n";
           R.stats.mir_snapshot_bytes += C.recording->mir.size();
           if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
             R.discardRecording(C);
