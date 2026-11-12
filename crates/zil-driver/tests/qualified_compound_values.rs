@@ -14,7 +14,14 @@ fn shared_tuple_children_keep_distinct_domains_in_raw_and_wire() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand(&source, &syntax).unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source, &syntax, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &std::collections::BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
     let module = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
