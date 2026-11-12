@@ -3,6 +3,64 @@
 //! the runtime target and preserve its complete parent loan chain.
 use super::*;
 
+/// Schedule new mutable environment facts from the actual owning capture graph
+/// or a direct pointer-capture write. A scalar mutation does not change any
+/// stored target and keeps the established invocation path.
+pub(super) fn required(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if d.kind != CallableKind::FnMut {
+        return Ok(false);
+    }
+    let mut pending = vec![(d, 0usize)];
+    while let Some((definition, depth)) = pending.pop() {
+        fee(b, definition.captures.len())?;
+        if depth > b.partial_depth {
+            return Err(failure("mutable environment schedule exceeds finite depth"));
+        }
+        for capture in &definition.captures {
+            match capture {
+                Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Package { .. }) =>
+                {
+                    return Ok(true);
+                }
+                Type::Closure(id) => pending.push((
+                    module
+                        .closures
+                        .get(id.0 as usize)
+                        .ok_or_else(|| failure("mutable child schedule definition absent"))?,
+                    depth + 1,
+                )),
+                _ => {}
+            }
+        }
+        let body = module
+            .functions
+            .get(definition.function.0 as usize)
+            .ok_or_else(|| failure("mutable environment actual body absent"))?;
+        fee(b, body.blocks.len())?;
+        for block in &body.blocks {
+            fee(b, block.instructions.len())?;
+            for instruction in &block.instructions {
+                if let InstructionKind::WriteCapture { index, .. } = instruction.kind
+                    && definition.captures.get(index as usize).is_some_and(|ty| {
+                        matches!(
+                            ty,
+                            Type::Address { .. } | Type::BorrowedStorage { .. } | Type::Closure(_)
+                        )
+                    })
+                {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn leaves(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -147,8 +205,8 @@ pub(super) fn invoke(
     let Some((d, arguments)) = super::super::stored_callables::called(module, f, &i.kind) else {
         return Ok(());
     };
-    if d.kind != CallableKind::FnMut
-        || (d.storage_life.is_none() && !b.returned_borrowed_environments.contains(&d.id))
+    if (d.storage_life.is_none() && !b.returned_borrowed_environments.contains(&d.id))
+        || !required(module, d, b)?
     {
         return Ok(());
     }

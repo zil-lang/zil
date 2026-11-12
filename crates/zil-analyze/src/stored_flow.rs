@@ -2753,7 +2753,8 @@ fn slot_loan_ids(
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
             let mutable_leaves=if let Some((d,_))=super::stored_callables::called(module,f,&instruction.kind)
-                && d.kind==CallableKind::FnMut && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id)) {
+                && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+                && capture_after::required(module,d,b)? {
                 capture_after::leaves(module,d,b)?
             } else {Vec::new()};
             let mut add = |parameter: u32, path: &Path, mutable: bool| -> CompileResult<()> {
@@ -3481,10 +3482,15 @@ fn transfer(
                     complete &= !permission.targets.is_empty();
                     environment_leaf(&mut out, path, permission, b)?;
                 }
-                for (nested, permission) in &actual.slots {
-                    let path = environment_path(index, nested, b)?;
-                    complete &= !permission.targets.is_empty();
-                    environment_leaf(&mut out, path, permission, b)?;
+                // An addressed carrier's SSA slots are an earlier snapshot.
+                // Its current memory leaves are selected below, exactly once.
+                // By-value carriers have no addressed memory to select from.
+                if pointed_carrier(value_type(f,*capture)?).is_none() {
+                    for (nested, permission) in &actual.slots {
+                        let path = environment_path(index, nested, b)?;
+                        complete &= !permission.targets.is_empty();
+                        environment_leaf(&mut out, path, permission, b)?;
+                    }
                 }
                 if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
                     for slot in &shape.slots {
@@ -3602,7 +3608,11 @@ fn transfer(
             state.captures.insert(*index,actual);
         }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
-            if !state.captures.is_empty() => {
+            if !state.captures.is_empty()
+                && (matches!(i.kind,InstructionKind::ReadCapture{..})
+                    || f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                        .and_then(|definition|definition.captures.get(*index as usize))
+                        .is_some_and(|ty|matches!(ty,Type::Closure(_)))) => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -5307,7 +5317,8 @@ fn derive_cfg(
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
                 if *live && matches!(block.terminator,Terminator::Return(_))
-                    && f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut) {
+                    && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                    && capture_after::required(module,d,b)? {
                     capture_after::summarize(module,f,&outputs[bi],&mut actual,b)?;
                 }
                 if b.stored_slot_updates
@@ -5568,7 +5579,8 @@ fn derive_cfg(
             for block in &f.blocks {
                 for instruction in &block.instructions {
                     if let Some((d,_))=super::stored_callables::called(module,f,&instruction.kind)
-                        && d.kind==CallableKind::FnMut && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id)) {
+                        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+                && capture_after::required(module,d,b)? {
                         let summary=&summaries[d.function.0 as usize];
                         grounded &= summary.complete;
                         for (path,_) in capture_after::leaves(module,d,b)? {
@@ -6771,6 +6783,34 @@ mod tests {
         ));
     }
     #[test]
+    fn addressed_capture_selects_current_memory_without_unioning_an_old_ssa_slot() {
+        let module=fixture::captured_fixed(CallableKind::Fn,false);
+        let f=&module.functions[1];
+        let mut b=Budget::new(&Limits::default());
+        let mut state=State::default();
+        let mut loans=Vec::new();
+        let mut values=vec![Value::default();f.values.len()];
+        values[0]=seed_value(&f.values[0],HoldRoot::Parameter(0),&mut state,&mut loans,&mut b).unwrap();
+        values[1]=seed_value(&f.values[1],HoldRoot::Parameter(1),&mut state,&mut loans,&mut b).unwrap();
+        let slot=vec![PlaceProjection::Field(0)];
+        let previous=values[0].slots[&slot].clone();
+        let current=values[1].slots[&slot].clone();
+        state.external.get_mut(&HoldRoot::Parameter(0)).unwrap().insert(slot.clone(),current.clone());
+        // Keep the original address SSA and its earlier slot snapshot intact.
+        // Admission/class equations are tested separately; this temporal-state
+        // oracle checks the real memory selection and every parent loan.
+        let instruction=f.blocks.iter().flat_map(|block|&block.instructions)
+            .find(|instruction|matches!(instruction.kind,InstructionKind::MakeClosure{..})).unwrap();
+        let out=transfer(&module,f,instruction,&mut state,&values,&[],&SlotLoanIds::new(),&mut loans,&mut b).unwrap();
+        let leaf=&out.environment[&vec![PlaceProjection::Field(0),PlaceProjection::Field(0)]];
+        assert_eq!(leaf.targets,current.targets);
+        assert!(leaf.loans.is_superset(&current.loans));
+        assert!(out.held.loans.is_superset(&values[0].pointer.loans));
+        assert!(leaf.loans.is_disjoint(&previous.loans));
+        assert_eq!(values[0].slots[&slot],previous);
+    }
+
+    #[test]
     fn heap_target_union_exhausts_remaining_budget_before_publishing_permission() {
         for heap in [
             None,
@@ -6909,7 +6949,10 @@ mod tests {
             // Includes word/set-bit scans, every Permission projection and
             // every empty outer-frame visit on the unchanged raw fixture.
             low,
-            12_306,
+            // Six scalar Managed TakeCapture sites keep the existing owning
+            // ledger (48 fewer steps), and addressed captures select current
+            // memory once instead of also joining stale SSA slots (180 fewer).
+            12_246,
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(

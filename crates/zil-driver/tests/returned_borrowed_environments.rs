@@ -280,6 +280,8 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
+        ("forward-borrowed", include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil").to_owned()),
+        ("mutable-whole", include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil").to_owned()),
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
         ("whole-qualified-owner", include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil").to_owned()),
