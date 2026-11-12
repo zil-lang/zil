@@ -172,10 +172,10 @@ impl TypesPushSession {
             let old = rows.get(index)?;
             if old.id != id
                 || old.module != module.core.module_id
-                || old.node != function.id
                 || old.name != function.name
                 || old.owner.as_ref()? != change.owner()
                 || change.previous_span() != Some(old.span)
+                || change.previous_node_id() != Some(old.node)
             {
                 return None;
             }
@@ -205,14 +205,17 @@ impl TypesPushSession {
                 stats.body_checks += 1;
             } else {
                 typed = before.clone();
-                if !incremental::rebase(&mut typed, old.span, function.span) {
-                    return None;
+                if old.span != function.span {
+                    if !incremental::rebase(&mut typed, old.span, function.span) {
+                        return None;
+                    }
+                    stats.position_rebindings += 1;
                 }
                 result_changed = false;
-                stats.position_rebindings += 1;
             }
             let position_changed = before.span != function.span;
             row.span = function.span;
+            row.node = function.id;
             rows = rows.replace(index, row)?;
             stats.receipt_tree_updates += 1;
             // Preserve the old actual leaf when both complete raw values match.
@@ -967,5 +970,162 @@ mod tests {
             positions.program.as_ref(),
             &fresh(&positioned, &limits).unwrap()
         );
+    }
+    #[test]
+    fn added_and_removed_body_nodes_rebind_current_raw_ids_before_sibling_edits() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let mut input = [parse(0, scalar_module(), &limits)];
+        let initial = produced(&mut expand, &input, &limits);
+        let initial_node = initial.program().modules[0].core.functions[1].id;
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let expanded = scalar_module().replacen("let a=x+1;", "let extra=x+9;let a=x+1;", 1);
+        input[0] = parse(0, &expanded, &limits);
+        let current = produced(&mut expand, &input, &limits);
+        assert_ne!(
+            initial_node,
+            current.program().modules[0].core.functions[1].id
+        );
+        assert_ne!(
+            initial.function_input_revision(ModuleId(0), "second"),
+            current.function_input_revision(ModuleId(0), "second"),
+            "legacy NodeId-bound revision remains current"
+        );
+        assert_eq!(
+            initial.function_owner(ModuleId(0), "second"),
+            current.function_owner(ModuleId(0), "second")
+        );
+        let current = prepared(&current, &limits);
+        let inserted = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(inserted.stats.body_checks, 1);
+        assert_eq!(inserted.stats.position_rebindings, 2);
+        assert_eq!(inserted.stats.context_rebuilds, 0);
+        assert_eq!(
+            inserted.program.as_ref(),
+            &fresh(&current, &limits).unwrap()
+        );
+        input[0] = parse(0, &expanded.replace("x+2", "x+7"), &limits);
+        let current = produced(&mut expand, &input, &limits);
+        let current = prepared(&current, &limits);
+        let sibling = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(sibling.stats.body_checks, 1);
+        assert_eq!(sibling.stats.context_rebuilds, 0);
+        assert_eq!(
+            sibling
+                .program
+                .module
+                .functions
+                .changed_indices(&inserted.program.module.functions),
+            [1]
+        );
+        assert_eq!(sibling.program.as_ref(), &fresh(&current, &limits).unwrap());
+        input[0] = parse(
+            0,
+            &input[0].source().text.replace("let extra=x+9;", ""),
+            &limits,
+        );
+        let current = produced(&mut expand, &input, &limits);
+        let current = prepared(&current, &limits);
+        let removed = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(removed.stats.body_checks, 1);
+        assert_eq!(removed.stats.context_rebuilds, 0);
+        assert_eq!(removed.program.as_ref(), &fresh(&current, &limits).unwrap());
+        assert_eq!(
+            cold.program.as_ref(),
+            &fresh(&prepared(&initial, &limits), &limits).unwrap()
+        );
+    }
+
+    #[test]
+    fn same_limits_replay_rejects_aggregate_block_exhaustion_and_recovers_prior_owner() {
+        let defaults = Limits::default();
+        let text = (0..10)
+            .map(|i| format!("fn f{i}(x:i32)->i32=>x+1; "))
+            .collect::<String>();
+        let mut sizing_expand = ExpandSession::default();
+        let sized = produced(&mut sizing_expand, &[parse(0, &text, &defaults)], &defaults);
+        let size = fresh(&prepared(&sized, &defaults), &defaults).unwrap();
+        let blocks = size
+            .module
+            .functions
+            .iter()
+            .map(|f| f.blocks.len())
+            .sum::<usize>();
+        assert_eq!(blocks, 10);
+        let limits = Limits {
+            max_blocks: blocks,
+            ..defaults
+        };
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let previous = session.current.as_ref().unwrap().clone();
+        let producer_checkpoint = expand.checkpoint();
+        let edited = text.replacen(
+            "fn f0(x:i32)->i32=>x+1;",
+            "fn f0(x:i32)->i32 {if x>0 {return x+1;}else{return x+2;}}",
+            1,
+        );
+        let current = produced(&mut expand, &[parse(0, &edited, &limits)], &limits);
+        let current = prepared(&current, &limits);
+        // Its changed function fits alone; rejection requires composing the
+        // unchanged nine leaves in the original global block ledger.
+        let default_current = fresh(&current, &Limits::default()).unwrap();
+        assert!(default_current.module.functions[0].blocks.len() < blocks);
+        assert!(
+            default_current
+                .module
+                .functions
+                .iter()
+                .map(|f| f.blocks.len())
+                .sum::<usize>()
+                > blocks
+        );
+        assert_eq!(
+            apply(&mut session, &current, &limits).unwrap_err(),
+            fresh(&current, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &previous));
+        expand = producer_checkpoint;
+        let recovery = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        let recovery = prepared(&recovery, &limits);
+        let recovered = apply(&mut session, &recovery, &limits).unwrap();
+        assert_eq!(recovered.stats.sparse_batches, 1);
+        assert_eq!(recovered.stats.body_checks, 0);
+        assert_eq!(recovered.program, cold.program);
+        let mut minus = limits.clone();
+        minus.max_blocks -= 1;
+        assert_eq!(
+            apply(&mut session, &recovery, &minus).unwrap_err(),
+            fresh(&recovery, &minus).unwrap_err()
+        );
+    }
+    #[test]
+    fn node_numbered_discard_names_are_rebuilt_from_current_lowering_state() {
+        let limits = Limits::default();
+        let text = "fn first(x:i32)->i32 {let a=x+1;return a;} fn second(x:i32)->i32 {let _=x+2;return x+3;} fn third(x:i32)->i32=>x+4;";
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, text, &limits)], &limits);
+        apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let text = text.replacen("let a=x+1;", "let extra=x+9;let a=x+1;", 1);
+        let current = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        assert_eq!(
+            current
+                .change_batch()
+                .changes()
+                .iter()
+                .filter(|change| change.body_changed())
+                .count(),
+            2,
+            "current compiler-generated discard binding is a real body input"
+        );
+        let current = prepared(&current, &limits);
+        let actual = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(actual.stats.body_checks, 2);
+        assert_eq!(actual.stats.context_rebuilds, 0);
+        assert_eq!(actual.program.as_ref(), &fresh(&current, &limits).unwrap());
     }
 }

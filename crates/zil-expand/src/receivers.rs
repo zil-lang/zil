@@ -8,6 +8,7 @@ impl Expander<'_> {
         host: Option<&Type>,
         default: Option<&s::Param>,
     ) {
+        let temporary_start = self.next_temporary;
         if prefix.is_none() && primitive_name(&f.name) {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
@@ -370,6 +371,16 @@ impl Expander<'_> {
             receiver,
             span: f.span,
         });
+        if self.capture_lower_bindings {
+            self.function_lower_bindings.insert(
+                id,
+                FunctionLowerBinding {
+                    temporary_start,
+                    temporary_end: self.next_temporary,
+                    node_named: self.node_named_functions.contains(&id),
+                },
+            );
+        }
         self.current_function = saved_function;
         self.parent_map = saved_parent;
         self.self_type = saved_self;

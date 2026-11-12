@@ -71,6 +71,7 @@ pub struct FunctionInputChange {
     function: usize,
     body_changed: bool,
     previous_span: Option<Span>,
+    previous_node: Option<zil_base::NodeId>,
 }
 impl FunctionInputChange {
     pub fn owner(&self) -> &FunctionOwner {
@@ -81,6 +82,9 @@ impl FunctionInputChange {
     }
     pub fn previous_span(&self) -> Option<Span> {
         self.previous_span
+    }
+    pub fn previous_node_id(&self) -> Option<zil_base::NodeId> {
+        self.previous_node
     }
     pub fn module_index(&self) -> usize {
         self.module
@@ -426,7 +430,12 @@ struct FunctionInput {
     // relative positions. The old Entry owns its real ParsedSource until this
     // epoch is replaced; no copied source buffer or independent history exists.
     id: zil_base::NodeId,
+    ordinal: usize,
     owner: FunctionOwner,
+    // Private body projection binds actual source bytes and declaration slot;
+    // unlike the legacy input_revision it does not identify relocated NodeIds.
+    body_revision: FunctionInputRevision,
+    lower_binding: FunctionLowerBinding,
     span: Span,
     text_fingerprint: Fingerprint,
     fingerprint: Fingerprint,
@@ -737,29 +746,39 @@ impl ExpandSession {
                 else {
                     return Ok(None);
                 };
-                let previous_owner = entry
-                    .functions
-                    .get(&function.name)
-                    .filter(|old| old.id == function.id && old.span.file == function.span.file)
-                    .map(|old| old.owner.clone());
-                let previous = entry
-                    .functions
-                    .get(&function.name)
-                    .filter(|previous| {
-                        previous.id == function.id && previous.span.file == function.span.file
-                    })
-                    .and_then(|previous| {
-                        let old = self.entries.get(&source.module_id)?;
-                        let old_source = old.parsed.source();
-                        if old_source.file_id != source.file_id {
-                            return None;
-                        }
-                        let old_text = old_source
-                            .text
-                            .get(previous.span.start..previous.span.end)?;
-                        self.stats.function_input_text_comparisons += 1;
-                        (old_text == text).then_some(previous)
-                    });
+                let Some(lower_binding) = entry
+                    .lower
+                    .as_ref()
+                    .and_then(|(_, lower)| lower.function_lower_bindings.get(&function.id))
+                    .copied()
+                else {
+                    return Ok(None);
+                };
+                let declaration = entry.functions.get(&function.name).filter(|old| {
+                    old.ordinal == function_index && old.span.file == function.span.file
+                });
+                let previous_owner = declaration.map(|old| old.owner.clone());
+                let same_body = declaration.and_then(|previous| {
+                    let old = self.entries.get(&source.module_id)?;
+                    let old_source = old.parsed.source();
+                    if old_source.file_id != source.file_id {
+                        return None;
+                    }
+                    let old_text = old_source
+                        .text
+                        .get(previous.span.start..previous.span.end)?;
+                    self.stats.function_input_text_comparisons += 1;
+                    (old_text == text
+                        && previous.lower_binding.same_body_input(
+                            lower_binding,
+                            previous.id,
+                            function.id,
+                        ))
+                    .then_some(previous)
+                });
+                // Preserve the legacy absolute/raw input contract exactly.
+                // The new private body projection above has a distinct domain.
+                let previous = same_body.filter(|previous| previous.id == function.id);
                 let text_fingerprint = previous.map_or_else(
                     || {
                         // Counts full declaration-text hashing, separately from the
@@ -787,6 +806,12 @@ impl ExpandSession {
                     self.stats.function_input_binding_hashes += 1;
                     FunctionInput {
                         id: function.id,
+                        ordinal: function_index,
+                        lower_binding,
+                        body_revision: same_body.map_or_else(
+                            || FunctionInputRevision(Arc::new(())),
+                            |old| old.body_revision.clone(),
+                        ),
                         owner: previous_owner.unwrap_or_else(|| FunctionOwner(Arc::new(()))),
                         span: function.span,
                         text_fingerprint,
@@ -806,8 +831,9 @@ impl ExpandSession {
                         module: module_index,
                         function: function_index,
                         body_changed: old
-                            .is_none_or(|old| old.input_revision != input.input_revision),
+                            .is_none_or(|old| old.body_revision != input.body_revision),
                         previous_span: old.map(|old| old.span),
+                        previous_node: old.map(|old| old.id),
                     });
                 }
                 next_functions.insert(function.name.clone(), input);

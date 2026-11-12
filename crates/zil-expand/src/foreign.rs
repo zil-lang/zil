@@ -57,6 +57,16 @@ impl Expander<'_> {
                 }
             };
         let id = self.id();
+        if self.capture_lower_bindings {
+            self.function_lower_bindings.insert(
+                id,
+                FunctionLowerBinding {
+                    temporary_start: self.next_temporary,
+                    temporary_end: self.next_temporary,
+                    node_named: false,
+                },
+            );
+        }
         self.map_node(id, function.span, ExpansionRole::Source, Vec::new());
         let parameters = function.params.iter().map(|p| self.param(p)).collect();
         let return_type = function
