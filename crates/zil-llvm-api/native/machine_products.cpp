@@ -123,23 +123,48 @@ const TargetInfoAPI &targetInfoAPI() {
 }
 struct PassStep {
   ID id;
+  // Four ordered AU columns in one allocation: Required, Transitive, Used,
+  // then Preserved. Category lengths are part of identity, not just the union.
   std::vector<ID> dependencies;
-  bool machine;
-  bool preservesAll;
+  uint32_t requiredCount = 0, transitiveCount = 0, usedCount = 0;
+  bool machine, preservesAll;
+  llvm::ArrayRef<ID> inputDependencies() const {
+    const size_t N = size_t(requiredCount) + transitiveCount + usedCount;
+    assert(N <= dependencies.size() && "sealed AU column lengths must fit");
+    return llvm::ArrayRef<ID>(dependencies).take_front(N);
+  }
   bool operator==(const PassStep &Other) const {
-    return id == Other.id && dependencies == Other.dependencies &&
-           machine == Other.machine && preservesAll == Other.preservesAll;
+    return std::tie(id, dependencies, requiredCount, transitiveCount, usedCount, machine, preservesAll) ==
+           std::tie(Other.id, Other.dependencies, Other.requiredCount, Other.transitiveCount,
+                    Other.usedCount, Other.machine, Other.preservesAll);
   }
 };
-PassStep describe(llvm::Pass &P, bool Machine) {
-  llvm::AnalysisUsage AU;
-  P.getAnalysisUsage(AU);
-  PassStep S{P.getPassID(), {}, Machine, AU.getPreservesAll()};
+PassStep describeUsage(llvm::Pass &P, bool Machine, const llvm::AnalysisUsage &AU) {
+  // Fixed7a AnalysisUsage stores each column in SmallVector<AnalysisID>, whose
+  // actual size/capacity encoding is uint32. No count or ID value is narrowed.
+  static_assert(std::is_same_v<llvm::SmallVectorSizeType<ID>, uint32_t>);
+  PassStep S{P.getPassID(), {}, static_cast<uint32_t>(AU.getRequiredSet().size()),
+             static_cast<uint32_t>(AU.getRequiredTransitiveSet().size()),
+             static_cast<uint32_t>(AU.getUsedSet().size()), Machine, AU.getPreservesAll()};
+  S.dependencies.reserve(size_t(S.requiredCount) + S.transitiveCount + S.usedCount +
+                         AU.getPreservedSet().size());
   for (ID D : AU.getRequiredSet()) S.dependencies.push_back(D);
   for (ID D : AU.getRequiredTransitiveSet()) S.dependencies.push_back(D);
-  // Optional available analyses must not silently disappear on replay either.
   for (ID D : AU.getUsedSet()) S.dependencies.push_back(D);
+  for (ID D : AU.getPreservedSet()) S.dependencies.push_back(D);
   return S;
+}
+PassStep describe(llvm::Pass &P, bool Machine) {
+  // Borrow the CURRENT scheduler's complete per-instance AU, not a PM-address
+  // cache or a PassID guess. Fixed7a LegacyPassManager.cpp619-649 keys this by
+  // exact P; scheduling1057, initializeAnalysisImpl1076 and invalidation869/903
+  // consume the same object. Immediately copy only values/DSO-static IDs.
+  if (auto *Resolver = P.getResolver())
+    if (auto *Top = Resolver->getPMDataManager().getTopLevelManager())
+      if (const auto *AU = Top->findAnalysisUsage(&P)) return describeUsage(P, Machine, *AU);
+  llvm::AnalysisUsage AU;
+  P.getAnalysisUsage(AU); // Unmanaged/unsupported current context keeps old path.
+  return describeUsage(P, Machine, AU);
 }
 struct BlockEmissionState {
   unsigned maxAlignmentBytes;
@@ -323,7 +348,7 @@ size_t recordingReservation(const Snapshot &S, size_t NameBytes) {
   // largest possible dependency closure, before accumulating either of them.
   size_t N = boundedAdd(snapshotPayload(S, NameBytes), stepsPayload(S.pipeline));
   for (const auto &Step : S.pipeline)
-    for (ID Dependency : Step.dependencies) { (void)Dependency; N = boundedAdd(N, sizeof(ID)); }
+    for (ID Dependency : Step.inputDependencies()) { (void)Dependency; N = boundedAdd(N, sizeof(ID)); }
   return N;
 }
 
@@ -798,6 +823,99 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
   return Text;
 }
 
+// This scratch manager uses LLVM's real per-instance AU interner without
+// scheduling/executing passes, registering fake analyses, or touching IR/MMI.
+class UsageTestManager final : public llvm::PMTopLevelManager {
+  llvm::PMDataManager *getAsPMDataManager() override { return PassManagers.front(); }
+  llvm::PassManagerType getTopLevelPassManagerType() override { return llvm::PMT_FunctionPassManager; }
+public:
+  UsageTestManager() : PMTopLevelManager(new llvm::FPPassManager()) {}
+  llvm::PMDataManager &data() { return *PassManagers.front(); }
+};
+class UsageTestPass final : public llvm::FunctionPass {
+public:
+  static char PassType, A, B, C, D, E, F, G;
+  unsigned mode;
+  mutable unsigned queries = 0;
+  explicit UsageTestPass(unsigned Mode) : FunctionPass(PassType), mode(Mode) {}
+  bool runOnFunction(llvm::Function &) override { return false; }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    ++queries;
+    AU.setPreservesAll();
+    if (mode >= 2 && mode <= 5) {
+      AU.addRequiredID(A);
+      if (mode == 2) AU.addUsedIfAvailableID(B);
+      if (mode == 3) AU.addRequiredID(B);
+      if (mode == 4) AU.addPreservedID(F);
+      if (mode == 5) AU.addPreservedID(G);
+      return;
+    }
+    if (mode == 1) AU.addRequiredID(B).addRequiredID(A);
+    else AU.addRequiredID(A).addRequiredID(B);
+    AU.addRequiredTransitiveID(C); // C also enters Required, as in actual LLVM.
+    if (mode == 1) AU.addUsedIfAvailableID(E).addUsedIfAvailableID(D);
+    else AU.addUsedIfAvailableID(D).addUsedIfAvailableID(E);
+    if (mode == 6) AU.addPreservedID(G).addPreservedID(F);
+    else AU.addPreservedID(F).addPreservedID(G);
+  }
+};
+char UsageTestPass::PassType, UsageTestPass::A, UsageTestPass::B, UsageTestPass::C,
+     UsageTestPass::D, UsageTestPass::E, UsageTestPass::F, UsageTestPass::G;
+
+bool providers(Snapshot &S);
+bool testCanonicalUsage() {
+  UsageTestManager Manager;
+  UsageTestPass A(0), B(1), C(2), D(3), E(4), F(5), G(6);
+  for (auto *P : {&A, &B, &C, &D, &E, &F, &G})
+    P->setResolver(new llvm::AnalysisResolver(Manager.data()));
+  const auto First = describe(A, true), OtherInstance = describe(B, true);
+  const std::vector<ID> Expected = {&UsageTestPass::A, &UsageTestPass::B, &UsageTestPass::C,
+      &UsageTestPass::C, &UsageTestPass::D, &UsageTestPass::E, &UsageTestPass::F, &UsageTestPass::G};
+  if (A.getPassID() != B.getPassID() || First == OtherInstance ||
+      A.queries != 1 || B.queries != 1 || First.dependencies != Expected ||
+      First.requiredCount != 3 || First.transitiveCount != 1 || First.usedCount != 2 ||
+      !First.preservesAll || First.inputDependencies().size() != 6) return false;
+  // LLVM scheduling already consumed/cached mode0. A later virtual answer is
+  // intentionally NOT the scheduler's authority, even if the same P reports it.
+  A.mode = 1;
+  llvm::AnalysisUsage Dynamic; A.getAnalysisUsage(Dynamic);
+  if (describeUsage(A, true, Dynamic) == First || A.queries != 2 ||
+      !(describe(A, true) == First) || A.queries != 2 ||
+      describe(A, false) == First || A.queries != 2) return false;
+  // The OLD concatenated Req+Transitive+Used projection collided here; these
+  // counterexamples assert stronger identity, not a claimed prior wrong-code.
+  const auto RequiredUsed = describe(C, true), RequiredOnly = describe(D, true);
+  if (RequiredUsed.inputDependencies() != RequiredOnly.inputDependencies() ||
+      RequiredUsed == RequiredOnly || C.queries != 1 || D.queries != 1) return false;
+  const auto PreservedF = describe(E, true), PreservedG = describe(F, true);
+  if (PreservedF.inputDependencies() != PreservedG.inputDependencies() ||
+      PreservedF == PreservedG || E.queries != 1 || F.queries != 1) return false;
+  const auto PreservedOrder = describe(G, true);
+  if (PreservedOrder.inputDependencies() != First.inputDependencies() ||
+      PreservedOrder == First || G.queries != 1) return false;
+  // A preserved analysis is compared in identity but is never a required
+  // emission provider. Pulling this preservesAll=false row into the closure
+  // would conservatively (and incorrectly) reject this otherwise valid set.
+  Snapshot Closure;
+  auto Consumer = PreservedF; Consumer.machine = false;
+  Closure.sequence = {Consumer,
+      PassStep{&UsageTestPass::A, {}, 0, 0, 0, true, true},
+      PassStep{&UsageTestPass::F, {}, 0, 0, 0, true, false}};
+  if (!providers(Closure) || Closure.emissionProviders.size() != 1 ||
+      !Closure.emissionProviders.count(&UsageTestPass::A) ||
+      Closure.emissionProviders.count(&UsageTestPass::F)) return false;
+  UsageTestPass Orphan(0);
+  const auto NoResolver = describe(Orphan, true);
+  Orphan.mode = 1;
+  if (NoResolver == describe(Orphan, true) || Orphan.queries != 2) return false;
+  llvm::FPPassManager WithoutTop;
+  UsageTestPass Unmanaged(0);
+  Unmanaged.setResolver(new llvm::AnalysisResolver(WithoutTop));
+  if (!(describe(Unmanaged, true) == First) || Unmanaged.queries != 1) return false;
+  Unmanaged.mode = 1;
+  return !(describe(Unmanaged, true) == First) && Unmanaged.queries == 2;
+}
+
 void testTypedBody(llvm::MachineFunction &Current) {
   auto Make = [&]() {
     auto MF = std::make_unique<llvm::MachineFunction>(Current.getFunction(), Current.getTarget(),
@@ -882,7 +1000,7 @@ void testTypedBody(llvm::MachineFunction &Current) {
   }
   auto Changed = Saved;
   Changed.operands[Changed.instructions[0].operands.first + 1].extra ^= Undef;
-  bool EncodingChecks = !(Changed == Saved);
+  bool EncodingChecks = !(Changed == Saved) && testCanonicalUsage();
   Changed = Saved; Changed.integers[0] = Saved.integers[0].zext(129);
   EncodingChecks &= !(Changed == Saved); // Distinct width, same numeric value.
   Changed = Saved; Changed.integers.back().flipBit(256);
@@ -1234,8 +1352,10 @@ void testMachineNumbering(llvm::MachineFunction &Current,
 bool providers(Snapshot &S) {
   std::vector<ID> Pending;
   for (const auto &Step : S.sequence)
-    if (!Step.machine || Step.id == targetInfoAPI().printerID())
-      Pending.insert(Pending.end(), Step.dependencies.begin(), Step.dependencies.end());
+    if (!Step.machine || Step.id == targetInfoAPI().printerID()) {
+      auto Inputs = Step.inputDependencies();
+      Pending.insert(Pending.end(), Inputs.begin(), Inputs.end());
+    }
   while (!Pending.empty()) {
     ID Current = Pending.back();
     Pending.pop_back();
@@ -1245,7 +1365,10 @@ bool providers(Snapshot &S) {
       // Required providers run on restored final MIR. Only genuinely
       // non-transforming providers are admissible, not registry analysis tags.
       if (Step.machine && !Step.preservesAll) return false;
-      Pending.insert(Pending.end(), Step.dependencies.begin(), Step.dependencies.end());
+      {
+        auto Inputs = Step.inputDependencies();
+        Pending.insert(Pending.end(), Inputs.begin(), Inputs.end());
+      }
     }
   }
   return true;
