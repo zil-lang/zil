@@ -6,6 +6,7 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod capture_after;
+mod environment_memory;
 mod returned_upper;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -2482,14 +2483,14 @@ fn seed_environment(
             let mut path = prefix.clone();
             fee(b, path.len().saturating_add(1))?;
             path.push(PlaceProjection::Field(index as u32));
-            if matches!(capture, Type::Address { mutable: false, .. }) {
-                add(path.clone(), false, value, b)?;
+            if let Type::Address { mutable, .. } = capture {
+                add(path.clone(), *mutable, value, b)?;
                 if let Some((_, shape)) = pointed_carrier(capture) {
                     for leaf in &shape.slots {
                         let mut nested = path.clone();
                         fee(b, nested.len().saturating_add(leaf.path.len()))?;
                         nested.extend_from_slice(&leaf.path);
-                        add(nested, false, value, b)?;
+                        add(nested, leaf.mode == StoredBorrowMode::ExclusiveAddress, value, b)?;
                     }
                 }
             } else if let Type::BorrowedStorage { life, .. } = capture {
@@ -2717,6 +2718,12 @@ fn seed(
             loans,
             b,
         )?;
+        if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))) && !value.environment.is_empty() {
+            b.stored_slot_updates |= matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,..});
+            let rows=copy_permission_rows(&value.environment,b)?;
+            ordered(b,state.external.len(),0)?;
+            state.external.insert(HoldRoot::Parameter(index as u32),rows);
+        }
         if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
             if super::stored_callables::resource_payload(payload, b)?)
         {
@@ -3007,9 +3014,10 @@ fn substitute(
         }
         out
     } else if !value.environment.is_empty() {
-        ordered(b, value.environment.len(), source.stored.len())?;
+        let current=environment_memory::current(value,state,b)?;
+        ordered(b, current.len(), source.stored.len())?;
         let mut out = Permission::default();
-        if let Some(actual) = value.environment.get(&source.stored) {
+        if let Some(actual) = current.get(&source.stored) {
             union(&mut out, actual, b)?;
         }
         out
@@ -3099,13 +3107,10 @@ fn slot_loan_ids(
             let mutable_leaves = if let Some((d, _)) =
                 super::stored_callables::called(module, f, &instruction.kind)
                 && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
-                && capture_after::required(module, d, b)?
-            {
-                capture_after::leaves(module, d, b)?
-            } else {
-                Vec::new()
-            };
-            let mut add = |parameter: u32, path: &Path, mutable: bool| -> CompileResult<()> {
+                && capture_after::required(module,d,b)? {
+                capture_after::leaves(module,d,b)?
+            } else {Vec::new()};
+            let mut add = |parameter: u32, path: &Path, mutable: bool, b: &mut Budget| -> CompileResult<()> {
                 fee(b, path.len().saturating_add(2))?;
                 ordered(b, ids.len(), path.len())?;
                 let id = loans.len();
@@ -3129,7 +3134,7 @@ fn slot_loan_ids(
                     )?) {
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
-                                add(u32::MAX, &slot.path, true)?;
+                                add(u32::MAX, &slot.path, true,b)?;
                             }
                         }
                     }
@@ -3138,7 +3143,7 @@ fn slot_loan_ids(
                     add(
                         u32::MAX,
                         path,
-                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),
+                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),b,
                     )?;
                 }
                 InstructionKind::Call { function, .. } => {
@@ -3157,16 +3162,18 @@ fn slot_loan_ids(
                                 add(
                                     position as u32,
                                     &slot.path,
-                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,b,
                                 )?;
                             }
+                        }
+                        else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
+                            let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
+                            for (path,mutable) in capture_after::leaves(module,d,b)? {add(position as u32,&path,mutable,b)?;}
                         }
                     }
                 }
                 _ if !mutable_leaves.is_empty() => {
-                    for (path, mutable) in &mutable_leaves {
-                        add(u32::MAX - 1, path, *mutable)?;
-                    }
+                    for (path,mutable) in &mutable_leaves { add(u32::MAX-1,path,*mutable,b)?; }
                 }
                 _ => {}
             }
@@ -3810,7 +3817,7 @@ fn transfer(
                     .get(index)
                     .ok_or_else(|| failure("external summary parameter is absent"))?;
                 if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if carrier(inner).is_some())
+                    Type::Address { mutable: true, inner } if carrier(inner).is_some() || matches!(inner.as_ref(),Type::Closure(_)))
                 {
                     continue;
                 }
@@ -3846,27 +3853,18 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.base, actual_path, permission));
+                updates.push((root.base, actual_path, permission, matches!(&callee.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))));
             }
-            for (base, path, permission) in updates {
-                match base {
-                    HoldRoot::Local(local) => {
-                        let holder = state.locals.get_mut(&local).ok_or_else(|| {
-                            failure("updated caller local carrier is unavailable")
-                        })?;
-                        ordered(b, holder.slots.len(), path.len())?;
-                        holder.slots.insert(path, permission);
-                    }
-                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
-                        let holder = state.external.get_mut(&base).ok_or_else(|| {
-                            failure("updated caller external carrier is unavailable")
-                        })?;
-                        ordered(b, holder.len(), path.len())?;
-                        holder.insert(path, permission);
-                    }
-                    HoldRoot::Static => {
-                        return Err(failure("static text cannot receive a slot update"));
-                    }
+            for (base, path, permission, environment) in updates {
+                if environment {
+                    let mut rows=copy_permission_rows(environment_memory::rows(state,base,b)?,b)?;
+                    ordered(b,rows.len(),path.len())?;
+                    rows.insert(path,permission);
+                    environment_memory::publish(state,base,rows,b)?;
+                } else {
+                    let holder=actual_slot_rows_mut(state,base,b)?;
+                    ordered(b,holder.len(),path.len())?;
+                    holder.insert(path,permission);
                 }
             }
             if callee.foreign.is_some()
@@ -4651,7 +4649,9 @@ fn active(
         };
         if let Some(value) = value {
             active_loans_union(&mut direct, &value.pointer, b)?;
-            active_loans_union(&mut direct, &value.held, b)?;
+            if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
+                for leaf in environment_memory::current(value,state,b)?.values() {active_loans_union(&mut direct,leaf,b)?;}
+            } else {active_loans_union(&mut direct, &value.held, b)?;}
             if b.nested_store_windows {
                 active_loans_union(&mut direct, &value.store_description, b)?;
             }
@@ -4741,7 +4741,9 @@ fn active_by_permission(
         };
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
-            union(&mut direct, &value.held, b)?;
+            if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
+                for leaf in environment_memory::current(value,state,b)?.values() {union(&mut direct,leaf,b)?;}
+            } else {union(&mut direct, &value.held, b)?;}
             if b.nested_store_windows {
                 union(&mut direct, &value.store_description, b)?;
             }
@@ -5622,12 +5624,12 @@ fn windows(
                                 )? =>
                             {
                                 ordered(b, state.locals.len(), 0)?;
-                                state.locals.get(callee).map(|v| &v.held)
+                                state.locals.get(callee).map(|v| environment_memory::held(v,&state,b)).transpose()?
                             }
                             InstructionKind::CallClosure { callee, .. }
                             | InstructionKind::CallClosureBorrowed { callee, .. }
                             | InstructionKind::CallClosureOnce { callee, .. } => {
-                                Some(&values[callee.0 as usize].held)
+                                Some(environment_memory::held(&values[callee.0 as usize],&state,b)?)
                             }
                             _ => None,
                         };
@@ -5635,7 +5637,7 @@ fn windows(
                             && !held.targets.is_empty()
                         {
                             let mut p = Permission::default();
-                            union(&mut p, held, b)?;
+                            union(&mut p, &held, b)?;
                             fee(b, 1)?;
                             all.push((p, false));
                         }
@@ -5718,11 +5720,13 @@ fn windows(
                             for leaf in actual.slots.values() {
                                 access.check(leaf, false, apart, b)?;
                             }
-                            if !actual.held.targets.is_empty() {
-                                access.check(&actual.held, false, apart, b)?;
+                            let held=environment_memory::held(actual,&state,b)?;
+                            if !held.targets.is_empty() {
+                                access.check(&held, false, apart, b)?;
                             }
                             for other in &arguments[..a] {
                                 let right = &values[other.0 as usize];
+                                let right_held=environment_memory::held(right,&state,b)?;
                                 let write = matches!(
                                     value_type(f, *argument)?,
                                     Type::Address { mutable: true, .. }
@@ -5742,7 +5746,7 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in right.slots.values().chain(
-                                        (!right.held.targets.is_empty()).then_some(&right.held),
+                                        (!right_held.targets.is_empty()).then_some(&right_held),
                                     ) {
                                         for x in &actual.pointer.targets {
                                             for y in &leaf.targets {
@@ -5756,7 +5760,7 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in actual.slots.values().chain(
-                                        (!actual.held.targets.is_empty()).then_some(&actual.held),
+                                        (!held.targets.is_empty()).then_some(&held),
                                     ) {
                                         for x in &leaf.targets {
                                             for y in &right.pointer.targets {
@@ -6074,13 +6078,8 @@ fn derive_cfg(
                                     ));
                                 }
                                 if let HoldRoot::Parameter(source) = target.base
-                                    && binding(f, StorageBase::Parameter(*index), path, b)?
-                                        != binding(
-                                            f,
-                                            StorageBase::Parameter(source),
-                                            &target.stored,
-                                            b,
-                                        )?
+                                    && environment_memory::binding(module,f,*index,path,b)?
+                                        != environment_memory::binding(module,f,source,&target.stored,b)?
                                 {
                                     return Err(failure(
                                         "stored external update exceeds its declared lifetime relation",
@@ -6295,6 +6294,13 @@ fn derive_cfg(
                                     {
                                         grounded = false;
                                     }
+                                }
+                            }
+                            else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
+                                let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
+                                for (path,_) in capture_after::leaves(module,d,b)? {
+                                    ordered(b,summary.external_after.len(),path.len())?;
+                                    grounded &= summary.external_after.get(&(position as u32,path)).is_some_and(|row|!row.is_empty());
                                 }
                             }
                         }

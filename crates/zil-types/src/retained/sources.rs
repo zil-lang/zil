@@ -213,7 +213,7 @@ fn stored_read(
             at.places.clear();
             at.local &= origin.places.is_empty();
         }
-        if !origin.inputs.is_empty() || origin.places.is_empty() || origin.unknown {
+        if origin.places.is_empty() || origin.unknown {
             join(&mut out, &pointed(&external, path, left, span)?, left, span)?;
         }
         for (local, prefix) in &origin.places {
@@ -240,7 +240,15 @@ fn solve(
 ) -> R<Summary> {
     let span = f.span;
     let captures=f.environment.and_then(|id|module.closures.get(id.0 as usize)).map_or(&[][..],|definition|definition.captures.as_slice());
-    let width=f.locals.len().saturating_add(captures.len());
+    let mut external_cells=BTreeMap::new();
+    for (position,local) in f.parameters.iter().enumerate() {
+        if let Type::Address{inner,..}=&f.locals[local.0 as usize].ty
+            && matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..}) {
+            spend(left,1,span)?;
+            external_cells.insert(position,LocalId((f.locals.len()+captures.len()+external_cells.len()) as u32));
+        }
+    }
+    let width=f.locals.len().saturating_add(captures.len()).saturating_add(external_cells.len());
 
     spend(
         left,
@@ -251,7 +259,7 @@ fn solve(
         span,
     )?;
     let mut values = vec![Row::new(); f.values.len()];
-    spend(left,captures.len().saturating_mul(f.blocks.len().saturating_add(1)),span)?;
+    spend(left,captures.len().saturating_add(external_cells.len()).saturating_mul(f.blocks.len().saturating_add(1)),span)?;
     let mut outputs = vec![vec![Row::new(); width]; f.blocks.len()];
     let mut predecessors = vec![Vec::new(); f.blocks.len()];
     let mut reachable = vec![false; f.blocks.len()];
@@ -291,12 +299,11 @@ fn solve(
     for (index,ty) in captures.iter().enumerate() {
         initial[f.locals.len()+index]=seed(module,ty,Some(StorageBase::Capture(index as u32)),left,span,limit)?;
     }
-    for (position,local) in f.parameters.iter().enumerate() {
-        if let Type::Address{inner,..}=&f.locals[local.0 as usize].ty && matches!(inner.as_ref(),Type::Closure(_)) {
-            let environment=seed(module,inner,Some(StorageBase::Parameter(position as u32)),left,span,limit)?;
-            join(&mut initial[local.0 as usize],&environment,left,span)?;
-            if let Some(head)=initial[local.0 as usize].get_mut(&Vec::new()) {head.places.insert((*local,Vec::new()));}
-        }
+    for (position,cell) in &external_cells {
+        let local=f.parameters[*position];
+        let Type::Address{inner,..}=&f.locals[local.0 as usize].ty else {unreachable!()};
+        initial[cell.0 as usize]=seed(module,inner,Some(StorageBase::Parameter(*position as u32)),left,span,limit)?;
+        if let Some(head)=initial[local.0 as usize].get_mut(&Vec::new()) {head.places.insert((*cell,Vec::new()));}
     }
     loop {
         let mut changed = false;
@@ -530,16 +537,26 @@ fn solve(
                     },
                     InstructionKind::Call{function,arguments}=> {
                         let summary=&summaries[function.0 as usize];
-                        for (parameter,effects) in &summary.external {
+                        let callee=&module.functions[function.0 as usize];
+                        let mut publications=Vec::new();
+                        for (parameter,local) in callee.parameters.iter().enumerate() {
+                            let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty else {continue;};
+                            if !matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..}) {continue;}
+                            let mut paths=Vec::new();
+                            leaves(module,inner,0,&mut Vec::new(),&mut paths,left,at,limit)?;
                             let mut updates=Row::new();
-                            for (path,origins) in effects {
-                                let actual=mutable_sources::substitute(origins,None,arguments,&values,&state,left,at)?;
-                                updates.insert(path.clone(),actual);
+                            for path in paths {
+                                let origin=if let Some(actual)=summary.external.get(&(parameter as u32)).and_then(|row|row.get(&path)) {
+                                    mutable_sources::substitute(actual,None,arguments,&values,&state,left,at)?
+                                } else {Origins::default()};
+                                updates.insert(path,origin);
                             }
-                            mutable_sources::publish(&values[arguments[*parameter as usize].0 as usize],&updates,&mut state,left,at)?;
+                            publications.push((parameter,updates));
+                        }
+                        for (parameter,updates) in publications {
+                            mutable_sources::publish(&values[arguments[parameter].0 as usize],&updates,&mut state,left,at)?;
                         }
                     },
-
                     InstructionKind::TakeLocal { local }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
@@ -562,11 +579,11 @@ fn solve(
                 let row=wrap(&outputs[index][f.locals.len()+capture],ContractProjection::Capture(capture as u32),left,span)?;
                 join(&mut summary.captures,&row,left,span)?;
             }
-            for (parameter,local) in f.parameters.iter().enumerate() {
-                if matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_))) {
-                    let mut row=copy(&outputs[index][local.0 as usize],left,span)?;
-                    row.remove(&Vec::new());
-                    join(summary.external.entry(parameter as u32).or_default(),&row,left,span)?;
+            for (parameter,cell) in &external_cells {
+                let local=f.parameters[*parameter];
+                if matches!(f.locals[local.0 as usize].ty,Type::Address{mutable:true,..}) {
+                    let row=copy(&outputs[index][cell.0 as usize],left,span)?;
+                    join(summary.external.entry(*parameter as u32).or_default(),&row,left,span)?;
                 }
             }
         }
@@ -600,7 +617,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             limits.max_call_depth,
         )?;
         let mutable_environment=f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut);
-        let mutable_input=f.parameters.iter().any(|local|matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_))));
+        let mutable_input=f.parameters.iter().any(|local|matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..})));
         relevant.push(!result_leaves.is_empty() || mutable_environment || mutable_input);
     }
     loop {
