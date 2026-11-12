@@ -182,6 +182,11 @@ mod tests {
             classes: vec![],
         };
         let instance = DynFunctionInstance {
+            scope: DynInstantiationScope {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+            },
+            header_embedding: vec![],
             definition: id,
             receiver: receiver.clone(),
             declaration_actuals: vec![],
@@ -189,6 +194,7 @@ mod tests {
         };
         module.functions[0].dyn_instance = Some(instance);
         module.dyn_declarations = vec![DynDeclaration {
+            implicit_lifetimes: Some(vec![]),
             id: LifeDeclarationId {
                 module: ModuleId(0),
                 declaration: NodeId(1),

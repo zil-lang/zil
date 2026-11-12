@@ -7,6 +7,7 @@ struct Scope<'a> {
     invocation: u32,
     bound: Vec<u32>,
     established_self: bool,
+    implicit: usize,
 }
 fn lookup<'a>(
     module: &'a TypedModule,
@@ -43,6 +44,7 @@ impl Scope<'_> {
                 Some(LifeParameterKind::Lifetime)
             ),
             DynLifePattern::Invocation(i) => *i < self.invocation,
+            DynLifePattern::ImplicitDeclaration(i) => (*i as usize) < self.implicit,
             DynLifePattern::Bound { depth, index } => self
                 .bound
                 .iter()
@@ -266,7 +268,7 @@ impl Scope<'_> {
             }
             DynTypePattern::Slice(inner)
             | DynTypePattern::Managed(inner)
-            | DynTypePattern::Desc(inner)
+            | DynTypePattern::Desc { inner, .. }
             | DynTypePattern::OwnedStore(inner) => self.ty(module, inner, depth + 1, b)?,
             DynTypePattern::ErrorUnion { error, result } => {
                 self.ty(module, error, depth + 1, b)?;
@@ -450,6 +452,11 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
             invocation: 0,
             bound: vec![],
             established_self: declaration.kind == DynDeclarationKind::Trait,
+            implicit: declaration
+                .implicit_lifetimes
+                .as_ref()
+                .ok_or_else(|| bad("original implicit lifetime occurrence directory is Unknown"))?
+                .len(),
         };
         let requirements = declaration
             .requirements
@@ -597,6 +604,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 invocation: 0,
                 bound: vec![],
                 established_self: true,
+                implicit: scope.implicit,
             };
             method.signature(module, &row.signature, b)?;
             for requirement in &row.requirements {
@@ -635,6 +643,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 invocation: 0,
                 bound: vec![],
                 established_self: true,
+                implicit: scope.implicit,
             };
             method.signature(module, &row.signature, b)?;
             for requirement in &row.requirements {
@@ -713,6 +722,7 @@ mod tests {
     use zil_base::{ModuleId, NodeId};
     fn declaration(index: u32) -> DynDeclaration {
         DynDeclaration {
+            implicit_lifetimes: Some(vec![]),
             id: LifeDeclarationId {
                 module: ModuleId(0),
                 declaration: NodeId(index),
