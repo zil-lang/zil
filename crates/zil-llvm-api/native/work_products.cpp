@@ -13,6 +13,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassInstrumentation.h"
@@ -27,6 +28,7 @@
 #include <cstdio>
 #include <dlfcn.h>
 #include <map>
+#include <limits>
 #include <memory>
 #include <set>
 #include <string>
@@ -58,6 +60,35 @@ NameState nameState(const Function &F) {
   NameState S; auto Read = readNameStateAPI();
   if (Read) S.present = Read(&F, &S.counter, &S.maximum);
   return S;
+}
+// Function::print(true) in the pinned LLVM does not initialize its use-list
+// ordering map. Bind that observable state explicitly using current owned IDs.
+bool ownedUseSequence(const Function &F, std::vector<uint32_t> *Out) {
+  DenseMap<const Value *, uint32_t> IDs;
+  std::vector<const Value *> Values;
+  auto Add = [&](const Value *V) {
+    if (Values.size() >= std::numeric_limits<uint32_t>::max()) return false;
+    IDs[V] = static_cast<uint32_t>(Values.size()); Values.push_back(V); return true;
+  };
+  for (const Argument &A : F.args()) if (!Add(&A)) return false;
+  for (const BasicBlock &B : F) {
+    if (!Add(&B)) return false;
+    for (const Instruction &I : B) if (!Add(&I)) return false;
+  }
+  if (Out) { Out->clear(); Out->push_back(static_cast<uint32_t>(Values.size())); }
+  for (const Value *V : Values) {
+    uint64_t Count = 0;
+    size_t CountAt = Out ? Out->size() : 0;
+    if (Out) Out->push_back(0);
+    for (const Use &U : V->uses()) {
+      auto It = IDs.find(U.getUser());
+      if (It == IDs.end() || !isa<Instruction>(U.getUser()) ||
+          ++Count > std::numeric_limits<uint32_t>::max()) return false;
+      if (Out) { Out->push_back(It->second); Out->push_back(U.getOperandNo()); }
+    }
+    if (Out) (*Out)[CountAt] = static_cast<uint32_t>(Count);
+  }
+  return true;
 }
 bool numeric(Type *T) {
   if (T->isIntegerTy() || T->isVoidTy()) return true;
@@ -171,6 +202,7 @@ bool eligibleFunction(const Function &F) {
     }
   }
   if (nameState(F).present < 0) return admissionFailure(F, nullptr, "unbound-value-name-map");
+  if (!ownedUseSequence(F, nullptr)) return admissionFailure(F, nullptr, "unbound-owned-use");
   return true;
 }
 std::string functionText(const Function &F) {
@@ -179,6 +211,11 @@ std::string functionText(const Function &F) {
   for (const BasicBlock &B : F) OS << ':' << B.getNumber();
   NameState Names = nameState(F);
   OS << "\n; value-name-state " << Names.present << ':' << Names.maximum << ':' << Names.counter;
+  std::vector<uint32_t> Uses;
+  if (!ownedUseSequence(F, &Uses)) return {};
+  OS << "\n; owned-use-sequence-v1\n";
+  // A private resident byte projection, never LLVM source or a disk format.
+  OS.write(reinterpret_cast<const char *>(Uses.data()), Uses.size() * sizeof(uint32_t));
   OS << '\n'; return S;
 }
 std::string declarationText(const Function &F) {
@@ -632,4 +669,22 @@ extern "C" void ZilNativeProductsResume(void *P) {
 
 extern "C" int ZilNativeProductsAnalysisDiagnostics(int Enabled) {
   bool Old = zil::AnalysisDiagnostics; zil::AnalysisDiagnostics = Enabled != 0; return Old;
+}
+
+extern "C" int ZilNativeProductsOwnedUseOrderCounterexample() {
+  LLVMContext Context; Module M("owned-use-order", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  F->getArg(0)->setName("x");
+  IRBuilder<> Builder(BasicBlock::Create(Context, "entry", F));
+  Value *A = Builder.CreateAdd(F->getArg(0), Builder.getInt32(1), "a");
+  Value *B = Builder.CreateAdd(F->getArg(0), Builder.getInt32(2), "b");
+  Builder.CreateRet(Builder.CreateAdd(A, B, "result"));
+  if (verifyFunction(*F, nullptr)) return 0;
+  auto Print = [&] { std::string S; raw_string_ostream OS(S); F->print(OS, nullptr, true); return S; };
+  std::string Text = Print(), Key = zil::functionText(*F);
+  F->getArg(0)->reverseUseList();
+  if (Print() != Text || zil::functionText(*F) == Key || verifyFunction(*F, nullptr)) return 0;
+  F->getArg(0)->reverseUseList();
+  return Print() == Text && zil::functionText(*F) == Key;
 }

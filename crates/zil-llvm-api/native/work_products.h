@@ -48,6 +48,8 @@ void *ZilNativeProductsSuspend(void);
 void ZilNativeProductsResume(void *previous_hooks);
 // Explicit per-thread test diagnostics; disabled by default. Returns old mode.
 int ZilNativeProductsAnalysisDiagnostics(int enabled);
+// Test-only caller: exercise the real pinned LLVM text/use-order collision.
+int ZilNativeProductsOwnedUseOrderCounterexample(void);
 #ifdef __cplusplus
 }
 #endif
