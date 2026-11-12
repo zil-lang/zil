@@ -19,6 +19,7 @@ mod dyn_cleanup;
 mod dyn_context;
 mod dyn_dispatch;
 mod dyn_metadata;
+mod dyn_recipe;
 mod dynamic_store;
 mod enums;
 mod errors;
