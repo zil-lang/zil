@@ -48,6 +48,7 @@ impl<'values> Sources<'values> {
             if !payload.leaves.is_empty()
                 || !payload.task_ports.is_empty()
                 || b.store_descriptions() && !payload.store_description.loans.is_empty()
+                || !payload.dyn_ports.0.is_empty()
             {
                 push(&mut ordinary, id, b)?;
                 b.spend(16)?;

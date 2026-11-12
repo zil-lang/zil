@@ -63,6 +63,8 @@ mod dynamic_cleanup;
 mod dynamic_context;
 mod dynamic_dispatch;
 mod dynamic_metadata;
+mod dynamic_patterns;
+mod dynamic_ports;
 mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
@@ -353,6 +355,9 @@ struct Budget {
     // Independent paid raw-type inventory; this only enables a proof, not permission.
     task_origin_roots: bool,
     borrowed_task_ports: bool,
+    dyn_contexts: bool,
+    pending_dyn_tables: BTreeSet<DynVtableId>,
+    pending_dyn_returns: BTreeSet<FunctionId>,
     registrations: bool,
     async_registrations: bool,
     protocol_contracts: bool,
@@ -450,6 +455,9 @@ impl Budget {
             tasks: false,
             task_origin_roots: false,
             borrowed_task_ports: false,
+            dyn_contexts: false,
+            pending_dyn_tables: BTreeSet::new(),
+            pending_dyn_returns: BTreeSet::new(),
             registrations: false,
             async_registrations: false,
             protocol_contracts: false,
@@ -1273,6 +1281,18 @@ fn check_module(
             "E-VERIFY-CALLABLE-SOURCE",
             None,
             "returned environment has no completed independent memory source proof",
+        ));
+    }
+    if !budget.pending_dyn_returns.is_empty() {
+        return Err(unsupported(
+            "retained result lacks an independent actual Return source proof",
+            None,
+        ));
+    }
+    if !budget.pending_dyn_tables.is_empty() {
+        return Err(unsupported(
+            "Context provider lacks a completed independent access/effect proof",
+            None,
         ));
     }
     budget.guard_return_sources = guard_sources;

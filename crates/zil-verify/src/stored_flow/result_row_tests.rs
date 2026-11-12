@@ -245,7 +245,7 @@ fn summarize_by_scan(
 
 fn origin(id: u32) -> Source {
     Source {
-        retained_port: (id.is_multiple_of(2)).then_some(id),
+        retained_port: (id.is_multiple_of(2)).then_some(PortOrigin::Task(id)),
         base: HoldRoot::Parameter(id),
         leaf: vec![PlaceProjection::Field(id)],
         inline: vec![PlaceProjection::ErrorArm(id.is_multiple_of(2))],

@@ -133,6 +133,7 @@ fn fixture() -> TypedModule {
         id: table_id,
         interface: interface_id,
         self_type: self_type.clone(),
+        self_classes: Vec::new(),
         implementation: impl_decl.id,
         actuals: vec![],
         ports: vec![],

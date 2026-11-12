@@ -181,102 +181,325 @@ pub(super) fn retained_shape(shape: &RetainedLifeShape, b: &mut Budget) -> Check
     Ok(())
 }
 
-/// Full bounded declaration recipe traversal before clone or fingerprint.
-pub(super) fn pattern(root: Option<&DynSelfPattern>, b: &mut Budget) -> Check<()> {
-    enum Node<'a> {
-        Nominal(&'a DynSelfPattern),
-        Actual(&'a DynPatternActual),
-        Ty(&'a DynTypePattern),
-        Const(&'a DynConstPattern),
-    }
-    let cap = b.limits.max_nodes;
-    let depth_cap = b.limits.max_call_depth.min(128);
-    let mut nodes = 0usize;
-    pay(b, &mut nodes, cap, 1)?;
-    let Some(root) = root else { return Ok(()) };
-    let mut pending = vec![(Node::Nominal(root), 0usize)];
-    while let Some((node, depth)) = pending.pop() {
-        if depth >= depth_cap {
-            return Err(limit("dyn Self recipe metadata limit exceeded"));
-        }
-        pay(b, &mut nodes, cap, 1)?;
-        match node {
-            Node::Nominal(value) => {
-                pay(b, &mut nodes, cap, value.arguments.len())?;
-                for actual in &value.arguments {
-                    pending.push((Node::Actual(actual), depth + 1));
-                }
-            }
-            Node::Actual(value) => match value {
-                DynPatternActual::Type(value) => pending.push((Node::Ty(value), depth + 1)),
-                DynPatternActual::Const(value) => pending.push((Node::Const(value), depth + 1)),
-                DynPatternActual::LifeParameter(_) => {}
-            },
-            Node::Const(DynConstPattern::Value(Constant::WideString(units))) => {
-                let n = units.len();
-                if n > cap {
-                    return Err(limit("dyn Self recipe metadata limit exceeded"));
-                }
-                b.spend(n)?;
-            }
-            Node::Const(_) => {}
-            Node::Ty(value) => match value {
-                DynTypePattern::Concrete(value) => ty(value, b)?,
-                DynTypePattern::Nominal(value) => pending.push((Node::Nominal(value), depth + 1)),
-                DynTypePattern::Parameter(_) => {}
-                DynTypePattern::Address { inner, .. }
-                | DynTypePattern::Slice(inner)
-                | DynTypePattern::Managed(inner)
-                | DynTypePattern::Desc(inner)
-                | DynTypePattern::OwnedStore(inner) => pending.push((Node::Ty(inner), depth + 1)),
-                DynTypePattern::Array { element, length } => {
-                    pending.push((Node::Const(length), depth + 1));
-                    pending.push((Node::Ty(element), depth + 1));
-                }
-                DynTypePattern::Tuple(values) => {
-                    pay(b, &mut nodes, cap, values.len())?;
-                    for value in values {
-                        pending.push((Node::Ty(value), depth + 1));
-                    }
-                }
-                DynTypePattern::ErrorUnion { error, result } => {
-                    pending.push((Node::Ty(error), depth + 1));
-                    pending.push((Node::Ty(result), depth + 1));
-                }
-            },
+fn position(position: &StoragePosition, b: &mut Budget) -> Check<()> {
+    path(
+        b,
+        &mut 0usize,
+        b.limits.max_nodes,
+        b.limits.max_call_depth.min(128),
+        position.path.len(),
+    )
+}
+fn actuals(values: &[DynGenericActual], b: &mut Budget) -> Check<()> {
+    pay(b, &mut 0usize, b.limits.max_nodes, values.len())?;
+    for actual in values {
+        match actual {
+            DynGenericActual::Type(node) => ty(node, b)?,
+            DynGenericActual::Const(Constant::WideString(units)) => b.spend(units.len())?,
+            _ => b.spend(1)?,
         }
     }
     Ok(())
 }
-
-/// Receiver-after source uppers are metadata until the actual CFG proves them.
-pub(super) fn guarantees(values: Option<&[DynGuarantee]>, b: &mut Budget) -> Check<()> {
-    let cap = b.limits.max_nodes;
-    let depth = b.limits.max_call_depth.min(128);
-    let mut nodes = 0usize;
-    pay(b, &mut nodes, cap, 1)?;
-    if let Some(values) = values {
-        pay(b, &mut nodes, cap, values.len())?;
-        for value in values {
-            match value {
+fn kinds(kinds: &[LifeParameterKind], b: &mut Budget) -> Check<()> {
+    pay(b, &mut 0usize, b.limits.max_nodes, kinds.len())?;
+    for kind in kinds {
+        if let LifeParameterKind::Const(node) = kind {
+            ty(node, b)?;
+        }
+    }
+    Ok(())
+}
+pub(super) fn declaration(declaration: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    pattern(declaration, b)?;
+    kinds(&declaration.parameters, b)?;
+    let identity = &declaration.identity;
+    b.spend(
+        identity
+            .package
+            .len()
+            .saturating_add(identity.module_path.len())
+            .saturating_add(identity.declaration_path.len())
+            .saturating_add(identity.generation_path.len())
+            .saturating_add(1),
+    )?;
+    for part in identity
+        .module_path
+        .iter()
+        .chain(&identity.declaration_path)
+    {
+        b.spend(part.len())?;
+    }
+    pay(
+        b,
+        &mut 0usize,
+        b.limits.max_nodes,
+        declaration.members.len(),
+    )?;
+    for member in &declaration.members {
+        b.spend(member.name.len().saturating_add(1))?;
+        match &member.kind {
+            DynMemberKind::Constant(node) => ty(node, b)?,
+            DynMemberKind::Method(formals) => kinds(formals, b)?,
+            DynMemberKind::Type => {}
+        }
+    }
+    Ok(())
+}
+pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budget) -> Check<()> {
+    actuals(&item.application.actuals, b)?;
+    pay(
+        b,
+        &mut 0usize,
+        b.limits.max_nodes,
+        item.inherited
+            .len()
+            .saturating_add(item.associated_types.len())
+            .saturating_add(item.associated_constants.len())
+            .saturating_add(item.slots.len()),
+    )?;
+    for application in &item.inherited {
+        actuals(&application.actuals, b)?;
+    }
+    for associated in &item.associated_types {
+        actuals(&associated.member.application.actuals, b)?;
+        ty(&associated.ty, b)?;
+    }
+    for associated in &item.associated_constants {
+        actuals(&associated.member.application.actuals, b)?;
+        ty(&associated.ty, b)?;
+        if let Constant::WideString(units) = &associated.value {
+            b.spend(units.len())?;
+        }
+    }
+    for slot in &item.slots {
+        actuals(&slot.member.application.actuals, b)?;
+        actuals(&slot.actuals, b)?;
+        pay(
+            b,
+            &mut 0usize,
+            b.limits.max_nodes,
+            slot.parameters
+                .len()
+                .saturating_add(slot.parameter_modes.len()),
+        )?;
+        for node in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+            ty(node, b)?;
+        }
+        if let Some(life) = &slot.storage_life {
+            storage(
+                b,
+                &mut 0usize,
+                b.limits.max_nodes,
+                b.limits.max_call_depth.min(128),
+                life,
+            )?;
+        }
+        let c = &slot.contract;
+        b.spend(9)?;
+        for requirement in c.requires.iter().flatten() {
+            match requirement {
+                DynRequirement::Read(p) | DynRequirement::Write(p) | DynRequirement::Manage(p) => {
+                    position(p, b)?
+                }
+                DynRequirement::Apart(a, z) => {
+                    position(a, b)?;
+                    position(z, b)?;
+                }
+                DynRequirement::State {
+                    position: p,
+                    ty: node,
+                    ..
+                } => {
+                    position(p, b)?;
+                    ty(node, b)?;
+                }
+            }
+        }
+        for guarantee in c.guarantees.iter().flatten() {
+            match guarantee {
                 DynGuarantee::StorageSources(binding) => {
-                    path(b, &mut nodes, cap, depth, binding.position.path.len())?;
-                    pay(b, &mut nodes, cap, binding.sources.len())?;
+                    position(&binding.position, b)?;
+                    pay(b, &mut 0usize, b.limits.max_nodes, binding.sources.len())?;
                     for source in &binding.sources {
-                        path(b, &mut nodes, cap, depth, source.path.len())?;
+                        position(source, b)?;
                     }
                 }
                 DynGuarantee::State {
-                    position,
-                    ty: value,
+                    position: p,
+                    ty: node,
                     ..
                 } => {
-                    path(b, &mut nodes, cap, depth, position.path.len())?;
-                    ty(value, b)?;
+                    position(p, b)?;
+                    ty(node, b)?;
                 }
-                DynGuarantee::ManageResult => {}
+                DynGuarantee::ManageResult => b.spend(1)?,
             }
         }
+        for p in c.hold.iter().flatten() {
+            position(p, b)?;
+        }
+        if let Some(call) = &c.call {
+            for p in call.reads.iter().chain(&call.writes) {
+                position(p, b)?;
+            }
+        }
+        if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
+            pay(b, &mut 0usize, b.limits.max_nodes, sources.len())?;
+            for p in sources {
+                position(p, b)?;
+            }
+        }
+        for effect in c.effects.iter().flatten() {
+            match effect {
+                DynEffect::Cleanup(node) => ty(node, b)?,
+                DynEffect::Call(p) => position(p, b)?,
+                _ => b.spend(1)?,
+            }
+        }
+        crate::dynamic_cleanup::metadata(module, c.cleanup.as_ref(), b)?;
+    }
+    Ok(())
+}
+
+/// Bound declaration recipes before their fingerprints recurse. A pattern is
+/// metadata only; this pass does not instantiate it or establish a class.
+pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    enum Node<'a> {
+        Nominal(&'a DynSelfPattern, usize),
+        Actual(&'a DynPatternActual, usize),
+        Ty(&'a DynTypePattern, usize),
+        Constant(&'a DynConstPattern, usize),
+    }
+
+    let cap = b.limits.max_nodes;
+    let depth_cap = b.limits.max_call_depth.min(128);
+    let mut count = 0usize;
+    pay(b, &mut count, cap, 2)?;
+    let mut pending = Vec::new();
+    for root in [&declaration.self_pattern, &declaration.implemented_trait]
+        .into_iter()
+        .flatten()
+    {
+        pending.push(Node::Nominal(root, 0));
+    }
+    while let Some(node) = pending.pop() {
+        pay(b, &mut count, cap, 1)?;
+        let mut children = Vec::new();
+        let depth = match node {
+            Node::Nominal(node, depth) => {
+                pay(b, &mut count, cap, node.arguments.len())?;
+                children.extend(node.arguments.iter().map(|a| Node::Actual(a, depth + 1)));
+                depth
+            }
+            Node::Actual(actual, depth) => {
+                match actual {
+                    DynPatternActual::Type(ty) => children.push(Node::Ty(ty, depth + 1)),
+                    DynPatternActual::Const(value) => {
+                        children.push(Node::Constant(value, depth + 1))
+                    }
+                    DynPatternActual::LifeParameter(index) => {
+                        if !matches!(
+                            declaration.parameters.get(*index as usize),
+                            Some(LifeParameterKind::Lifetime)
+                        ) {
+                            return Err(reject(
+                                "E-VERIFY-DYN-PATTERN",
+                                None,
+                                "life recipe selects a non-life formal ordinal",
+                            ));
+                        }
+                    }
+                }
+                depth
+            }
+            Node::Constant(pattern, depth) => {
+                match pattern {
+                    DynConstPattern::Parameter(index) => {
+                        if !matches!(
+                            declaration.parameters.get(*index as usize),
+                            Some(LifeParameterKind::Const(_))
+                        ) {
+                            return Err(reject(
+                                "E-VERIFY-DYN-PATTERN",
+                                None,
+                                "constant recipe selects a non-constant formal ordinal",
+                            ));
+                        }
+                    }
+                    DynConstPattern::Value(Constant::WideString(units)) => {
+                        pay(b, &mut count, cap, units.len())?;
+                    }
+                    DynConstPattern::Value(_) => {}
+                }
+                depth
+            }
+            Node::Ty(pattern, depth) => {
+                match pattern {
+                    DynTypePattern::Concrete(node) => ty(node, b)?,
+                    DynTypePattern::Parameter(index) => {
+                        if !matches!(
+                            declaration.parameters.get(*index as usize),
+                            Some(LifeParameterKind::Type)
+                        ) {
+                            return Err(reject(
+                                "E-VERIFY-DYN-PATTERN",
+                                None,
+                                "type recipe selects a non-type formal ordinal",
+                            ));
+                        }
+                    }
+                    DynTypePattern::Nominal(node) => children.push(Node::Nominal(node, depth + 1)),
+                    DynTypePattern::Address {
+                        lifetime, inner, ..
+                    } => {
+                        if lifetime.is_some_and(|index| {
+                            !matches!(
+                                declaration.parameters.get(index as usize),
+                                Some(LifeParameterKind::Lifetime)
+                            )
+                        }) {
+                            return Err(reject(
+                                "E-VERIFY-DYN-PATTERN",
+                                None,
+                                "address lifetime recipe selects a non-life formal ordinal",
+                            ));
+                        }
+                        children.push(Node::Ty(inner, depth + 1));
+                    }
+                    DynTypePattern::Tuple(fields) => {
+                        pay(b, &mut count, cap, fields.len())?;
+                        children.extend(fields.iter().map(|ty| Node::Ty(ty, depth + 1)));
+                    }
+                    DynTypePattern::Array { element, length } => {
+                        children.push(Node::Ty(element, depth + 1));
+                        children.push(Node::Constant(length, depth + 1));
+                    }
+                    DynTypePattern::Slice(node)
+                    | DynTypePattern::Managed(node)
+                    | DynTypePattern::Desc(node)
+                    | DynTypePattern::OwnedStore(node) => children.push(Node::Ty(node, depth + 1)),
+                    DynTypePattern::ErrorUnion { error, result } => {
+                        children.push(Node::Ty(error, depth + 1));
+                        children.push(Node::Ty(result, depth + 1));
+                    }
+                }
+                depth
+            }
+        };
+        if depth > depth_cap {
+            return Err(limit("dyn recipe depth exceeds selected bound"));
+        }
+        if children
+            .len()
+            .saturating_add(pending.len())
+            .saturating_add(count)
+            > cap
+        {
+            return Err(limit("dyn recipe pending node bound exceeded"));
+        }
+        b.spend(children.len())?;
+        pending.extend(children);
     }
     Ok(())
 }

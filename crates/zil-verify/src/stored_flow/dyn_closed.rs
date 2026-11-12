@@ -51,7 +51,12 @@ pub(super) fn operation(
         .transpose()
         .map(|answer| answer.unwrap_or(false))
 }
-fn head(f: &TypedFunction, local: LocalId, state: &Frame, b: &mut Budget) -> Check<Permission> {
+pub(super) fn head(
+    f: &TypedFunction,
+    local: LocalId,
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Permission> {
     let declaration = f
         .locals
         .get(local.0 as usize)

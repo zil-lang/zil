@@ -79,10 +79,14 @@ pub(super) fn check_claim(
                 budget.spend(source.path.len().saturating_add(1))?;
             }
         }
-        return Err(bad(
-            f,
-            "explicit retained return sources lack complete retained result proof",
-        ));
+        if !budget.dyn_contexts {
+            return Err(bad(
+                f,
+                "explicit retained return sources lack complete retained result proof",
+            ));
+        }
+        budget.spend(1)?;
+        budget.pending_dyn_returns.insert(f.id);
     }
     if let Some(c) = &f.callable_return_contract {
         budget.spend(1)?;
