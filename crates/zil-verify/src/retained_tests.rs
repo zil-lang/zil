@@ -482,7 +482,7 @@ fn owning_factory_raw_and_wire_reject_recursive_or_deep_borrowed_inputs() {
     entry.environment = Some(ClosureId(2));
     m.functions.push(entry);
     m.closures.push(child);
-    reject_both(&m, "E-UNSUPPORTED");
+    reject_both(&m, "E-VERIFY-CALLABLE-SOURCE");
 }
 
 #[test]
