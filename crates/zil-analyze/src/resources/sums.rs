@@ -416,9 +416,6 @@ impl Tree {
         if matches!(self.node, Node::Copy | Node::Leaf(_)) {
             return Ok(());
         }
-        if budget.large_tag_layout && !has_copy_tag_layout(ty, budget)? {
-            return Ok(());
-        }
         // Each immutable local-type Sum is classified once per request.
         // Product nodes descend through actual children and carry no tag.
         let copy_sum = match &self.node {
@@ -434,6 +431,9 @@ impl Tree {
                 false
             }
         };
+        if !copy_sum && budget.large_tag_layout && !has_copy_tag_layout(ty, budget)? {
+            return Ok(());
+        }
         if copy_sum {
             // The exact existing unknown-tag shape is a fixed point of this
             // transfer, independently of which ordinary profile scheduled it.
@@ -1235,7 +1235,23 @@ impl Plan {
             }
         }
         let partial = partial || (address_tag && address_replacement);
-        let tagged_locals = if partial
+        let tagged_locals = if partial && f.locals.len().saturating_add(f.values.len()) >= 64 {
+            // This kernel's owning Sum retains its active arms: only nested
+            // Copy Sums are invalidated. Omit actual immutable local layouts
+            // for which the complete transfer is an exact no-op.
+            budget.spend(
+                f.locals.len().saturating_mul(2).saturating_add(1),
+                "actual Copy tag local index allocation",
+            )?;
+            let mut tagged = Vec::with_capacity(f.locals.len());
+            for local in &f.locals {
+                budget.spend(1, "actual Copy tag local classification")?;
+                if has_copy_tag_layout(&local.ty, budget)? {
+                    tagged.push(local.id);
+                }
+            }
+            Some(tagged)
+        } else if partial
             && budget.store_option_results
             && (budget.task_borrowed_results || budget.ordinary_error_places)
         {
@@ -1506,12 +1522,19 @@ impl Plan {
                 if let Some(locals) = &self.tagged_locals {
                     budget.spend(locals.len(), "mixed tagged local invalidation inventory")?;
                     for local in locals {
-                        budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
-                        facts
-                            .locals
-                            .get_mut(local)
-                            .ok_or_else(|| error("mixed tagged local fact is absent"))?
-                            .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                        let tree = if budget.large_tag_layout {
+                            // The canonical local inventory is a real Vec;
+                            // select its slot directly instead of retaining
+                            // the former BTree search reserve on this path.
+                            facts.locals.selected_mut(*local, budget)?
+                        } else {
+                            budget.lookup(facts.locals.len(), "mixed tagged local fact lookup")?;
+                            facts
+                                .locals
+                                .get_mut(local)
+                                .ok_or_else(|| error("mixed tagged local fact is absent"))?
+                        };
+                        tree.forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
                     }
                 } else {
                     for (local, tree) in facts.locals.iter_mut() {
