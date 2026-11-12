@@ -145,7 +145,7 @@ fn lower_view_with_budget(
             && closure.storage_life.as_ref().is_some_and(|life| {
                 life.bindings
                     .iter()
-                    .any(|row| row.position.base == StorageBase::Result)
+                    .any(|row| row.position.base == zil_ir::StorageBase::Result)
             })
             && matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee());
         let captured_fixed_signature = verified_address_result
