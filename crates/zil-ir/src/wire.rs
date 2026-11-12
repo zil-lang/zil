@@ -3754,7 +3754,7 @@ impl<'a> Reader<'a> {
             module_id,
             source_fingerprint,
             target,
-            functions,
+            functions: functions.into(),
             closures,
             unsupported: self.unsupported()?,
         })
@@ -5065,7 +5065,7 @@ impl<'a> Reader<'a> {
             schema_version,
             module_fingerprint,
             target_fingerprint,
-            functions,
+            functions: functions.into(),
             origins,
             responsibilities,
             unsupported: self.unsupported()?,
