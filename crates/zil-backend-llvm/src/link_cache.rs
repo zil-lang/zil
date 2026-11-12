@@ -446,6 +446,7 @@ fn elf_needed(bytes: &[u8]) -> Option<Vec<String>> {
         return None;
     }
     if u16at(bytes, 16)? == 1 {
+        native_relocatable_sections(bytes)?;
         return Some(Vec::new());
     }
     if !matches!(u16at(bytes, 16)?, 2 | 3) {
@@ -512,6 +513,141 @@ fn elf_needed(bytes: &[u8]) -> Option<Vec<String>> {
             Some(std::str::from_utf8(&value[..end]).ok()?.to_owned())
         })
         .collect()
+}
+/// A native ELF container can also carry fat LTO and cause GNU ld/BFD to
+/// discover an automatic plugin. Such a plugin is not in the parsed driver
+/// argv. Admit only the understood native section schema; unknown section
+/// formats deliberately fall back to an ordinary current link.
+fn native_relocatable_sections(bytes: &[u8]) -> Option<()> {
+    fn u16at(bytes: &[u8], at: usize) -> Option<u16> {
+        Some(u16::from_le_bytes(
+            bytes.get(at..at.checked_add(2)?)?.try_into().ok()?,
+        ))
+    }
+    fn u32at(bytes: &[u8], at: usize) -> Option<u32> {
+        Some(u32::from_le_bytes(
+            bytes.get(at..at.checked_add(4)?)?.try_into().ok()?,
+        ))
+    }
+    fn u64at(bytes: &[u8], at: usize) -> Option<u64> {
+        Some(u64::from_le_bytes(
+            bytes.get(at..at.checked_add(8)?)?.try_into().ok()?,
+        ))
+    }
+    if bytes.get(..7)? != b"\x7fELF\x02\x01\x01"
+        || u16at(bytes, 16)? != 1
+        || u16at(bytes, 18)? != 62
+        || u32at(bytes, 20)? != 1
+        || u32at(bytes, 48)? != 0
+        || u16at(bytes, 52)? != 64
+        || u16at(bytes, 56)? != 0
+        || u16at(bytes, 58)? != 64
+    {
+        return None;
+    }
+    let offset = usize::try_from(u64at(bytes, 40)?).ok()?;
+    let count = usize::from(u16at(bytes, 60)?);
+    let names_index = usize::from(u16at(bytes, 62)?);
+    // Extended numbering and absent names are outside this finite admission.
+    if offset < 64 || count == 0 || names_index == 0 || names_index >= count {
+        return None;
+    }
+    let table = bytes.get(offset..offset.checked_add(count.checked_mul(64)?)?)?;
+    if table.get(..64)?.iter().any(|byte| *byte != 0) {
+        return None;
+    }
+    let sections = table.as_chunks::<64>().0;
+    let names_header = sections.get(names_index)?;
+    if u32at(names_header, 4)? != 3 {
+        return None;
+    }
+    let names_offset = usize::try_from(u64at(names_header, 24)?).ok()?;
+    let names_size = usize::try_from(u64at(names_header, 32)?).ok()?;
+    let names = bytes.get(names_offset..names_offset.checked_add(names_size)?)?;
+    if names.first() != Some(&0) || names.last() != Some(&0) {
+        return None;
+    }
+    let mut name_work = 1024 * 1024usize;
+    for (index, section) in sections.iter().enumerate() {
+        if index == 0 {
+            continue;
+        }
+        let name_offset = usize::try_from(u32at(section, 0)?).ok()?;
+        let name = names.get(name_offset..)?;
+        let name_end = name[..name.len().min(name_work)]
+            .iter()
+            .position(|byte| *byte == 0)?;
+        name_work = name_work.checked_sub(name_end.checked_add(1)?)?;
+        let name = std::str::from_utf8(&name[..name_end]).ok()?;
+        if name.starts_with(".gnu.lto_")
+            || name.starts_with(".gnu.debuglto_")
+            || name.starts_with(".gnu.offload")
+            || name.starts_with(".llvm")
+            || name.starts_with(".llvmbc")
+            || name == ".gnu_object_only"
+            || name == ".gnu.object_only"
+            || name.contains("bitcode")
+            || name.contains("plugin")
+        {
+            return None;
+        }
+        let kind = u32at(section, 4)?;
+        // NULL is admitted only at index zero above. No OS/processor-specific
+        // types or dynamic metadata are inferred to be plugin-independent.
+        if !matches!(kind, 1..=4 | 7..=9 | 14..=18) {
+            return None;
+        }
+        let flags = u64at(section, 8)?;
+        const NATIVE_FLAGS: u64 =
+            0x1 | 0x2 | 0x4 | 0x10 | 0x20 | 0x40 | 0x80 | 0x200 | 0x400 | 0x0020_0000 | 0x8000_0000;
+        if flags & !NATIVE_FLAGS != 0 {
+            return None;
+        }
+        let file_offset = usize::try_from(u64at(section, 24)?).ok()?;
+        let size = usize::try_from(u64at(section, 32)?).ok()?;
+        if kind == 8 && file_offset > bytes.len() {
+            return None;
+        }
+        if kind != 8 {
+            bytes.get(file_offset..file_offset.checked_add(size)?)?;
+        }
+        let link = usize::try_from(u32at(section, 40)?).ok()?;
+        let info = usize::try_from(u32at(section, 44)?).ok()?;
+        if link >= count {
+            return None;
+        }
+        let alignment = u64at(section, 48)?;
+        if alignment != 0 && !alignment.is_power_of_two() {
+            return None;
+        }
+        let entry_size = usize::try_from(u64at(section, 56)?).ok()?;
+        match kind {
+            2 if entry_size != 24
+                || !size.is_multiple_of(24)
+                || u32at(sections.get(link)?, 4)? != 3 =>
+            {
+                return None;
+            }
+            4 | 9
+                if entry_size != if kind == 4 { 24 } else { 16 }
+                    || !size.is_multiple_of(entry_size)
+                    || info >= count
+                    || u32at(sections.get(link)?, 4)? != 2 =>
+            {
+                return None;
+            }
+            14..=16 if entry_size != 8 || !size.is_multiple_of(8) => return None,
+            17 | 18
+                if entry_size != 4
+                    || !size.is_multiple_of(4)
+                    || u32at(sections.get(link)?, 4)? != 2 =>
+            {
+                return None;
+            }
+            _ => {}
+        }
+    }
+    Some(())
 }
 fn native_archive(bytes: &[u8]) -> Option<()> {
     let mut offset = 8usize;
@@ -600,13 +736,150 @@ mod dependency_tests {
             let _ = fs::remove_dir_all(&self.0);
         }
     }
-    fn elf(marker: u8) -> Vec<u8> {
-        let mut bytes = vec![0; 64];
-        bytes[..6].copy_from_slice(b"\x7fELF\x02\x01");
-        bytes[16] = 1;
-        bytes[18] = 62;
-        bytes[63] = marker;
+    fn relocatable(name: &str, kind: u32, marker: u8) -> Vec<u8> {
+        let mut names = b"\0.shstrtab\0".to_vec();
+        let name_offset = names.len() as u32;
+        names.extend_from_slice(name.as_bytes());
+        names.push(0);
+        let mut bytes = vec![0; 64 + 3 * 64];
+        bytes[..7].copy_from_slice(b"\x7fELF\x02\x01\x01");
+        bytes[16..18].copy_from_slice(&1u16.to_le_bytes());
+        bytes[18..20].copy_from_slice(&62u16.to_le_bytes());
+        bytes[20..24].copy_from_slice(&1u32.to_le_bytes());
+        bytes[40..48].copy_from_slice(&64u64.to_le_bytes());
+        bytes[52..54].copy_from_slice(&64u16.to_le_bytes());
+        bytes[58..60].copy_from_slice(&64u16.to_le_bytes());
+        bytes[60..62].copy_from_slice(&3u16.to_le_bytes());
+        bytes[62..64].copy_from_slice(&1u16.to_le_bytes());
+        let strings = 64 + 64;
+        bytes[strings..strings + 4].copy_from_slice(&1u32.to_le_bytes());
+        bytes[strings + 4..strings + 8].copy_from_slice(&3u32.to_le_bytes());
+        bytes[strings + 24..strings + 32].copy_from_slice(&256u64.to_le_bytes());
+        bytes[strings + 32..strings + 40].copy_from_slice(&(names.len() as u64).to_le_bytes());
+        bytes[strings + 48..strings + 56].copy_from_slice(&1u64.to_le_bytes());
+        let payload = 64 + 2 * 64;
+        bytes[payload..payload + 4].copy_from_slice(&name_offset.to_le_bytes());
+        bytes[payload + 4..payload + 8].copy_from_slice(&kind.to_le_bytes());
+        bytes[payload + 24..payload + 32]
+            .copy_from_slice(&(256u64 + names.len() as u64).to_le_bytes());
+        bytes[payload + 32..payload + 40].copy_from_slice(&1u64.to_le_bytes());
+        bytes[payload + 48..payload + 56].copy_from_slice(&1u64.to_le_bytes());
+        bytes.extend_from_slice(&names);
+        bytes.push(marker);
         bytes
+    }
+    fn elf(marker: u8) -> Vec<u8> {
+        relocatable(".text", 1, marker)
+    }
+    fn archive(member: &[u8]) -> Vec<u8> {
+        let mut bytes = b"!<arch>\n".to_vec();
+        let header = format!(
+            "{:<16}{:<12}{:<6}{:<6}{:<8}{:<10}`\n",
+            "probe.o/",
+            0,
+            0,
+            0,
+            "100644",
+            member.len()
+        );
+        assert_eq!(header.len(), 60);
+        bytes.extend_from_slice(header.as_bytes());
+        bytes.extend_from_slice(member);
+        if !member.len().is_multiple_of(2) {
+            bytes.push(b'\n');
+        }
+        bytes
+    }
+    #[test]
+    fn native_sections_reject_plugin_inputs_in_direct_objects_and_archives() {
+        let native = elf(1);
+        assert_eq!(elf_needed(&native), Some(Vec::new()));
+        assert_eq!(native_archive(&archive(&native)), Some(()));
+        for name in [
+            ".gnu.lto_.opts",
+            ".gnu.lto_.symtab",
+            ".gnu.debuglto_.debug_info",
+            ".gnu.offload_lto_.opts",
+            ".llvmbc",
+            ".llvmcmd",
+            ".llvm.lto",
+            ".gnu_object_only",
+            ".gnu.object_only",
+            ".plugin",
+            ".bitcode",
+        ] {
+            let object = relocatable(name, 1, 1);
+            assert!(elf_needed(&object).is_none(), "direct {name}");
+            assert!(
+                native_archive(&archive(&object)).is_none(),
+                "archive {name}"
+            );
+        }
+        for kind in [0, 6, 0x6000_0000, 0x6fff_4c03, 0x7000_0000] {
+            let object = relocatable(".payload", kind, 1);
+            assert!(
+                elf_needed(&object).is_none(),
+                "direct section type {kind:x}"
+            );
+            assert!(
+                native_archive(&archive(&object)).is_none(),
+                "archive section type {kind:x}"
+            );
+        }
+        assert!(native_archive(&archive(b"BC\xc0\xde")).is_none());
+    }
+    #[test]
+    fn direct_crt_and_archive_file_inputs_decline_embedded_lto() {
+        let directory = Directory::new();
+        let crt = directory.0.join("crtbeginS.o");
+        let library = directory.0.join("libsample.a");
+        let native = elf(1);
+        fs::write(&crt, &native).unwrap();
+        fs::write(&library, archive(&native)).unwrap();
+        let mut inputs = Inputs {
+            hash: FingerprintBuilder::new(),
+            seen: BTreeSet::new(),
+            searches: Vec::new(),
+            needed: BTreeSet::new(),
+        };
+        assert!(inputs.file(&crt, true).is_some());
+        assert!(inputs.file(&library, true).is_some());
+        let lto = relocatable(".gnu.lto_.opts", 1, 1);
+        fs::write(&crt, &lto).unwrap();
+        fs::write(&library, archive(&lto)).unwrap();
+        for path in [&crt, &library] {
+            let mut inputs = Inputs {
+                hash: FingerprintBuilder::new(),
+                seen: BTreeSet::new(),
+                searches: Vec::new(),
+                needed: BTreeSet::new(),
+            };
+            assert!(inputs.file(path, true).is_none());
+        }
+    }
+    #[test]
+    fn missing_truncated_or_malformed_section_names_cannot_admit_a_link_product() {
+        let native = elf(1);
+        let mut missing_names = native.clone();
+        missing_names[62..64].copy_from_slice(&0u16.to_le_bytes());
+        let mut invalid_name = native.clone();
+        invalid_name[192..196].copy_from_slice(&u32::MAX.to_le_bytes());
+        let mut invalid_range = native.clone();
+        invalid_range[192 + 24..192 + 32].copy_from_slice(&u64::MAX.to_le_bytes());
+        let mut truncated = native.clone();
+        truncated.truncate(200);
+        let mut unknown_flags = native.clone();
+        unknown_flags[192 + 8..192 + 16].copy_from_slice(&0x100u64.to_le_bytes());
+        for object in [
+            missing_names,
+            invalid_name,
+            invalid_range,
+            truncated,
+            unknown_flags,
+        ] {
+            assert!(elf_needed(&object).is_none());
+            assert!(native_archive(&archive(&object)).is_none());
+        }
     }
     fn discover(first: &Path, second: &Path) -> Fingerprint {
         let mut inputs = Inputs {

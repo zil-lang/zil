@@ -1,0 +1,282 @@
+{
+  "schema": "full-pipeline-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "e105418b63078757d2f655ffa02858caed7838f6",
+  "candidate_tree": "e30ff34dc37a60332fe531ea0c3c107da63a78ad",
+  "base_commit": "ff81e07961077613907ce4d3b9cf650defccfd1d",
+  "changed_files": 163,
+  "diff_numstat_sha256": "ec310c8700e0b8cd151aa2b3bec4b32344d8e9b7a800dde44ed1e70512f6fd6d",
+  "verdict": "REJECT e105418b63078757d2f655ffa02858caed7838f6 until blocking finding F1 is fixed and verified on a new exact source. Positive checks below do not waive that dependency gap. No performance claim is accepted.",
+  "working_rules": {
+    "AGENTS": "AGENTS.md checked in the task worktree",
+    "workflow": "ee7fcd1a229799f1146c4dbdee822d6c9f8ff269:workflow.md",
+    "single_heavy_window": "Root owns the full-workspace Cargo window. Reviewer ran no build, test compiler, native program or benchmark and changed no production/helper file.",
+    "authority": "Current full-pipeline scope permits verifier-owned process-local proof receipts completely bound to current immutable inputs; raw/disk/Analyze products cannot authorize Verify."
+  },
+  "material_source_scope": {
+    "Verify authority, local flow, instruction proofs and budget replay": {
+      "crates/zil-verify/src/incremental.rs": "76d5fc2dc7a9b379adb75b8742fe52df3180f14e4a5565f1783ae3be321dfa4a",
+      "crates/zil-verify/src/incremental/tests.rs": "3a3a99f2250526899e583fed98ec174d693c5ca12f4c269284b32a8aad642de8",
+      "crates/zil-verify/src/lib.rs": "67599e176d35635c44c7b4b4988c825a2c8cd5ac7e93ab64271de782f70c856a"
+    },
+    "Typed/LLVM SharedVec and real consumer copying": {
+      "crates/zil-ir/src/shared_vec.rs": "f7b5b4c38729d1f75cad4c9b33ac7b2aab2ec7ae32196b5f28747501a8c9de93",
+      "crates/zil-ir/src/lib.rs": "346d10c8daaf4bdd298033ec0ebbd1795462e896f63102cdb3fd664e5ec46da1",
+      "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883",
+      "crates/zil-llvm-api/src/model.rs": "9dd883f945239a695c19e2689905194bbd55c8e93713f5f519ced3bcc03549dc",
+      "crates/zil-lower/src/lib.rs": "43414a3c6058d441d31556082092524afd9e1a01f9fa3f1c8b834af7de34eec3"
+    },
+    "Expand source borrowing, function revisions and Types binding": {
+      "crates/zil-base/src/source_map.rs": "f2fd667cd2ae35af47a91a6267d9bfe30bb7bd6f45dd1bf8f86d037310a4dcbc",
+      "crates/zil-expand/src/incremental.rs": "4f7f63a7717acc4f810511cac46cf4f81d8dd542c684e74542999fb36ec2a1c2",
+      "crates/zil-expand/src/lib.rs": "174cd4a43ad27ba4ce4b8636338761081e93f16bebbc1a2b1c5a8ab920c44970",
+      "crates/zil-expand/src/modules.rs": "b22d8190600a8d27cf5231d4073177b8b5bb82ce77b96239435fd8666f5b629d",
+      "crates/zil-expand/src/source_context.rs": "7949e325111f1c56760b115608644fa7f07cc964ec713343428ca11dad0ce42d",
+      "crates/zil-expand/src/source_context_lineage.rs": "a39596efd63106de62b78a031a90f28b3797119eedb2dd82017fa210162e93de",
+      "crates/zil-types/src/incremental.rs": "75f10ac180fcd683287400866030266b263c878db3744fa061b6f188c36995cc",
+      "crates/zil-types/src/preparation.rs": "1777b99cab39253deceecc2e7acff8d064c9456051ac64718af3c57499a8f79b",
+      "crates/zil-types/src/program.rs": "e4b42811baf329d76dd9fa4dc463da4222e65058e3f240d908a475ff01e8b169",
+      "crates/zil-types/src/incremental_producer_tests.rs": "2e042eba5a29d9444864db0df14649460d0afc6aa98ebd90a493c4dad5afbb3e"
+    },
+    "Analyze actual callee and resource effect dependencies": {
+      "crates/zil-analyze/src/candidate_queries.rs": "b5947b1271923c13bcb8ca71c1b2f1c7f5d4735b6493523f6754f421878cd7b1",
+      "crates/zil-analyze/src/candidate_queries_tests.rs": "33edb172ad3e5970a790944149a8d071e73b4c20220828eb664b0da457d1f337",
+      "crates/zil-analyze/src/incremental.rs": "c83aea5a3f6fbb73f9266b16a1f1d0d9b8b2815f51beb1c739c2998c62711910",
+      "crates/zil-analyze/src/lib.rs": "f1e68905180444e9b35378a9bda6723d99f0cc183b99e07539259c5cc81dd648",
+      "crates/zil-analyze/src/holds.rs": "ad0555c8d898046b22c1c78e1d117be298985d54c1ada57d8d839493c4517b37",
+      "crates/zil-analyze/src/resources.rs": "4fbfec153dda8c472939bf01cc9a26ef9c682add851e81202dfa61a1dde4401f",
+      "crates/zil-analyze/src/resources/incremental.rs": "d8afd348e8e80a372d8fb177fd18c48eda8ef396dda4340782ba00dd2b256ae8"
+    },
+    "Backend machine/partition/key/link propagation and diagnostic output": {
+      "crates/zil-backend-llvm/src/build.rs": "31bccbcdbbbf759171aabe4b30ac3ace6f7221d1b1e48fbcad8a5b405c6a944f",
+      "crates/zil-backend-llvm/src/incremental.rs": "9ca328ae22a245af4119ef8b5b16fcd31b978a3d5ebc9af4b92b6fa6abbce55c",
+      "crates/zil-backend-llvm/src/emit/incremental.rs": "f4f6b3d0a62f55ba9c6308cd94cdfba69732c84dfc931197b86283eba440df22",
+      "crates/zil-backend-llvm/src/emit.rs": "3fc6796e9da1f5cc2829e13ea0b63b4edcd0bbc2905cda3d3f4cbd2025d2f848",
+      "crates/zil-backend-llvm/src/object_cache.rs": "309f327deee893680df64336df7a7e7bad83562f357d330005957636c4cfad40",
+      "crates/zil-backend-llvm/src/link_cache.rs": "693a7c4ffb8a3d6ed12da82eea8013465df808ff1b4cdbc3b62ad4f173718511",
+      "crates/zil-backend-llvm/src/machine_cgu.rs": "b4f7d9ac2aff6270ade9ecd63a3ef3bedb1adb350ccf053cc5d7c8bf5bb106a9",
+      "crates/zil-backend-llvm/src/machine_stable_identity.rs": "fa609ea9faa95cb78716df22927d0adb6e242175947154480a590b1f5f7285f6",
+      "crates/zil-backend-llvm/src/machine_checked_add_chain.rs": "62acbc7234d70d3a1369034ac2a6b86b74ed90c39c20faae171d7a5a8214038d",
+      "crates/zil-backend-llvm/src/machine_scalar.rs": "ac9fb2d89bb399ebaa604e7339fc5c81643c53c512f4de7162102ed96ae7e5d3",
+      "crates/zil-backend-llvm/src/machine_scalar_summary.rs": "00aef3ef07519902767796fa19bb7ff9eaa940c9095e2561541bb8aebacd4d61",
+      "crates/zil-backend-llvm/src/tests.rs": "c66a18617ae345b6121f339f751f2006b04ee96e382140928a7dec0d7f24b236"
+    },
+    "Wire segmentation, item persistence, alias guards and driver transactions": {
+      "crates/zil-ir/src/wire.rs": "82bdc9b70b9a350b8da4a2956016b58de99682ac4551f9f3c828f0ee5530f15d",
+      "crates/zil-ir/src/wire/function_encoding_tests.rs": "1cf0884185cc4435bb120466c6709ce4490a96e15ef173f946336571d33ab4a9",
+      "crates/zil-types/src/incremental_items.rs": "d38a812d907beb65ce0c227f1b4c0cc6a7146329f75f5719ad176671b701daef",
+      "crates/zil-driver/src/semantic_cache.rs": "99ce230636e850d446a1e2624300ecc823f5c6a29b6def7d61a1ec1278429c23",
+      "crates/zil-driver/src/semantic_items.rs": "de27e4677030951574da6b02d48aa65e8e7010e40f3f83d4d653398b05033df6",
+      "crates/zil-driver/src/artifacts.rs": "c6f7489bb686531ddb0203b948cbd8d3f5ad1afe096d123ff96c7bbdb4867321",
+      "crates/zil-driver/src/session.rs": "a5cf04c5da8edd5133cb92b4da087602556f45159e0a19477609e9bb6d80d577",
+      "crates/zil-driver/src/project.rs": "1d7a30f1ae38e48ade95b522f0eb5acf3dcf69c00095581da2e6f3abaff1c7a5",
+      "crates/zil-driver/src/lib.rs": "4e7f7c5bbe32ce81596af91d97a9ca948e022f6c923ff84d44b61cc6cac8b0cf",
+      "crates/zil-driver/src/producer_reuse_tests.rs": "833de93712398e705006f6d34e9404c1741d107a965c245a303944860ab4bcde"
+    }
+  },
+  "mechanical_migration_scope": "The remaining broad diff predominantly converts TypedFunction locals/values/blocks and machine Module.items/Function.blocks constructors and mutations to SharedVec/COW. It does not count as independent semantic coverage merely because many files changed. Root compiler/strict lint and preserved fixture assertions supplement source review.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "blocking dependency correctness",
+      "status": "Open in e105; root notified before final receipt.",
+      "locations": [
+        "crates/zil-backend-llvm/src/link_cache.rs:448",
+        "crates/zil-backend-llvm/src/link_cache.rs:517"
+      ],
+      "title": "Final-link reuse admits ELF relocatable fat-LTO inputs without binding automatic linker plugin dependencies",
+      "evidence": "elf_needed returns Some(empty) immediately for x86_64 ET_REL, without inspecting section names/types. native_archive routes every ordinary member through that function, so a .gnu.lto_*, .llvmbc/.llvm.lto or offload payload inside an ELF relocatable passes. Inputs::file treats it as an understood native input. Parsed clang -### argv can omit an automatically discovered GNU ld/BFD plugin; its path/runtime identity is then outside the key.",
+      "consequence": "With native archive/object bytes, clang/linker identities, environment and recorded libraries unchanged, a plugin change can affect actual link output or failure while the session key still matches and restores the old successful ELF. A successful ordinary libgcc/glibc sample is insufficient negative evidence.",
+      "required_fix": "Reject unrecognized/LTO/plugin-bearing ET_REL section schemas, for both directly named crt/object inputs and archive members, unless a complete actual plugin-resolution proof is added. Preserve ordinary current link fallback. Test direct and archive negatives plus native positives and malformed section metadata."
+    },
+    {
+      "id": "F2",
+      "severity": "open performance/objective limitation, not a safety rejection for ordinary O2",
+      "status": "Open; root notified with exact flag scope.",
+      "locations": [
+        "crates/zil-backend-llvm/src/build.rs:289",
+        "crates/zil-backend-llvm/src/machine_checked_add_chain.rs:585",
+        "crates/zil-backend-llvm/src/machine_scalar.rs:588",
+        "crates/zil-backend-llvm/src/machine_stable_identity.rs:649"
+      ],
+      "title": "Partial edits can still deep-copy unchanged shared bodies during optional transformations/stable naming",
+      "evidence": "TransformProduct caches a whole ScalarIdentity. A single changed output misses that whole product. With explicit incremental_o2, old unchanged functions that have fold plans are mutated again through SharedVec blocks, causing COW of Block/instruction arrays. The stable-name closed-executable rename loop unconditionally visits all function blocks mutably, also causing COW even where a particular body has no renamed operand.",
+      "consequence": "Shared lowering hits alone do not prove an unchanged body reaches object consumers without repeated copies in these explicit strategies. Whole-unchanged fast-path success does not establish private-edit behavior.",
+      "scope_boundary": "Ordinary O2 with incremental_o2=false and closed-executable/stable naming off does not execute these passes. This finding must not be used to claim a regression in the earlier matched ordinary-O2 matrix.",
+      "follow_up": "Per-function transform/rename products or read-only change detection before mutable access, validated with unchanged-body allocation/copy evidence across a genuine private edit; prioritize after complete request cost measurement."
+    }
+  ],
+  "positive_boundary_review": [
+    "Verify full receipts retain both immutable Program/Module and Candidate strong Arcs, target and full Limits; process-local code fixes rule/schema interpretation and strong ownership prevents pointer ABA. Safe COW mutation changes an input allocation. No raw hash, Analyze output, cache file or caller creates a verifier receipt.",
+    "Verify local flow matching exhaustively binds all TypedFunction fields except diagnostic spans and compares the complete current FunctionPlan. Flow inputs reconstruct CFG/predecessors/definitions from current instructions. The isolated flow checker and its called .check paths use local inputs/limits/remaining spend only; instruction-only ambient helpers still execute in the fresh instruction prelude.",
+    "Every instruction whitelist branch was checked against the actual original match implementation: these branches have no Budget/module side effects. Current dynamic-store/stored-flow prelude remains, Call still checks current teardown and array snapshot billing and compares all callee signature fields its skipped checks read. Insufficient remaining work takes the original traversal to preserve its first error/current span. Current contextual resource/borrow/task/global composition remains outside local receipts.",
+    "Verify failed calls replace no successful input or flow-map epoch. Driver checkpoints Verify/Backend session state; native Backend state is installed after final guarded publication. Valid verifier subproofs may survive later lower/build failure because they are independently input-bound, not a claim that every internal memo has zero mutation on failure.",
+    "IR and machine SharedVec hide Arc ownership and expose mutation through Arc::make_mut. Actual FunctionBatch/Module/CGU consumers carry shared arrays; module COW clones function headers while retaining body arrays, and body mutation isolates prior snapshots. Machine Hash delegates exactly to prior Vec data flow. No verifier capability is stored in these containers.",
+    "Expand uses borrowed current SourceUnits through existing SourceMap identity, order and quota checks, without cloning all source strings. Function revisions bind sealed scalar declaration text, IDs, spans and complete compatible environment; rich/CT-transformed results cannot retain that producer proof. Types keeps current-bound raw CFG and a separate lazy source-relative wire value; relocation uses private COW and successful products remain current-span bound.",
+    "Analyze binds its own span-insensitive exhaustive actual function equality, complete target/limits and observed admitted callee interfaces. Foreign/unclosed instructions now fall back per function/caller, closing the earlier all-program FFI admission failure. Successful raw initialization/candidate rows contain no diagnostics; work shortfall follows the current original checks.",
+    "Ordinary-resource transfer reuse binds own function, reachable set, transfer-versus-validation mode, resource/callable context, head-description state, full Limits and actual current callee Effect rows. Its admitted closure-free scalar/Managed/Desc Copy-record/ByteBuffer profile excludes packages/sums/stores/replacements, contextual heavy flags and >=32-function constraint extraction. Original frontier/grow/convergence/final check order remains. No generic resource solver correctness is inferred outside that domain.",
+    "Backend lowering consumes current Verified/LIR binding and retains complete ABI/target/limit context plus actual scalar-summary values read by direct calls. Equal raw-to-machine results preserve private result identity, with separate source/call layout identity for partition dependencies. Current native preflight remains before object use. Partition/key reuse binds current options, raw fallback inputs or immutable scalar output/source identities and actual unit contents/compiler namespace.",
+    "Diagnostic rendering caches actual item equality and emits the current verified fingerprint separately; full output sidecar bytes are still written. Driver avoids reading it back unless a dump is requested. Final-link dependency collection correctly fixes the earlier first-existing-library and clang argv0 mistakes: every same-name candidate and supported script candidate is bound, unsupported cases decline. F1 is the remaining material hole in that claim.",
+    "Segmented Wire tracks total bytes across flushed segments and pending output and replays one cumulative node meter; cold and cached fragments use the same original field writer. RawFunctionEncoding is bound to its immutable function/full Limits. Function-v2 descriptor tables validate count/order/costs/aggregate legacy byte/node quotas before loading fragments; actual decoder independently computes node cost and replaces session entries only after complete success.",
+    "Semantic-v5 segment concatenation preserves the original ZILSEM04 stream, including metadata tail. Manifest totals/count/row lengths are checked before allocating/reading children, all loaded segment hashes/lengths and old full decoding remain before current Verify. Segment/item writes precede final atomic manifest rename; cancellation/path failures can leave harmless orphan raw children, not a partial authorized epoch.",
+    "ArtifactPlan cache_directory now distinguishes real directories from ordinary source/output files. Canonical paths, prefix overlap and physical file identity prevent namespaces overlapping a source/output; a newly swapped directory symlink is rejected on later validation. Regular-file source/output guards are retained. The actual empty-items-directory publication bug was corrected at this API, not by weakening the real disk test.",
+    "Default entry behavior remains gated: new Analyze/Verify/Backend sessions and v2/v5 publication are selected through existing producer_reuse, whose default stays false. SharedVec/borrowed ownership changes are representation changes in default code too; default semantic behavior is checked by current fresh-oracle comparisons, not assumed from the flag."
+  ],
+  "consumer_evidence_review": {
+    "source": "crates/zil-driver/src/producer_reuse_tests.rs:1074",
+    "observation": "Actual length-changing Source edit uses CFG 1 executed/4 reused, Analyze candidate 1/4, independent Verify flow 1/4, compares full current TypedProgram/diagnostics/interfaces with the fresh current implementation, then error/recovery and exact whole-input receipt reuse. This establishes real later-stage consumers in that finite example; inspection-only FunctionProduct/AnalysisFunctionResult arrays are not themselves graph schedulers.",
+    "graph_boundary": "The original ReactiveGraph remains BodyKey-only. Independent downstream sessions have real input/dependency/result consumers, but whole-project phase keys, conservative PrivateImplementation dependencies and global admission/aggregation remain. No single central full-pipeline reactive scheduler or minimal/general compile cost is established."
+  },
+  "validation_logs_read": [
+    {
+      "path": "out/runs/full-pipeline-lib-01.log",
+      "sha256": "ac1d1bb4602c3e851400471b448320b1c23a50190947bbffd492378fb723d215",
+      "suite_results": [
+        {
+          "result": "FAILED",
+          "passed": 277,
+          "failed": 1
+        }
+      ],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    },
+    {
+      "path": "out/runs/full-pipeline-lib-02.log",
+      "sha256": "6ff973cae0b042a6531ce4a1968ed23a0c646834ba66175185b35a1c783edf72",
+      "suite_results": [
+        {
+          "result": "ok",
+          "passed": 278,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 210,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 93,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 76,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 33,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 10,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 77,
+          "failed": 0
+        },
+        {
+          "result": "ok",
+          "passed": 616,
+          "failed": 0
+        }
+      ],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    },
+    {
+      "path": "out/runs/full-pipeline-driver-02.log",
+      "sha256": "5f2dbe413871b5a604c2bba112a281a1902d53f46c2476331bafdb0729b3a041",
+      "suite_results": [
+        {
+          "result": "FAILED",
+          "passed": 173,
+          "failed": 2
+        }
+      ],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    },
+    {
+      "path": "out/runs/full-pipeline-driver-03.log",
+      "sha256": "1e0b3e42ee7993d2e3e1919e83d623165f2f7adf48127b8b599fc3c4bc0b1aaa",
+      "suite_results": [],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    },
+    {
+      "path": "out/runs/full-pipeline-driver-04.log",
+      "sha256": "ba240bbc4a50b60e1c736deba80ea378d2ad182d92bf9d32e94124d0c15a2b5a",
+      "suite_results": [
+        {
+          "result": "ok",
+          "passed": 176,
+          "failed": 0
+        }
+      ],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    },
+    {
+      "path": "out/runs/full-pipeline-clippy-09.log",
+      "sha256": "3ec15dc2cce001caa2a4ba169506c96a4bc2c004dc69ab493988d435172f7682",
+      "suite_results": [],
+      "executor": "root",
+      "reviewer_read_only": true,
+      "note": "Historical failures retained; scopes overlap and must not be summed across runs."
+    }
+  ],
+  "validation_summary": {
+    "root_reported_core_library_passes": 1393,
+    "core_suite_observed": [
+      278,
+      210,
+      93,
+      76,
+      33,
+      10,
+      77,
+      616
+    ],
+    "root_driver_observed_passes": 176,
+    "root_clippy09": "Finished successfully; root reports workspace/all-targets/llvm-api -D warnings. No warning/error found in the log.",
+    "overlap": "Do not sum core, driver and workspace scopes as unique tests.",
+    "full_workspace": "Root current cargo test --workspace --features llvm-api --no-fail-fast was still running at review. Partial successes are not a completed-workspace pass receipt.",
+    "reviewer_executed_build_or_native": false
+  },
+  "proposed_F1_patch_source_review": {
+    "production_status": "Not applied at review; does not change the rejection of e105.",
+    "candidate": "/tmp/zil-link-cache-section-guard.rs",
+    "candidate_sha256": "44390aef1919d93c9fbd7079f571d25456c91c8abcd2bc293a1271e17ff536b6",
+    "patch": "/tmp/zil-link-cache-section-guard.patch",
+    "patch_sha256": "b8640a45abc5b7f04e2deefc257b4c041fb0b48f4f9ce42b732e59b709587711",
+    "source_verdict": "The proposed finite fail-closed section admission adequately addresses the identified standard fat-LTO/embedded-bitcode plugin escape at source level, subject to application and verification on a new exact source.",
+    "checked": "ET_REL direct and archive entry points share the guard; strict ELF64LE x86_64/version/header/section table/name ranges; finite native section kinds/flags, LTO/offload/LLVM/plugin marker rejection, relocation/symbol link checks, bounded name scanning. Three new tests retain native positive and direct/archive invalid-marker/type/range negatives through the real Inputs.file boundary.",
+    "tests_run_by_reviewer": false
+  },
+  "memory_and_persistence_limits": [
+    "Old checkpoints share later-fillable entry fragment slots, so per-current-map admission is not a strict global/history byte bound.",
+    "Content-addressed optional item stores have per-file/manifest quotas, not a demonstrated global disk-retention quota or leak proof.",
+    "Function-v2 publication may skip an existing same-sized item without rereading its integrity; restoration always validates it and can miss. That is not successful independent code verification or evidence the existing disk item is sound.",
+    "Current global inventories, deep copies from real mutation and full output publication still have costs; receipt/counter existence is not wall-time gain."
+  ],
+  "not_accepted_or_unmeasured": [
+    "Any production source after e105, including the proposed plugin fix, until separately frozen/reviewed/verified.",
+    "Completed full-workspace validation at the time of this receipt.",
+    "New matched main/candidate/Rust measurements, runtime quality, RSS/process-tree memory advantage or speed attribution for this full-pipeline change.",
+    "General Rust parity, full rich-domain sparse recomputation, removal of current independent authorization, default enablement or main merge.",
+    "Remote durability of new local full-pipeline logs until separately archived/pushed/fresh-recovered."
+  ]
+}
