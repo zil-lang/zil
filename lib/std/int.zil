@@ -88,3 +88,28 @@ pub fn format_u64(value:u64)->Decimal {
     while left<right {let prior=output[left];output[left]=output[right];output[right]=prior;left+=1;right-=1}
     return Decimal{bytes:output,len:length}
 }
+
+pub fn parse_u8(source:&[u8])->ParseError!u8 {
+    let value=parse_u64(source)?
+    if value>255u64 {return ParseError.Overflow}
+    return u8(value)
+}
+pub fn parse_u16(source:&[u8])->ParseError!u16 {
+    let value=parse_u64(source)?
+    if value>65535u64 {return ParseError.Overflow}
+    return u16(value)
+}
+pub fn parse_usize(source:&[u8])->ParseError!usize {
+    let value=parse_u64(source)?
+    if value>u64(~0usize) {return ParseError.Overflow}
+    return usize(value)
+}
+pub fn format_u8(value:u8)->Decimal {return format_u64(u64(value))}
+pub fn format_u16(value:u16)->Decimal {return format_u64(u64(value))}
+pub fn format_usize(value:usize)->Decimal {return format_u64(u64(value))}
+pub fn parse_i32(source:&[u8])->ParseError!i32 {
+    let value=parse_i64(source)?
+    if value< -2147483648 || value>2147483647 {return ParseError.Overflow}
+    return i32(value)
+}
+pub fn format_i32(value:i32)->Decimal {return format_i64(i64(value))}
