@@ -62,6 +62,20 @@ impl<T> Node<T> {
             }
         }
     }
+    fn prefix(node: &Arc<Self>, len: usize) -> Arc<Self> {
+        assert!(len > 0 && len <= node.len);
+        if len == node.len {
+            return node.clone();
+        }
+        let Kind::Branch(left, right) = &node.kind else {
+            unreachable!()
+        };
+        if len <= left.len {
+            Self::prefix(left, len)
+        } else {
+            Self::branch(left.clone(), Self::prefix(right, len - left.len))
+        }
+    }
     fn append(node: &Arc<Self>, value: T) -> Arc<Self> {
         if node.len.is_power_of_two() {
             return Self::branch(node.clone(), Self::leaf(value));
@@ -84,6 +98,14 @@ impl<T> Node<T> {
             (Kind::Branch(al, ar), Kind::Branch(bl, br)) if al.len == bl.len => {
                 Self::diff(al, bl, offset, out);
                 Self::diff(ar, br, offset + al.len, out);
+            }
+            (Kind::Branch(al, ar), _) if right.len <= al.len => {
+                Self::diff(al, right, offset, out);
+                out.extend(offset + al.len..offset + al.len + ar.len);
+            }
+            (_, Kind::Branch(bl, br)) if left.len <= bl.len => {
+                Self::diff(left, bl, offset, out);
+                out.extend(offset + bl.len..offset + bl.len + br.len);
             }
             _ => {
                 for index in 0..left.len.max(right.len) {
@@ -194,6 +216,27 @@ impl<T> PersistentVec<T> {
             remaining: self.len(),
         }
     }
+    /// Borrow a range by descending only its boundary paths. Iteration then
+    /// visits the retained subtrees in order without indexing each leaf.
+    pub fn range(&self, range: std::ops::Range<usize>) -> Iter<'_, T> {
+        assert!(
+            range.start <= range.end && range.end <= self.len(),
+            "persistent sequence range out of bounds"
+        );
+        let mut nodes = VecDeque::new();
+        if range.start != range.end {
+            collect_range(
+                self.root.as_deref().expect("nonempty range"),
+                range.start,
+                range.end,
+                &mut nodes,
+            );
+        }
+        Iter {
+            nodes,
+            remaining: range.end - range.start,
+        }
+    }
     pub fn clear(&mut self) {
         self.root = None;
     }
@@ -264,11 +307,18 @@ impl<T: Clone> PersistentVec<T> {
     }
     pub fn pop(&mut self) -> Option<T> {
         let index = self.len().checked_sub(1)?;
-        Some(self.remove(index))
+        let value = self[index].clone();
+        self.truncate(index);
+        Some(value)
     }
     pub fn truncate(&mut self, len: usize) {
-        if len < self.len() {
-            *self = self.iter().take(len).cloned().collect();
+        if len == 0 {
+            self.clear();
+        } else if len < self.len() {
+            self.root = Some(Node::prefix(
+                self.root.as_ref().expect("nonempty prefix"),
+                len,
+            ));
         }
     }
     pub fn reverse(&mut self) {
@@ -333,14 +383,45 @@ impl<T> Extend<T> for PersistentVec<T> {
 }
 impl<T: Clone> From<PersistentVec<T>> for Vec<T> {
     fn from(values: PersistentVec<T>) -> Self {
-        values.to_vec()
+        values.into_iter().collect()
     }
 }
+pub struct IntoIter<T> {
+    nodes: Vec<Arc<Node<T>>>,
+    remaining: usize,
+}
+impl<T: Clone> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        loop {
+            let node = Arc::unwrap_or_clone(self.nodes.pop()?);
+            match node.kind {
+                Kind::Leaf(value) => {
+                    self.remaining -= 1;
+                    return Some(Arc::unwrap_or_clone(value));
+                }
+                Kind::Branch(left, right) => {
+                    self.nodes.push(right);
+                    self.nodes.push(left);
+                }
+            }
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+impl<T: Clone> ExactSizeIterator for IntoIter<T> {}
+impl<T: Clone> std::iter::FusedIterator for IntoIter<T> {}
 impl<T: Clone> IntoIterator for PersistentVec<T> {
     type Item = T;
-    type IntoIter = std::vec::IntoIter<T>;
+    type IntoIter = IntoIter<T>;
     fn into_iter(self) -> Self::IntoIter {
-        self.to_vec().into_iter()
+        let remaining = self.len();
+        IntoIter {
+            nodes: self.root.into_iter().collect(),
+            remaining,
+        }
     }
 }
 impl<'a, T> IntoIterator for &'a PersistentVec<T> {
@@ -358,9 +439,40 @@ impl<'a, T: Clone> IntoIterator for &'a mut PersistentVec<T> {
     }
 }
 
+fn collect_range<'a, T>(
+    node: &'a Node<T>,
+    start: usize,
+    end: usize,
+    nodes: &mut VecDeque<&'a Node<T>>,
+) {
+    if start == end {
+        return;
+    }
+    if start == 0 && end == node.len {
+        nodes.push_back(node);
+        return;
+    }
+    let Kind::Branch(left, right) = &node.kind else {
+        unreachable!()
+    };
+    if start < left.len {
+        collect_range(left, start, end.min(left.len), nodes);
+    }
+    if end > left.len {
+        collect_range(right, start.saturating_sub(left.len), end - left.len, nodes);
+    }
+}
 pub struct Iter<'a, T> {
     nodes: VecDeque<&'a Node<T>>,
     remaining: usize,
+}
+impl<T> Clone for Iter<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            nodes: self.nodes.clone(),
+            remaining: self.remaining,
+        }
+    }
 }
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
@@ -478,6 +590,24 @@ mod tests {
                 .collect::<PersistentVec<u32>>()
                 .structural_fingerprint()
         );
+    }
+    #[test]
+    fn borrowed_ranges_match_dense_parallel_batches() {
+        let values: PersistentVec<u32> = (0..129).collect();
+        for start in 0..=129 {
+            for end in start..=129 {
+                let range = values.range(start..end);
+                assert_eq!(range.len(), end - start);
+                assert_eq!(
+                    range.clone().copied().collect::<Vec<_>>(),
+                    (start as u32..end as u32).collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    range.rev().copied().collect::<Vec<_>>(),
+                    (start as u32..end as u32).rev().collect::<Vec<_>>()
+                );
+            }
+        }
     }
     #[test]
     fn append_delete_and_rollback_are_complete() {
