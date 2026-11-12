@@ -286,6 +286,7 @@ impl Budget {
         self.remaining
     }
 
+    #[cfg(test)]
     pub(super) fn has_owned_store_package(&self) -> bool {
         !self.owned_store_package_roots.is_empty()
     }

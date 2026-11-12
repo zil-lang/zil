@@ -840,20 +840,24 @@ impl Content {
         if let Self::Missing(child) = self {
             return child.forget_copy_tags(ty, b);
         }
+        // Qualification still walks the complete actual type on the first
+        // query, including Task result contexts. Only immutable admission and
+        // Copy classification are memoized, never current Content or routes.
         let copy_sum = match self {
-            Self::Sum(_, _)
-                if indexed_invalidation(b)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Self::Sum(_, _) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 b.addressed_copy_sum(ty)?
             }
-            Self::Product(_) if indexed_invalidation(b) => false,
-            Self::Copy | Self::Leaf(_) if indexed_invalidation(b) => {
+            Self::Product(_) => {
+                b.addressed_copy_sum(ty)?;
+                false
+            }
+            Self::Copy | Self::Leaf(_) => {
+                b.addressed_copy_sum(ty)?;
                 return Ok(());
             }
             _ => {
                 resources::charge_payload(ty, b)?;
-                matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value()
+                false
             }
         };
         if copy_sum {

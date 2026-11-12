@@ -351,41 +351,24 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
-        // The ordinary owning-error/borrowed-Option composition is found by
-        // independent paid raw-type and actual error-place walks. It only
-        // schedules this equivalent tag operation; it supplies no tag fact.
-        let mixed = budget.store_option_results
-            && (budget.task_borrowed_results || budget.ordinary_error_places);
-        if budget.pod_stores || mixed {
-            budget.spend(1, "Sum terminal tag classification")?;
-            // Actual private facts already represent ordinary Record payloads
-            // as Copy and managed headers as Leaf. Neither stores tag facts.
-            // Do not rescan their complete types after every unrelated write.
-            if matches!(self.node, Node::Copy | Node::Leaf(_)) {
-                return Ok(());
-            }
+        // Private terminal facts contain no tags, including a Copy array or
+        // Record inside an ordinary resource Package. Their immutable type
+        // does not need to be rescanned on each unrelated mutable operation.
+        budget.spend(1, "Sum terminal tag classification")?;
+        if matches!(self.node, Node::Copy | Node::Leaf(_)) {
+            return Ok(());
         }
-        // This method starts at an immutable local type and descends only
-        // through that type's actual children. Product nodes have no tag to
-        // classify; the recursive walk below pays for their real children.
+        // Each immutable local-type Sum is classified once per request.
+        // Product nodes descend through actual children and carry no tag.
         let copy_sum = match &self.node {
-            Node::Sum(_)
-                if (budget.has_owned_store_package() || mixed)
-                    && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) =>
-            {
+            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
                 budget.addressed_copy_sum(ty)?
             }
-            Node::Sum(_) if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) => {
-                budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
-                ty.is_copy_value()
-            }
-            Node::Product(_) if budget.has_owned_store_package() || mixed => {
-                budget.spend(1, "POD addressed Product tag descent")?;
+            Node::Product(_) => {
+                budget.spend(1, "addressed Product tag descent")?;
                 false
             }
             _ => {
-                // Preserve the established fee path outside the newer POD
-                // Store profile; its terminal facts still have no tag.
                 budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
                 false
             }
