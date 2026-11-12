@@ -36,6 +36,10 @@ pub(super) struct Budget {
     pub(super) pod_store_carriers: Option<super::pod_store::CarrierCache>,
     pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) dyn_contexts: bool,
+    // Concrete-function result occurrences awaiting actual CFG grounding.
+    // Neither a signature nor its declared source upper proves these rows.
+    pub(super) pending_dyn_outputs:
+        BTreeMap<zil_ir::FunctionId, Vec<super::stored_flow::DynOutputClass>>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -210,6 +214,7 @@ impl Budget {
             stored_enum_addresses: false,
             task_borrowed_results: false,
             dyn_contexts: false,
+            pending_dyn_outputs: BTreeMap::new(),
             store_option_results: false,
             qualified_package_returns: false,
             array_outer_functions: Vec::new(),
@@ -1968,14 +1973,22 @@ pub(super) fn preflight(
                     "retained result positions",
                 )?;
                 for atom in &binding.sources {
-                    if let zil_ir::StorageSource::Exact(source)=atom {
-                        count(0,source.path.len(),limits.max_call_depth,"retained return source depth")?;
-                        budget.input(source.path.len().saturating_add(1),"retained return source path")?;
+                    if let zil_ir::StorageSource::Exact(source) = atom {
+                        count(
+                            0,
+                            source.path.len(),
+                            limits.max_call_depth,
+                            "retained return source depth",
+                        )?;
+                        budget.input(
+                            source.path.len().saturating_add(1),
+                            "retained return source path",
+                        )?;
                     } else {
                         // Structural preflight visits every path and complete
                         // leaf before identity. Permission is established only
                         // by the actual result consumer immediately below.
-                        super::dyn_metadata::recipe(atom,budget)?;
+                        super::dyn_metadata::recipe(atom, budget)?;
                     }
                 }
             }

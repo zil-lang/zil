@@ -550,6 +550,207 @@ fn contract(
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     contract(module, f, b).map(|_| ())
 }
+/// Only an actual ordinary function may defer output-only class grounding.
+/// The generic signature relation continues to reject unbound result classes.
+pub(super) fn register_output_obligations(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.dyn_contexts || !f.parameters.is_empty() {
+        return Ok(false);
+    }
+    let (result, path) = match &f.return_type {
+        Type::OwnedDyn { .. } => (&f.return_type, vec![]),
+        Type::ErrorUnion { error, result }
+            if error.as_ref() == &crate::dyn_dispatch::create_error()
+                && matches!(result.as_ref(), Type::OwnedDyn { .. }) =>
+        {
+            (
+                result.as_ref(),
+                vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
+            )
+        }
+        _ => return Ok(false),
+    };
+    let Type::OwnedDyn { interface } = result else {
+        unreachable!()
+    };
+    fee(b, module.dyn_interfaces.len())?;
+    let interface = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.id == *interface)
+        .ok_or_else(|| failure("pending output has no actual interface"))?;
+    if interface.context.is_none() || interface.retained_life.binder_count == 0 {
+        return Ok(false);
+    }
+    if f.call_kind != CallKind::Direct
+        || f.environment.is_some()
+        || f.foreign.is_some()
+        || f.reference_return_bound.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || !f.protocol_contracts.is_empty()
+        || !matches!(
+            f.result_mode,
+            PassingMode::Infer | PassingMode::Move | PassingMode::Give | PassingMode::Create
+        )
+    {
+        return Err(failure(
+            "output class deferral conflicts with another function contract",
+        ));
+    }
+    let c = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("output class obligation has no complete signature"))?;
+    let count = interface.retained_life.binder_count as usize;
+    fee(
+        b,
+        count.saturating_mul(interface.retained_life.ports.len().saturating_add(3)),
+    )?;
+    if !c.bindings.is_empty() || !c.static_bindings.is_empty() || c.classes.len() != count {
+        return Err(failure(
+            "output class obligation omits or invents an actual occurrence",
+        ));
+    }
+    let mut next_fixed = 0;
+    let mut next_invocation = 0;
+    let mut obligations = Vec::with_capacity(count);
+    for (ordinal, row) in c.classes.iter().enumerate() {
+        fee(b, path.len().saturating_add(1))?;
+        if row.position.base != StorageBase::Result
+            || row.position.path != path
+            || row.position.class as usize != ordinal
+        {
+            return Err(failure(
+                "pending class does not select its complete original output occurrence",
+            ));
+        }
+        let (actual, limit, next) = match row.binder {
+            StorageBinder::Fixed(i) => (i, c.fixed_binder_count, &mut next_fixed),
+            StorageBinder::Invocation(i) => (i, c.invocation_binder_count, &mut next_invocation),
+        };
+        if actual >= limit || actual > *next {
+            return Err(failure(
+                "pending output class is noncanonical or outside its original namespace",
+            ));
+        }
+        if actual == *next {
+            *next += 1;
+        }
+        let mut ports = Vec::new();
+        for (index, port) in interface.retained_life.ports.iter().enumerate() {
+            if port.binder as usize != ordinal {
+                continue;
+            }
+            crate::dyn_metadata::ty(&port.leaf, b)?;
+            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+            let mut selected = path
+                .iter()
+                .map(|p| {
+                    let LifeTypeProjection::Place(p) = p else {
+                        unreachable!()
+                    };
+                    ContractProjection::Place(*p)
+                })
+                .collect::<Vec<_>>();
+            selected.push(ContractProjection::RetainedPort(index as u32));
+            ports.push((
+                StoragePosition {
+                    base: StorageBase::Result,
+                    path: selected,
+                },
+                port.leaf.clone(),
+                port.mode,
+            ));
+        }
+        obligations.push(DynOutputClass {
+            binding: row.clone(),
+            ports,
+        });
+    }
+    if next_fixed != c.fixed_binder_count || next_invocation != c.invocation_binder_count {
+        return Err(failure(
+            "pending signature invents an unused binder namespace",
+        ));
+    }
+    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    b.pending_dyn_outputs.insert(f.id, obligations);
+    Ok(true)
+}
+
+fn ground_output_obligations(
+    f: &TypedFunction,
+    value: &Value,
+    facts: &mut Facts,
+    loans: &[Loan],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    ordered(b, b.pending_dyn_outputs.len(), 0)?;
+    // Detach the immutable directory while charging ancestry through Budget.
+    let Some(obligations) = b.pending_dyn_outputs.remove(&f.id) else {
+        return Ok(());
+    };
+    let checked = (|| {
+        for class in &obligations {
+            fee(
+                b,
+                class
+                    .binding
+                    .position
+                    .path
+                    .len()
+                    .saturating_add(class.ports.len())
+                    .saturating_add(1),
+            )?;
+            // Phantom classes retain their original occurrence and introduce
+            // no data target. Each data-bearing occurrence needs a real row.
+            for (position, leaf, mode) in &class.ports {
+                crate::dyn_metadata::ty(leaf, b)?;
+                ordered(b, value.dyn_ports.len(), position.path.len())?;
+                let Some(actual) = value.dyn_ports.get(&position.path) else {
+                    facts.dyn_return_complete = false;
+                    continue;
+                };
+                if actual.targets.is_empty() {
+                    continue;
+                }
+                if *mode != StoredBorrowMode::SharedAddress
+                    || !matches!(leaf, Type::Address { mutable: false, .. })
+                    || actual
+                        .targets
+                        .iter()
+                        .any(|target| target.base != HoldRoot::Static)
+                {
+                    return Err(failure(
+                        "output-only class retains a nonstatic actual target",
+                    ));
+                }
+                for id in ancestry(&actual.loans, loans, b)? {
+                    let loan = loans
+                        .get(id)
+                        .ok_or_else(|| failure("pending output ancestry exceeds actual arena"))?;
+                    fee(b, loan.targets.len().saturating_add(1))?;
+                    if loan.receiver_head
+                        || loan
+                            .targets
+                            .iter()
+                            .any(|target| target.base != HoldRoot::Static)
+                    {
+                        return Err(failure(
+                            "output-only static class retains an activation parent",
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    })();
+    b.pending_dyn_outputs.insert(f.id, obligations);
+    checked
+}
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
@@ -558,6 +759,7 @@ pub(super) fn summarize(
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    ground_output_obligations(f, value, facts, loans, b)?;
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
     };

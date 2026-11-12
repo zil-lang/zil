@@ -21,6 +21,10 @@ mod active_projection_tests;
 mod binding_index_tests;
 mod dyn_address;
 mod dyn_return;
+pub(super) struct DynOutputClass {
+    binding: SignatureLifeClassBinding,
+    ports: Vec<(StoragePosition, Type, StoredBorrowMode)>,
+}
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -585,11 +589,17 @@ struct SlotLoanIds {
     dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
 }
 impl SlotLoanIds {
-    fn new() -> Self { Self::default() }
-    fn len(&self) -> usize { self.physical.len().saturating_add(self.dynamic.len()) }
-    fn get(&self,key:&PhysicalLoanKey)->Option<&(usize,bool)> {self.physical.get(key)}
-    fn insert(&mut self,key:PhysicalLoanKey,value:(usize,bool))->Option<(usize,bool)> {
-        self.physical.insert(key,value)
+    fn new() -> Self {
+        Self::default()
+    }
+    fn len(&self) -> usize {
+        self.physical.len().saturating_add(self.dynamic.len())
+    }
+    fn get(&self, key: &PhysicalLoanKey) -> Option<&(usize, bool)> {
+        self.physical.get(key)
+    }
+    fn insert(&mut self, key: PhysicalLoanKey, value: (usize, bool)) -> Option<(usize, bool)> {
+        self.physical.insert(key, value)
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -2399,6 +2409,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
+    if dyn_return::register_output_obligations(module, f, b)? {
+        return Ok(());
+    }
     super::signature_life::function_relation_in_module(
         &parameters,
         result,
