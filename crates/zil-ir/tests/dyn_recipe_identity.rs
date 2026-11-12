@@ -353,8 +353,9 @@ fn receiver_after_sources_have_independent_bytes_and_preserve_before_selectors()
     };
     before_port(&mut expected);
     word(&mut expected, 2);
+    expected.push(0); // Exact(call-before receiver port).
     before_port(&mut expected);
-    expected.push(0);
+    expected.extend_from_slice(&[0, 0]); // Exact(Parameter(1)).
     small(&mut expected, 1);
     word(&mut expected, 0);
     expected.extend_from_slice(&[0; 7]);
