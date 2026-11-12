@@ -1,6 +1,6 @@
 # ZIL 任务看板
 
-更新：2026-11-11（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
+更新：2026-11-12（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
 
 已合入＝所列范围已进入远端 main；实现待验＝已有实现、尚未接受；部分实现＝完整链路未闭合；进行中＝正在实现或验证、尚未验收；待执行/待排期＝尚未执行/派定。待办优先级仅 P0/P1/P2，已交付行用“—”。任务 ID 不带前导零。
 
@@ -26,7 +26,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 | 范围 | 实施分支 | 执行者 | 状态与完整退出条件 |
 | --- | --- | --- | --- |
-| G1.5 | `task/language-numeric` | Sol high · numeric | 进行中；数值主体[PR85](https://github.com/zil-lang/zil/pull/85)已合main42f0396f3，两CI各6068/5953/71全过。实际联合应用发现Store内四整数布局漏点，root06a已补且全十宽泛型Store/raw/Wire/四native通过，联合修正尚未合入。 |
+| G1.5 | `task/language-numeric` / `task/integer-store-layout` | Sol high · numeric / root | 已合入；PR85数值主体与[PR86](https://github.com/zil-lang/zil/pull/86)完整Store整数布局均已进入main3ec7e8a96；PR86三CI全过、独审接受，整数18/Expand77及十宽复合Store raw/Wire/四native通过。此有限数值范围不关闭语言1.0。 |
 | G1.4/G3.4/G3.5 | `task/language-ownership` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
 | G2.3/G2.4/G9.3.10 | `task/language-iteration` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
 | G5.2/G5.3 | `task/language-dyn` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
@@ -34,7 +34,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
 | G10.3/G10.6.3 | `task/language-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
 
-所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。 用户追加防云环境失效要求，所有22条源码/复核工作分支已分别提交推送并核远端完整SHA，main及goal另核；未验收WIP与已接受范围分开，后续检查点持续同步。见[GitHub恢复清单](records/language-source-backups.json)。
 
 ## G1 · 基础类型与模式
 
@@ -44,7 +44,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
 | **G1.3** | **拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环** | 已合入 | — | — | [PR46 验收][e-pr46] 补齐本表拥有替换组合：真实来源、loan/pin、责任、退休和失败清理；更一般借用/模式仍见 G1.4、G3.4。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 进行中 | P0 | sol high · patterns | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
-| G1.5 | 补齐u32、i8/i16/isize整数矩阵 | 进行中 | P0 | root · 联合修正 | main42f0396f3，精确候选703fb0107；数值主体两完整CI与非作者独审接受；联合应用新发现Store POD四整数布局遗漏已在root06a补齐，全十宽存储专项过但未合，见[本批证据](records/language-usability-parallel.json)。 |
+| G1.5 | 补齐u32、i8/i16/isize整数矩阵 | 已合入 | — | — | PR85与PR86合main3ec7e8a96；PR86候选24cd1eed9与merge同tree f50e96aa1，三CI成功、整数18/Expand77、严格检查及全十宽复合Store Source/raw/Wire/四native通过，非作者独审接受，见[本批证据](records/language-usability-parallel.json)。 |
 
 <details>
 <summary>G1.3 · 子任务（6 项）</summary>

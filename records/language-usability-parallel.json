@@ -15,10 +15,10 @@
     "task/language-integration"
   ],
   "tests_this_dispatch": 0,
-  "integration_checkpoint": "6457123cacaff4eb833ab4480e94ac640aee5d1f",
+  "integration_checkpoint": "65d4122bd131b59e1a7cd774259ba7de1860afe6",
   "integration_remote": "task/language-integration",
   "observations": {
-    "numeric": "PR85 finite integer/native scalar baseline accepted at main42f0396f3 (same tree3829d8305 as703fb); both CI workspace6068/reference5953/text71 pass. Joint application subsequently found Shape::pod missing four integer layout cases in Store; root06a644e0b fixes it, real all10 integer/generic Record/array/Tuple Store Source/raw/Wire/four native test passes. This joint correction has not merged.",
+    "numeric": "PR85 numeric baseline and PR86 complete integer Store layout are accepted on main3ec7e8a96. PR86 exact head24cd1eed9 and merge share treef50e96aa1; all ten integer extremes in generic Store/Record/array/Tuple pass Source, raw/Wire, Clang/API O0/O2. Integer18 and Expand77, strict Clippy/fmt and all three full CI workflows pass; non-author exact review Accept.",
     "joint_integration": "Root6457123ca pushed. Run57 six actual driver suites passed: qualifiedCompound4 (16 native plus raw/Wire attacks), forwarding5, descriptions1, private module3, returned instance1, owning captures1. Run58 all workspace/alltargets check passes, ordinary application complete CLI workflow1/1, forwarding5, description1, task create24/thread10 pass. Task aggregate6 regressed at Expand generic argument before Verify; assigned async+iteration, not passed. Final whole workspace tests pending.",
     "borrowed_environments": "Shared/owning/exclusive qualified compounds and same-type closure instances now raw/Wire/native pass at Root57. Source/A mutable captured holder with generic borrowed helpers/two instances passes at ownership branch; Root new explicit Receiver schema a045 and independent V f22 entry reborrow/head parent/actual holder update first build queued, not acceptance. Elided anonymous input tuple Source and independent V are in progress.",
     "iteration": "Nested Store original5 Source consumers and independent V raw/Wire passed in root27. Independent review confirmed112 forced-move/allocation failure/recovery processes at stdlib tree, separate from root. SE entails Value+SyncDrop and projection helper integrated. Source/A shared/owning/exclusive Tuple fixtures integrated; root independent shared Tuple ledger proof now in run37, other compound families remain in progress.",
@@ -27,8 +27,8 @@
     "dynamic": "Producer Context Shared read baseline4 native passed. Independent V0e36/ceb root integrated proves actual double-root create→ErrorOwner→read plus seven raw/Wire source attacks and head escape guard; prior claimed bare-keep fixture was accidentally older and explicitly corrected. Actual new bareOwner helper acd048 now passed independently in numeric pending freeze; dyn native helper not yet passed. Known-empty unused port, fresh exclusive leases, nested captures/containers and complete declaration witness schema remain in progress.",
     "ordinary_application": "Root58 exact6457123ca complete fresh manifest/dependency lock/check/build Clang+API O0/O2 native ABC exit0/test2/run/lock-mutation workflow1/1 passes. Run57 initially regressed ordinary weak resource Desc Hold; corrected both independent public ledgers in645 with actual private provenance/loans unchanged; non-author stdlib static review Accept. Earlier independent full CLI at stdlib tree also passes; counts not aggregated."
   },
-  "source_acceptance": "Only PR85 finite baseline entered main42f0396f3; its subsequently discovered generic Store layout correction is in root06a and awaits integration. Remaining scopes and whole-language gates stay open. Original failures and raw logs persist in per-worktree out/runs.",
-  "accepted_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "source_acceptance": "Only numeric scopes PR85/PR86 are merged on main3ec7e8a96. Other language scopes remain under implementation/independent review/joint acceptance. Source backups are not acceptance.",
+  "accepted_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
   "numeric_acceptance": {
     "pr": "https://github.com/zil-lang/zil/pull/85",
     "head": "703fb010713b810ca7868ce60482f4644386613e",
@@ -47,7 +47,7 @@
       "/workspace/zil-stdlib-numeric-review/out/runs/pr85-703-review.json"
     ]
   },
-  "latest_goal_read": "97c92087a787a19d1bceff83e806a909e38016b5",
+  "latest_goal_read": "2ece118b8e25f3b1d537495e23b9b34f657f9501",
   "reviews": [
     {
       "source": "6457123cacaff4eb833ab4480e94ac640aee5d1f",
@@ -65,5 +65,35 @@
   "latest_logs": [
     "/workspace/zil-integration/out/runs/combined-async/root-fiftyseventh-*.log",
     "/workspace/zil-integration/out/runs/combined-async/root-fiftyeighth-*.log"
-  ]
+  ],
+  "numeric_store_acceptance": {
+    "pr": "https://github.com/zil-lang/zil/pull/86",
+    "head": "24cd1eed905cfb38fe7d537d91cc802804450e01",
+    "merged_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "tree": "f50e96aa1d238357704e1f58fa7fe4769bea836d",
+    "ci": {
+      "official": {
+        "run": 43227724836,
+        "conclusion": "success"
+      },
+      "research": {
+        "run": 43227724721,
+        "conclusion": "success"
+      },
+      "structure": {
+        "run": 43227724872,
+        "conclusion": "success"
+      }
+    },
+    "local": {
+      "integer_domains": "18/18",
+      "expand_library": "77/77",
+      "strict_clippy": "pass",
+      "format": "pass",
+      "new_source_raw_wire_four_native": "pass"
+    },
+    "review": "stdlib_graph exact-source Accept",
+    "logs": "/workspace/zil-integer-store/out/runs/integer-store/"
+  },
+  "github_backups": "records/language-source-backups.json: all22 source/review worktree branches and main checkpoints matched complete remote SHAs; goal separately pushed; future WIP checkpoints continue to publish."
 }
