@@ -964,7 +964,7 @@ fn evaluate_with_context(
             life: f.life.clone(),
             callable_return: f.callable_return.clone(),
             state_parameters: f.state_parameters.clone(),
-            protocol_contract: f.protocol_contract.clone(),
+            protocol_contracts: f.protocol_contracts.clone(),
             type_parameters: f.type_parameters.clone(),
             callable_parameters: f.callable_parameters.clone(),
             result_mode: f.result_mode,
@@ -1304,7 +1304,7 @@ impl<'a> Walker<'a> {
             if let Some(receiver) = &f.receiver {
                 self.pattern_type_shape(&receiver.ty, 0, f.span)?;
             }
-            if let Some(contract) = &f.protocol_contract {
+            for contract in &f.protocol_contracts {
                 self.charge(0, f.span)?;
                 for _ in &contract.entry {
                     self.charge(0, f.span)?;
@@ -3323,7 +3323,7 @@ mod tests {
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
-                protocol_contract: None,
+                protocol_contracts: Vec::new(),
                 type_parameters: Vec::new(),
                 callable_parameters: Vec::new(),
                 result_mode: zil_ir::PassingMode::Infer,

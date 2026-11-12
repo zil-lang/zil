@@ -68,56 +68,54 @@ pub(super) fn borrowed_environment(t: &Type) -> Option<&Type> {
     Some(environment)
 }
 pub(super) fn owned_template(f: &CoreFunction) -> bool {
-    matches!(f.callable_parameters.as_slice(),[b] if f.parameters.get(b.index as usize).is_some_and(|p|
+    !f.callable_parameters.is_empty() && f.callable_parameters.iter().all(|b| f.parameters.get(b.index as usize).is_some_and(|p|
         p.mode==PassingMode::Give && matches!(&p.ty,Type::Managed(t) if matches!(t.as_ref(),Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Named(n) if n==&b.generic_name)))))
 }
 pub(super) fn borrowed_template(f: &CoreFunction) -> bool {
-    matches!(f.callable_parameters.as_slice(), [b] if f.parameters.get(b.index as usize)
-        .and_then(|p| borrowed_environment(&p.ty)).is_some_and(|t| matches!(t, Type::Named(n) if n == &b.generic_name)))
+    !f.callable_parameters.is_empty()
+        && f.callable_parameters.iter().all(|b| {
+            f.parameters
+                .get(b.index as usize)
+                .and_then(|p| borrowed_environment(&p.ty))
+                .is_some_and(|t| matches!(t,Type::Named(n)if n==&b.generic_name))
+        })
 }
 pub(super) fn validate_borrowed_template(
     f: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
-    let [b] = f.callable_parameters.as_slice() else {
-        return Err(unsupported(
-            f.span,
-            "one borrowed registration binder is required",
-        ));
-    };
     let owned = owned_template(f);
     if (!borrowed_template(f) && !owned)
-        || (!owned && f.parameters.len() != 1)
-        || (!owned && b.index != 0)
-        || b.generic_index != 0
-        || !b.closed_environment
-        || b.kind != CallableKind::FnMut
-        || b.parameters != [Type::I32]
-        || b.result != Type::I32
-        || b.life.is_some()
-        || b.source_life.is_some()
         || f.foreign.is_some()
         || f.receiver.is_some()
         || !f.state_parameters.is_empty()
         || (!owned && f.call_kind.is_some_and(|kind| kind != CallKind::Direct))
         || !f.type_parameters.is_empty()
         || f.callable_return.is_some()
-        || f.protocol_contract
-            .as_ref()
-            .is_none_or(|c| c.parameter != b.index)
         || !f.return_type.is_copy_value()
     {
         return Err(unsupported(
             f.span,
-            "borrowed registration helper requires one exclusive closed FnMut(i32)->i32 carrier, Copy result and state contract",
+            "registration helper requires actual closed FnMut carriers, Copy result and a state contract for every role",
         ));
     }
-    if owned {
-        for parameter in &f.parameters {
-            prepay(&parameter.ty, f.span)?;
+    for b in &f.callable_parameters {
+        if !b.closed_environment
+            || b.kind != CallableKind::FnMut
+            || b.parameters != [Type::I32]
+            || b.result != Type::I32
+            || b.life.is_some()
+            || b.source_life.is_some()
+            || !f.protocol_contracts.iter().any(|c| c.parameter == b.index)
+        {
+            return Err(unsupported(
+                f.span,
+                "registration helper omits a complete actual callable/protocol role",
+            ));
         }
-    } else {
-        prepay(&f.parameters[0].ty, f.span)?;
+    }
+    for parameter in &f.parameters {
+        prepay(&parameter.ty, f.span)?;
     }
     prepay(&f.return_type, f.span)?;
     Ok(())

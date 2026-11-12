@@ -106,7 +106,7 @@ impl materialize::Materializer<'_, '_> {
                 callable_return: None,
                 type_parameters: Vec::new(),
                 state_parameters: Vec::new(),
-                protocol_contract: None,
+                protocol_contracts: Vec::new(),
                 callable_parameters: Vec::new(),
                 body: CoreBlock {
                     span,

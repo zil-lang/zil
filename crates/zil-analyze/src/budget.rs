@@ -1699,7 +1699,48 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
-        budget.protocol_contracts |= function.protocol_contract.is_some();
+        count(
+            0,
+            function.protocol_contracts.len(),
+            limits.max_locals,
+            "protocol roles",
+        )?;
+        if !function.protocol_contracts.is_empty() {
+            budget.input(
+                function.protocol_contracts.len().saturating_mul(13),
+                "protocol role headers",
+            )?;
+            for role in &function.protocol_contracts {
+                count(
+                    0,
+                    role.entry.len(),
+                    limits.max_nodes,
+                    "protocol entry states",
+                )?;
+                count(
+                    0,
+                    role.exits.len(),
+                    limits.max_nodes,
+                    "protocol transition rows",
+                )?;
+                budget.input(
+                    role.entry
+                        .len()
+                        .saturating_add(role.exits.len().saturating_mul(6)),
+                    "protocol full transition prehash",
+                )?;
+                for row in &role.exits {
+                    count(
+                        0,
+                        row.output.len(),
+                        limits.max_nodes,
+                        "protocol output states",
+                    )?;
+                    budget.input(row.output.len(), "protocol output prehash")?;
+                }
+            }
+        }
+        budget.protocol_contracts |= !function.protocol_contracts.is_empty();
         if let Some(contract) = &function.storage_life {
             if function.call_kind == zil_ir::CallKind::Suspend {
                 budget.spend(function.parameters.len(), "Suspend signature inputs")?;

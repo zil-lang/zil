@@ -638,7 +638,7 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         result_mode: PassingMode::Infer,
         foreign: None,
         environment: None,

@@ -98,7 +98,7 @@ fn pure_boundary(f: &TypedFunction) -> bool {
         && f.reference_return_bound.is_none()
         && f.callable_contract.is_none()
         && f.callable_return_contract.is_none()
-        && f.protocol_contract.is_none()
+        && f.protocol_contracts.is_empty()
         && f.return_type == Type::I32
         && f.parameters.len() == 1
         && f.locals

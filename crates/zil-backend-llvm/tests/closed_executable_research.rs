@@ -51,7 +51,7 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             result_mode: PassingMode::Infer,
             foreign: None,
             id: FunctionId(id as u32),

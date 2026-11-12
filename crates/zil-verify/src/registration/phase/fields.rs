@@ -97,7 +97,7 @@ pub(super) fn step(
             worker, arguments, ..
         } => {
             let target = &m.functions[worker.0 as usize];
-            if let Some(contract) = &target.protocol_contract {
+            for contract in &target.protocol_contracts {
                 let arg = *arguments
                     .get(contract.parameter as usize)
                     .ok_or_else(|| invalid(f, "Task input protocol role has no actual argument"))?;

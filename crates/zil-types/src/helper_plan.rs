@@ -193,8 +193,9 @@ impl Walk<'_, '_> {
                 }
             }
             Type::Closure(id) => Shape::Environment(*id),
-            Type::Address { .. } if registration::borrowed_environment(ty).is_some() => {
-                let environment = registration::borrowed_environment(ty).expect("matched carrier");
+            Type::Address { .. } | Type::Managed(_)
+                if registration::borrowed_environment(ty).or_else(||registration::environment(ty)).is_some() => {
+                let environment = registration::borrowed_environment(ty).or_else(||registration::environment(ty)).expect("matched actual registration carrier");
                 match self.shape(environment, bounds, bindings, span, depth + 1)? {
                     Shape::Environment(id) => Shape::Registration(id),
                     _ => Shape::Unknown,
@@ -755,12 +756,12 @@ impl Walk<'_, '_> {
                                 }
                                 let selected =
                                     if signature.parameters.get(bound.index as usize).is_some_and(
-                                        |ty| registration::borrowed_environment(ty).is_some(),
+                                        |ty| registration::borrowed_environment(ty).or_else(||registration::environment(ty)).is_some(),
                                     ) {
                                         match shape {
                                             Shape::Registration(id) => Some(*id),
                                             Shape::Complete { ty, .. } => {
-                                                match registration::borrowed_environment(ty) {
+                                                match registration::borrowed_environment(ty).or_else(||registration::environment(ty)) {
                                                     Some(Type::Closure(id)) => Some(*id),
                                                     _ => None,
                                                 }

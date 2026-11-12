@@ -214,7 +214,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                     && target.callable_contract.is_none()
                     && target.callable_return_contract.is_none()
                     && target.reference_return_bound.is_none()
-                    && target.protocol_contract.is_none()
+                    && target.protocol_contracts.is_empty()
                     && target.parameters.len() == 1
                     && arguments.len() == 1
                     && target.return_type == Type::I32

@@ -908,7 +908,7 @@ fn observer(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
         || f.storage_life.is_some()
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
-        || f.protocol_contract.is_some()
+        || !f.protocol_contracts.is_empty()
         || f.reference_return_bound.is_some()
     {
         return Ok(false);

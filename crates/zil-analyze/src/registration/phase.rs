@@ -38,8 +38,15 @@ fn shape(
             .saturating_add(4),
         "protocol header",
     )?;
+    budget.spend(
+        f.parameters
+            .len()
+            .saturating_mul(f.protocol_contracts.len().saturating_add(1)),
+        "protocol role coverage",
+    )?;
     if c.protocol != ProtocolKind::AsyncRegistrationV1
         || c.entry.is_empty()
+        || c.exits.is_empty()
         || c.entry.windows(2).any(|p| p[0] >= p[1])
         || c.parameter as usize >= f.parameters.len()
     {
@@ -73,6 +80,10 @@ fn shape(
                 && f.locals
                     .get(l.0 as usize)
                     .is_some_and(|other| is_borrow(&other.ty) || is_owner(&other.ty))
+                && !f
+                    .protocol_contracts
+                    .iter()
+                    .any(|role| role.parameter as usize == i)
         })
     {
         return Err(invalid(
@@ -85,6 +96,7 @@ fn shape(
         if !allowed_exit(row.exit)
             || !c.entry.contains(&row.input)
             || (row.output.is_empty() && !is_owner(&role.ty))
+            || (is_owner(&role.ty) && !row.output.is_empty())
             || row.output.windows(2).any(|p| p[0] >= p[1])
         {
             return Err(invalid(f, "invalid protocol transition row"));
@@ -116,18 +128,32 @@ struct Flow {
     aliases: Vec<Option<usize>>,
     values: Vec<u8>,
     value_aliases: Vec<Option<usize>>,
-    local_results: Vec<Option<ResultOrigin>>,
-    results: Vec<Option<ResultOrigin>>,
+    local_results: Vec<Vec<ResultOrigin>>,
+    results: Vec<Vec<ResultOrigin>>,
     local_tags: Vec<Option<usize>>,
     tags: Vec<Option<usize>>,
     local_integers: Vec<Option<i32>>,
     integers: Vec<Option<i32>>,
-    local_conditions: Vec<Option<(usize, u32, u8, u8)>>,
-    conditions: Vec<Option<(usize, u32, u8, u8)>>,
+    local_conditions: Vec<Vec<(usize, u32, u8, u8)>>,
+    conditions: Vec<Vec<(usize, u32, u8, u8)>>,
     local_return_tags: Vec<Option<ProtocolExit>>,
     return_tags: Vec<Option<ProtocolExit>>,
 }
 impl Flow {
+    fn relation_work(&self) -> usize {
+        self.results
+            .iter()
+            .chain(&self.local_results)
+            .map(|r| r.len().saturating_mul(4))
+            .sum::<usize>()
+            .saturating_add(
+                self.conditions
+                    .iter()
+                    .chain(&self.local_conditions)
+                    .map(|r| r.len().saturating_mul(4))
+                    .sum::<usize>(),
+            )
+    }
     fn invalidate(&mut self, root: usize, budget: &mut Budget) -> CompileResult<()> {
         let width = self
             .results
@@ -135,16 +161,15 @@ impl Flow {
             .saturating_add(self.local_results.len())
             .saturating_mul(4)
             .saturating_add(1);
-        budget.spend(width, "protocol invalidation")?;
+        budget.spend(
+            width.saturating_add(self.relation_work()),
+            "protocol invalidation",
+        )?;
         for result in self.results.iter_mut().chain(&mut self.local_results) {
-            if result.is_some_and(|origin| origin.root == root) {
-                *result = None;
-            }
+            result.retain(|origin| origin.root != root);
         }
         for condition in self.conditions.iter_mut().chain(&mut self.local_conditions) {
-            if condition.is_some_and(|(owner, _, _, _)| owner == root) {
-                *condition = None;
-            }
+            condition.retain(|(owner, _, _, _)| *owner != root);
         }
         Ok(())
     }
@@ -167,14 +192,14 @@ impl Flow {
             aliases: vec![None; n],
             values: vec![0; v],
             value_aliases: vec![None; v],
-            local_results: vec![None; n],
-            results: vec![None; v],
+            local_results: vec![Vec::new(); n],
+            results: vec![Vec::new(); v],
             local_tags: vec![None; n],
             tags: vec![None; v],
             local_integers: vec![None; n],
             integers: vec![None; v],
-            local_conditions: vec![None; n],
-            conditions: vec![None; v],
+            local_conditions: vec![Vec::new(); n],
+            conditions: vec![Vec::new(); v],
             local_return_tags: vec![None; n],
             return_tags: vec![None; v],
         };
@@ -184,7 +209,11 @@ impl Flow {
                 if entry.map(|(j, _)| j) == Some(i) {
                     s.phases[l.0 as usize] = entry.unwrap().1;
                 } else {
-                    s.phases[l.0 as usize] = ANY;
+                    s.phases[l.0 as usize] = f
+                        .protocol_contracts
+                        .iter()
+                        .find(|c| c.parameter as usize == i)
+                        .map_or(ANY, |c| mask(&c.entry));
                 }
             }
         }
@@ -217,14 +246,10 @@ impl Flow {
             }
         }
         for (a, b) in self.local_results.iter_mut().zip(&other.local_results) {
-            if *a != *b {
-                *a = None;
-            }
+            a.retain(|row| b.contains(row));
         }
         for (a, b) in self.results.iter_mut().zip(&other.results) {
-            if *a != *b {
-                *a = None;
-            }
+            a.retain(|row| b.contains(row));
         }
         for (a, b) in self.local_tags.iter_mut().zip(&other.local_tags) {
             if *a != *b {
@@ -251,14 +276,10 @@ impl Flow {
             .iter_mut()
             .zip(&other.local_conditions)
         {
-            if *a != *b {
-                *a = None;
-            }
+            a.retain(|row| b.contains(row));
         }
         for (a, b) in self.conditions.iter_mut().zip(&other.conditions) {
-            if *a != *b {
-                *a = None;
-            }
+            a.retain(|row| b.contains(row));
         }
         for (a, b) in self
             .local_return_tags
@@ -288,27 +309,30 @@ fn effect(
     m: &TypedModule,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    b.spend(16, "protocol instruction")?;
+    b.spend(
+        16usize.saturating_add(s.relation_work()),
+        "protocol instruction",
+    )?;
     let out = i.result.map(|v| v.0 as usize);
     match &i.kind {
         InstructionKind::Load(l) => {
             if let Some(o) = out {
                 s.value_aliases[o] = s.aliases[l.0 as usize];
                 s.values[o] = s.phases[l.0 as usize];
-                s.results[o] = s.local_results[l.0 as usize];
+                s.results[o] = s.local_results[l.0 as usize].clone();
                 s.tags[o] = s.local_tags[l.0 as usize];
                 s.integers[o] = s.local_integers[l.0 as usize];
-                s.conditions[o] = s.local_conditions[l.0 as usize];
+                s.conditions[o] = s.local_conditions[l.0 as usize].clone();
                 s.return_tags[o] = s.local_return_tags[l.0 as usize];
             }
         }
         InstructionKind::BorrowLocalMut { local } => {
             if let Some(o) = out {
                 s.value_aliases[o] = Some(local.0 as usize);
-                s.results[o] = s.local_results[local.0 as usize];
+                s.results[o] = s.local_results[local.0 as usize].clone();
                 s.tags[o] = s.local_tags[local.0 as usize];
                 s.integers[o] = s.local_integers[local.0 as usize];
-                s.conditions[o] = s.local_conditions[local.0 as usize];
+                s.conditions[o] = s.local_conditions[local.0 as usize].clone();
                 s.return_tags[o] = s.local_return_tags[local.0 as usize];
             }
         }
@@ -329,10 +353,10 @@ fn effect(
         InstructionKind::Store { local, value } => {
             let l = local.0 as usize;
             s.aliases[l] = s.value_aliases[value.0 as usize];
-            s.local_results[l] = s.results[value.0 as usize];
+            s.local_results[l] = s.results[value.0 as usize].clone();
             s.local_tags[l] = s.tags[value.0 as usize];
             s.local_integers[l] = s.integers[value.0 as usize];
-            s.local_conditions[l] = s.conditions[value.0 as usize];
+            s.local_conditions[l] = s.conditions[value.0 as usize].clone();
             s.local_return_tags[l] = s.return_tags[value.0 as usize];
             if is_owner(&f.locals[l].ty) {
                 s.invalidate(l, b)?;
@@ -376,12 +400,12 @@ fn effect(
             s.phases[r] = pending | CLOSED;
             s.generations[r] = s.generations[r].saturating_add(1);
             if let Some(o) = out {
-                s.results[o] = Some(ResultOrigin {
+                s.results[o] = vec![ResultOrigin {
                     root: r,
                     generation: s.generations[r],
                     low: pending,
                     high: CLOSED,
-                });
+                }];
             }
         }
         InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
@@ -409,10 +433,11 @@ fn effect(
             }
         }
         InstructionKind::ErrorTag { value } => {
-            if let Some(o) = out
-                && let Some(p) = s.results[value.0 as usize]
-            {
-                s.conditions[o] = Some((p.root, p.generation, p.low, p.high));
+            if let Some(o) = out {
+                s.conditions[o] = s.results[value.0 as usize]
+                    .iter()
+                    .map(|p| (p.root, p.generation, p.low, p.high))
+                    .collect();
             }
         }
         InstructionKind::Constant(Constant::I32(n)) => {
@@ -429,15 +454,18 @@ fn effect(
                 let pair = [(*left, *right), (*right, *left)]
                     .into_iter()
                     .find_map(|(t, n)| Some((s.tags[t.0 as usize]?, s.integers[n.0 as usize]?)));
-                if let Some((v, n)) = pair.filter(|(_, n)| *n == 0 || *n == 1)
-                    && let Some(p) = s.results[v]
-                {
-                    s.conditions[o] = Some((
-                        p.root,
-                        p.generation,
-                        if n == 0 { p.low } else { p.high },
-                        if n == 0 { p.high } else { p.low },
-                    ));
+                if let Some((v, n)) = pair.filter(|(_, n)| *n == 0 || *n == 1) {
+                    s.conditions[o] = s.results[v]
+                        .iter()
+                        .map(|p| {
+                            (
+                                p.root,
+                                p.generation,
+                                if n == 0 { p.low } else { p.high },
+                                if n == 0 { p.high } else { p.low },
+                            )
+                        })
+                        .collect();
                 }
             }
         }
@@ -458,83 +486,89 @@ fn effect(
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| invalid(f, "protocol callee is absent"))?;
-            if let Some(c) = &callee.protocol_contract {
-                b.spend(
-                    c.exits
-                        .len()
-                        .saturating_mul(8)
-                        .saturating_add(arguments.len()),
-                    "protocol call relation",
-                )?;
-                let arg = *arguments
-                    .get(c.parameter as usize)
-                    .ok_or_else(|| invalid(f, "protocol call role absent"))?;
-                let r = root(s, arg, f)?;
-                let owned =
-                    is_owner(&callee.locals[callee.parameters[c.parameter as usize].0 as usize].ty);
-                let before = if owned {
-                    s.values[arg.0 as usize]
-                } else {
-                    s.phases[r]
-                };
-                if before == 0
-                    || arguments.iter().enumerate().any(|(i, v)| {
-                        i != c.parameter as usize && s.value_aliases[v.0 as usize] == Some(r)
-                    })
-                {
-                    return Err(invalid(
-                        f,
-                        "protocol role is unavailable or aliased by another actual argument",
-                    ));
+            if !callee.protocol_contracts.is_empty() {
+                if let Some(o) = out {
+                    s.results[o].clear();
                 }
-                let mut low = 0;
-                let mut high = 0;
-                let mut plain = 0;
-                for phase in [
-                    ProtocolState::Open,
-                    ProtocolState::Closing,
-                    ProtocolState::Closed,
-                ] {
-                    if before & bit(phase) == 0 {
-                        continue;
-                    }
-                    if !c.entry.contains(&phase) {
+                for c in &callee.protocol_contracts {
+                    b.spend(
+                        c.exits
+                            .len()
+                            .saturating_mul(8)
+                            .saturating_add(arguments.len()),
+                        "protocol call relation",
+                    )?;
+                    let arg = *arguments
+                        .get(c.parameter as usize)
+                        .ok_or_else(|| invalid(f, "protocol call role absent"))?;
+                    let r = root(s, arg, f)?;
+                    let owned = is_owner(
+                        &callee.locals[callee.parameters[c.parameter as usize].0 as usize].ty,
+                    );
+                    let before = if owned {
+                        s.values[arg.0 as usize]
+                    } else {
+                        s.phases[r]
+                    };
+                    if before == 0
+                        || arguments.iter().enumerate().any(|(i, v)| {
+                            i != c.parameter as usize && s.value_aliases[v.0 as usize] == Some(r)
+                        })
+                    {
                         return Err(invalid(
                             f,
-                            "protocol call cannot satisfy every possible entry state",
+                            "protocol role is unavailable or aliased by another actual argument",
                         ));
                     }
-                    let mut found = false;
-                    for row in c.exits.iter().filter(|row| row.input == phase) {
-                        found = true;
-                        match row.exit {
-                            ProtocolExit::ErrorErr | ProtocolExit::PollPending => {
-                                low |= mask(&row.output)
+                    let mut low = 0;
+                    let mut high = 0;
+                    let mut plain = 0;
+                    for phase in [
+                        ProtocolState::Open,
+                        ProtocolState::Closing,
+                        ProtocolState::Closed,
+                    ] {
+                        if before & bit(phase) == 0 {
+                            continue;
+                        }
+                        if !c.entry.contains(&phase) {
+                            return Err(invalid(
+                                f,
+                                "protocol call cannot satisfy every possible entry state",
+                            ));
+                        }
+                        let mut found = false;
+                        for row in c.exits.iter().filter(|row| row.input == phase) {
+                            found = true;
+                            match row.exit {
+                                ProtocolExit::ErrorErr | ProtocolExit::PollPending => {
+                                    low |= mask(&row.output)
+                                }
+                                ProtocolExit::ErrorOk | ProtocolExit::PollReady => {
+                                    high |= mask(&row.output)
+                                }
+                                ProtocolExit::Return => plain |= mask(&row.output),
                             }
-                            ProtocolExit::ErrorOk | ProtocolExit::PollReady => {
-                                high |= mask(&row.output)
-                            }
-                            ProtocolExit::Return => plain |= mask(&row.output),
+                        }
+                        if !found {
+                            return Err(invalid(f, "possible protocol entry has no result row"));
                         }
                     }
-                    if !found {
-                        return Err(invalid(f, "possible protocol entry has no result row"));
+                    let all = low | high | plain;
+                    if all == 0 && !owned {
+                        return Err(invalid(f, "protocol call has no published result relation"));
                     }
-                }
-                let all = low | high | plain;
-                if all == 0 && !owned {
-                    return Err(invalid(f, "protocol call has no published result relation"));
-                }
-                s.invalidate(r, b)?;
-                s.phases[r] = if owned { 0 } else { all };
-                s.generations[r] = s.generations[r].saturating_add(1);
-                if let Some(o) = out {
-                    s.results[o] = Some(ResultOrigin {
-                        root: r,
-                        generation: s.generations[r],
-                        low,
-                        high,
-                    });
+                    s.invalidate(r, b)?;
+                    s.phases[r] = if owned { 0 } else { all };
+                    s.generations[r] = s.generations[r].saturating_add(1);
+                    if let Some(o) = out {
+                        s.results[o].push(ResultOrigin {
+                            root: r,
+                            generation: s.generations[r],
+                            low,
+                            high,
+                        });
+                    }
                 }
             } else {
                 for arg in arguments {
@@ -620,6 +654,10 @@ fn run(
                     .map_or(0, |p| p.work()),
                 "original input phase CFG snapshot",
             )?;
+            b.spend(
+                states[index].as_ref().map_or(0, |s| s.relation_work()),
+                "phase relation block snapshot",
+            )?;
             let mut state = states[index]
                 .clone()
                 .ok_or_else(|| invalid(f, "missing queued protocol state"))?;
@@ -627,12 +665,32 @@ fn run(
             for i in &block.instructions {
                 effect(&mut state, i, f, m, b)?;
             }
+            b.spend(
+                state
+                    .relation_work()
+                    .saturating_mul(f.protocol_contracts.len()),
+                "returned multi-role selector inventory",
+            )?;
             if matches!(block.terminator, Terminator::Return(_))
                 && let Some(c) = c
             {
                 b.spend(
                     c.exits.len().saturating_mul(2).saturating_add(1),
                     "protocol return relation",
+                )?;
+            }
+            if matches!(block.terminator, Terminator::Branch { .. }) {
+                b.spend(
+                    state
+                        .relation_work()
+                        .saturating_add(
+                            f.locals
+                                .len()
+                                .saturating_add(f.values.len())
+                                .saturating_mul(32),
+                        )
+                        .saturating_mul(2),
+                    "multi-role branch snapshots",
                 )?;
             }
             let mut edge = |target: usize, next: &Flow| -> CompileResult<()> {
@@ -648,6 +706,7 @@ fn run(
                     next.products.as_ref().map_or(0, |p| p.work()),
                     "original input phase edge snapshot",
                 )?;
+                b.spend(next.relation_work(), "phase relation edge snapshot")?;
                 let next = next.clone();
                 let slot = &mut states[target];
                 if let Some(old) = slot {
@@ -657,6 +716,11 @@ fn run(
                             .map_or(0, |p| p.work())
                             .saturating_add(next.products.as_ref().map_or(0, |p| p.work())),
                         "original input phase merge snapshot",
+                    )?;
+                    b.spend(
+                        old.relation_work()
+                            .saturating_mul(next.relation_work().saturating_add(1)),
+                        "phase relation merge",
                     )?;
                     if old.merge(&next) && !queued[target] {
                         queue.push_back(target);
@@ -678,17 +742,23 @@ fn run(
                     then_block,
                     else_block,
                 } => {
-                    if let Some((r, g, t, e)) = state.conditions[condition.0 as usize]
-                        && state.generations[r] == g
-                    {
-                        let original = state.phases[r];
-                        state.phases[r] &= t;
-                        if state.phases[r] != 0 {
-                            edge(then_block.0 as usize, &state)?;
-                        }
-                        state.phases[r] = original & e;
-                        if state.phases[r] != 0 {
-                            edge(else_block.0 as usize, &state)?;
+                    let rows = &state.conditions[condition.0 as usize];
+                    if rows.iter().any(|(r, g, _, _)| state.generations[*r] == *g) {
+                        for (target, yes) in [
+                            (then_block.0 as usize, true),
+                            (else_block.0 as usize, false),
+                        ] {
+                            let mut selected = state.clone();
+                            let mut possible = true;
+                            for &(r, g, t, e) in rows {
+                                if state.generations[r] == g {
+                                    selected.phases[r] &= if yes { t } else { e };
+                                    possible &= selected.phases[r] != 0;
+                                }
+                            }
+                            if possible {
+                                edge(target, &selected)?;
+                            }
                         }
                         continue;
                     }
@@ -710,9 +780,6 @@ fn run(
                         let root = f.parameters[c.parameter as usize].0 as usize;
                         let observed = state.phases[root];
                         let check = |exit: ProtocolExit, actual: u8| -> CompileResult<()> {
-                            if actual == 0 {
-                                return Ok(());
-                            }
                             let row = c
                                 .exits
                                 .iter()
@@ -734,9 +801,12 @@ fn run(
                                     value.and_then(|v| state.return_tags[v.0 as usize])
                                 {
                                     check(tag, observed)?;
-                                } else if let Some(p) =
-                                    value.and_then(|v| state.results[v.0 as usize])
-                                {
+                                } else if let Some(p) = value.and_then(|v| {
+                                    state.results[v.0 as usize]
+                                        .iter()
+                                        .find(|p| p.root == root)
+                                        .copied()
+                                }) {
                                     if p.root != root || p.generation != state.generations[root] {
                                         return Err(invalid(
                                             f,
@@ -759,22 +829,34 @@ fn run(
                                         Type::Unit.fingerprint()
                                     ) =>
                             {
-                                let p = value
-                                    .and_then(|v| state.results[v.0 as usize])
-                                    .ok_or_else(|| {
-                                        invalid(
-                                            f,
-                                            "Poll return lacks actual sealed result provenance",
-                                        )
-                                    })?;
-                                if p.root != root || p.generation != state.generations[root] {
+                                let related = value.map(|v| &state.results[v.0 as usize]);
+                                if let Some(p) =
+                                    related.and_then(|rows| rows.iter().find(|p| p.root == root))
+                                {
+                                    if p.generation != state.generations[root] {
+                                        return Err(invalid(f, "returned Poll relation is stale"));
+                                    }
+                                    check(ProtocolExit::PollPending, p.low)?;
+                                    check(ProtocolExit::PollReady, p.high)?;
+                                } else if f.protocol_contracts.len() > 1
+                                    && related.is_some_and(|rows| {
+                                        rows.iter().any(|p| {
+                                            p.generation == state.generations[p.root]
+                                                && f.protocol_contracts.iter().any(|c| {
+                                                    f.parameters[c.parameter as usize].0 as usize
+                                                        == p.root
+                                                })
+                                        })
+                                    })
+                                {
+                                    check(ProtocolExit::PollPending, observed)?;
+                                    check(ProtocolExit::PollReady, observed)?;
+                                } else {
                                     return Err(invalid(
                                         f,
-                                        "returned Poll relation is stale or belongs to another root",
+                                        "Poll return lacks actual sealed result provenance",
                                     ));
                                 }
-                                check(ProtocolExit::PollPending, p.low)?;
-                                check(ProtocolExit::PollReady, p.high)?;
                             }
                             _ => check(ProtocolExit::Return, observed)?,
                         }
@@ -790,7 +872,7 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     let mut outgoing = vec![Vec::new(); m.functions.len()];
     let mut incoming = vec![0usize; m.functions.len()];
     for (index, f) in m.functions.iter().enumerate() {
-        if f.protocol_contract.is_none() {
+        if f.protocol_contracts.is_empty() {
             continue;
         }
         for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
@@ -799,7 +881,7 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> CompileResult<()> {
                 let target = function.0 as usize;
                 if m.functions
                     .get(target)
-                    .is_some_and(|callee| callee.protocol_contract.is_some())
+                    .is_some_and(|callee| !callee.protocol_contracts.is_empty())
                 {
                     outgoing[index].push(target);
                     incoming[target] = incoming[target].saturating_add(1);
@@ -809,7 +891,7 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     }
     let mut queue = VecDeque::new();
     for (index, f) in m.functions.iter().enumerate() {
-        if f.protocol_contract.is_some() && incoming[index] == 0 {
+        if !f.protocol_contracts.is_empty() && incoming[index] == 0 {
             queue.push_back(index);
         }
     }
@@ -826,7 +908,7 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> CompileResult<()> {
         .functions
         .iter()
         .enumerate()
-        .find(|(index, f)| f.protocol_contract.is_some() && incoming[*index] != 0)
+        .find(|(index, f)| !f.protocol_contracts.is_empty() && incoming[*index] != 0)
     {
         return Err(invalid(
             &m.functions[index],
@@ -843,14 +925,29 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> CompileResult<()> {
                 .saturating_add(1),
             "protocol active instruction inventory",
         )?;
-        let active = f.protocol_contract.is_some()
+        let active = !f.protocol_contracts.is_empty()
             || f.blocks.iter().flat_map(|x| &x.instructions).any(|i| {
                 matches!(i.kind, InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } | InstructionKind::TaskCreateOwned{..})
                     || matches!(i.kind, InstructionKind::Call { function, .. }
-                        if m.functions.get(function.0 as usize).is_some_and(|callee| callee.protocol_contract.is_some()))
+                        if m.functions.get(function.0 as usize).is_some_and(|callee| !callee.protocol_contracts.is_empty()))
             });
         if active {
-            run(f, m, f.protocol_contract.as_ref(), b)?;
+            if f.protocol_contracts.is_empty() {
+                run(f, m, None, b)?;
+            } else {
+                if f.protocol_contracts
+                    .windows(2)
+                    .any(|w| w[0].parameter >= w[1].parameter)
+                {
+                    return Err(invalid(
+                        f,
+                        "protocol roles must be unique and ordered by actual parameter",
+                    ));
+                }
+                for contract in &f.protocol_contracts {
+                    run(f, m, Some(contract), b)?;
+                }
+            }
         }
     }
     Ok(())

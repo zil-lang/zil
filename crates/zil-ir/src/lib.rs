@@ -922,7 +922,9 @@ pub struct CoreFunction {
     /// This raw table grants neither call authority nor ownership.
     pub state_parameters: Vec<CoreStateParameter>,
     /// Raw finite state relation. A declaration grants no transition authority.
-    pub protocol_contract: Option<FunctionProtocolContract>,
+    /// Ordered distinct actual parameter roles. Empty declares no phase
+    /// relation; it is never evidence that an unknown owner is retired.
+    pub protocol_contracts: Vec<FunctionProtocolContract>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
@@ -1610,7 +1612,9 @@ pub struct TypedFunction {
     /// Raw finite helper relation, independently reconstructed by Verify.
     pub callable_contract: Option<CallableParameterContract>,
     /// Raw per-result resource relation, checked from the actual CFG by both kernels.
-    pub protocol_contract: Option<FunctionProtocolContract>,
+    /// Ordered distinct actual parameter roles. Empty declares no phase
+    /// relation; it is never evidence that an unknown owner is retired.
+    pub protocol_contracts: Vec<FunctionProtocolContract>,
     pub id: FunctionId,
     pub name: String,
     /// A foreign declaration has parameter locals but no executable CFG.
@@ -3308,9 +3312,11 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
-    if let Some(contract) = &f.protocol_contract {
-        b.push(2); // distinct from the following legacy foreign presence bit
-        encode_text(b, "ZIL-FUNCTION-PROTOCOL-1");
+    // A finite ordered role inventory. Empty means no declared transition;
+    // it does not prove any unknown protocol owner closed or retired.
+    encode_text(b, "ZIL-FUNCTION-PROTOCOLS-2");
+    encode_len(b, f.protocol_contracts.len());
+    for contract in &f.protocol_contracts {
         encode_protocol_contract(b, contract);
     }
     b.push(u8::from(f.foreign.is_some()));
@@ -3939,12 +3945,17 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             worker,
             arguments,
             port_bindings,
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,
         } => {
-            b.push(if matches!(i,InstructionKind::TaskCreateOwned{..}) {151} else {128});
+            b.push(if matches!(i, InstructionKind::TaskCreateOwned { .. }) {
+                151
+            } else {
+                128
+            });
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {

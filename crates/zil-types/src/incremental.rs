@@ -459,7 +459,7 @@ fn keys(
         core.functions.len().hash(&mut context);
         for f in &core.functions {
             if f.storage_life.is_some()
-                || f.protocol_contract.is_some()
+                || !f.protocol_contracts.is_empty()
                 || !f.type_parameters.is_empty()
                 || !f.state_parameters.is_empty()
                 || !f.callable_parameters.is_empty()

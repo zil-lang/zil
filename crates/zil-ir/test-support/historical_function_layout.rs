@@ -213,9 +213,9 @@ impl Walk<'_> {
         self.take(20)?;
         Ok(())
     }
-    fn function(&mut self) -> R<Vec<usize>> {
+    fn function(&mut self) -> R<Vec<(usize, usize)>> {
         self.absent()?; // Direct CallKind.
-        let mut insertions = vec![self.pos]; // Explicit Local resume request.
+        let mut insertions = vec![(self.pos, 1)]; // Explicit Local resume request.
         self.absent()?; // StorageLifeContract.
         if self.tag(1)? == 1 {
             self.words()?;
@@ -233,7 +233,7 @@ impl Walk<'_> {
         if self.tag(1)? == 1 {
             self.callable()?;
         }
-        insertions.push(self.pos); // V44 adds protocol_contract: None here.
+        insertions.push((self.pos, 4)); // Ordered protocol role count is zero.
         self.take(4)?;
         self.text()?;
         if self.tag(1)? == 1 {
@@ -241,7 +241,7 @@ impl Walk<'_> {
             self.text()?;
             self.words()?;
             self.tag(1)?;
-            insertions.push(self.pos); // No cross-driver provider promise.
+            insertions.push((self.pos, 1)); // No cross-driver provider promise.
             self.tag(2)?;
         }
         self.optional_word()?;
@@ -279,7 +279,7 @@ impl Walk<'_> {
         Ok(insertions)
     }
 }
-/// Insert only the new None fields, then relabel the transport envelope.
+/// Insert parsed new Local/empty-role/false fields, then relabel the transport envelope.
 /// Module/plan schema and fingerprints deliberately remain historical: the
 /// caller must current-decode, round-trip, update identity, and re-encode.
 pub fn transport(
@@ -322,7 +322,7 @@ pub fn transport(
     }
     let length = bytes
         .len()
-        .checked_add(insertions.len())
+        .checked_add(insertions.iter().map(|(_, width)| *width).sum::<usize>())
         .ok_or("fixture output overflow")?;
     if length > max_bytes {
         return Err("fixture output quota".into());
@@ -332,9 +332,9 @@ pub fn transport(
         .ok_or("fixture output work quota")?;
     let mut output = Vec::with_capacity(length);
     let mut start = 0;
-    for end in insertions {
+    for (end, width) in insertions {
         output.extend_from_slice(&bytes[start..end]);
-        output.push(0);
+        output.resize(output.len() + width, 0);
         start = end;
     }
     output.extend_from_slice(&bytes[start..]);

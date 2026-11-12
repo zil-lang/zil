@@ -400,7 +400,7 @@ fn cleanup(
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
-        let closed_retirement = f.protocol_contract.as_ref().is_some_and(|c| {
+        let closed_retirement = !f.protocol_contracts.is_empty() && f.protocol_contracts.iter().all(|c| {
             c.entry.as_slice() == [zil_ir::ProtocolState::Closed]
                 && !c.exits.is_empty()
                 && c.exits.iter().all(|row| row.input == zil_ir::ProtocolState::Closed && row.output.is_empty())

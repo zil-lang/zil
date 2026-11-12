@@ -35,7 +35,7 @@ fn fixture(width: usize) -> (TypedModule, FunctionGraph) {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "move_words".into(),
         foreign: None,

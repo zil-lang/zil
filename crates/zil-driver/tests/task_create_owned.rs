@@ -275,8 +275,7 @@ fn owned_constructor_raw_and_wire_reject_duplicate_debt_and_false_input_phase() 
                 .unwrap();
             let worker = &mut forged.functions[worker_id.0 as usize];
             if phase {
-                worker.protocol_contract.as_mut().unwrap().entry =
-                    vec![zil_ir::ProtocolState::Closed];
+                worker.protocol_contracts[0].entry = vec![zil_ir::ProtocolState::Closed];
             } else {
                 let main = forged
                     .functions
@@ -618,4 +617,252 @@ fn borrowed_failure_raw_and_wire_reject_missing_inputs_and_wrong_parent_projecti
             "Wire mutation={mutation}"
         );
     }
+}
+
+const TWO_REGISTRATIONS: &str = r#"
+extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),async_callback_register());effects(ffi);};
+extern "C" fn request(token:c_handle) contract{provides(static_callbacks(),async_callback_request_close());effects(ffi);};
+extern "C" fn drain(token:c_handle)->i32 contract{provides(static_callbacks(),async_callback_poll_drain());effects(ffi);};
+fn make_callback(seed:i32)->impl FnMut(i32)->i32 {var count=seed;return move(value:i32)->i32=>{count+=1;return count+value;};}
+fn request_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(left:&mut AsyncRegistration<F>,right:&mut AsyncRegistration<F>) contract{requires(state(left,Open,Closing,Closed),state(right,Open,Closing,Closed));provides(state(left,Closing,Closed),state(right,Closing,Closed));}{async_registration_request_close(left);async_registration_request_close(right);}
+fn poll_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(left:&mut AsyncRegistration<F>,right:&mut AsyncRegistration<F>)->Poll<()> contract{requires(state(left,Closing,Closed),state(right,Closing,Closed));provides(on_pending(state(left,Closing)),on_ready(state(left,Closed)),on_pending(state(right,Closing,Closed)),on_ready(state(right,Closing,Closed)));}{return async_registration_poll_close(left);}
+fn finish_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(give left:AsyncRegistration<F>,give right:AsyncRegistration<F>) contract{requires(state(left,Closed),state(right,Closed));provides(retired(left),retired(right));}{async_registration_finish_destroy_checked(give left);async_registration_finish_destroy_checked(give right);}
+fn worker<F:FnMut(i32)->i32 + ClosedEnvironment>(give left:AsyncRegistration<F>,give right:AsyncRegistration<F>,seed:i32)->i32 contract{requires(state(left,Open,Closing,Closed),state(right,Open,Closing,Closed));provides(retired(left),retired(right));} {
+    var first=give left;var second=give right;task_yield();
+    request_pair(&mut first,&mut second);loop{match poll_pair(&mut first,&mut second){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}
+    task_yield();loop{match async_registration_poll_close(&mut second){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}finish_pair(give first,give second);return seed+5;
+}
+fn main()->i32 {unsafe {
+    let left=c_register_async(reg,request,drain,make_callback(37));let right=c_register_async(reg,request,drain,make_callback(43));
+    match task_create_owned(worker,give left,give right,37) {
+        .err(failure)=>{let (left,right,seed)=failure.inputs;var first=give left;var second=give right;
+            request_pair(&mut first,&mut second);loop{match poll_pair(&mut first,&mut second){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+            loop{match async_registration_poll_close(&mut second){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}finish_pair(give first,give second);return seed-35;},
+        .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);return answer-42;}
+    }
+}}
+"#;
+#[test]
+fn two_same_type_active_inputs_keep_each_protocol_role_on_both_constructor_outcomes() {
+    let report = compile_source(
+        &source(TWO_REGISTRATIONS),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+#[test]
+fn second_protocol_role_cannot_be_omitted_forged_or_aliased_in_raw_or_wire() {
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let input = source(TWO_REGISTRATIONS);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let positive_bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&positive_bytes, &target, &limits).unwrap();
+    let worker = typed
+        .functions
+        .iter()
+        .find(|f| {
+            f.protocol_contracts.len() == 2
+                && f.protocol_contracts[0].entry.len() == 3
+                && f.call_kind == zil_ir::CallKind::Suspend
+        })
+        .unwrap();
+    assert_eq!(
+        worker.locals[worker.parameters[0].0 as usize].ty,
+        worker.locals[worker.parameters[1].0 as usize].ty
+    );
+    for mutation in 0..7 {
+        let mut forged = typed.clone();
+        let worker = &mut forged.functions[worker.id.0 as usize];
+        match mutation {
+            0 => {
+                worker.protocol_contracts.pop();
+            }
+            1 => {
+                worker.protocol_contracts[1].entry = vec![zil_ir::ProtocolState::Closed];
+            }
+            2 => {
+                worker.protocol_contracts[1].exits.clear();
+            }
+            3 => {
+                worker.protocol_contracts[1].parameter = worker.protocol_contracts[0].parameter;
+            }
+            4 => {
+                for row in &mut worker.protocol_contracts[1].exits {
+                    row.output = vec![zil_ir::ProtocolState::Closed];
+                }
+            }
+            5 => {
+                let helper = forged
+                    .functions
+                    .iter_mut()
+                    .find(|f| {
+                        f.protocol_contracts.len() == 2
+                            && f.return_type == zil_ir::Type::Unit
+                            && matches!(
+                                f.locals[f.parameters[0].0 as usize].ty,
+                                zil_ir::Type::Address { .. }
+                            )
+                    })
+                    .unwrap();
+                let target = helper.id;
+                let arguments = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        zil_ir::InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if *function == target => Some(arguments),
+                        _ => None,
+                    })
+                    .unwrap();
+                arguments[1] = arguments[0];
+            }
+            6 => {
+                let helper=forged.functions.iter_mut().find(|f|f.protocol_contracts.len()==2 && matches!(&f.return_type,zil_ir::Type::Enum{name,..} if name.starts_with("@std.task:v1:Poll:"))).unwrap();
+                let ready = helper.protocol_contracts[1]
+                    .exits
+                    .iter_mut()
+                    .find(|r| r.exit == zil_ir::ProtocolExit::PollReady)
+                    .unwrap();
+                ready.output = vec![zil_ir::ProtocolState::Closed];
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&forged, &limits).is_err(),
+            "Analyze mutation={mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify mutation={mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire mutation={mutation}"
+        );
+    }
+}
+
+#[test]
+fn two_live_protocol_roles_native_preserve_the_actual_same_type_owner_heads() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../out/runs")
+                .join(format!(
+                    "zil-create-owned-two-registrations-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+            fs::create_dir_all(&dir).unwrap();
+            let clang = std::env::var_os("ZIL_CLANG")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| "clang".into());
+            let object = dir.join("observer.o");
+            let observer=Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/task-thread-transfer/create-owned-two-registrations-observer.c");
+            fs::write(dir.join("input.zil"), TWO_REGISTRATIONS).unwrap();
+            fs::copy(&observer, dir.join("observer.c")).unwrap();
+            let built = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(observer)
+                .arg("-o")
+                .arg(&object)
+                .output()
+                .unwrap();
+            assert!(built.status.success(), "{built:?}");
+            let quote =
+                |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_source(
+                &source(TWO_REGISTRATIONS),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            for fail in [false, true] {
+                let mut command = Command::new(&report.artifacts["executable"]);
+                if fail {
+                    command.env("ZIL_TASK_ALLOC_FAIL", "1");
+                }
+                let output = command.output().unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(if fail { 2 } else { 0 }),
+                    "{backend:?}/{optimization:?}/{fail}: {output:?}"
+                );
+                assert_eq!(
+                    output.stdout,
+                    b"two original same-type active inputs retired once through the actual helper heads\n"
+                );
+            }
+            fs::write(
+                dir.join("result.txt"),
+                "actual two helper heads quarantined after one free each",
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn a_returned_poll_for_one_role_never_closes_the_other_same_type_role() {
+    let forged = TWO_REGISTRATIONS.replace(
+        "on_ready(state(right,Closing,Closed))",
+        "on_ready(state(right,Closed))",
+    );
+    let report = compile_source(
+        &source(&forged),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
 }

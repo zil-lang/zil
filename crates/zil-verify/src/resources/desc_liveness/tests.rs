@@ -83,7 +83,7 @@ fn fixture(
         foreign: None,
         environment: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         callable_return_contract: None,
         parameters: (0..local_count).map(|n| LocalId(n as u32)).collect(),
         return_type: Type::I32,

@@ -194,7 +194,7 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.resources.len()),
     )?;
     for function in &module.functions {
-        if let Some(protocol) = &function.protocol_contract {
+        for protocol in &function.protocol_contracts {
             pay(
                 work,
                 protocol

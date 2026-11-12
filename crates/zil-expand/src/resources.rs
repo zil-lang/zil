@@ -35,110 +35,191 @@ fn phase_term(term: &s::ContractTerm, parameter: &str) -> Option<Vec<ProtocolSta
     out.dedup();
     Some(out)
 }
-impl Expander<'_> {
-    pub(super) fn resource_protocol_contract(
-        &mut self,
-        f: &s::Function,
-    ) -> Option<FunctionProtocolContract> {
-        let requires = f.contract.iter().find(|c| {
-            c.name == "requires" && c.terms.iter().any(|t| t.path.as_slice() == ["state"])
-        })?;
-        let invalid = || {
-            Diagnostic::error(
-                Phase::Expand,
-                "E-PROTOCOL-CONTRACT",
-                Some(f.span),
-                "finite protocol requires one actual AsyncRegistration parameter and a complete per-result phase relation",
-            )
-        };
-        let Some(term) = requires.terms.first() else {
-            self.diagnostics.push(invalid());
-            return None;
-        };
-        let Some(name) = term.arguments.first().and_then(|t| t.path.first()) else {
-            self.diagnostics.push(invalid());
-            return None;
-        };
-        let Some(parameter) = f.params.iter().position(|p| &p.name == name) else {
-            self.diagnostics.push(invalid());
-            return None;
-        };
-        let Some(entry) = phase_term(term, name) else {
-            self.diagnostics.push(invalid());
-            return None;
-        };
-        let provides = f
-            .contract
-            .iter()
-            .filter(|c| c.name == "provides")
-            .collect::<Vec<_>>();
-        if f.contract.iter().filter(|c| c.name == "requires").count() != 1
-            || requires.terms.len() != 1
-            || term.path.as_slice() != ["state"]
-            || provides.len() != 1
-        {
-            self.diagnostics.push(invalid());
-            return None;
+fn protocol_pay(work: &mut usize, amount: usize, span: Span) -> Result<(), Diagnostic> {
+    *work = work.checked_sub(amount).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Expand,
+            "protocol role source work exceeded",
+            Some(span),
+        )
+    })?;
+    Ok(())
+}
+fn protocol_rows(
+    f: &s::Function,
+    work: &mut usize,
+) -> Result<Vec<FunctionProtocolContract>, Diagnostic> {
+    let invalid = || {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-PROTOCOL-CONTRACT",
+            Some(f.span),
+            "finite protocol requires unique actual registration parameters and a complete per-result phase relation for every role",
+        )
+    };
+    let requires = f.contract.iter().filter(|c| c.name == "requires");
+    if !requires
+        .clone()
+        .any(|c| c.terms.iter().any(|t| t.path.as_slice() == ["state"]))
+    {
+        return Ok(Vec::new());
+    }
+    protocol_pay(
+        work,
+        f.contract.len().saturating_add(f.params.len()),
+        f.span,
+    )?;
+    let mut roles = BTreeMap::new();
+    for clause in requires {
+        if clause.terms.is_empty() {
+            return Err(invalid());
         }
-        let mut exits = Vec::new();
-        for term in &provides[0].terms {
+        protocol_pay(
+            work,
+            clause
+                .terms
+                .len()
+                .saturating_mul(f.params.len().saturating_add(1)),
+            f.span,
+        )?;
+        for term in &clause.terms {
+            let name = term
+                .arguments
+                .first()
+                .filter(|t| t.path.len() == 1)
+                .and_then(|t| t.path.first())
+                .ok_or_else(invalid)?;
+            let parameter = f
+                .params
+                .iter()
+                .position(|p| &p.name == name)
+                .ok_or_else(invalid)?;
+            protocol_pay(work, term.arguments.len(), f.span)?;
+            let entry = phase_term(term, name).ok_or_else(invalid)?;
+            if roles
+                .insert(
+                    parameter,
+                    FunctionProtocolContract {
+                        protocol: ProtocolKind::AsyncRegistrationV1,
+                        parameter: parameter as u32,
+                        entry,
+                        exits: Vec::new(),
+                    },
+                )
+                .is_some()
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    for clause in f.contract.iter().filter(|c| c.name == "provides") {
+        if clause.terms.is_empty() {
+            return Err(invalid());
+        }
+        protocol_pay(
+            work,
+            clause
+                .terms
+                .len()
+                .saturating_mul(f.params.len().saturating_add(1)),
+            f.span,
+        )?;
+        for term in &clause.terms {
+            if !term.type_args.is_empty() || term.index.is_some() {
+                return Err(invalid());
+            }
             let exit = match term.path.as_slice() {
                 [x] if x == "on_ok" => ProtocolExit::ErrorOk,
                 [x] if x == "on_err" => ProtocolExit::ErrorErr,
                 [x] if x == "on_pending" => ProtocolExit::PollPending,
                 [x] if x == "on_ready" => ProtocolExit::PollReady,
                 [x] if x == "state" || x == "retired" => ProtocolExit::Return,
-                _ => {
-                    self.diagnostics.push(invalid());
-                    return None;
-                }
+                _ => return Err(invalid()),
             };
             let phase = if exit == ProtocolExit::Return {
                 term
             } else {
-                let Some(inner) = term.arguments.first().filter(|_| term.arguments.len() == 1)
-                else {
-                    self.diagnostics.push(invalid());
-                    return None;
-                };
-                inner
+                term.arguments
+                    .first()
+                    .filter(|_| term.arguments.len() == 1)
+                    .ok_or_else(invalid)?
             };
-            let retired = phase.path.as_slice() == ["retired"]
+            let role_name = phase
+                .arguments
+                .first()
+                .filter(|t| {
+                    t.path.len() == 1
+                        && t.arguments.is_empty()
+                        && t.type_args.is_empty()
+                        && t.index.is_none()
+                })
+                .and_then(|t| t.path.first())
+                .ok_or_else(invalid)?;
+            let parameter = f
+                .params
+                .iter()
+                .position(|p| &p.name == role_name)
+                .ok_or_else(invalid)?;
+            let role = roles.get_mut(&parameter).ok_or_else(invalid)?;
+            protocol_pay(
+                work,
+                phase
+                    .arguments
+                    .len()
+                    .saturating_add(role.entry.len().saturating_mul(4)),
+                f.span,
+            )?;
+            let output = if phase.path.as_slice() == ["retired"]
                 && phase.type_args.is_empty()
                 && phase.index.is_none()
-                && matches!(phase.arguments.as_slice(),[term] if term.path.as_slice()==[name.as_str()] && term.arguments.is_empty() && term.type_args.is_empty() && term.index.is_none());
-            let output = if retired && f.params[parameter].give {
-                Some(vec![])
+                && phase.arguments.len() == 1
+                && f.params[parameter].give
+            {
+                Vec::new()
             } else {
-                phase_term(phase, name)
+                phase_term(phase, role_name).ok_or_else(invalid)?
             };
-            let Some(output) = output else {
-                self.diagnostics.push(invalid());
-                return None;
-            };
-            for input in &entry {
-                exits.push(ProtocolTransition {
+            for input in &role.entry {
+                role.exits.push(ProtocolTransition {
                     input: *input,
                     exit,
                     output: output.clone(),
                 });
             }
         }
-        exits.sort_by_key(|r| (r.input, r.exit));
-        if exits.is_empty()
-            || exits
+    }
+    for role in roles.values_mut() {
+        protocol_pay(
+            work,
+            role.exits
+                .len()
+                .saturating_mul(role.exits.len().saturating_add(1)),
+            f.span,
+        )?;
+        role.exits.sort_by_key(|r| (r.input, r.exit));
+        if role.exits.is_empty()
+            || role
+                .exits
                 .windows(2)
                 .any(|w| (w[0].input, w[0].exit) == (w[1].input, w[1].exit))
         {
-            self.diagnostics.push(invalid());
-            return None;
+            return Err(invalid());
         }
-        Some(FunctionProtocolContract {
-            protocol: ProtocolKind::AsyncRegistrationV1,
-            parameter: parameter as u32,
-            entry,
-            exits,
-        })
+    }
+    Ok(roles.into_values().collect())
+}
+impl Expander<'_> {
+    pub(super) fn resource_protocol_contracts(
+        &mut self,
+        f: &s::Function,
+    ) -> Vec<FunctionProtocolContract> {
+        match protocol_rows(f, &mut self.callable_work) {
+            Ok(rows) => rows,
+            Err(error) => {
+                self.diagnostics.push(error);
+                Vec::new()
+            }
+        }
     }
 }
 

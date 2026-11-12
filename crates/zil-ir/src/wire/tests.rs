@@ -583,7 +583,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             result_mode: PassingMode::Infer,
             foreign: None,
             environment: None,
@@ -656,7 +656,7 @@ fn finite_protocol_relation_and_checked_finish_survive_wire_and_bind_identity() 
     let limits = Limits::default();
     let (mut module, mut plan) = module_candidate();
     let original = module.fingerprint();
-    module.functions[0].protocol_contract = Some(FunctionProtocolContract {
+    module.functions[0].protocol_contracts = vec![FunctionProtocolContract {
         protocol: ProtocolKind::AsyncRegistrationV1,
         parameter: 0,
         entry: vec![ProtocolState::Closing],
@@ -672,7 +672,7 @@ fn finite_protocol_relation_and_checked_finish_survive_wire_and_bind_identity() 
                 output: vec![ProtocolState::Closing],
             },
         ],
-    });
+    }];
     assert_ne!(module.fingerprint(), original);
     let claimed = module.fingerprint();
     plan.module_fingerprint = claimed;

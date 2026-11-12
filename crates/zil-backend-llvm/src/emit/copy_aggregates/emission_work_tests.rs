@@ -141,7 +141,7 @@ fn fixture(mode: u8) -> zil_ir::TypedModule {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         result_mode: zil_ir::PassingMode::Infer,
         foreign: None,
     };

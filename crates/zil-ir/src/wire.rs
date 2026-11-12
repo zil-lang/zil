@@ -1112,8 +1112,8 @@ impl<'a> Writer<'a> {
         if let Some(contract) = &function.callable_contract {
             self.callable_contract(contract)?;
         }
-        self.boolean(function.protocol_contract.is_some())?;
-        if let Some(contract) = &function.protocol_contract {
+        self.count(function.protocol_contracts.len(), self.limits.max_locals)?;
+        for contract in &function.protocol_contracts {
             self.u8(match contract.protocol {
                 ProtocolKind::AsyncRegistrationV1 => 0,
             })?;
@@ -1658,12 +1658,19 @@ impl<'a> Writer<'a> {
                 worker,
                 arguments,
                 port_bindings,
-            } | InstructionKind::TaskCreateOwned {
+            }
+            | InstructionKind::TaskCreateOwned {
                 worker,
                 arguments,
                 port_bindings,
             } => {
-                self.u8(if matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) {151} else {128})?;
+                self.u8(
+                    if matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. }) {
+                        151
+                    } else {
+                        128
+                    },
+                )?;
                 self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
@@ -3504,7 +3511,12 @@ impl<'a> Reader<'a> {
         } else {
             None
         };
-        let protocol_contract = if self.boolean()? {
+        // Even a semantically invalid empty role occupies kind/parameter and
+        // both vector headers (13 bytes). Bound the complete row count before
+        // allocating; validation independently requires nonempty real states.
+        let contract_count = self.count(self.limits.max_locals, 13)?;
+        let mut protocol_contracts = Vec::with_capacity(contract_count);
+        for _ in 0..contract_count {
             let protocol = match self.u8()? {
                 0 => ProtocolKind::AsyncRegistrationV1,
                 _ => return Err(malformed("E-WIRE-TAG", "unknown protocol kind")),
@@ -3515,7 +3527,7 @@ impl<'a> Reader<'a> {
             for _ in 0..count {
                 entry.push(self.protocol_state()?);
             }
-            let count = self.count(self.limits.max_nodes, 3)?;
+            let count = self.count(self.limits.max_nodes, 6)?;
             let mut exits = Vec::with_capacity(count);
             for _ in 0..count {
                 let input = self.protocol_state()?;
@@ -3538,15 +3550,13 @@ impl<'a> Reader<'a> {
                     output,
                 });
             }
-            Some(FunctionProtocolContract {
+            protocol_contracts.push(FunctionProtocolContract {
                 protocol,
                 parameter,
                 entry,
                 exits,
-            })
-        } else {
-            None
-        };
+            });
+        }
         let id = FunctionId(self.u32()?);
         let name = self.text()?;
         let foreign = if self.boolean()? {
@@ -3644,7 +3654,7 @@ impl<'a> Reader<'a> {
             reference_return_bound,
             callable_return_contract,
             callable_contract,
-            protocol_contract,
+            protocol_contracts,
             result_mode,
             foreign,
             id,
@@ -4477,7 +4487,7 @@ impl<'a> Reader<'a> {
                     arguments,
                 }
             }
-            tag @ (128|151) => {
+            tag @ (128 | 151) => {
                 let worker = FunctionId(self.u32()?);
                 let count = self.count(self.limits.max_values, 4)?;
                 let mut arguments = Vec::with_capacity(count);
@@ -4489,7 +4499,19 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     port_bindings.push(self.retained_port_binding()?);
                 }
-                if tag==151 {InstructionKind::TaskCreateOwned{worker,arguments,port_bindings}} else {InstructionKind::TaskCreate{worker,arguments,port_bindings}}
+                if tag == 151 {
+                    InstructionKind::TaskCreateOwned {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
+                } else {
+                    InstructionKind::TaskCreate {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
+                }
             }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {

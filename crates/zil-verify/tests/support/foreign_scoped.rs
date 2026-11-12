@@ -37,7 +37,7 @@ fn function(
         return_type: result,
         result_mode: PassingMode::Infer,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         callable_return_contract: None,
         span: span(),
     }
