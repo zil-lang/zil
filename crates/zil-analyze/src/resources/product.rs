@@ -26,7 +26,13 @@ pub(crate) fn admit_capture_head(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    if budget.ordinary_pod_store_type(ty)? || budget.owned_store_package_type(ty)? {
+    // The global inventory only schedules complete checking. In particular,
+    // a capture type snapshot need not share a pointer with a local/SSA type;
+    // this branch still validates every actual field and sealed Store below.
+    if budget.has_owned_store_package()
+        || budget.ordinary_pod_store_type(ty)?
+        || budget.owned_store_package_type(ty)?
+    {
         admit_owned(module, ty, budget).map(|_| ())
     } else {
         admit(ty, budget)
