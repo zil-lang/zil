@@ -10,12 +10,12 @@ pub(super) struct Domain {
     pub pending_sources: bool,
 }
 
-struct Inventory<'a> {
+pub(super) struct Inventory<'a> {
     module: &'a TypedModule,
     active: Vec<Type>,
 }
 impl Inventory<'_> {
-    fn domain(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
+    pub(super) fn domain(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
         dynamic_metadata::ty(ty, b)?;
         b.spend(self.active.len().saturating_add(1))?;
         if self.active.len() >= b.limits.max_call_depth.min(128) {
@@ -37,7 +37,10 @@ impl Inventory<'_> {
             pending_sources: false,
         };
         match ty {
-            Type::BorrowedStorage { life, .. } => {
+            Type::BorrowedStorage { storage, life } => {
+                if matches!(storage.as_ref(), Type::Tuple(_)) {
+                    return super::compound::check(self, storage, life, b);
+                }
                 let limits = b.limits.clone();
                 stored_flow::qualification(self.module, ty, &limits, b)?;
                 Ok(Domain {
@@ -628,6 +631,59 @@ mod tests {
                 .contains("worker/frame")
         );
     }
+    #[test]
+    fn two_same_opaque_children_keep_two_complete_occurrence_directories() {
+        let module = closure(2);
+        let life = StorageLifeShape {
+            binder_count: 4,
+            slots: vec![],
+            nominal_arguments: vec![],
+            retained: (0..2)
+                .flat_map(|field| {
+                    (0..2).map(move |class| StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::Place(PlaceProjection::Field(field))],
+                        class,
+                        binder: field * 2 + class,
+                    })
+                })
+                .collect(),
+        };
+        let storage = Type::Tuple(vec![Type::Closure(ClosureId(0)); 2]);
+        let mut actual = DynTypeValue {
+            ty: Type::BorrowedStorage {
+                storage: Box::new(storage.clone()),
+                life: life.clone(),
+            },
+            life,
+            classes: vec![StorageBinder::Fixed(0); 4],
+        };
+        assert_eq!(run(&module, &actual).unwrap().count, 4);
+        let mut omitted = actual.clone();
+        omitted.life.retained.pop();
+        if let Type::BorrowedStorage { life, .. } = &mut omitted.ty {
+            *life = omitted.life.clone();
+        }
+        assert!(run(&module, &omitted).is_err());
+        let mut repeated = actual.clone();
+        repeated.life.retained[2].path = repeated.life.retained[0].path.clone();
+        if let Type::BorrowedStorage { life, .. } = &mut repeated.ty {
+            *life = repeated.life.clone();
+        }
+        assert!(run(&module, &repeated).is_err());
+        // Actual parent equality may also merge its own classes, while both
+        // fields still have the actual Closure's independent two-class domain.
+        actual.life.binder_count = 2;
+        for row in &mut actual.life.retained {
+            row.binder = row.class;
+        }
+        actual.classes.truncate(2);
+        if let Type::BorrowedStorage { life, .. } = &mut actual.ty {
+            *life = actual.life.clone();
+        }
+        assert_eq!(run(&module, &actual).unwrap().count, 2);
+        assert!(run(&module, &value(storage, 2)).is_err());
+    }
+
     #[test]
     fn address_keeps_outer_borrow_and_the_whole_opaque_pointee_domain() {
         let module = closure(2);
