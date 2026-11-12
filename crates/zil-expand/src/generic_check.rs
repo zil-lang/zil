@@ -6259,10 +6259,17 @@ impl Check<'_, '_, '_> {
                             )?;
                         }
                     }
+                    // A resolved sealed registration constructor produces a
+                    // real owned head even inside a generic factory's local
+                    // binding. Its type alone never upgrades a descriptor.
+                    let registration_created = callable::registration_environment(&actual)
+                        .is_some()
+                        && matches!(&value.kind,ExprKind::Call{callee,..} if stores::call_name(callee).is_some_and(|name|
+                            matches!(name,"c_register"|"c_register_async") && !self.signatures.contains_key(name) && !state.locals.contains_key(name)));
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     self.factory_bind_value(state.locals[n].id, value, state)?;
                     self.alias_bind(state, state.locals[n].id, statement.span)?;
-                    let owns_resource = resource_flow.owns;
+                    let owns_resource = resource_flow.owns || registration_created;
                     let declaration_resource = resource_flow.declaration;
                     let roots = if declaration_resource && owns_resource {
                         Some(self.resource_description_root(state.locals[n].id, statement.span)?)
@@ -6279,7 +6286,9 @@ impl Check<'_, '_, '_> {
                     local.description_roots = roots;
                     local.description_reference_depth = resource_flow.reference_depth;
                     local.owned_resource = owns_resource
-                        && (declaration_resource || self.concrete_helper_resource(&local.ty));
+                        && (declaration_resource
+                            || registration_created
+                            || self.concrete_helper_resource(&local.ty));
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
                             state.store_owners.insert(local.id);

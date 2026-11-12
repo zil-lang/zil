@@ -623,14 +623,20 @@ const TWO_REGISTRATIONS: &str = r#"
 extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),async_callback_register());effects(ffi);};
 extern "C" fn request(token:c_handle) contract{provides(static_callbacks(),async_callback_request_close());effects(ffi);};
 extern "C" fn drain(token:c_handle)->i32 contract{provides(static_callbacks(),async_callback_poll_drain());effects(ffi);};
+extern "C" fn mark_worker_entry();
+extern "C" fn mark_worker_ready();
+extern "C" fn cancel_after_finish()->i32;
+fn entered(){unsafe{mark_worker_entry();}}
+fn reached_ready(){unsafe{mark_worker_ready();}}
+fn should_stop()->bool{unsafe{return cancel_after_finish()!=0;}}
 fn make_callback(seed:i32)->impl FnMut(i32)->i32 {var count=seed;return move(value:i32)->i32=>{count+=1;return count+value;};}
 fn request_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(left:&mut AsyncRegistration<F>,right:&mut AsyncRegistration<F>) contract{requires(state(left,Open,Closing,Closed),state(right,Open,Closing,Closed));provides(state(left,Closing,Closed),state(right,Closing,Closed));}{async_registration_request_close(left);async_registration_request_close(right);}
 fn poll_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(left:&mut AsyncRegistration<F>,right:&mut AsyncRegistration<F>)->Poll<()> contract{requires(state(left,Closing,Closed),state(right,Closing,Closed));provides(on_pending(state(left,Closing)),on_ready(state(left,Closed)),on_pending(state(right,Closing,Closed)),on_ready(state(right,Closing,Closed)));}{return async_registration_poll_close(left);}
 fn finish_pair<F:FnMut(i32)->i32 + ClosedEnvironment>(give left:AsyncRegistration<F>,give right:AsyncRegistration<F>) contract{requires(state(left,Closed),state(right,Closed));provides(retired(left),retired(right));}{async_registration_finish_destroy_checked(give left);async_registration_finish_destroy_checked(give right);}
 fn worker<F:FnMut(i32)->i32 + ClosedEnvironment>(give left:AsyncRegistration<F>,give right:AsyncRegistration<F>,seed:i32)->i32 contract{requires(state(left,Open,Closing,Closed),state(right,Open,Closing,Closed));provides(retired(left),retired(right));} {
-    var first=give left;var second=give right;task_yield();
+    entered();var first=give left;var second=give right;task_yield();
     request_pair(&mut first,&mut second);loop{match poll_pair(&mut first,&mut second){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}
-    task_yield();loop{match async_registration_poll_close(&mut second){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}finish_pair(give first,give second);return seed+5;
+    task_yield();loop{match async_registration_poll_close(&mut second){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}finish_pair(give first,give second);task_yield();reached_ready();return seed+5;
 }
 fn main()->i32 {unsafe {
     let left=c_register_async(reg,request,drain,make_callback(37));let right=c_register_async(reg,request,drain,make_callback(43));
@@ -638,7 +644,7 @@ fn main()->i32 {unsafe {
         .err(failure)=>{let (left,right,seed)=failure.inputs;var first=give left;var second=give right;
             request_pair(&mut first,&mut second);loop{match poll_pair(&mut first,&mut second){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
             loop{match async_registration_poll_close(&mut second){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}finish_pair(give first,give second);return seed-35;},
-        .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);return answer-42;}
+        .ok(input)=>{var task=give input;var answer=0;var rounds=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{rounds+=1;if rounds==5 && should_stop(){answer=42;break;}continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);return answer-42;}
     }
 }}
 "#;
@@ -821,10 +827,13 @@ fn two_live_protocol_roles_native_preserve_the_actual_same_type_owner_heads() {
             );
             assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            for fail in [false, true] {
+            for (fail, cancel) in [(false, false), (true, false), (false, true)] {
                 let mut command = Command::new(&report.artifacts["executable"]);
                 if fail {
                     command.env("ZIL_TASK_ALLOC_FAIL", "1");
+                }
+                if cancel {
+                    command.env("ZIL_TASK_CANCEL_AFTER_FINISH", "1");
                 }
                 let output = command.output().unwrap();
                 assert_eq!(
@@ -865,4 +874,45 @@ fn a_returned_poll_for_one_role_never_closes_the_other_same_type_role() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn an_undeclared_return_phase_includes_the_actual_closing_owner() {
+    let factory = "fn closing<F:FnMut(i32)->i32 + ClosedEnvironment>(callback:F)->AsyncRegistration<F> contract{result(create);}{unsafe{var owner=c_register_async(reg,request,drain,callback);async_registration_request_close(&mut owner);return give owner;}}\n";
+    let text = REGISTRATION
+        .replacen("fn worker<", &format!("{factory}fn worker<"), 1)
+        .replace(
+            "let owner=c_register_async(reg,request,drain,callback);",
+            "let owner=closing(callback);",
+        );
+    for (text, expected) in [
+        (text.clone(), true),
+        (
+            text.replace(
+                "state(owner,Open,Closing,Closed)",
+                "state(owner,Open,Closed)",
+            ),
+            false,
+        ),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status == ResultCategory::Success,
+            expected,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
 }
