@@ -1080,11 +1080,15 @@ impl Engine<'_> {
                             })
                             .collect::<R<Vec<_>>>()?
                     };
-                    let semantic_result=self.anonymous_call_result(function,&types,e.span)?;
+                    let semantic_result = self.anonymous_call_result(function, &types, e.span)?;
                     match self.instantiate_inner(&target, types, e.span, true)? {
                         store_templates::Instantiation::Eager(instance) => {
                             callee.kind = ExprKind::Name(instance.clone());
-                            if semantic_result.is_some(){semantic_result}else{self.signature_result(&instance)?}
+                            if semantic_result.is_some() {
+                                semantic_result
+                            } else {
+                                self.signature_result(&instance)?
+                            }
                         }
                         store_templates::Instantiation::Deferred { template, element } => {
                             self.apply_store_template(callee, function, template, element)?
@@ -1097,7 +1101,11 @@ impl Engine<'_> {
                             "type arguments supplied to a non-generic function",
                         ));
                     }
-                    if let Some(result)=self.rebase_input_call_result(&target,&actual,e.span)?{Some(result)}else{self.signature_result(&target)?}
+                    if let Some(result) = self.rebase_input_call_result(&target, &actual, e.span)? {
+                        Some(result)
+                    } else {
+                        self.signature_result(&target)?
+                    }
                 }
             } else {
                 let callee_type = self.expr(callee, env, depth + 1)?;
@@ -1182,7 +1190,7 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
-        let creates_owner=crate::foreign::bare_name(callee)==Some("bytes_new");
+        let creates_owner = crate::foreign::bare_name(callee) == Some("bytes_new");
 
         if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread) {
             return Err(error(
@@ -1194,7 +1202,11 @@ impl Engine<'_> {
             self.expr_expected(&mut argument.value, env, Some(parameter), depth + 1)?;
         }
         self.budget.ty(&result)?;
-        let result=if creates_owner{self.constructed_resource_hint(Some(result))?}else{Some(result)};
+        let result = if creates_owner {
+            self.constructed_resource_hint(Some(result))?
+        } else {
+            Some(result)
+        };
         Ok(Some(result))
     }
     fn expr_call_callback(

@@ -38,9 +38,11 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         // skeleton walk. An Address adds no cleanup debt and its pointee is
         // never visited; stored-flow separately proves every actual target.
         // An ordinary unqualified Tuple<Address> keeps its prior rejection.
-        let scoped=scoped || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)));
-        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))) {
-            crate::stored_flow::physical(ty,budget)?;
+        let scoped = scoped
+            || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)));
+        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
+        {
+            crate::stored_flow::physical(ty, budget)?;
         }
         if !ty.is_copy_value()
             && (super::super::stored_flow::pure_inline(module, ty, budget)?

@@ -143,7 +143,13 @@ impl Builder<'_, '_> {
         let mut bindings = Vec::new();
         let impossible = self.block_id()?;
         self.function.blocks[impossible.0 as usize].terminator = Terminator::Trap;
-        self.pattern_test(pattern, value, stored::physical(&ty), impossible, &mut bindings)?;
+        self.pattern_test(
+            pattern,
+            value,
+            stored::physical(&ty),
+            impossible,
+            &mut bindings,
+        )?;
         for (name, value, ty, span) in bindings {
             let local = self.local(&name, ty, mutable, span)?;
             self.store(local, value, span)?;

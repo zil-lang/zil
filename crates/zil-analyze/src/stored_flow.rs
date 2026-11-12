@@ -1393,17 +1393,29 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
 
 /// Finite shared Tuples keep independently scoped child instances and all
 /// physical targets. This never establishes a generic Copy capability.
-pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-    if let Type::BorrowedStorage{storage,life}=ty && matches!(storage.as_ref(),Type::Tuple(_)) {
-        b.type_work(ty,true,"anonymous shared compound complete type")?;
-        physical(ty,b)?;
-        fee(b,life.slots.len())?;
-        return Ok(!resources::sums::owned(storage) && life.slots.iter().all(|slot|slot.mode==StoredBorrowMode::SharedAddress));
+pub(super) fn shared_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous shared compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(!resources::sums::owned(storage)
+            && life
+                .slots
+                .iter()
+                .all(|slot| slot.mode == StoredBorrowMode::SharedAddress));
     }
-    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
-    b.type_work(ty,true,"shared compound actual type")?;
-    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-        fee(b,1)?;
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "shared compound actual type")?;
+    fn walk(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        fee(b, 1)?;
         match ty {
             Type::Tuple(fields) => {
                 for field in fields {
@@ -1444,17 +1456,33 @@ pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->Compi
     }
     walk(module, ty, b)
 }
-pub(super) fn affine_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-    if let Type::BorrowedStorage{storage,life}=ty && matches!(storage.as_ref(),Type::Tuple(_)) {
-        b.type_work(ty,true,"anonymous affine compound complete type")?;
-        physical(ty,b)?;
-        fee(b,life.slots.len())?;
-        return Ok(resources::sums::owned(storage) || life.slots.iter().any(|slot|slot.mode==StoredBorrowMode::ExclusiveAddress));
+pub(super) fn affine_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous affine compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(resources::sums::owned(storage)
+            || life
+                .slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress));
     }
-    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
-    b.type_work(ty,true,"affine compound complete type")?;
-    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<Option<(bool,bool)>>{
-        fee(b,1)?;
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "affine compound complete type")?;
+    fn walk(
+        module: &TypedModule,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(bool, bool)>> {
+        fee(b, 1)?;
         match ty {
             Type::Tuple(fields) => {
                 let (mut owns, mut exclusive) = (false, false);
@@ -1536,26 +1564,70 @@ fn compound_move(
     }
     Ok(true)
 }
-fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::ExtractField{aggregate,index}=i.kind else{return Ok(false)};
-    let parent=value_type(f,aggregate)?;
-    if !shared_compound(module,parent,b)?{return Ok(false)}
-    let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
-    let Type::Tuple(fields)=physical else{unreachable!()};
-    let child=fields.get(index as usize).ok_or_else(||failure("compound extraction field absent"))?;
-    let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
-    if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+fn compound_extract(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::ExtractField { aggregate, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = value_type(f, aggregate)?;
+    if !shared_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(fields) = physical else {
+        unreachable!()
+    };
+    let child = fields
+        .get(index as usize)
+        .ok_or_else(|| failure("compound extraction field absent"))?;
+    let result = i
+        .result
+        .ok_or_else(|| failure("compound extraction result absent"))?;
+    if value_type(f, result)? != child {
+        return Err(failure("compound extraction changes complete child type"));
+    }
     Ok(true)
 }
-fn compound_unpack(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::UnpackTuple{local,fields}=&i.kind else{return Ok(false)};
-    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound unpack local absent"))?.ty;
-    if !affine_compound(module,parent,b)? && !shared_compound(module,parent,b)?{return Ok(false)}
-    let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
-    let Type::Tuple(types)=physical else{unreachable!()};
-    if i.result.is_some() || fields.len()!=types.len(){return Err(failure("compound unpack omits complete fields"))}
-    let mut seen=BTreeSet::new();
-    for (field,expected) in fields.iter().zip(types){ordered(b,seen.len(),0)?;if field==local || !seen.insert(*field) || f.locals.get(field.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(failure("compound unpack changes or duplicates actual field place"))}}
+fn compound_unpack(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound unpack local absent"))?
+        .ty;
+    if !affine_compound(module, parent, b)? && !shared_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
+        unreachable!()
+    };
+    if i.result.is_some() || fields.len() != types.len() {
+        return Err(failure("compound unpack omits complete fields"));
+    }
+    let mut seen = BTreeSet::new();
+    for (field, expected) in fields.iter().zip(types) {
+        ordered(b, seen.len(), 0)?;
+        if field == local
+            || !seen.insert(*field)
+            || f.locals.get(field.0 as usize).map(|local| &local.ty) != Some(expected)
+        {
+            return Err(failure(
+                "compound unpack changes or duplicates actual field place",
+            ));
+        }
+    }
     Ok(true)
 }
 fn compound_drop(
@@ -1580,15 +1652,35 @@ fn compound_drop(
     }
     Ok(true)
 }
-fn compound_constructor(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::MakeOwnedTuple{fields}=&i.kind else{return Ok(false)};
-    let id=i.result.ok_or_else(||failure("compound constructor result absent"))?;
-    let ty=value_type(f,id)?;
-    if !affine_compound(module,ty,b)?{return Ok(false)}
-    let physical=carrier(ty).map_or(ty,|(storage,_)|storage);
-    let Type::Tuple(types)=physical else{unreachable!()};
-    if types.len()!=fields.len(){return Err(failure("compound constructor omits actual fields"))}
-    for (field,expected) in fields.iter().zip(types){b.type_work(expected,false,"compound constructor complete field")?;if value_type(f,*field)?!=expected{return Err(failure("compound constructor changes actual field Type"))}}
+fn compound_constructor(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::MakeOwnedTuple { fields } = &i.kind else {
+        return Ok(false);
+    };
+    let id = i
+        .result
+        .ok_or_else(|| failure("compound constructor result absent"))?;
+    let ty = value_type(f, id)?;
+    if !affine_compound(module, ty, b)? {
+        return Ok(false);
+    }
+    let physical = carrier(ty).map_or(ty, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
+        unreachable!()
+    };
+    if types.len() != fields.len() {
+        return Err(failure("compound constructor omits actual fields"));
+    }
+    for (field, expected) in fields.iter().zip(types) {
+        b.type_work(expected, false, "compound constructor complete field")?;
+        if value_type(f, *field)? != expected {
+            return Err(failure("compound constructor changes actual field Type"));
+        }
+    }
     Ok(true)
 }
 fn compound_slot_rows(
@@ -2716,10 +2808,12 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
-                || !path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+            && (!matches!(
+                storage,
+                Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+            ) || !path
+                .iter()
+                .all(|part| matches!(part, PlaceProjection::Field(_)))
                 || (child_class.is_none() && path.len() != 1))
         {
             return Err(vec![Diagnostic::unsupported(
@@ -3590,7 +3684,9 @@ fn slot_loan_ids(
                 )?;
             }
             match &instruction.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } | InstructionKind::MakeOwnedTuple{..} => {
+                InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakePackage { .. }
+                | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = carrier(value_type(
                         f,
                         instruction
@@ -5853,7 +5949,7 @@ fn windows(
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
-                    | InstructionKind::MakeOwnedTuple{fields}
+                    | InstructionKind::MakeOwnedTuple { fields }
                         if b.stored_exclusive_loans =>
                     {
                         let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;

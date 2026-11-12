@@ -71,7 +71,10 @@ fn main()->i32{let value=42;let other=99;return start(&value,&other)-42}
         .retained_return_sources
         .as_mut()
         .unwrap()[0]
-        .sources[0] else { panic!("expected the actual exact source"); };
+        .sources[0]
+    else {
+        panic!("expected the actual exact source");
+    };
     source.base = zil_ir::StorageBase::Parameter(2);
     attacks.push(("wrong-helper-source-parameter", wrong));
     let mut wrong = module.clone();

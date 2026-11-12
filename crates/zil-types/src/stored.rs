@@ -976,7 +976,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         owned_leaves: 0,
     };
     walk.ty(storage, &mut Vec::new(), 0)?;
-    if matches!(storage.as_ref(),Type::Package{..}) && walk.owned_leaves == 0 {
+    if matches!(storage.as_ref(), Type::Package { .. }) && walk.owned_leaves == 0 {
         return Err(unsupported(
             span,
             "stored Package requires an actual owning Managed leaf",
@@ -1045,10 +1045,12 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             }
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
-                || !path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+            && (!matches!(
+                storage.as_ref(),
+                Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+            ) || !path
+                .iter()
+                .all(|part| matches!(part, PlaceProjection::Field(_)))
                 || (child_class.is_none() && path.len() != 1))
         {
             return Err(unsupported(
@@ -1117,7 +1119,10 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
     {
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         shape(ty, left, limits.max_call_depth, span)?;
-        return Ok(life.slots.iter().all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
+        return Ok(life
+            .slots
+            .iter()
+            .all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
             && !owned_shapes::tuple(ty));
     }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {

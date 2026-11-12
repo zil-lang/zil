@@ -124,7 +124,7 @@ impl Builder<'_, '_> {
             Type::Package { .. } => true,
             Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. })
-                    || matches!(storage.as_ref(),Type::Tuple(_)) && owned_shapes::tuple(ty) =>
+                    || matches!(storage.as_ref(), Type::Tuple(_)) && owned_shapes::tuple(ty) =>
             {
                 true
             }

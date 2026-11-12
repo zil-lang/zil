@@ -106,9 +106,15 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     }
                 }
             }
-            if let s::ItemKind::Function(function)=&item.kind {
+            if let s::ItemKind::Function(function) = &item.kind {
                 for parameter in &function.params {
-                    if generics::source_input_life::has_elided(&parameter.ty,self.budget,depth+1).map_err(|error|vec![error])? {
+                    if generics::source_input_life::has_elided(
+                        &parameter.ty,
+                        self.budget,
+                        depth + 1,
+                    )
+                    .map_err(|error| vec![error])?
+                    {
                         self.budget.note_stored_lifetimes();
                     }
                 }
@@ -187,7 +193,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             // Inferred generic actuals need the same source-class machinery as
             // an explicit Tuple TypeApply. This only selects bounded producer
             // work; actual type, class and source permission proofs stay separate.
-            if !self.binders.is_empty() && matches!(expression.kind,s::ExprKind::Tuple(_)) {
+            if !self.binders.is_empty() && matches!(expression.kind, s::ExprKind::Tuple(_)) {
                 self.budget.note_stored_lifetimes();
             }
             let old_type_argument = self.direct_type_argument;
@@ -226,14 +232,17 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.headers.truncate(mark);
                 return result;
             }
-            if matches!(ty.kind,s::TypeKind::Tuple(_))
-                && (self.direct_type_argument || self.headers.contains(&std::ptr::from_ref(ty))) {
-                self.budget.node(ty.span,depth).map_err(|error|vec![error])?;
+            if matches!(ty.kind, s::TypeKind::Tuple(_))
+                && (self.direct_type_argument || self.headers.contains(&std::ptr::from_ref(ty)))
+            {
+                self.budget
+                    .node(ty.span, depth)
+                    .map_err(|error| vec![error])?;
                 self.budget.note_stored_lifetimes();
-                let old=self.stored_fields;
-                self.stored_fields=true;
-                let result=ct_selection::walk_type(self,ty,depth);
-                self.stored_fields=old;
+                let old = self.stored_fields;
+                self.stored_fields = true;
+                let result = ct_selection::walk_type(self, ty, depth);
+                self.stored_fields = old;
                 return result;
             }
             if matches!(&ty.kind, s::TypeKind::Array { element, length: Some(_) }

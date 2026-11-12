@@ -128,7 +128,8 @@ fn exclusive(ty: &Type) -> bool {
     }
 }
 pub(super) fn tuple(ty: &Type) -> bool {
-    matches!(stored::physical(ty), Type::Tuple(_)) && shape(ty).is_some_and(|owns|owns||exclusive(ty))
+    matches!(stored::physical(ty), Type::Tuple(_))
+        && shape(ty).is_some_and(|owns| owns || exclusive(ty))
 }
 pub(super) fn enumeration(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && shape(ty) == Some(true)
@@ -137,7 +138,8 @@ pub(super) fn sum(ty: &Type) -> bool {
     matches!(
         stored::physical(ty),
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-    ) && shape(ty).is_some_and(|owns|owns||matches!(stored::physical(ty),Type::Tuple(_))&&exclusive(ty))
+    ) && shape(ty)
+        .is_some_and(|owns| owns || matches!(stored::physical(ty), Type::Tuple(_)) && exclusive(ty))
 }
 pub(super) fn error_union(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { .. }) && shape(ty).is_some()

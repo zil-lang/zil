@@ -1537,14 +1537,28 @@ fn check_with(
                             .ok_or_else(|| bad("anonymous Tuple class directory absent"))?;
                         for (index, target) in fields.iter().enumerate() {
                             if let Some(to) = locals[target.0 as usize].outer {
-                                let (class, _) = failure_view_slot(actual, &[PlaceProjection::Field(index as u32)], b)?
-                                    .ok_or_else(|| bad("anonymous child has no exact parent slot class"))?;
-                                let from = *locals[local.0 as usize].classes.get(class as usize)
+                                let (class, _) = failure_view_slot(
+                                    actual,
+                                    &[PlaceProjection::Field(index as u32)],
+                                    b,
+                                )?
+                                .ok_or_else(|| {
+                                    bad("anonymous child has no exact parent slot class")
+                                })?;
+                                let from = *locals[local.0 as usize]
+                                    .classes
+                                    .get(class as usize)
                                     .ok_or_else(|| bad("anonymous parent class variable absent"))?;
                                 array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
                             } else {
-                                link_projection(&f.locals[local.0 as usize].ty, &locals[local.0 as usize],
-                                    &locals[target.0 as usize], LifeTypeProjection::Place(PlaceProjection::Field(index as u32)), &mut e, b)?;
+                                link_projection(
+                                    &f.locals[local.0 as usize].ty,
+                                    &locals[local.0 as usize],
+                                    &locals[target.0 as usize],
+                                    LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                                    &mut e,
+                                    b,
+                                )?;
                             }
                         }
                     }
@@ -1921,16 +1935,27 @@ fn check_with(
                                     .get(*index as usize)
                                     .ok_or_else(|| bad("aggregate class operand is absent"))?;
                                 let operand = &values[arg.0 as usize];
-                                let upper = if !tail.is_empty() && matches!(f.values[arg.0 as usize], Type::BorrowedStorage { .. }) {
-                                    let actual_child = shape(&f.values[arg.0 as usize]).ok_or_else(||bad("nested constructor lacks actual child shape"))?;
+                                let upper = if !tail.is_empty()
+                                    && matches!(
+                                        f.values[arg.0 as usize],
+                                        Type::BorrowedStorage { .. }
+                                    ) {
+                                    let actual_child = shape(&f.values[arg.0 as usize])
+                                        .ok_or_else(|| {
+                                            bad("nested constructor lacks actual child shape")
+                                        })?;
                                     let (class, _) = failure_view_slot(actual_child, tail, b)?.ok_or_else(||bad("nested constructor has no exact physical child slot"))?;
-                                    *operand.classes.get(class as usize).ok_or_else(||bad("nested constructor child class absent"))?
-                                } else { match tail {
+                                    *operand.classes.get(class as usize).ok_or_else(|| {
+                                        bad("nested constructor child class absent")
+                                    })?
+                                } else {
+                                    match tail {
                                 [] => operand.outer.ok_or_else(|| bad("stored class operand is not an Address"))?,
                                 [PlaceProjection::Field(ordinal)] => *operand.array_elements.get(*ordinal as usize)
                                     .ok_or_else(|| bad("stored Array class operand lacks its actual ordinal"))?,
                                 _ => return Err(bad("nested constructor class requires its physical operand consumer")),
-                            }};
+                            }
+                                };
                                 array_outer::binding(
                                     &mut e,
                                     upper,
@@ -2015,24 +2040,44 @@ fn check_with(
                             if super::stored_flow::anonymous_operation(f, i, b)? {
                                 if let Some(to) = out.outer {
                                     let actual = shape(&f.values[aggregate.0 as usize])
-                                        .ok_or_else(|| bad("anonymous snapshot class directory absent"))?;
-                                    let (class, _) = failure_view_slot(actual, &[PlaceProjection::Field(*index)], b)?
-                                        .ok_or_else(|| bad("anonymous snapshot has no exact actual slot class"))?;
-                                    let from = *values[aggregate.0 as usize].classes.get(class as usize)
-                                        .ok_or_else(|| bad("anonymous snapshot parent class variable absent"))?;
+                                        .ok_or_else(|| {
+                                            bad("anonymous snapshot class directory absent")
+                                        })?;
+                                    let (class, _) = failure_view_slot(
+                                        actual,
+                                        &[PlaceProjection::Field(*index)],
+                                        b,
+                                    )?
+                                    .ok_or_else(|| {
+                                        bad("anonymous snapshot has no exact actual slot class")
+                                    })?;
+                                    let from = *values[aggregate.0 as usize]
+                                        .classes
+                                        .get(class as usize)
+                                        .ok_or_else(|| {
+                                            bad("anonymous snapshot parent class variable absent")
+                                        })?;
                                     array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
                                 } else {
-                                    link_projection(&f.values[aggregate.0 as usize], &values[aggregate.0 as usize], out,
-                                        LifeTypeProjection::Place(PlaceProjection::Field(*index)), &mut e, b)?;
+                                    link_projection(
+                                        &f.values[aggregate.0 as usize],
+                                        &values[aggregate.0 as usize],
+                                        out,
+                                        LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                                        &mut e,
+                                        b,
+                                    )?;
                                 }
-                            } else { link_projection(
-                                &f.values[aggregate.0 as usize],
-                                &values[aggregate.0 as usize],
-                                out,
-                                LifeTypeProjection::Place(PlaceProjection::Field(*index)),
-                                &mut e,
-                                b,
-                            )?; }
+                            } else {
+                                link_projection(
+                                    &f.values[aggregate.0 as usize],
+                                    &values[aggregate.0 as usize],
+                                    out,
+                                    LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
                         }
                     }
                     InstructionKind::MakeErrorUnion { value, is_error }

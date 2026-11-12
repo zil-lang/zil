@@ -1010,9 +1010,9 @@ fn expand_inner_project(
     }
     for (ordinal, item) in module.items.iter().enumerate() {
         e.source_item_ordinal = ordinal;
-        e.source_signature_function=match &item.kind {
-            s::ItemKind::Function(function)=>Some((ordinal,std::ptr::from_ref(function))),
-            _=>None,
+        e.source_signature_function = match &item.kind {
+            s::ItemKind::Function(function) => Some((ordinal, std::ptr::from_ref(function))),
+            _ => None,
         };
         e.item(item, None, None, None);
     }

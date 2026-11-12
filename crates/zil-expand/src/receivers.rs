@@ -1,18 +1,37 @@
 use super::*;
 
 impl Expander<'_> {
-    fn source_signature_type(&mut self,item:Option<usize>,parameter:Option<u32>,span:Span)->Option<Type>{
-        let item=item?;
-        let catalog=self.storage_catalog?;
-        if catalog.signature_candidates.is_empty(){return None}
-        let limits=Limits{max_analysis_steps:self.member_owner_limit.saturating_sub(self.member_owner_work),
-            max_nodes:self.member_owner_nodes,max_call_depth:self.member_owner_depth,..Limits::default()};
-        let mut budget=generics::Budget::new(&limits);
-        let result=catalog.signature_type(self.module_id,item,parameter,span,&mut budget);
-        let left=budget.remaining_limits();
-        self.member_owner_work+=limits.max_analysis_steps-left.max_analysis_steps;
-        self.member_owner_nodes=left.max_nodes;
-        match result{Ok(ty)=>ty,Err(error)=>{self.diagnostics.push(error);None}}
+    fn source_signature_type(
+        &mut self,
+        item: Option<usize>,
+        parameter: Option<u32>,
+        span: Span,
+    ) -> Option<Type> {
+        let item = item?;
+        let catalog = self.storage_catalog?;
+        if catalog.signature_candidates.is_empty() {
+            return None;
+        }
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let result = catalog.signature_type(self.module_id, item, parameter, span, &mut budget);
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match result {
+            Ok(ty) => ty,
+            Err(error) => {
+                self.diagnostics.push(error);
+                None
+            }
+        }
     }
 
     pub(super) fn function(
@@ -24,8 +43,11 @@ impl Expander<'_> {
     ) {
         // Consume the exact immutable Source function emission once. Synthetic
         // defaults and nested lowering helpers never inherit a caller's header.
-        let signature_item=self.source_signature_function.take()
-            .filter(|(_,function)|*function==std::ptr::from_ref(f)).map(|(ordinal,_)|ordinal);
+        let signature_item = self
+            .source_signature_function
+            .take()
+            .filter(|(_, function)| *function == std::ptr::from_ref(f))
+            .map(|(ordinal, _)| ordinal);
         if prefix.is_none() && primitive_name(&f.name) {
             self.diagnostics.push(primitive_name_error(&f.name, f.span));
             return;
@@ -279,8 +301,12 @@ impl Expander<'_> {
             })
             .collect();
         if prefix.is_none() {
-            for (index,parameter) in parameters.iter_mut().enumerate(){
-                if let Some(ty)=self.source_signature_type(signature_item,Some(index as u32),parameter.span){parameter.ty=ty;}
+            for (index, parameter) in parameters.iter_mut().enumerate() {
+                if let Some(ty) =
+                    self.source_signature_type(signature_item, Some(index as u32), parameter.span)
+                {
+                    parameter.ty = ty;
+                }
             }
         }
         let receiver = selected.map(|p| {
@@ -377,7 +403,11 @@ impl Expander<'_> {
                 }),
             },
         );
-        if prefix.is_none() && let Some(ty)=self.source_signature_type(signature_item,None,f.span){return_type=ty;}
+        if prefix.is_none()
+            && let Some(ty) = self.source_signature_type(signature_item, None, f.span)
+        {
+            return_type = ty;
+        }
         self.return_type = Some(return_type.clone());
         let body = match &f.body {
             s::FunctionBody::Block(b) => self.block(b),

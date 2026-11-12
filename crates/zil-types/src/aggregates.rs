@@ -1962,15 +1962,20 @@ impl Resolver<'_> {
                     inner: Box::new(inner),
                 }
             }
-            Type::BorrowedStorage { storage, life } if matches!(storage.as_ref(),Type::Tuple(_)) => {
+            Type::BorrowedStorage { storage, life }
+                if matches!(storage.as_ref(), Type::Tuple(_)) =>
+            {
                 // Anonymous scope is structural, never a fabricated nominal
                 // inventory entry. Resolve every real child and then validate
                 // complete slots/retained/nominal metadata against that shape.
-                let work=inference::type_snapshot_work(ty,span,&self.generic_limits)?;
-                aggregate_templates::spend(&mut self.remaining,work.saturating_mul(2),span)?;
-                let storage=self.ty(storage,depth+1,span)?;
-                let qualified=Type::BorrowedStorage{storage:Box::new(storage),life:life.clone()};
-                stored::shape(&qualified,&mut self.remaining,self.depth_limit,span)?;
+                let work = inference::type_snapshot_work(ty, span, &self.generic_limits)?;
+                aggregate_templates::spend(&mut self.remaining, work.saturating_mul(2), span)?;
+                let storage = self.ty(storage, depth + 1, span)?;
+                let qualified = Type::BorrowedStorage {
+                    storage: Box::new(storage),
+                    life: life.clone(),
+                };
+                stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
                 qualified
             }
             Type::BorrowedStorage { .. } => {
@@ -3018,13 +3023,16 @@ impl<'a> Builder<'a, '_> {
             staged.push(self.stage_argument(id, &t, v.span)?);
             types.push(t);
         }
-        let physical=Type::Tuple(types);
-        let ty=if let Some(expected@Type::BorrowedStorage{storage,..})=expected
-            && matches!(storage.as_ref(),Type::Tuple(_)) {
-            self.same(&physical,storage,e.span)?;
-            self.closures.snapshot_type(expected,1,0,e.span)?;
+        let physical = Type::Tuple(types);
+        let ty = if let Some(expected @ Type::BorrowedStorage { storage, .. }) = expected
+            && matches!(storage.as_ref(), Type::Tuple(_))
+        {
+            self.same(&physical, storage, e.span)?;
+            self.closures.snapshot_type(expected, 1, 0, e.span)?;
             expected.clone()
-        } else {physical};
+        } else {
+            physical
+        };
         let pure = ty.is_copy_value()
             || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
             || stored::shared_compound(&ty, &mut self.match_work_left, self.limits, e.span)?;

@@ -18,17 +18,17 @@ pub(super) struct Instance {
 }
 
 pub(super) struct SourceInputLife {
-    pub(super) parameter:u32,
-    pub(super) path:Vec<LifeTypeProjection>,
-    pub(super) binder:u32,
+    pub(super) parameter: u32,
+    pub(super) path: Vec<LifeTypeProjection>,
+    pub(super) binder: u32,
 }
 
 /// Candidate header types travel with the exact pending Source emission.
 /// They carry layout and lexical scope data, never origin or access authority.
 #[derive(Default)]
 pub(super) struct SignatureCandidate {
-    pub(super) source_scope:Vec<String>,
-    pub(super) source_inputs:Vec<SourceInputLife>,
+    pub(super) source_scope: Vec<String>,
+    pub(super) source_inputs: Vec<SourceInputLife>,
     pub(super) parameters: BTreeMap<u32, Type>,
     pub(super) result: Option<Type>,
 }
@@ -55,14 +55,26 @@ impl Catalog {
         span: Span,
         budget: &mut generics::Budget<'_>,
     ) -> R<Option<Type>> {
-        if self.signature_candidates.is_empty() { return Ok(None); }
-        budget.identity_work(self.signature_candidates.len().checked_ilog2().map_or(1,|n|n as usize+2),span)?;
-        let Some(candidate)=self.signature_candidates.get(&(module,item)) else { return Ok(None); };
-        let ty=match parameter {
-            Some(index)=>candidate.parameters.get(&index),
-            None=>candidate.result.as_ref(),
+        if self.signature_candidates.is_empty() {
+            return Ok(None);
+        }
+        budget.identity_work(
+            self.signature_candidates
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+            span,
+        )?;
+        let Some(candidate) = self.signature_candidates.get(&(module, item)) else {
+            return Ok(None);
         };
-        if let Some(ty)=ty {pay_type(ty,budget,span,0)?;}
+        let ty = match parameter {
+            Some(index) => candidate.parameters.get(&index),
+            None => candidate.result.as_ref(),
+        };
+        if let Some(ty) = ty {
+            pay_type(ty, budget, span, 0)?;
+        }
         Ok(ty.cloned())
     }
 
@@ -208,9 +220,12 @@ impl Catalog {
                     .saturating_add(1)
                     .saturating_mul(canonical.len().saturating_add(1)),
             )?;
-            let (module, restored, _) = functions
-                .get(&canonical)
-                .ok_or_else(|| invalid(span, &format!("stored function lost actual project declaration: {canonical}")))?;
+            let (module, restored, _) = functions.get(&canonical).ok_or_else(|| {
+                invalid(
+                    span,
+                    &format!("stored function lost actual project declaration: {canonical}"),
+                )
+            })?;
             budget.text(restored, span)?;
             budget.node(span, 0)?;
             self.project_functions
