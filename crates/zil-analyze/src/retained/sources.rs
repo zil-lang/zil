@@ -249,9 +249,10 @@ fn resolve(
     }
     let key = (c.f.id, v, path.to_vec());
     if !active.insert(key.clone()) {
-        return Err(err(
-            "cyclic address source has no established external base",
-        ));
+        // Revisit the finite CFG equation at bottom, not as an established
+        // origin. Every reachable Store is still joined by its caller and
+        // each final returned leaf must have a nonempty external base.
+        return Ok(Sources::new());
     }
     let result = match c
         .defs
