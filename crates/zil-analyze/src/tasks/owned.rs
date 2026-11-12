@@ -452,7 +452,32 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            for capture in &c.captures {
+            for (index, capture) in c.captures.iter().enumerate() {
+                if let Type::Address {
+                    mutable: false,
+                    inner,
+                } = capture
+                {
+                    let Some(life) = &c.storage_life else {
+                        return Ok(false);
+                    };
+                    budget.spend(
+                        life.static_bindings.len(),
+                        "actual callback constant field selector",
+                    )?;
+                    if !life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    }) || !retained_pointee(inner)
+                        || super::input_scope::domain(t, budget)?
+                            != super::input_scope::Domain::Known(0)
+                    {
+                        return Ok(false);
+                    }
+                    // Only frame layout eligibility. Analyze's independent
+                    // all-constructor/write source proof has already run.
+                    continue;
+                }
                 let complete = if matches!(capture, Type::Closure(_)) {
                     pollable_storage(module, capture, budget)?
                 } else {
@@ -764,7 +789,6 @@ pub(super) fn profile(
 ) -> CompileResult<Vec<FunctionId>> {
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
@@ -790,6 +814,8 @@ pub(super) fn profile(
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
             && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
+            && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
+                && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -878,6 +904,32 @@ pub(super) fn profile(
                 }
                 InstructionKind::Call { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
+                }
+                InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
+                    let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
+                        .ok_or_else(|| {
+                            fail(i.span, "Task callback has no actual checked concrete entry")
+                        })?;
+                    let entry = module
+                        .functions
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| fail(i.span, "Task callback entry is absent"))?;
+                    if entry.environment != Some(definition.id)
+                        || entry.call_kind != CallKind::Direct
+                        || !pollable_storage(module, &Type::Closure(definition.id), budget)?
+                    {
+                        return Err(fail(
+                            i.span,
+                            "Task callback needs complete actual frame storage",
+                        ));
+                    }
+                    // Helpers prove traces/actual operands; resources prove
+                    // ownership. NoExternal separately walks this entry and
+                    // every captured child/cleanup before automatic close.
                 }
                 InstructionKind::SuspendCall {
                     function,

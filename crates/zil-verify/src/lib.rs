@@ -962,6 +962,9 @@ fn check_module(
     }
     registration::storage(module, &mut budget)?;
     closures::check_definitions(module, limits, &mut budget)?;
+    if budget.task_sources() && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
+        budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, &mut budget)?);
+    }
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =

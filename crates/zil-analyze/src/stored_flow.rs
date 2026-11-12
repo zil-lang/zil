@@ -3974,6 +3974,15 @@ fn transfer(
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
+        InstructionKind::UnpackTuple { local, fields }
+            if b.task_sources() && crate::tasks::input_scope::registration_unpack(f, i, b)? => {
+                ordered(b, state.locals.len().saturating_add(fields.len()), 0)?;
+                state.locals.remove(local);
+                for field in fields { state.locals.insert(*field, Value::default()); }
+                // There are no stored targets to project. Each affine owner
+                // and live protocol phase is transported by the independent
+                // resource kernel, which checks these same physical fields.
+        }
         InstructionKind::TaskCreateOwned { arguments, .. } if b.task_failure_carriers => {
             out = task_transfer.unwrap_or_default();
             task_failure::create(f, i, arguments, values, &mut out, b)?;
@@ -8206,6 +8215,7 @@ fn actual_instructions(
                 && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
+                && !(b.task_sources() && crate::tasks::input_scope::registration_unpack(f, i, b)?)
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
                 && !(b.masked_stored_tasks()

@@ -315,7 +315,32 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            for capture in &c.captures {
+            for (index, capture) in c.captures.iter().enumerate() {
+                if let Type::Address {
+                    mutable: false,
+                    inner,
+                } = capture
+                {
+                    let Some(life) = &c.storage_life else {
+                        return Ok(false);
+                    };
+                    budget.spend(life.static_bindings.len())?;
+                    let position = StoragePosition {
+                        base: StorageBase::Capture(index as u32),
+                        path: vec![],
+                    };
+                    if !life.static_bindings.contains(&position)
+                        || !retained_pointee(inner)
+                        || super::input_scope::domain(t, budget)?
+                            != super::input_scope::Domain::Known(0)
+                    {
+                        return Ok(false);
+                    }
+                    // Conditional shape only. The independent global SSA
+                    // Static proof must discharge every ctor/write and all
+                    // actual parent loans before this module can be accepted.
+                    continue;
+                }
                 let complete = if matches!(capture, Type::Closure(_)) {
                     pollable_storage(module, capture, budget)?
                 } else {
@@ -644,7 +669,6 @@ pub(super) fn profile(
 ) -> Check<Vec<FunctionId>> {
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer
@@ -670,6 +694,8 @@ pub(super) fn profile(
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
             && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
+            && !(matches!(local_type(f, *parameter, span)?, Type::Closure(_))
+                && pollable_storage(module, local_type(f, *parameter, span)?, budget)?)
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -774,6 +800,43 @@ pub(super) fn profile(
                     if enum_frame => {}
                 InstructionKind::Call { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?
+                }
+                InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
+                    let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                Some(i.span),
+                                "Task callback has no actual concrete target",
+                            )
+                        })?;
+                    let entry = module
+                        .functions
+                        .get(definition.function.0 as usize)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                Some(i.span),
+                                "Task callback target is absent",
+                            )
+                        })?;
+                    if entry.environment != Some(definition.id)
+                        || entry.call_kind != CallKind::Direct
+                        || !pollable_storage(module, &Type::Closure(definition.id), budget)?
+                    {
+                        return Err(reject(
+                            "E-VERIFY-TASK",
+                            Some(i.span),
+                            "Task callback lacks complete actual storage",
+                        ));
+                    }
+                    // Only execution/layout selection. The independent SSA,
+                    // helper trace, ownership and NoExternal kernels still
+                    // validate all actual operands and executable callees.
                 }
                 InstructionKind::SuspendCall {
                     function,

@@ -419,6 +419,51 @@ pub(crate) fn registration_value(ty: &Type, b: &mut Budget) -> CompileResult<boo
     Ok(registration)
 }
 
+pub(crate) fn registration_unpack(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| fail(i.span, "registration tuple is absent"))?
+        .ty;
+    let Type::Tuple(types) = parent else {
+        return Ok(false);
+    };
+    if !registration_value(parent, b)? {
+        return Ok(false);
+    }
+    b.spend(
+        fields.len().saturating_mul(2),
+        "registration tuple physical destinations",
+    )?;
+    let mut seen = std::collections::BTreeSet::new();
+    if i.result.is_some() || fields.len() != types.len() {
+        return Err(fail(i.span, "registration tuple unpack omits fields"));
+    }
+    for (field, ty) in fields.iter().zip(types) {
+        b.spend(
+            seen.len().saturating_add(1),
+            "registration tuple distinct destinations",
+        )?;
+        if field == local
+            || !seen.insert(*field)
+            || f.locals.get(field.0 as usize).map(|l| &l.ty) != Some(ty)
+        {
+            return Err(fail(
+                i.span,
+                "registration tuple unpack changes actual owner slots",
+            ));
+        }
+    }
+    Ok(true)
+}
+
 pub(crate) fn provider(
     module: &TypedModule,
     candidate: &TypedFunction,
