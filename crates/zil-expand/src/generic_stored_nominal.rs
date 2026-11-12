@@ -772,7 +772,12 @@ impl<'a> Engine<'a> {
             TypeKind::Error {
                 error: failure,
                 result,
-            } if self.budget.has_shared_enum_addresses() => {
+            } => {
+                // Class inventory follows the actual type structure. A dynamic
+                // Context inside either arm must not depend on an unrelated
+                // shared-enum feature being present elsewhere in the request.
+                self.budget.ty(failure)?;
+                self.budget.ty(result)?;
                 let source = TypeRef {
                     span: ty.span,
                     kind: TypeKind::Error {

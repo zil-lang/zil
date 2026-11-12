@@ -1,13 +1,17 @@
 //! Source-owned dyn interface and static implementation recipes. These are
 //! untrusted inputs for the public Types/CFG consumers, never permissions.
 use super::*;
+#[path = "generic_dyn_application.rs"]
+mod application;
 #[path = "generic_trait_dyn_source.rs"]
 pub(crate) mod source;
+pub(crate) use application::Application;
+pub(in crate::generics) use application::contextual_signature;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
     pub(crate) declaration: origins::MemberId,
-    pub(crate) reference: trait_instances::Reference,
+    pub(crate) reference: Application,
     pub(crate) signature: Function,
     /// Empty syntax is an unresolved contract, not an empty effect/Hold claim.
     pub(crate) contract_written: bool,
@@ -15,9 +19,9 @@ pub(crate) struct Slot {
 #[derive(Clone)]
 pub(crate) struct Interface {
     pub(crate) context: Option<zil_ir::Type>,
-    pub(crate) reference: trait_instances::Reference,
+    pub(crate) reference: Application,
     pub(crate) declaration: origins::DeclId,
-    pub(crate) inherited: Vec<trait_instances::Reference>,
+    pub(crate) inherited: Vec<Application>,
     pub(crate) slots: Vec<Slot>,
 }
 #[derive(Clone)]
@@ -59,7 +63,7 @@ pub(crate) struct Catalog {
     targets: Vec<source::Target>,
     pub(crate) interfaces: Vec<Interface>,
     pub(crate) vtables: Vec<Vtable>,
-    pub(crate) owned_interfaces: Vec<trait_instances::Reference>,
+    pub(crate) owned_interfaces: Vec<Application>,
     pub(crate) context_types: Vec<(String, usize, bool)>,
     context_constructors: Vec<(String, usize)>,
 }
@@ -101,18 +105,21 @@ impl Catalog {
         index: &Index<'_>,
         target: &TypeRef,
         context: zil_ir::Type,
+        resolved: Option<Application>,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<(String, zil_ir::Type)> {
-        let reference = index.dynamic_reference(target, budget)?;
-        let base = self
-            .find(&reference, budget, span)?
-            .ok_or_else(|| error(span, "dyn Context has no actual trait recipe"))?;
+        let candidate = if let Some(reference) = resolved {
+            index.context_interface(reference, budget, span)?
+        } else {
+            index.dynamic_interface(target, budget)?
+        };
+        let reference = candidate.reference.clone_paid(budget, span)?;
         let mut selected = None;
         for (ordinal, interface) in self.interfaces.iter().enumerate() {
             budget.node(span, 0)?;
-            pay_key(&interface.reference.key, budget, span)?;
-            if interface.reference.key == reference.key
+            interface.reference.pay(budget, span)?;
+            if interface.reference.same(&reference)
                 && let Some(existing) = &interface.context
             {
                 crate::stored_types::pay_type(existing, budget, span, 0)?;
@@ -126,12 +133,14 @@ impl Catalog {
         let ordinal = if let Some(ordinal) = selected {
             ordinal
         } else {
-            let source = &self.interfaces[base];
+            let source = &candidate;
+            source.reference.pay(budget, span)?;
             for slot in &source.slots {
+                slot.reference.pay(budget, span)?;
                 budget.const_function(&slot.signature)?;
             }
             for inherited in &source.inherited {
-                pay_key(&inherited.key, budget, span)?;
+                inherited.pay(budget, span)?;
             }
             crate::stored_types::pay_type(&context, budget, span, 0)?;
             let mut interface = source.clone();
@@ -276,15 +285,15 @@ impl Catalog {
 
     fn find(
         &self,
-        reference: &trait_instances::Reference,
+        reference: &Application,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<Option<usize>> {
         for (ordinal, interface) in self.interfaces.iter().enumerate() {
             budget.node(span, 0)?;
-            pay_key(&reference.key, budget, span)?;
-            pay_key(&interface.reference.key, budget, span)?;
-            if interface.context.is_none() && interface.reference.key == reference.key {
+            reference.pay(budget, span)?;
+            interface.reference.pay(budget, span)?;
+            if interface.context.is_none() && interface.reference.same(reference) {
                 return Ok(Some(ordinal));
             }
         }
@@ -301,7 +310,7 @@ impl Catalog {
         if !is_interface(actual) {
             return Ok(None);
         }
-        let reference = index.dynamic_reference(actual, budget)?;
+        let reference = Application::Ordinary(index.dynamic_reference(actual, budget)?);
         let ordinal = self
             .find(&reference, budget, span)?
             .ok_or_else(|| error(span, "dyn method interface was not inventoried"))?;
@@ -418,7 +427,9 @@ impl Index<'_> {
                     }
                 }
                 budget.node(ty.span, 0)?;
-                inherited.push(copy_reference(&actual, budget, ty.span)?);
+                inherited.push(Application::Ordinary(copy_reference(
+                    &actual, budget, ty.span,
+                )?));
             }
             for (ordinal, member) in declaration.members.iter().enumerate() {
                 budget.node(member.span, 0)?;
@@ -454,7 +465,7 @@ impl Index<'_> {
                 }
                 slots.push(Slot {
                     declaration: origin.member(ordinal, member.span)?.id(member.span)?,
-                    reference: copy_reference(&actual, budget, member.span)?,
+                    reference: Application::Ordinary(copy_reference(&actual, budget, member.span)?),
                     contract_written: !signature.contract.is_empty(),
                     signature,
                 });
@@ -462,7 +473,7 @@ impl Index<'_> {
         }
         Ok(Interface {
             context: None,
-            reference,
+            reference: Application::Ordinary(reference),
             declaration: origin.declaration,
             inherited,
             slots,
@@ -483,7 +494,7 @@ impl Index<'_> {
             budget.node(slot.signature.span, 0)?;
             let selected_witness = self
                 .solve(
-                    &slot.reference,
+                    slot.reference.ordinary(slot.signature.span)?,
                     &witness.actual,
                     &Bounds::new(),
                     &BTreeSet::new(),
@@ -498,7 +509,8 @@ impl Index<'_> {
             let ItemKind::Impl(implementation) = &selected_witness.item.kind else {
                 unreachable!()
             };
-            let (trait_item, declaration) = self.declaration_item(&slot.reference);
+            let (trait_item, declaration) =
+                self.declaration_item(slot.reference.ordinary(slot.signature.span)?);
             let mut selected = None;
             for (ordinal, member) in implementation.members.iter().enumerate() {
                 budget.node(member.span, 0)?;
@@ -548,8 +560,10 @@ impl Index<'_> {
                     substitutions.insert(name.clone(), ty.clone());
                 }
             } else {
-                for (parameter, argument) in
-                    declaration.generics.iter().zip(&slot.reference.arguments)
+                for (parameter, argument) in declaration
+                    .generics
+                    .iter()
+                    .zip(&slot.reference.ordinary(slot.signature.span)?.arguments)
                 {
                     budget.text(&parameter.name, member.span)?;
                     budget.ty(argument)?;
@@ -620,11 +634,11 @@ pub(in crate::generics) fn collect<'a>(
                 if let [GenericArg::Type(actual)] = arguments.as_slice()
                     && is_interface(actual)
                 {
-                    self.catalog.owned_interfaces.push(
+                    self.catalog.owned_interfaces.push(Application::Ordinary(
                         self.index
                             .dynamic_reference(actual, self.budget)
                             .map_err(|e| vec![e])?,
-                    );
+                    ));
                 }
             }
             super::super::super::ct_selection::walk_expression(self, expression, depth)
@@ -636,7 +650,12 @@ pub(in crate::generics) fn collect<'a>(
             self.budget.text(text, span).map_err(|e| vec![e])
         }
         fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
-            if matches!(ty.kind, TypeKind::Dyn { .. }) {
+            if matches!(ty.kind, TypeKind::Dyn { .. })
+                && !self
+                    .index
+                    .deferred_application(ty, self.budget)
+                    .map_err(|e| vec![e])?
+            {
                 let candidate = self
                     .index
                     .dynamic_interface(ty, self.budget)
@@ -679,19 +698,19 @@ pub(in crate::generics) fn collect<'a>(
             let Some(application) = &implementation.trait_type else {
                 continue;
             };
-            if trait_instances::head(application) != Some(requested.reference.key.name.as_str()) {
+            if trait_instances::head(application) != Some(requested.reference.name()) {
                 continue;
             }
             let origin = index.origin(item, budget)?;
             let reference = budget.with_origin(origin, |budget| {
                 index.pattern_reference(application, budget)
             })?;
-            if reference.key != requested.reference.key {
+            if !requested.reference.same(&Application::Ordinary(reference)) {
                 continue;
             }
             let witness = index
                 .solve(
-                    &requested.reference,
+                    requested.reference.ordinary(item.span)?,
                     &implementation.target,
                     &Bounds::new(),
                     &BTreeSet::new(),
@@ -797,13 +816,22 @@ mod tests {
                 );
             }
         }
-        // Until the executable consumer reconstructs the actual CFG claims,
-        // missing contracts remain Unknown, never a finite empty permission.
+        // Declaration defaults are provider-independent synchronous uppers.
+        // These are claims for the independent kernels, never empty permissions.
         assert!(
             core.dyn_interfaces
                 .iter()
                 .flat_map(|interface| &interface.slots)
-                .all(|slot| slot.contract.effects.is_none() && slot.contract.call.is_none())
+                .all(|slot| slot.contract.effects.as_deref()
+                    == Some(&[
+                        zil_ir::DynEffect::Alloc,
+                        zil_ir::DynEffect::Io,
+                        zil_ir::DynEffect::Block,
+                        zil_ir::DynEffect::Ffi,
+                        zil_ir::DynEffect::Reenter,
+                        zil_ir::DynEffect::Panic,
+                    ])
+                    && slot.contract.call.is_some())
         );
     }
 
@@ -884,7 +912,7 @@ mod tests {
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         assert_eq!(
             crate::expand_with_map(&source, &parsed).unwrap_err()[0].category,
-            zil_base::ResultCategory::Unsupported
+            zil_base::ResultCategory::SafeReject
         );
         let retained = SourceUnit::new(
             FileId(0),
@@ -976,7 +1004,19 @@ mod tests {
         let source = SourceUnit::new(FileId(0), ModuleId(17), "dyn.zil", text);
         let parsed = zil_syntax::parse(&source).into_result()?;
         let mut products = products::Products::default();
-        crate::generics::specialize_products(&parsed, &Limits::default(), &mut products)?;
+        crate::generics::specialize_products_with_context(
+            &parsed,
+            &Limits::default(),
+            &mut products,
+            Some((
+                std::slice::from_ref(&source),
+                crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: source.module_id,
+                    aliases: &BTreeMap::new(),
+                    declarations: crate::source_context::DeclarationPlacement::Original,
+                },
+            )),
+        )?;
         Ok(products.dynamic)
     }
 

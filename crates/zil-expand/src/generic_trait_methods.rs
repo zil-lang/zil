@@ -588,7 +588,7 @@ fn contract_subset(
 // signature needs a second comparison for the complete input/result relation:
 // binder ordinal zero in an impl has the meaning of ordinal zero in the trait,
 // even when the source names differ.
-fn same_life_relation(
+pub(super) fn same_life_relation(
     actual: &TypeRef,
     required: &TypeRef,
     actual_lives: &[&str],
