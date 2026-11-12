@@ -170,6 +170,7 @@ bool eligibleFunction(const Function &F) {
       }
     }
   }
+  if (nameState(F).present < 0) return admissionFailure(F, nullptr, "unbound-value-name-map");
   return true;
 }
 std::string functionText(const Function &F) {
