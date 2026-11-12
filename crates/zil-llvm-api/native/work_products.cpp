@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
 #include <cstdio>
 #include <dlfcn.h>
@@ -102,6 +103,27 @@ bool eligibleFunction(const Function &F) {
     const auto *C = dyn_cast<CallBase>(U);
     if (!C || C->getCalledOperand() != &F) return admissionFailure(F, nullptr, "noncall-function-use");
   }
+  std::set<const AllocaInst *> LocalSlots;
+  for (const BasicBlock &B : F) for (const Instruction &I : B)
+    if (const auto *A = dyn_cast<AllocaInst>(&I)) {
+      const auto *Count = dyn_cast<ConstantInt>(A->getArraySize());
+      if (&B != &F.getEntryBlock() || !A->isStaticAlloca() ||
+          !A->getAllocatedType()->isIntegerTy() || !Count || !Count->isOne() ||
+          !isAllocaPromotable(A)) return admissionFailure(F, A, "nonpromotable-local-slot");
+      // A deliberately strict subset of LLVM's promotability predicate: the
+      // only pointer identities are these nonescaping local slots. No lifetime
+      // call, cast, GEP, address comparison or interprocedural pointer fact.
+      for (const User *U : A->users()) {
+        if (const auto *L = dyn_cast<LoadInst>(U)) {
+          if (!L->isSimple() || L->getPointerOperand() != A ||
+              !L->getType()->isIntegerTy()) return admissionFailure(F, L, "local-load-domain");
+        } else if (const auto *S = dyn_cast<StoreInst>(U)) {
+          if (!S->isSimple() || S->getPointerOperand() != A ||
+              !S->getValueOperand()->getType()->isIntegerTy()) return admissionFailure(F, S, "local-store-domain");
+        } else return admissionFailure(F, A, "escaping-local-slot");
+      }
+      LocalSlots.insert(A);
+    }
   for (const BasicBlock &B : F) {
     if (B.hasAddressTaken()) return admissionFailure(F, nullptr, "block-address-taken");
     for (const Instruction &I : B) {
@@ -109,16 +131,25 @@ bool eligibleFunction(const Function &F) {
       if (!Metadata.empty() || I.getDebugLoc()) return admissionFailure(F, &I, "instruction-metadata");
       if (const auto *C = dyn_cast<CallBase>(&I)) {
         if (!approvedIntrinsic(*C)) return admissionFailure(F, &I, "call-outside-closed-domain");
+      } else if (const auto *A = dyn_cast<AllocaInst>(&I)) {
+        if (!LocalSlots.count(A)) return admissionFailure(F, &I, "unknown-local-slot");
+      } else if (const auto *L = dyn_cast<LoadInst>(&I)) {
+        if (!L->isSimple() || !LocalSlots.count(dyn_cast<AllocaInst>(L->getPointerOperand())))
+          return admissionFailure(F, &I, "nonlocal-load");
+      } else if (const auto *S = dyn_cast<StoreInst>(&I)) {
+        if (!S->isSimple() || !LocalSlots.count(dyn_cast<AllocaInst>(S->getPointerOperand())))
+          return admissionFailure(F, &I, "nonlocal-store");
       } else if (!(isa<BinaryOperator>(I) || isa<UnaryOperator>(I) ||
                    isa<ICmpInst>(I) || isa<PHINode>(I) || isa<SelectInst>(I) ||
                    isa<CondBrInst>(I) || isa<UncondBrInst>(I) || isa<SwitchInst>(I) || isa<ReturnInst>(I) ||
                    isa<UnreachableInst>(I) || isa<ExtractValueInst>(I) ||
                    isa<InsertValueInst>(I) || isa<TruncInst>(I) ||
                    isa<ZExtInst>(I) || isa<SExtInst>(I) || isa<FreezeInst>(I))) return admissionFailure(F, &I, "instruction-outside-closed-domain");
-      if (!numeric(I.getType())) return admissionFailure(F, &I, "instruction-type");
+      if (!isa<AllocaInst>(I) && !numeric(I.getType())) return admissionFailure(F, &I, "instruction-type");
       for (const Use &U : I.operands()) {
         const Value *V = U.get();
         if (isa<BasicBlock>(V)) continue;
+        if (const auto *A = dyn_cast<AllocaInst>(V)) if (LocalSlots.count(A)) continue;
         if (const auto *G = dyn_cast<GlobalValue>(V)) {
           if (!isa<CallBase>(I) || G != cast<CallBase>(I).getCalledFunction()) return admissionFailure(F, &I, "global-operand");
           continue;
@@ -157,6 +188,7 @@ std::string worldText(const Module &M, const Function *Subject) {
   std::string S; raw_string_ostream OS(S); World->print(OS, nullptr, true);
   for (const Function &F : M) {
     SmallVector<std::pair<unsigned, MDNode *>, 4> MD;
+    OS << "\n; original body-presence " << F.getName().size() << ':' << F.getName() << ':' << F.isDeclaration() << '\n';
     F.getAllMetadata(MD);
     for (const auto &E : MD) {
       OS << "\n; original header metadata " << F.getName() << ':' << E.first << '\n';
