@@ -2031,28 +2031,7 @@ fn check_callback_return(
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
-        match &d.storage_life {
-            Some(actual) => {
-                crate::signature_life::charge(actual, budget)?;
-                if actual != life {
-                    return Err(reject(
-                        "E-VERIFY-LIFE",
-                        None,
-                        "callback invocation changes its actual complete environment relation",
-                    ));
-                }
-                signature_life::closure_relation(
-                    module,
-                    &d.parameters,
-                    &d.captures,
-                    d.kind,
-                    stored_callables::life_result(d),
-                    life,
-                    None,
-                )?;
-            }
-            None => borrowed_fp::relation(&d.parameters, &d.result, life, None)?,
-        }
+        crate::signature_life::role_relation(module, d, life, None, budget)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
         return Ok(());

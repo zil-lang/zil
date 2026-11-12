@@ -446,9 +446,6 @@ pub(super) fn borrowed_child(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.returned_environment_sources {
-        return Ok(false);
-    }
     let InstructionKind::BorrowCapture { index, .. } = i.kind else {
         return Ok(false);
     };

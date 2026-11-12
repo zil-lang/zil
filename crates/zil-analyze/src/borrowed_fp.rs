@@ -225,21 +225,8 @@ fn callback_returns(
     signature_work(&closure.parameters, &closure.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
-        if let Some(actual) = &closure.storage_life {
-            crate::signature_life::charge(actual, budget)?;
-            if actual != life {
-                return Err(bad(
-                    "callback role differs from its complete actual environment relation",
-                ));
-            }
-            super::signature_life::closure_relation(
-                &module.closures,
-                closure.kind,
-                &closure.parameters,
-                &closure.captures,
-                super::stored_callables::life_result(closure),
-                life,
-            )?;
+        if closure.storage_life.is_some() {
+            super::signature_life::role_relation(module, closure, life, budget)?;
         } else {
             relation(&closure.parameters, &closure.result, life)?;
         }

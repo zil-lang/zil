@@ -3600,34 +3600,10 @@ static_dependency: None,
                 }
             }
         }
-        InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
-            returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
-            task_address::create_environment(captures,values,&mut out,b)?;
-        }
         InstructionKind::MakeClosure { closure, captures }
-            if module
-                .closures
-                .get(closure.0 as usize)
-                .is_some_and(|d| d.storage_life.is_some()) =>
-        {
-            let d = &module.closures[closure.0 as usize];
-            b.spend(captures.len())?;
-            for (index, (value, ty)) in captures.iter().zip(&d.captures).enumerate() {
-                let actual = val(*value)?;
-                let prefix = vec![PlaceProjection::Field(index as u32)];
-                if matches!(ty, Type::Address { .. }) {
-                    add_leaf(&mut out, &prefix, &actual.address, b)?;
-                }
-                if let Some((_, shape)) = addressed(ty) {
-                    for slot in &shape.slots {
-                        let p = select(state, &actual.address, &slot.path, b)?;
-                        b.spend(slot.path.len().saturating_add(1))?;
-                        let mut path = prefix.clone();
-                        path.extend(&slot.path);
-                        add_leaf(&mut out, &path, &p, b)?;
-                    }
-                }
-            }
+            if module.closures.get(closure.0 as usize).is_some() => {
+            returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
+            task_address::create_environment(captures, values, &mut out, b)?;
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;

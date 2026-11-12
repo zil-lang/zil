@@ -987,24 +987,9 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    if let Some(actual) = &d.storage_life {
-        super::signature_life::charge(actual, b)?;
-        if actual != life {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "Fixed helper role needs the complete actual capture relation",
-                None,
-            )]);
-        }
+    if d.storage_life.is_some() {
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        super::signature_life::closure_relation(
-            &module.closures,
-            d.kind,
-            &d.parameters,
-            &d.captures,
-            super::stored_callables::life_result(d),
-            life,
-        )?;
+        super::signature_life::role_relation(module, d, life, b)?;
     } else {
         super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
     }
@@ -2272,15 +2257,7 @@ fn check_with(
                     if let Some(actual) = &definition.storage_life {
                         let life = role.unwrap_or(actual);
                         if let Some(role) = role {
-                            crate::signature_life::charge(actual, b)?;
-                            crate::signature_life::charge(role, b)?;
-                            if role != actual {
-                                return Err(vec![Diagnostic::unsupported(
-                                    Phase::Analyze,
-                                    "Fixed role differs from complete actual capture relation",
-                                    None,
-                                )]);
-                            }
+                            super::signature_life::role_relation(module, definition, role, b)?;
                         }
                         let receiver = match &i.kind {
                             InstructionKind::CallClosureShared { callee, .. }

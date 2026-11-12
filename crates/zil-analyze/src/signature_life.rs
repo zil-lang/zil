@@ -346,6 +346,79 @@ pub(super) fn closure_relation(
         &[],
     )
 }
+
+/// A fresh invocation relation may vary per actual parameter role. The
+/// persistent field/domain directory remains that of the concrete closure.
+pub(super) fn role_relation(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    proposed: &StorageLifeContract,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let actual = definition
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| bad("role has no complete actual environment scope"))?;
+    for relation in [actual, proposed] {
+        charge(relation, b)?;
+        closure_relation(
+            &module.closures,
+            definition.kind,
+            &definition.parameters,
+            &definition.captures,
+            crate::stored_callables::life_result(definition),
+            relation,
+        )?;
+    }
+    if actual.fixed_binder_count != proposed.fixed_binder_count
+        || actual.static_bindings != proposed.static_bindings
+        || actual.bindings.len() != proposed.bindings.len()
+        || actual.classes.len() != proposed.classes.len()
+    {
+        return Err(bad(
+            "role changes the actual persistent environment directory",
+        ));
+    }
+    b.product(
+        actual.bindings.len(),
+        proposed.bindings.len(),
+        1,
+        "actual role borrow correspondence",
+    )?;
+    for row in &actual.bindings {
+        let other = proposed
+            .bindings
+            .iter()
+            .find(|other| other.position == row.position)
+            .ok_or_else(|| bad("role omits an actual borrow occurrence"))?;
+        if (matches!(row.binder, StorageBinder::Fixed(_))
+            || matches!(other.binder, StorageBinder::Fixed(_)))
+            && row.binder != other.binder
+        {
+            return Err(bad("role relabels a persistent borrow class"));
+        }
+    }
+    b.product(
+        actual.classes.len(),
+        proposed.classes.len(),
+        1,
+        "actual role nominal correspondence",
+    )?;
+    for row in &actual.classes {
+        let other = proposed
+            .classes
+            .iter()
+            .find(|other| other.position == row.position)
+            .ok_or_else(|| bad("role omits an actual nominal or phantom occurrence"))?;
+        if (matches!(row.binder, StorageBinder::Fixed(_))
+            || matches!(other.binder, StorageBinder::Fixed(_)))
+            && row.binder != other.binder
+        {
+            return Err(bad("role relabels a persistent nominal class"));
+        }
+    }
+    Ok(())
+}
 pub(super) fn function_relation_in_module(
     parameters: &[Type],
     result: &Type,

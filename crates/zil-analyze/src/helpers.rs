@@ -854,28 +854,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     &definition.result,
                     budget,
                 )?;
-                if let Some(actual) = &definition.storage_life {
-                    crate::signature_life::charge(actual, budget)?;
-                    if actual != life {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "Fixed helper role needs the complete actual capture relation",
-                            None,
-                        )]);
-                    }
+                if definition.storage_life.is_some() {
                     super::borrowed_fp::qualified_array_relation_work(
                         &definition.captures,
                         &Type::Unit,
                         budget,
                     )?;
-                    super::signature_life::closure_relation(
-                        &module.closures,
-                        definition.kind,
-                        &definition.parameters,
-                        &definition.captures,
-                        super::stored_callables::life_result(definition),
-                        life,
-                    )?;
+                    super::signature_life::role_relation(module, definition, life, budget)?;
                     budget.spend(
                         function.parameters.len(),
                         "captured Fixed helper shared arguments",
