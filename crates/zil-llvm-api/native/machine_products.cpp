@@ -269,7 +269,9 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
         BB.getSectionID() != llvm::MBBSectionID(0) || BB.getIrrLoopHeaderWeight() ||
         BB.getCallFrameSize() != 0)
       return false;
-    for (const auto &MI : BB) {
+    // The ordinary MBB iterator skips bundle members. Admission must inspect
+    // every instruction that MIR serializes and the actual printer consumes.
+    for (const auto &MI : BB.instrs()) {
       // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
       // has no memory operand. Other trapping forms (UD1 memory etc.) have
       // explicit operands and remain outside this no-memory snapshot domain.
