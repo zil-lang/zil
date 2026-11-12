@@ -4296,6 +4296,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.bind_term(&term, wanted, argument.span)?;
                 }
                 validate_type(&signature.result, 0, span, self.budget)?;
+                if name == "task_create_owned" {
+                    for parameter in &signature.parameters {
+                        charge_type_snapshot(
+                            parameter,
+                            span,
+                            self.budget.limits,
+                            &mut self.budget.work,
+                            6,
+                        )?;
+                    }
+                }
                 charge_type_snapshot(
                     &signature.result,
                     span,

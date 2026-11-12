@@ -42,7 +42,8 @@ fn walk(
     }
     if (decl.id.compiler
         && !option_address::declaration(decl)
-        && !enum_address::poll_declaration(decl))
+        && !enum_address::poll_declaration(decl)
+        && !task_failure::declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
             (LifeNominalKind::Record, Type::Record { .. })
@@ -59,6 +60,11 @@ fn walk(
             .len()
             .saturating_add(life.nominal_arguments.len()),
     )?;
+    if task_failure::declaration(decl) {
+        task_failure::instance(instance, limits, b)?;
+        active.pop();
+        return Ok(Vec::new());
+    }
     if decl.id.compiler && enum_address::poll_declaration(decl) {
         enum_address::poll_instance(instance, b)?;
         active.pop();

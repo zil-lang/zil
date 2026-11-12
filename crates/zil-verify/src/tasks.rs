@@ -395,16 +395,107 @@ fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> 
         }))),
     }
 }
-fn owned_create_type(result:&Type,retained:zil_ir::RetainedLifeShape,inputs:Vec<Type>)->Type {
-    let inputs=Type::Tuple(inputs);
-    let name=format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint());
-    let copy=inputs.is_copy_value();
-    let reason=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
-    let fields=vec![("reason".into(),reason),("inputs".into(),inputs)];
-    let failure=if copy {Type::Record{name,fields}}else{Type::Package{name,fields}};
-    let mut out=task_create_type(result,retained);
-    if let Type::ErrorUnion{error,..}=&mut out {*error=Box::new(failure);}
-    out
+fn owned_create_type(
+    result: &Type,
+    retained: zil_ir::RetainedLifeShape,
+    parameters: Vec<Type>,
+    b: &mut Budget,
+) -> Check<Type> {
+    b.spend(
+        parameters
+            .len()
+            .saturating_mul(48)
+            .saturating_add(retained.ports.len().saturating_mul(12)),
+    )?;
+    let qualified = parameters
+        .iter()
+        .all(|t| matches!(t, Type::Address { .. }) || t.is_copy_value())
+        && !retained.ports.is_empty();
+    let mut rows = Vec::new();
+    let mut relations = Vec::new();
+    if qualified {
+        let selected: Vec<_> = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| matches!(t, Type::Address { .. }))
+            .collect();
+        if selected.len() != retained.ports.len() {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                None,
+                "owned failure actual port count differs",
+            ));
+        }
+        for ((index, input), port) in selected.into_iter().zip(&retained.ports) {
+            if input != &port.leaf {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "owned failure actual port type differs",
+                ));
+            }
+            rows.push(zil_ir::StorageLifeSlot {
+                path: vec![
+                    PlaceProjection::Field(1),
+                    PlaceProjection::Field(index as u32),
+                ],
+                mode: port.mode,
+                binder: port.binder,
+            });
+            relations.push(zil_ir::StorageRetainedBinding {
+                path: vec![
+                    zil_ir::LifeTypeProjection::TypeArgument(0),
+                    zil_ir::LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                ],
+                class: 0,
+                binder: port.binder,
+            });
+        }
+        for binder in 0..retained.binder_count {
+            relations.push(zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::TypeArgument(1)],
+                class: binder,
+                binder,
+            });
+        }
+    }
+    let tuple = Type::Tuple(parameters);
+    resources::charge_payload(&tuple, b)?;
+    let name = format!("@std.task:v1:TaskCreateFailure:{}", tuple.fingerprint());
+    let plain = tuple.is_copy_value() || qualified;
+    let fields = vec![
+        (
+            "reason".into(),
+            Type::Enum {
+                name: "@std.task:v1:TaskCreateError".into(),
+                variants: vec![("Allocation".into(), vec![])],
+            },
+        ),
+        ("inputs".into(), tuple),
+    ];
+    let storage = if plain {
+        Type::Record { name, fields }
+    } else {
+        Type::Package { name, fields }
+    };
+    let error = if qualified {
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: zil_ir::StorageLifeShape {
+                binder_count: retained.binder_count,
+                slots: rows,
+                retained: relations,
+                nominal_arguments: vec![],
+            },
+        }
+    } else {
+        storage
+    };
+    let mut expected = task_create_type(result, retained);
+    if let Type::ErrorUnion { error: slot, .. } = &mut expected {
+        *slot = Box::new(error);
+    }
+    Ok(expected)
 }
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
@@ -516,7 +607,8 @@ pub(super) fn instruction(
             worker,
             ref arguments,
             ref port_bindings,
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             worker,
             ref arguments,
             ref port_bindings,
@@ -563,10 +655,18 @@ pub(super) fn instruction(
             }
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
-            let ty = if matches!(i.kind,InstructionKind::TaskCreateOwned{..}) {
-                let mut inputs=vec![];for parameter in &target.parameters {let t=local_type(target,*parameter,span)?;resources::charge_payload(t,budget)?;resources::charge_payload(t,budget)?;inputs.push(t.clone());}
-                owned_create_type(&target.return_type,retained_life,inputs)
-            }else{task_create_type(&target.return_type, retained_life)};
+            let ty = if matches!(i.kind, InstructionKind::TaskCreateOwned { .. }) {
+                let mut inputs = vec![];
+                for parameter in &target.parameters {
+                    let t = local_type(target, *parameter, span)?;
+                    resources::charge_payload(t, budget)?;
+                    resources::charge_payload(t, budget)?;
+                    inputs.push(t.clone());
+                }
+                owned_create_type(&target.return_type, retained_life, inputs, budget)?
+            } else {
+                task_create_type(&target.return_type, retained_life)
+            };
             let Type::ErrorUnion { result, .. } = &ty else {
                 unreachable!()
             };

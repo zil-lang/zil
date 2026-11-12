@@ -265,16 +265,106 @@ fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> 
         }))),
     }
 }
-fn owned_create_type(result:&Type,retained:zil_ir::RetainedLifeShape,inputs:Vec<Type>)->Type {
-    let inputs=Type::Tuple(inputs);
-    let name=format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint());
-    let copy=inputs.is_copy_value();
-    let reason=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
-    let fields=vec![("reason".into(),reason),("inputs".into(),inputs)];
-    let failure=if copy {Type::Record{name,fields}}else{Type::Package{name,fields}};
-    let mut out=task_create_type(result,retained);
-    if let Type::ErrorUnion{error,..}=&mut out {*error=Box::new(failure);}
-    out
+fn owned_create_type(
+    result: &Type,
+    retained: zil_ir::RetainedLifeShape,
+    parameters: Vec<Type>,
+    budget: &mut Budget,
+) -> CompileResult<Type> {
+    budget.spend(
+        parameters
+            .len()
+            .saturating_mul(32)
+            .saturating_add(retained.ports.len().saturating_mul(16)),
+        "owned failure physical/retained rows",
+    )?;
+    let qualify = !retained.ports.is_empty()
+        && parameters
+            .iter()
+            .all(|t| t.is_copy_value() || matches!(t, Type::Address { .. }));
+    let mut slots = Vec::new();
+    let mut bindings = Vec::new();
+    if qualify {
+        let mut port = 0;
+        for (index, t) in parameters.iter().enumerate() {
+            if matches!(t, Type::Address { .. }) {
+                let actual = retained.ports.get(port).ok_or_else(|| {
+                    fail(
+                        zil_base::Span::default(),
+                        "failure original input context omitted a port",
+                    )
+                })?;
+                if actual.leaf != *t {
+                    return Err(fail(
+                        zil_base::Span::default(),
+                        "failure original input context leaf differs",
+                    ));
+                }
+                slots.push(zil_ir::StorageLifeSlot {
+                    path: vec![
+                        PlaceProjection::Field(1),
+                        PlaceProjection::Field(index as u32),
+                    ],
+                    binder: actual.binder,
+                    mode: actual.mode,
+                });
+                bindings.push(zil_ir::StorageRetainedBinding {
+                    path: vec![
+                        zil_ir::LifeTypeProjection::TypeArgument(0),
+                        zil_ir::LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                    ],
+                    class: 0,
+                    binder: actual.binder,
+                });
+                port += 1;
+            }
+        }
+        if port != retained.ports.len() {
+            return Err(fail(
+                zil_base::Span::default(),
+                "failure context has an extra port",
+            ));
+        }
+        for class in 0..retained.binder_count {
+            bindings.push(zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::TypeArgument(1)],
+                class,
+                binder: class,
+            });
+        }
+    }
+    let inputs = Type::Tuple(parameters);
+    budget.type_work(&inputs, true, "failure exact original input type identity")?;
+    let name = format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint());
+    let record = inputs.is_copy_value() || qualify;
+    let reason = Type::Enum {
+        name: "@std.task:v1:TaskCreateError".into(),
+        variants: vec![("Allocation".into(), vec![])],
+    };
+    let fields = vec![("reason".into(), reason), ("inputs".into(), inputs)];
+    let physical = if record {
+        Type::Record { name, fields }
+    } else {
+        Type::Package { name, fields }
+    };
+    let failure = if qualify {
+        Type::BorrowedStorage {
+            storage: Box::new(physical),
+            life: zil_ir::StorageLifeShape {
+                binder_count: retained.binder_count,
+                slots,
+                retained: bindings,
+                nominal_arguments: vec![],
+            },
+        }
+    } else {
+        physical
+    };
+    let mut out = task_create_type(result, retained);
+    if let Type::ErrorUnion { error, .. } = &mut out {
+        *error = Box::new(failure);
+    }
+    Ok(out)
 }
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
@@ -724,7 +814,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         worker: id,
                         ref arguments,
                         ref port_bindings,
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         worker: id,
                         ref arguments,
                         ref port_bindings,
@@ -775,10 +866,26 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 "general task result identity",
                             )?;
                         }
-                        let output = if matches!(i.kind,InstructionKind::TaskCreateOwned{..}) {
-                            let mut inputs=vec![];for parameter in &target.parameters {let t=&target.locals[parameter.0 as usize].ty;budget.type_work(t,false,"Task owning failure actual input identity")?;budget.type_work(t,false,"Task owning failure actual input identity")?;inputs.push(t.clone());}
-                            owned_create_type(&target.return_type,retained_life,inputs)
-                        }else{task_create_type(&target.return_type, retained_life)};
+                        let output = if matches!(i.kind, InstructionKind::TaskCreateOwned { .. }) {
+                            let mut inputs = vec![];
+                            for parameter in &target.parameters {
+                                let t = &target.locals[parameter.0 as usize].ty;
+                                budget.type_work(
+                                    t,
+                                    false,
+                                    "Task owning failure actual input identity",
+                                )?;
+                                budget.type_work(
+                                    t,
+                                    false,
+                                    "Task owning failure actual input identity",
+                                )?;
+                                inputs.push(t.clone());
+                            }
+                            owned_create_type(&target.return_type, retained_life, inputs, budget)?
+                        } else {
+                            task_create_type(&target.return_type, retained_life)
+                        };
                         Some(output)
                     }
                     InstructionKind::TaskStart {

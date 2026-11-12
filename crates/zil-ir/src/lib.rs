@@ -140,6 +140,8 @@ pub struct LifeDeclarationId {
     pub compiler: bool,
 }
 
+pub mod builtin_life;
+
 /// One nested carrier CLASS maps once into its enclosing fixed domain. Several
 /// actual ports may share this class; they are not independently freshened.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

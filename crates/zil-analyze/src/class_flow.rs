@@ -36,7 +36,8 @@ fn pure_class_keys(
             }
         }
         Type::ErrorUnion { error, result }
-            if b.stored_enum_addresses && super::stored_flow::enum_address::signature(ty) =>
+            if b.task_failure_carriers
+                || b.stored_enum_addresses && super::stored_flow::enum_address::signature(ty) =>
         {
             for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
                 path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(arm)));
@@ -274,6 +275,7 @@ impl Equations {
             || b.stored_enum_addresses
                 && matches!(ty, Type::ErrorUnion { .. })
                 && super::stored_flow::enum_address::signature(ty)
+            || b.task_failure_carriers && matches!(ty, Type::ErrorUnion { .. })
         {
             b.spend(usize::from(outer.is_some()), "pure class pointee path")?;
             let mut path = if outer.is_some() {
@@ -284,7 +286,7 @@ impl Equations {
             pure_class_keys(ty, &mut path, &mut keys, b)?;
         }
         let mut task_ports = Vec::new();
-        if b.task_borrowed_results {
+        if b.task_sources() {
             fn walk(
                 ty: &Type,
                 cp: Vec<LifeTypeProjection>,
@@ -450,7 +452,7 @@ fn link_projection(
             "actual projected class lookup",
         )?;
         let tail = if path.first() == Some(&LifeTypeProjection::Pointee)
-            && !(b.task_borrowed_results && !child.task_ports.is_empty() && child.outer.is_none())
+            && !(b.task_sources() && !child.task_ports.is_empty() && child.outer.is_none())
         {
             &path[1..]
         } else {
@@ -529,7 +531,7 @@ fn bind(
                 e.equal(actual, select(v, row.binder)?, b)?;
                 continue;
             }
-            if !row.position.path.is_empty() && b.task_borrowed_results {
+            if !row.position.path.is_empty() && b.task_sources() {
                 b.spend(p.task_ports.len(), "actual Task semantic class")?;
                 if let Some((_, index)) = p
                     .task_ports
@@ -615,7 +617,7 @@ fn bind_with_outer(
                 array_outer::binding(e, actual, select(v, row.binder)?, flow, b)?;
                 continue;
             }
-            if !row.position.path.is_empty() && b.task_borrowed_results {
+            if !row.position.path.is_empty() && b.task_sources() {
                 b.spend(p.task_ports.len(), "actual Task semantic class")?;
                 if let Some((_, index)) = p
                     .task_ports
@@ -937,12 +939,52 @@ fn check_with(
                     arguments,
                     port_bindings,
                     ..
-                } | InstructionKind::TaskCreateOwned {
+                }
+                | InstructionKind::TaskCreateOwned {
                     arguments,
                     port_bindings,
                     ..
-                } if b.task_borrowed_results => {
+                } if b.task_sources() => {
                     if let Some(out) = out {
+                        if matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
+                            && b.task_failure_carriers
+                        {
+                            if let Some(Type::ErrorUnion { error, .. }) =
+                                i.result.and_then(|id| f.values.get(id.0 as usize))
+                            {
+                                if let Some(error_shape) = shape(error) {
+                                    for slot in &error_shape.slots {
+                                        let [
+                                            PlaceProjection::Field(1),
+                                            PlaceProjection::Field(argument),
+                                        ] = slot.path.as_slice()
+                                        else {
+                                            return Err(bad(
+                                                "failure class source has no actual input position",
+                                            ));
+                                        };
+                                        let path = [LifeTypeProjection::Place(
+                                            PlaceProjection::ErrorArm(true),
+                                        )];
+                                        let class = out
+                                            .keys
+                                            .iter()
+                                            .position(|(p, c)| {
+                                                p.as_slice() == path && *c == slot.binder
+                                            })
+                                            .ok_or_else(|| bad("failure actual class is absent"))?;
+                                        let input = *arguments
+                                            .get(*argument as usize)
+                                            .ok_or_else(|| bad("failure actual input is absent"))?;
+                                        let source =
+                                            values[input.0 as usize].outer.ok_or_else(|| {
+                                                bad("failure actual input Address class is absent")
+                                            })?;
+                                        e.equal(out.classes[class], source, b)?;
+                                    }
+                                }
+                            }
+                        }
                         for row in port_bindings {
                             b.spend(out.task_ports.len(), "actual Task semantic class")?;
                             let path = vec![
@@ -972,7 +1014,7 @@ fn check_with(
                     }
                 }
                 InstructionKind::TaskPoll { task }
-                    if b.task_borrowed_results
+                    if b.task_sources()
                         && matches!(super::tasks::task_payload(&f.values[task.0 as usize]),
                             Some(Type::Task { result, .. })
                                 if matches!(result.as_ref(), Type::Address { mutable: false, .. })) =>
@@ -1001,6 +1043,60 @@ fn check_with(
                         e.equal(out.classes[result], input.classes[port], b)?;
                     }
                 }
+                InstructionKind::UnpackTuple { local, fields }
+                    if super::stored_flow::failure_unpack(f, i, b)? =>
+                {
+                    let parent_shape = shape(&f.locals[local.0 as usize].ty)
+                        .ok_or_else(|| bad("failure tuple class source is absent"))?;
+                    for (position, target) in fields.iter().enumerate() {
+                        if let Some(to) = locals[target.0 as usize].outer {
+                            let source = b
+                                .physical_slot(
+                                    parent_shape,
+                                    &[PlaceProjection::Field(position as u32)],
+                                )?
+                                .ok_or_else(|| {
+                                    bad("failure tuple field has no actual parent class")
+                                })?
+                                .0;
+                            let from = *locals[local.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure tuple parent class is absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                    }
+                }
+                InstructionKind::TakeVariantField { local, path }
+                    if b.task_failure_carriers
+                        && path.as_slice() == [PlaceProjection::ErrorArm(true)] =>
+                {
+                    if let Some(child) = out {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::TakeErrorUnion {
+                    value,
+                    is_error: true,
+                } if b.task_failure_carriers => {
+                    if let Some(child) = out {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
                 InstructionKind::Load(local) => {
                     if let Some(out) = out {
                         array_outer::copy(
@@ -1013,8 +1109,7 @@ fn check_with(
                     }
                 }
                 InstructionKind::TakeLocal { local }
-                    if (b.task_borrowed_results
-                        && !locals[local.0 as usize].task_ports.is_empty())
+                    if (b.task_sources() && !locals[local.0 as usize].task_ports.is_empty())
                         || super::stored_callables::fixed_value(
                             module,
                             &f.locals[local.0 as usize].ty,
@@ -1203,6 +1298,34 @@ fn check_with(
                         )?;
                         continue;
                     }
+                    if let Some(child_ty) = super::stored_flow::failure_projection(f, i, b)? {
+                        let parent_shape = shape(&f.values[storage.0 as usize])
+                            .ok_or_else(|| bad("failure class projection parent is absent"))?;
+                        let child_shape = shape(&child_ty)
+                            .ok_or_else(|| bad("failure class projection child is absent"))?;
+                        let child =
+                            out.ok_or_else(|| bad("failure class projection result is absent"))?;
+                        for selected in &child_shape.slots {
+                            let mut actual_path = path.clone();
+                            actual_path.extend(&selected.path);
+                            let source = b
+                                .physical_slot(parent_shape, &actual_path)?
+                                .ok_or_else(|| {
+                                    bad("failure child class has no exact parent input slot")
+                                })?
+                                .0;
+                            let to = *child
+                                .classes
+                                .get(selected.binder as usize)
+                                .ok_or_else(|| bad("failure child class variable is absent"))?;
+                            let from = *values[storage.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure parent class variable is absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                        continue;
+                    }
                     let actual = shape(&f.values[storage.0 as usize])
                         .ok_or_else(|| bad("stored load lacks actual class shape"))?;
                     b.spend(
@@ -1377,7 +1500,7 @@ fn check_with(
                 InstructionKind::MakeErrorUnion { value, is_error } if b.stored_enum_addresses => {
                     if let (Some(out), Some(id)) = (out, i.result)
                         && (super::stored_flow::enum_address::signature(&f.values[id.0 as usize])
-                            || b.task_borrowed_results && !out.task_ports.is_empty())
+                            || b.task_sources() && !out.task_ports.is_empty())
                     {
                         link_projection(
                             &f.values[id.0 as usize],
@@ -1393,7 +1516,7 @@ fn check_with(
                     if let Some(out) = out
                         && (super::stored_flow::enum_address::signature(
                             &f.values[value.0 as usize],
-                        ) || b.task_borrowed_results
+                        ) || b.task_sources()
                             && !values[value.0 as usize].task_ports.is_empty())
                     {
                         link_projection(

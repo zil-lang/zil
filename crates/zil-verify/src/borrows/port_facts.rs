@@ -108,7 +108,7 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
                 }
             }
             Type::Enum { variants, .. }
-                if budget.task_borrowed_results || tasks::transfer::outcome_owner(ty).is_some() =>
+                if budget.task_sources() || tasks::transfer::outcome_owner(ty).is_some() =>
             {
                 for (variant, (_, fields)) in variants.iter().enumerate() {
                     budget.spend(fields.len())?;

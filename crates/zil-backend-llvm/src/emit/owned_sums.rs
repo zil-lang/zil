@@ -386,7 +386,11 @@ impl FunctionEmitter<'_> {
         targets: &[LocalId],
     ) -> CompileResult<()> {
         let ty = self.local_type(local)?.clone();
-        let Type::Tuple(fields) = &ty else {
+        let physical = match &ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            other => other,
+        };
+        let Type::Tuple(fields) = physical else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "UnpackTuple requires Tuple",
@@ -439,14 +443,16 @@ impl FunctionEmitter<'_> {
             )));
             loaded.push(Some(value));
         }
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new(m::Ty::Int(1), false),
-                ptr: m::local(format!("resource.live.{}", local.0)),
-                align: 1,
-            },
-        )));
+        if self.owns_storage(&ty) {
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), false),
+                    ptr: m::local(format!("resource.live.{}", local.0)),
+                    align: 1,
+                },
+            )));
+        }
         self.partial_flags(local, false, false)?;
         for (index, target) in targets.iter().enumerate().rev() {
             let field = &fields[index];

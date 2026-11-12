@@ -1565,11 +1565,31 @@ impl Resolver<'_> {
             {
                 self.nominal_type(name, depth, span)?
             }
-            Type::Package{name,fields} | Type::Record{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") => {
-                let [(reason,_),(inputs,ty)]=fields.as_slice() else{return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure requires reason and complete inputs"));};
-                if reason!="reason" || inputs!="inputs" {return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure field selectors differ"));}
-                let inputs=self.ty(ty,depth+1,span)?;
-                if !matches!(inputs,Type::Tuple(_)) {return Err(error("E-TASK-CREATE-FAILURE",span,"TaskCreateFailure inputs must be an ordered Tuple"));}
+            Type::Package { name, fields } | Type::Record { name, fields }
+                if name.starts_with("@std.task:v1:TaskCreateFailure:") =>
+            {
+                let [(reason, _), (inputs, ty)] = fields.as_slice() else {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure requires reason and complete inputs",
+                    ));
+                };
+                if reason != "reason" || inputs != "inputs" {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure field selectors differ",
+                    ));
+                }
+                let inputs = self.ty(ty, depth + 1, span)?;
+                if !matches!(inputs, Type::Tuple(_)) {
+                    return Err(error(
+                        "E-TASK-CREATE-FAILURE",
+                        span,
+                        "TaskCreateFailure inputs must be an ordered Tuple",
+                    ));
+                }
                 tasks::create_failure(inputs)
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
@@ -3040,6 +3060,37 @@ impl<'a> Builder<'a, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
+        if member == "inputs" && self.known_type_is_checked(object, tasks::failure::is_carrier)? {
+            let (value, parent) = self.transfer_expr(object, None)?;
+            self.closures.snapshot_type(&parent, 6, 16, e.span)?;
+            self.member_owner(&parent, owner.as_ref(), e.span)?;
+            let view = tasks::failure::inputs_view(&parent).ok_or_else(|| {
+                unsupported(
+                    e.span,
+                    "Task failure input view requires its complete original carrier",
+                )
+            })?;
+            let temporary = self.temp(parent.clone(), e.span)?;
+            self.store(temporary, value, e.span)?;
+            let storage = self.value(
+                InstructionKind::BorrowLocalMut { local: temporary },
+                Type::Address {
+                    mutable: true,
+                    inner: Box::new(parent),
+                },
+                e.span,
+            )?;
+            let result = self.value(
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path: vec![PlaceProjection::Field(1)],
+                    mode: StoredBorrowLoad::Take,
+                },
+                view.clone(),
+                e.span,
+            )?;
+            return Ok((result, view));
+        }
         if self.known_type_is_checked(object, |ty| {
             stored::shared_value(ty) || stored::shared_address(ty)
         })? {

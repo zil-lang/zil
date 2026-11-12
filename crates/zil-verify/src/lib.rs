@@ -382,6 +382,7 @@ struct Budget {
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     stored_borrows: bool,
     stored_package_instance: bool,
+    task_failure_carriers: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
     // The paid physical slot walk enables inspection of actual constructor results.
@@ -398,6 +399,13 @@ struct Budget {
     stored_context: bool,
 }
 impl Budget {
+    fn task_sources(&self) -> bool {
+        self.task_borrowed_results || self.task_failure_carriers
+    }
+    fn masked_stored_tasks(&self) -> bool {
+        self.store_option_results || self.task_failure_carriers
+    }
+
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
@@ -450,6 +458,7 @@ impl Budget {
             task_stored_sources: None,
             stored_borrows: false,
             stored_package_instance: false,
+            task_failure_carriers: false,
             stored_slot_updates: false,
             stored_exclusive_shapes: false,
             stored_constructor_sites: false,
@@ -759,10 +768,22 @@ fn check_module(
                 ));
             }
         }
-        if let Some(foreign)=&function.foreign
+        if let Some(foreign) = &function.foreign
             && foreign.thread_driver_transfer
-            && !matches!(foreign.scoped_callback,Some(ScopedCallbackRole::ThreadAsyncRegister|ScopedCallbackRole::ThreadAsyncRequestClose|ScopedCallbackRole::ThreadAsyncPollDrain)) {
-            return Err(reject("E-VERIFY-TASK-TRANSFER",Some(function.span),"unsafe driver transfer promise lacks actual threaded provider role"));
+            && !matches!(
+                foreign.scoped_callback,
+                Some(
+                    ScopedCallbackRole::ThreadAsyncRegister
+                        | ScopedCallbackRole::ThreadAsyncRequestClose
+                        | ScopedCallbackRole::ThreadAsyncPollDrain
+                )
+            )
+        {
+            return Err(reject(
+                "E-VERIFY-TASK-TRANSFER",
+                Some(function.span),
+                "unsafe driver transfer promise lacks actual threaded provider role",
+            ));
         }
         budget.protocol_contracts |= function.protocol_contract.is_some();
         if let Some(contract) = &function.storage_life {
@@ -1081,14 +1102,14 @@ fn check_module(
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
     let stored_partition = if budget.stored_borrows
-        && !budget.task_borrowed_results
+        && !budget.task_sources()
         && (budget.tasks || budget.registrations)
     {
         stored_partition::mixed(module, &mut budget)?
     } else {
         None
     };
-    let store_option_mask = if budget.store_option_results {
+    let store_option_mask = if budget.masked_stored_tasks() {
         budget.spend(module.functions.len())?;
         Some(
             module
@@ -1100,7 +1121,7 @@ fn check_module(
     } else {
         None
     };
-    if budget.stored_borrows || budget.task_borrowed_results {
+    if budget.stored_borrows || budget.task_sources() {
         stored_flow::qualifications(
             module,
             limits,
@@ -2466,7 +2487,8 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::TaskStart { .. }
-        | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+        | InstructionKind::TaskCreate { .. }
+        | InstructionKind::TaskCreateOwned { .. }
         | InstructionKind::TaskYield
         | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
@@ -3990,7 +4012,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
-        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => ([None, None], arguments),
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. } => ([None, None], arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }

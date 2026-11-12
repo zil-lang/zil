@@ -2191,7 +2191,8 @@ impl FunctionEmitter<'_> {
             let output=result(i)?;
             let actual=&self.function.values[output.0 as usize];
             let Type::ErrorUnion{error,..}=actual else{return invalid("E-CODEGEN-TASK","owning constructor result must retain its error arm",Some(i.span));};
-            let (Type::Package{fields,..}|Type::Record{fields,..})=error.as_ref() else{return invalid("E-CODEGEN-TASK","owning constructor failure product absent",Some(i.span));};
+            let physical_error=match error.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+            let (Type::Package{fields,..}|Type::Record{fields,..})=physical_error else{return invalid("E-CODEGEN-TASK","owning constructor failure product absent",Some(i.span));};
             let inputs=&fields[1].1;
             let ty=llvm_type(actual)?;let failure_ty=llvm_type(error)?;let inputs_ty=llvm_type(inputs)?;
             let frame=self.temp();let failed=self.temp();let slot=self.temp();

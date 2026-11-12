@@ -403,6 +403,9 @@ pub(super) fn check_instruction(
     budget: &mut Budget,
 ) -> Check<Option<Type>> {
     let span = Some(i.span);
+    if crate::stored_flow::failure_unpack(f, i, budget)? {
+        return Ok(None);
+    }
     budget.mark_sum(Some(f.id.0 as usize))?;
     match &i.kind {
         InstructionKind::TakeTupleField { local, path }
@@ -2214,6 +2217,8 @@ impl Flow<'_> {
                             .insert(instruction.result.expect("typed tag"));
                     }
                 }
+                InstructionKind::UnpackTuple { .. }
+                    if crate::stored_flow::failure_unpack(self.f, instruction, budget)? => {}
                 InstructionKind::UnpackVariant {
                     local,
                     variant: _,

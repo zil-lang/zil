@@ -1600,6 +1600,8 @@ impl Flow<'_> {
                         });
                     }
                 }
+                InstructionKind::UnpackTuple { .. }
+                    if crate::stored_flow::failure_unpack(f, i, budget)? => {}
                 InstructionKind::UnpackVariant {
                     local,
                     variant: _,

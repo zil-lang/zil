@@ -116,6 +116,9 @@ pub(super) fn instruction(
     budget: &mut Budget,
 ) -> Check<Option<Type>> {
     let span = Some(instruction.span);
+    if let Some(view) = crate::stored_flow::failure_projection(function, instruction, budget)? {
+        return Ok(Some(view));
+    }
     match &instruction.kind {
         InstructionKind::LoadStoredBorrow {
             storage,

@@ -4198,11 +4198,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for _ in 0..4 {
                     self.graph.reserve_type(&signature.result, 0, span)?;
                 }
+                if name == "task_create_owned" {
+                    for parameter in &signature.parameters {
+                        for _ in 0..6 {
+                            self.graph.reserve_type(parameter, 0, span)?;
+                        }
+                    }
+                }
                 return self.known(
                     &if name == "task_await" {
                         signature.result
                     } else {
-                        tasks::call_create_type(name,
+                        tasks::call_create_type(
+                            name,
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
@@ -4223,7 +4231,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     })
                                     .as_ref(),
                                 &signature.result,
-                            ), &signature.parameters)
+                            ),
+                            &signature.parameters,
+                        )
                     },
                     span,
                 );

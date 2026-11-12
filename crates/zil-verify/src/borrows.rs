@@ -75,7 +75,7 @@ fn function_has_sources(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<bool> {
-    if budget.store_option_results && super::stored_flow::qualified_function(function, budget)? {
+    if budget.masked_stored_tasks() && super::stored_flow::qualified_function(function, budget)? {
         return Ok(true);
     }
     if descriptor_origins {
@@ -177,15 +177,31 @@ fn local_transfer(
                 state.insert(local, source.clone());
             }
         }
-        InstructionKind::UnpackVariant { local, variant, ref fields }
-            if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() =>
-        {
-            budget.spend(fields.len().saturating_add(state.get(&local).map_or(0,|s|s.len())))?;
-            let source=state.remove(&local).unwrap_or_default();
-            for target in fields {state.remove(target);}
-            if variant==0 {
-                let [target]=fields.as_slice() else{return Err(reject("E-VERIFY-TASK-PORT",Some(instruction.span),"Task failure transports one owning field"));};
-                if !source.is_empty(){state.insert(*target,source);}
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            ref fields,
+        } if tasks::transfer::outcome_owner(&f.locals[local.0 as usize].ty).is_some() => {
+            budget.spend(
+                fields
+                    .len()
+                    .saturating_add(state.get(&local).map_or(0, |s| s.len())),
+            )?;
+            let source = state.remove(&local).unwrap_or_default();
+            for target in fields {
+                state.remove(target);
+            }
+            if variant == 0 {
+                let [target] = fields.as_slice() else {
+                    return Err(reject(
+                        "E-VERIFY-TASK-PORT",
+                        Some(instruction.span),
+                        "Task failure transports one owning field",
+                    ));
+                };
+                if !source.is_empty() {
+                    state.insert(*target, source);
+                }
             }
         }
         InstructionKind::TakeLocal { local }
@@ -196,7 +212,9 @@ fn local_transfer(
             lookup(budget, state.len())?;
             state.remove(&local);
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local } | InstructionKind::DropEnum { local }
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
             if budget.borrowed_task_ports =>
         {
             lookup(budget, state.len())?;
@@ -289,9 +307,9 @@ fn check(
         let mut coarse: Vec<_> = actual.iter().map(|root| root.coarse()).collect();
         budget.spend(coarse.len())?;
         coarse.dedup();
-        if budget.task_borrowed_results {
+        if budget.task_sources() {
             let ty = &f.values[claim.value.0 as usize];
-            let mixed_strong = budget.store_option_results && mixed_task_strong_value(ty, budget)?;
+            let mixed_strong = budget.masked_stored_tasks() && mixed_task_strong_value(ty, budget)?;
             let function_proof = budget
                 .task_stored_sources
                 .as_ref()
@@ -313,18 +331,18 @@ fn check(
                         "canonical Hold lacks an actual stored SSA proof",
                     )
                 })?;
-            let overlay = !budget.store_option_results
+            let overlay = !budget.masked_stored_tasks()
                 || function_proof.covered
                     && mixed_strong
                     && (!matches!(ty, Type::Address { .. }) || !checked.pointer.is_empty());
             let count = if overlay { checked.public.len() } else { 0 };
-            budget.spend(count.saturating_add(usize::from(budget.store_option_results)))?;
+            budget.spend(count.saturating_add(usize::from(budget.masked_stored_tasks())))?;
             if overlay {
                 coarse = budget.task_stored_sources.as_ref().unwrap()[f.id.0 as usize].values
                     [claim.value.0 as usize]
                     .public
                     .clone();
-            } else if budget.store_option_results {
+            } else if budget.masked_stored_tasks() {
                 budget.spend(
                     coarse
                         .len()
@@ -659,9 +677,7 @@ fn reconstruct(
     let predecessors = &graph.predecessors;
     let reachable = &graph.reachable;
     budget.spend(v)?;
-    if !budget.task_borrowed_results
-        && !function_has_sources(module, f, descriptor_origins, budget)?
-    {
+    if !budget.task_sources() && !function_has_sources(module, f, descriptor_origins, budget)? {
         return Ok(Facts {
             values: vec![vec![]; v],
             inputs: vec![],
@@ -762,7 +778,8 @@ fn reconstruct(
                                 arguments,
                                 port_bindings,
                                 ..
-                            } | InstructionKind::TaskCreateOwned {
+                            }
+                            | InstructionKind::TaskCreateOwned {
                                 arguments,
                                 port_bindings,
                                 ..
@@ -1369,7 +1386,7 @@ fn check_module_mask(
     let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
     let mut facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
-    if budget.store_option_results && !budget.task_borrowed_results {
+    if budget.masked_stored_tasks() && !budget.task_sources() {
         let checked = budget.store_option_sources.take().ok_or_else(|| {
             reject(
                 "E-VERIFY-STORE-WINDOW",
@@ -1380,7 +1397,7 @@ fn check_module_mask(
         overlay_store_option_sources(module, &mut facts, &checked, budget)?;
         budget.store_option_sources = Some(checked);
     }
-    if budget.task_borrowed_results {
+    if budget.task_sources() {
         let checked = budget.task_stored_sources.take().ok_or_else(|| {
             reject(
                 "E-VERIFY-TASK-SOURCES",
@@ -1406,7 +1423,7 @@ fn check_module_mask(
                     "Task source proof omitted an actual SSA value",
                 ));
             }
-            if budget.store_option_results {
+            if budget.masked_stored_tasks() {
                 budget.spend(1)?;
                 if !actual.covered {
                     continue;
@@ -1418,7 +1435,7 @@ fn check_module_mask(
                 .zip(&mut facts.values)
                 .zip(&actual.values)
             {
-                if budget.store_option_results {
+                if budget.masked_stored_tasks() {
                     budget.spend(1)?;
                     if !mixed_task_strong_value(ty, budget)?
                         || matches!(ty, Type::Address { .. }) && sources.pointer.is_empty()
@@ -1452,7 +1469,7 @@ fn check_module_mask(
                         })
                         .collect()
                 };
-                if budget.store_option_results && matches!(ty, Type::Address { .. }) {
+                if budget.masked_stored_tasks() && matches!(ty, Type::Address { .. }) {
                     // The complete stored proof may refine a Task-exported
                     // pointer away from its frame. Equal coarse origins retain
                     // ordinary field/window detail and its existing loans.
@@ -1480,7 +1497,7 @@ fn check_module_mask(
         }
         budget.task_stored_sources = Some(checked);
     }
-    if budget.store_option_results && budget.task_borrowed_results {
+    if budget.masked_stored_tasks() && budget.task_sources() {
         let checked = budget.store_option_sources.take().ok_or_else(|| {
             reject(
                 "E-VERIFY-STORE-WINDOW",
@@ -1545,7 +1562,7 @@ fn check_module_mask(
         None
     };
     if let Some(holds) = &mut holds
-        && budget.store_option_results
+        && budget.masked_stored_tasks()
     {
         let checked = budget.store_option_sources.take().ok_or_else(|| {
             reject(
@@ -1559,8 +1576,8 @@ fn check_module_mask(
     }
     budget.spend(module.resources.len())?;
     let has_buffers = descriptor_origins
-        || budget.task_borrowed_results
-        || budget.store_option_results
+        || budget.task_sources()
+        || budget.masked_stored_tasks()
         || module
             .resources
             .iter()

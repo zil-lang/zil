@@ -33,7 +33,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::TakeErrorUnion { .. }
             | InstructionKind::DropErrorUnion { .. }
             | InstructionKind::DropEnum { .. }
-            | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            | InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskYield
             | InstructionKind::TaskValid { .. }
             | InstructionKind::TaskPoll { .. }
@@ -46,7 +47,7 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     fee(b, value.task_ports.len())?;
@@ -66,7 +67,7 @@ fn port_snapshot(p: &Permission, path_width: usize, b: &mut Budget) -> CompileRe
     Ok(p.clone())
 }
 pub(super) fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(false);
     }
     let mut changed = false;
@@ -104,7 +105,7 @@ pub(super) fn seed(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_borrowed_results || shape(ty).is_none() {
+    if !b.task_sources() || shape(ty).is_none() {
         return Ok(());
     }
     let ports = &shape(ty).unwrap().ports;
@@ -158,7 +159,7 @@ pub(super) fn call(
     out: &mut Value,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     for (path, sources) in &summary.returned_task_ports {
@@ -206,7 +207,7 @@ pub(super) fn summarize(
     facts: &mut Facts,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_borrowed_results {
+    if !b.task_sources() {
         return Ok(());
     }
     for (path, permission) in &value.task_ports {
@@ -252,7 +253,7 @@ pub(super) fn transfer(
     summaries: &[Facts],
     b: &mut Budget,
 ) -> CompileResult<Option<Value>> {
-    if !b.task_borrowed_results || !operation(&i.kind) {
+    if !b.task_sources() || !operation(&i.kind) {
         return Ok(None);
     }
     let get = |id: ValueId| {
@@ -267,7 +268,8 @@ pub(super) fn transfer(
             worker,
             arguments,
             port_bindings,
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,
