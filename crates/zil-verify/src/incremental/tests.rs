@@ -67,6 +67,9 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             raw_shape_ranges_reused: 0,
             raw_result_modes_checked: 2,
             raw_result_modes_reused: 0,
+            resource_inventory_functions_checked: 2,
+            resource_inventory_functions_reused: 0,
+            resource_inventory_ranges_reused: 0,
         }
     );
 }
@@ -223,6 +226,8 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
         previous_inventory: &session.inventory,
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
+        previous_resource_inventory: session.resource_inventory.as_ref(),
+        next_resource_inventory: None,
         delta: None,
         previous_inputs: session.verified.as_ref(),
         next: BTreeMap::new(),
