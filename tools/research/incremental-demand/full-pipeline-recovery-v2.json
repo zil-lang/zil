@@ -1,0 +1,71 @@
+{
+  "schema": "full-pipeline-remote-recovery-v2",
+  "archive_ref": "archive/source-history",
+  "archive_commit": "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8",
+  "archive_path": "research/incremental-demand-full-pipeline-20261112-v2",
+  "archive_sha256": "86ca0b81d324f745078eb7b6da176ee814d443188138b7edf88914b69ec9120e",
+  "archive_bytes": 261930012,
+  "parts": 11,
+  "verified_inventory_files": 51872,
+  "verified_inventory_bytes": 3108286255,
+  "source_commits": {
+    "canonical": "140997e032df26c31d94fe029ac86c7b42560182",
+    "history": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+    "packed": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a"
+  },
+  "recovery_tool_commit": "0c2ddfcb8fa1cebbe033a1dfa47c338af69f1df6",
+  "method": "fresh HTTPS single-branch clone without local object sharing; exact archive checkout; every part/archive/inventory/file hash and length validated after extraction; pinned source/helper commits verified reachable ancestors; both archived matched validators rerun from recovered files; recorded profile native oracles recomputed",
+  "matched": {
+    "check": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 0,
+      "verified_blobs": 7
+    },
+    "o2": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 2808,
+      "verified_blobs": 351
+    }
+  },
+  "profiles": [
+    {
+      "run": "full-pipeline-profile-o2-r1",
+      "rows": 34,
+      "recorded_native_outcomes_recomputed": 180,
+      "valid": true,
+      "rows_sha256": "f68fb2a54313d5d445e2bb9884a6637138218dfd3daecc389986752b8e4fbdb8",
+      "successful_pairs_same_executable_and_llvm_hashes": 15
+    },
+    {
+      "run": "full-pipeline-profile-o2-r2",
+      "rows": 34,
+      "recorded_native_outcomes_recomputed": 180,
+      "valid": true,
+      "rows_sha256": "894978fc27e08d9d456d667c3c113d76bc1060e5e8fb4ccd0d158177477861b8",
+      "successful_pairs_same_executable_and_llvm_hashes": 15
+    },
+    {
+      "run": "full-pipeline-profile-o2-r3",
+      "rows": 34,
+      "recorded_native_outcomes_recomputed": 180,
+      "valid": true,
+      "rows_sha256": "bbea74b275e8c60c6bbff36ebda68a7182041e631ea5b02be2bae3810013b906",
+      "successful_pairs_same_executable_and_llvm_hashes": 15
+    },
+    {
+      "run": "full-pipeline-profile-o2-r4",
+      "rows": 34,
+      "recorded_native_outcomes_recomputed": 180,
+      "valid": true,
+      "rows_sha256": "e9f133707293ace1c8233d88088ba24c7fec445507ee1aec780ec1fa2966df5e",
+      "successful_pairs_same_executable_and_llvm_hashes": 15
+    }
+  ],
+  "limits": "Root independently read back remote bytes, not a separate reviewer and not a new native compilation/execution. Transient per-request programs are represented by recorded native outcomes and archived content. This checkpoint stops at profile-r4/history196; later Verify source/tests and future runs are outside it. Older lost-environment raw remains unavailable."
+}

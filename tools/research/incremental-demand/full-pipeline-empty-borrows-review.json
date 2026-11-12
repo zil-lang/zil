@@ -1,0 +1,124 @@
+{
+  "schema": "full-pipeline-empty-borrows-independent-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "50709457daaf4676069c0b91931d9cf6368798e0",
+  "candidate_tree": "75af76fbeffd2ec4fc26f2f6c64543fe87aec219",
+  "delta_base": "57554873cb5eaa64a62e0b5e9d6f07ed20253da6",
+  "verdict": "ACCEPT bounded source correctness for this independent empty-borrow proof slice at 50709457daaf4676069c0b91931d9cf6368798e0. No new blocking authority, dependency, dense-fact consumer or budget/first-error gap was established. This is not full Verify incremental completion, performance acceptance, default enablement or main merge approval.",
+  "identity_scope": {
+    "source_access": "Read the actual implementation during construction and used git show/git diff plus frozen blob hashes for final identity. Current backend work in the shared worktree is excluded.",
+    "changed_crate_files_sha256": {
+      "crates/zil-driver/src/lib.rs": "a5367fc37ebee1d7eb9454020ee261dc9860c17e7e78e58b29e3e62608e22744",
+      "crates/zil-verify/src/borrows.rs": "a3c63a410c699d9ecadf89690c8a8d62992ca7580db26806b1d347c3ef7ca5e6",
+      "crates/zil-verify/src/borrows/loans.rs": "922d5b05d98ba7d238d6939a060852737c8bfadbff6a92cefe946a946c300976",
+      "crates/zil-verify/src/incremental.rs": "7cb88967db05997d8c6aeca18a231045df0b73f7cb655fd41a7b615f89618b47",
+      "crates/zil-verify/src/incremental/tests.rs": "8c5dfb676e330baffa172e284ad60bbfc46a321ca1f5414aecd55da1fb0ef940",
+      "crates/zil-verify/src/incremental/tests/empty_borrows.rs": "8f24229993c649909019299f415559b926c40e81ae4f6a01c65e9ba481b5f266",
+      "crates/zil-verify/src/lib.rs": "d1b118adfbeb756a915905e39e053f65e8b6fa92fceaf2895de350596fc59249"
+    },
+    "unchanged_dependency_sources_read_sha256": {
+      "crates/zil-verify/src/closures.rs": "72483db6063a94f9eb0fa82f9d81324866917c13b33d22bad41debed4b36f3ce",
+      "crates/zil-verify/src/byte_buffers.rs": "5130588bdb30a0c64472c3303ab1f88b3850a04d946f34b9068d98a7c2ac32d6",
+      "crates/zil-verify/src/resources/arrays.rs": "d3fdad04d8118d7cccc8736c2fd4d57655612ea24c06a60b400a68a96a7603ef",
+      "crates/zil-verify/src/packages.rs": "ebd9b60216ae52dab5c7b6ccb62eb369352f9029ea307651825e22a79cc405f6"
+    },
+    "delta": "Six Verify files including the new test file, plus driver report JSON adding three new stats fields. No Analyze/Types/backend scheduling or authority code changed in this production delta.",
+    "prior_receipt": {
+      "path": "tools/research/incremental-demand/full-pipeline-history-review.json",
+      "sha256": "f2eef03eef80c6ce9cbe71caf70d1bc7f777d1599532ae39d1706836764f14a1"
+    },
+    "other_committed_files": "Handoff and archive_evidence.py changes are outside this compiler correctness review; no evidence-archiver approval is implied."
+  },
+  "independent_boundary_review": [
+    {
+      "area": "Current gate and dense facts consumers",
+      "assessment": "Compact reconstruction requires a VerifySession attempt, no mixed mask, no resource-derived descriptor origins, no Task/Store result overlays, invocation callbacks, borrowed function pointers, generic mutex, replacements or module return-origin frontier. The original raw-type preflight and current budget-mode derivation still run. All global consumers assuming dense rows are either excluded by that predicate or retain their original complete path. Retained task-port facts solve before this decision as before; compact rows are not exposed to its solver."
+    },
+    {
+      "area": "Actual source absence rather than a scalar label",
+      "assessment": "Cold functions pay the original reconstruction debit and use the original function_has_sources predicate over all current SSA types and parameter-local types. Only its successful false result creates compact_empty. This excludes Address, tracked Desc, retained-task and address-carrying closure values under the existing rules. Functions with sources reconstruct dense facts. No source-name/type label, Analyze product or external hash authorizes the absence."
+    },
+    {
+      "area": "Origin/return/lending and Hold behavior",
+      "assessment": "For a proven source-free function inside the no-return-frontier gate, the skipped origin/lending loops have no reachable checked condition. product_captures was already false in the original no-source branch. Static rows still pay their original per-value fee. The extracted check_hold_shape preserves complete count/order/root-bound checks, v debit and each root debit in the original position; cold nonempty Hold roots still reject. Warm Hold skipping requires the exact previously successful full FunctionPlan and function/closure dependencies."
+    },
+    {
+      "area": "No-loan proof is separate",
+      "assessment": "Source absence does not authorize ownership. The actual original loan early predicate additionally inspects shared-thread state, environment lending captures, every local/value affine type, byte carrier, owning-array type and callable fields. If it cannot prove the early return, compact data materializes the original dense empty values/inputs before the complete loan checker. No compact row is indexed as a dense row. Only a successful early no-loan result is recorded for reuse."
+    },
+    {
+      "area": "Complete process-local proof dependencies",
+      "assessment": "Empty receipts are privately issued in VerifySession and retained only with a successful VerifiedModule epoch. Matching uses complete same_function (except diagnostic spans), complete FunctionPlan, current target and all Limits. Full closure-table equality binds both direct and nested closure type/lending reads. EmptyContext additionally binds static_utf8 and Option<bool> shared-thread membership, including the distinction between no table and Some(false). Other eligibility switches are independently reestablished on current input before matching. The skipped source/no-loan predicates read no callee effect/body or mutable external state."
+    },
+    {
+      "area": "Original fee order and short-budget fallback",
+      "assessment": "The no-frontier module fee stays first, followed by all functions reconstruction v debits in order, then each function static-row debits, Hold v/root debits and shared-thread table-presence fee. Reconstruction/Hold debits retain atomic spend(v) behavior. Static empty rows aggregate only when the whole fee fits; otherwise spend(1) reproduces original first failure and remaining amount. A short reconstruction/Hold/loan budget takes the original checker at its original stage. Skipped zero-root spends have no Budget side effects. Resource work, callbacks, captures and replacement schedules are not prepaid or moved past errors."
+    },
+    {
+      "area": "Pure predicates and contextual work",
+      "assessment": "Read source and loan gates and their actual helpers: holds_addresses and affine_type use raw types/closure definitions; carrier/array/callable gates are pure structural predicates. The admitted early path has no addressed_copy_sum or other mutable Budget memo effects to replay. Functions falling through to real loans retain original ambient Budget reads. Current task/interface/helper, stored-flow, head-access, resource and registration checks continue independently in lib.rs."
+    },
+    {
+      "area": "Publication, failure and final compile fix",
+      "assessment": "Attempt keeps next flow and empty maps private, with cached function/plan/closure matching only within this immutable call. Failed calls publish neither next map nor replacement VerifiedModule; only stats change. The final fix destructures completed Attempt before assigning self.flows/self.empty_borrows, ending the borrow that caused E0506, without broadening proof construction. Whole-input receipt behavior remains unchanged."
+    },
+    {
+      "area": "Default path and reporting",
+      "assessment": "Fresh public verification without a session and mixed borrowing keep the original dense path, now with compact_empty=false. check_hold_shape extraction and loans tuple wrapper preserve those semantics. Driver production change is JSON serialization of the three new counters only; it cannot create or consume proof authority."
+    }
+  ],
+  "tests_reviewed": {
+    "new_cases": [
+      "cold_private_edit_and_recovery_consume_empty_facts_without_dense_rows",
+      "every_residual_budget_matches_dense_oracle_at_each_original_stage",
+      "changed_holds_keep_error_order_and_failed_proofs_unpublished",
+      "raw_source_type_same_id_and_current_global_mode_cannot_use_old_absence",
+      "closure_capture_and_entry_changes_are_current_raw_dependencies",
+      "source_absence_does_not_skip_affine_local_loan_work",
+      "return_frontier_and_resource_origins_stay_fresh_after_an_empty_epoch"
+    ],
+    "meaning": "These directly compare complete fresh verification and session results, and phase oracles compare both diagnostics and residual budgets across small remaining amounts, changed Holds/raw source types/current global mode/closures/affine locals/frontiers/resources. They retain successful epoch identity after errors. They are independent raw checker/phase tests, not source compiler, driver integration, native emission or performance evidence.",
+    "logs": [
+      {
+        "path": "out/runs/full-pipeline-empty-borrows-01.log",
+        "sha256": "0b1f238518de2b000a20a9ec342bc6f02db55ae99a582edb64b930a6048c0d07",
+        "bytes": 1427,
+        "scope": "Preserved compilation failure E0506 while Attempt still borrowed self.flows; unused test variable warning. No tests completed."
+      },
+      {
+        "path": "out/runs/full-pipeline-empty-borrows-02.log",
+        "sha256": "02fb92a1ca7585593eece734ad69bca8b66917f01977e3192b04740356436072",
+        "bytes": 62223,
+        "scope": "623 passed/0 failed/0 ignored, 1.12 seconds; seven new independent raw/phase/fresh-oracle cases and 616 existing Verify tests."
+      }
+    ],
+    "root_execution": "Root ran the Verify test window and supplied exact-source/command/exit attribution. Reviewer independently read final frozen source and raw logs/hashes; no Cargo, compiler test, benchmark, native program or formatter run by reviewer.",
+    "pending": "Driver integration tests and strict workspace/all-target lint for this slice are pending a later combined freeze/window. No such pass, new-SHA full workspace result or release measurement is claimed. The prior driver-history196 result remains attached to its earlier exact source.",
+    "reviewer_mutation": "Only this JSON written; no production/helper file changed and no commit made."
+  },
+  "findings_and_limits": [
+    {
+      "id": "EB1",
+      "severity": "measurement scope, nonblocking",
+      "status": "OPEN qualification",
+      "title": "Values avoided is counted at completed local proof recording",
+      "evidence": "empty_borrow_values_avoided is incremented only after Hold and no-loan checking succeeds. Reconstruction can already have omitted rows for later functions before an earlier error terminates the call. Failed/partial requests can therefore omit actually avoided allocations from this counter.",
+      "qualification": "Treat it as values corresponding to completed eligible empty local proofs, not an exact allocator-event count for all failed/partial work. No speedup follows from this field alone."
+    },
+    {
+      "id": "F2",
+      "severity": "prior objective limitation",
+      "status": "OPEN",
+      "qualification": "Explicit incremental_o2/stable-name body COW limitation is unchanged and outside this Verify slice."
+    }
+  ],
+  "remaining_scope": [
+    "No claim closes all Verify dependencies or makes rich resource/task/callback/capture/effect/global domains incrementally minimal. Conservative fallback and fresh global composition remain.",
+    "Current module raw structural preflight, complete input/plan fingerprint identity, per-function checks and independent Verify authority remain required. Raw absence facts cannot authorize Analyze claims, native Builder, object integrity or link reuse.",
+    "No statistical wall-time, allocation/RSS, full actual workload source integration or broad concurrency/platform result for this exact slice is independently established.",
+    "Process-local immutable receipt ownership and complete Limits remain the authority boundary; source spans are diagnostic-only matching exceptions and error fallback uses current input spans.",
+    "Task remains under construction; no default-on change or main merge is approved."
+  ]
+}

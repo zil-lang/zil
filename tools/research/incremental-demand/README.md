@@ -1,5 +1,12 @@
 # 增量编译：main 与 Rust 对照
 
+> 完整流水线专项仍在施工。最新完整三方同参测量绑定源码 `140997e0`，见 [全部场景与边界](full-pipeline-matched-140.md) 和 [六轮精简结果](full-pipeline-matched-140.json)。普通 CGU16/O2/jobs1 私有编辑 main1706 → 候选888 ms，Rust515 ms；冷编译/广泛修改仍退化，不能宣称已追平或完成。
+>
+> 后续 `e1ad7470` 已接通批量 raw 持久化、实际 CGU 布局复用和流式 LLVM 文本，完整项目诊断见 [r4](full-pipeline-profile-r4.json)；其暴露的大项目父版本恢复问题已由 `57554873` 按原425声明规模修复。`50709457` 进一步消除独立 Verify 已证明为空的借用事实分配与遍历，623项测试通过，集成/新 release 测量仍待完成。详见 [逐阶段实际消费者与剩余成本](full-pipeline-audit.md)。研究开关默认关闭，未合入 main。
+>
+> 原始证据截至 r4/140双矩阵/history196 已推送固定 `archive/source-history@7fd718bc80535a5e0b19eff39418e49a1b4aa9a8` 的 `research/incremental-demand-full-pipeline-20261112-v2`；已从全新 HTTPS 克隆恢复并核验全部51,872文件，复跑两套原始 validator 通过（O2为2808次记录执行及351份产物）；见 [恢复收据](full-pipeline-recovery-v2.json)。更新的 Verify 工作未包含在该 checkpoint。此前丢失环境的旧 raw 仍不可恢复，不能用本地 tar 或这个新 checkpoint 冒充旧证据。
+
+
 > 2026-11-12 后续已实施函数Wire发布切片，并完成同窗口、同请求CGU16/O2/jobs1的main/候选/Rust检查及原生矩阵。新结果、负结果、逐阶段审计、独审和远端raw恢复见 [本轮交付](continuation-results.md)。下文历史数据与新结果分开保存。
 
 > 更正（2026-11-12）：上一版把 Zil CGU16 与 Rust CGU256 放入同一张 O2 表，并给出 2.36/1.43 倍差距，控制变量不一致。这两个跨语言 O2 倍数撤回；相同 Zil 配置下 main→候选的结果保留。下面保留历史记录，新的同 CGU、同时间窗口对照和点对点路径审计另行记录。CGU 参数是请求值，也必须核对实际产物分区，不能从参数直接推断实际单元数。
