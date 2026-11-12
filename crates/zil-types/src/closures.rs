@@ -400,7 +400,7 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
-    pub returned_life_bounds: BTreeMap<FunctionId, CoreCallableReturn>,
+    pub returned_life_bounds: BTreeMap<FunctionId, retained::ReturnedLifeBound>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
     // Private compiler provenance; public Core/Typed/Wire cannot supply it.

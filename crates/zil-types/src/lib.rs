@@ -743,7 +743,18 @@ impl<'a, 'c> Builder<'a, 'c> {
             let mut remaining=closures.remaining_work();
             inference::charge_returned_value_snapshot(bound,f.span,limits,&mut remaining)?;
             closures.snapshot(closures.remaining_work()-remaining,f.span)?;
-            closures.returned_life_bounds.insert(id,bound.clone());
+            remaining=closures.remaining_work();
+            inference::charge_function_scope_snapshot(f.source_scope.as_ref(),f.span,limits,&mut remaining)?;
+            closures.snapshot(closures.remaining_work()-remaining,f.span)?;
+            if let Some(context)=&bound.source_life {
+                let actual=f.source_scope.as_ref().ok_or_else(||error("E-CALLABLE-RETURN-SCOPE",f.span,"return-bound bridge requires its actual original Definition scope"))?;
+                if actual.declaration!=context.declaration || actual.identity!=context.identity || actual.parameters!=context.parameters {
+                    return Err(error("E-CALLABLE-RETURN-SCOPE",f.span,"return-bound bridge differs from the actual Core owner source scope"));
+                }
+            }
+            closures.returned_life_bounds.insert(id,retained::ReturnedLifeBound {
+                bound:bound.clone(),source_scope:f.source_scope.clone(),
+            });
         }
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)
@@ -3296,8 +3307,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
-            
-                source_scope: None,storage_life,
+            source_scope: None,
+            storage_life,
             call_kind: None,
             life: None,
             callable_return: None,
