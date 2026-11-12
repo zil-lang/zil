@@ -629,3 +629,17 @@ mod original_named_source_scope {
         }
     }
 }
+
+consumer!(
+    named_consuming_capture_transfers_the_actual_exclusive_pointer,
+    "fnonce-exclusive-capture-take"
+);
+#[test]
+fn same_typed_inputs_keep_the_original_named_result_at_runtime() {
+    for (life, actual) in [("a", "left"), ("b", "right")] {
+        let text = format!(
+            "fn make<life a,life b>(left:&'a mut i32,right:&'b mut i32)->impl FnOnce()->&'{life} mut i32{{return move()=>give {actual}}} fn main()->i32{{var left=20;var right=20;let f=make(&mut left,&mut right);let pointer=f();*pointer+=2;return *pointer-22}}"
+        );
+        accepted(&format!("named-return-{life}"), &text);
+    }
+}
