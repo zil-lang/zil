@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "5bd00829f0fd0f4828bb34260b69612ba80c0b53871482b13fec7e0f6348e75e",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv13 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 6671,
+    "sha256": "6ab74f98a9b517f3e5a62043915ea0ff73c75f908dffd5ce884c23b7a624cbb9"
+  },
+  "schema": 1,
+  "scope": "V15 storagepiece07: 13originalO2LLVM files/179855857bytes only, <=180MiB; fixedsource1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d. Wholeoriginal270rows/2808native/476blobs and strictsummary passed beforearchiving. Perpiece freshHTTPS complete filehash/mode proof; not a fullfreshmatchedvalidator rerun. Allpiece union must equal originalsaved21669file inventory. No workload/data removed.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
