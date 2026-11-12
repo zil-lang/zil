@@ -44,3 +44,10 @@ returns the actual incoming key. `take(set,key)->void!K` transfers the stored ke
 `contains`, `key_at`, `reserve`, `clear`, `len` and `capacity` retain the map's
 lookup, borrowing, allocation and cleanup rules. None of these APIs grants
 thread sharing or stable element addresses.
+
+`into_entries(map)` consumes the complete map, releases its index allocation and
+transfers the actual `Store<Entry<K,V>>` in dense order without allocating or
+copying keys/values. Set's `into_entries` similarly transfers
+`Store<Entry<K,bool>>`. These stores can enter ordinary owning iteration and
+collection; extracting `entry.key` transfers the actual set key. Existing
+borrowed windows must end before consuming either container.

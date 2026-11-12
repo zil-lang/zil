@@ -187,6 +187,14 @@ fn check()->graph.Error!i32 {
     if graph.clear(&mut first)!=1 || graph.contains(&first,old) {return 14}
     let fresh=graph.add(&mut first,2)?
     if graph.contains(&first,old) || fresh.ticket==old.ticket {return 15}
+    var mixed=graph.with_capacity(3,0,2)?
+    let before=graph.add(&mut mixed,1)?
+    let deleted=graph.add(&mut mixed,2)?
+    if !graph.remove(&mut mixed,deleted) {return 16}
+    let removed=graph.take_payload(&mut mixed,before)?
+    let next=graph.add(&mut mixed,3)?
+    let final_key=graph.add(&mut mixed,4)?
+    if graph.node_count(&mixed)!=2 || graph.contains(&mixed,deleted) || graph.contains(&mixed,before) || !graph.contains(&mixed,next) || !graph.contains(&mixed,final_key) {return 17}
     return 0
 }
 fn main()->i32 {match check(){.err(_)=>{return 11},.ok(code)=>{return code}}}

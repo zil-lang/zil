@@ -237,8 +237,10 @@ pub fn take_payload(graph:&mut Graph,key:NodeKey)->Error!ByteBuffer contract {re
             set_location(graph,key.ticket,-1)
             var at:i64=position
             while at<store_len(graph.nodes) {
-                let ticket=ticket_at(graph,at)
-                set_location(graph,ticket,at)
+                if store_at(graph.nodes,at).alive {
+                    let ticket=ticket_at(graph,at)
+                    set_location(graph,ticket,at)
+                }
                 at+=1
             }
             return give node.payload
