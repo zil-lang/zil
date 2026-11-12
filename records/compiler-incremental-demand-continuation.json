@@ -1091,10 +1091,10 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "c0221cb40034c2b36d5afe914e4833c58e7c671b",
-        "source": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
-        "measured_source": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
-        "measured_binary_sha256": "c584aaea968667c0076ce3a2518be18d7ad9397a72ba2c0ed8fe3e65d6c5da7a",
+        "read_goal": "eaafac4b0af7c752173d2c7de22ce10752136782",
+        "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+        "measured_source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+        "measured_binary_sha256": "66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
         "main_capture": "15:08 UTC; frozen earlier main42 comparisons retain their original source, not relabelled",
         "main_new_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
@@ -1104,7 +1104,10 @@
           "latest_directed_at_fc4_before_test_format_only": "native API67/0/0,CT71/0/0,driver207/0/0,strict native all-target Clippy pass",
           "format": "failed03/04 test-only formatting differences retained; fixed05 pass",
           "default_workspace_latest": "Exact9daad complete33 scope recovered:28 exact-source successful groups inherited plus5 fresh failed/not-run groups,6375pass/0fail/0ignore/0filter; originalENOSPC failures remain, not originalrun pass.",
-          "frame": "Exact55e native69/backend239/driver207 pass;Clippy07 featuregetter condition failure retained,04a fix. Exact244c complete native70,strict alltargetClippy08,fmt07,tools39pass;release08 running,no new timing."
+          "frame": "Exact55e native69/backend239/driver207 pass;Clippy07 featuregetter condition failure retained,04a fix. Exact244c complete native70,strict alltargetClippy08,fmt07,tools39pass;release08 running,no new timing.",
+          "d3": "native72/backend239/driver3mixed/strictalltargetClippy09/fmt08/tools39/release09pass; allsourceAfter exact",
+          "Types_bridge": "365 Types101/driver208/strictClippy10pass;068 test-onlyfmt10/release10pass; original94 Types01 100/1 andfmt09 fail unchanged. Default workspace9daad6375 exact-source recovery remains earlier scope.",
+          "final_flat_native": "1e260 native23 72/0,backend10 239/0,mixednative02 3/0; finalClippy11/fmt11/release11 running,not yet claimed"
         },
         "new_CT": "exact original20x20x16 locked fixture private21 actual body checks/404 reuses; positions425checks; globalcontext/declarations remain; originalprefix/N-N1/firsterror/independentVerify retained",
         "F14": "General function key now includes all reachable named type definitions and validates current caller owners; originalfinding/failed proofs retained; native negatives pass.",
@@ -1113,7 +1116,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "Frame/currentPSV/MMO/CFI complete native consumer qualified and bounded independently reviewed; actual425 timing pending. New entry-selector uses ordered typed keys+fourtext length/hash only to reject, matching candidate still complete boundeddecode+originalfullEq+replay checks. Static independent review244c accepted; no authority relaxation.",
+        "active_construction": "Flat typedMIR pools: MI88B→40B and fullcanonical partition/tie/APInt/MMO/frame/registeruse validation; fulloldMachineVerifier/MIRtext/typedrecapture preserved. CurrentTPM canonicalAU borrowed/fully fourcolumn lengths+order+flags compared insteadof virtualgetAU recompute; providerclosure onlythreeinput columns. Source1e260 bounded independent review acceptednative72;nettimingpending.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1125,10 +1128,21 @@
           "sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
           "status": "freshHTTPS full restore byte+mode validated; two diagnostic saved-native oracles recomputed without new native execution"
         },
-        "local_custody": "four oldv9 run materializations25712files/3539915708B were retired only after exact fixedf541inventory hashes/modes; complete original raw remains recoverable from v9/f541, latestclosed01/profile07 retained. Tombstone preserved.",
+        "local_custody": "Old07/closed01 exactv10,08/closed02 exactv12 and09/closed03 exactv13 materializations retiredaftercomplete localfile set/hash/mode proofs;fullrawremoterecoverable. 46topmetadata09/03 retainedcleanup06,sidecars/binaries/Gitobjects untouched. Debugcache notretiredyet;O2 needsbudgetedspace.",
         "automatic_review": "raw trace+ELF push to a new research source ref rejected for unapproved raw payload/destination; preserved locally for separate authorized archive, puretools branch27c454 pushed without raw ancestry. No retry/bypass.",
         "controls": "Default switches off; no research merge to main; default budgets, independent Verify and original O2 retained; one heavy window. User requests batch validation after complete logic; no per-getter reruns.",
-        "astra_review": "Read-only fixed368ea architecture review source244c:tools/research/incremental-demand/full-push-astra-native-panorama-review.{json,md}; recommends frame consumers, entry negative-filter, then schema3-driven capture/replay economics. No new measuredspeed."
+        "astra_review": "Read-only fixed368ea architecture review source244c:tools/research/incremental-demand/full-push-astra-native-panorama-review.{json,md}; recommends frame consumers, entry negative-filter, then schema3-driven capture/replay economics. No new measuredspeed.",
+        "latest_profile": "Source d3 default09 private464.474/main1499.8,cold7215.714/main5956.519,broad6664.267/main5009.487,recovery1565.686 retainednegative. Closed03 private738.836,1MFreuse/1exec. Each34valid/180native/15strongpairs; no new formalRust or crosswindow isolatedratio.",
+        "economic_gate": "Complete originalFPM groups choose boundedProbe/Reuse/Bypass,2keys/2captures/4fresh samples;2consecutive misses stop currentgroup, successfulsnapshot-lineageepoch publication only. Original allO2 preserved. ColdIRkey66.47/capture118.00ms vs prior539.93/1030.97,private376fresh/2reuse but optimizer139.37ms vs prior255.36;not hitrate improvement.",
+        "Types_gap": "Rootcause corrected: +8 allowance is not Types Limits change; producer publishederror epoch while Types retainedlastsuccessfulcold, previousEpochgate forced425CFG checks. FullInputContext/Namespace/target/fullLimits same, allcurrentowners/location/name/privateFunctionInputRevision scanned acrossgap; truechangedfresh, same-tokenpositionoriginalrebase, allmoduleimplfp refreshed, unknownfallback. Real425test1body/20position/404retained andfullfresh/Verify1 validated.",
+        "raw_latest_v13": {
+          "a": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+          "b": "b9539930dd704f452988c99b17baf136ed1ea231",
+          "raw_bytes": 858389372,
+          "compressed_bytes": 128739550,
+          "status": "bothfreshHTTPSallfilehash+modeverified;v13A Git title oldshort244c corrected inB immutableSOURCE-LABEL-CORRECTION;allauthoritativebindingsd3",
+          "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v13.json"
+        }
       }
     }
   }
