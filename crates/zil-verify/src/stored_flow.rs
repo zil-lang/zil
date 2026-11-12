@@ -5521,6 +5521,24 @@ fn windows(
                         address,
                         mutable: false,
                     } => checks.check(pointer(*address)?, false, requirements, b)?,
+                    InstructionKind::AddressField { address, .. } if b.dyn_contexts => {
+                        let result = i
+                            .result
+                            .ok_or_else(|| err("field view lacks its actual result"))?;
+                        let projected = pointer(result)?;
+                        let original = pointer(*address)?;
+                        permission_work(projected, b)?;
+                        b.spend(original.loans.len())?;
+                        // Creating a field view acts on its real physical
+                        // window. It retains the input ancestry, never its
+                        // own newly-created child as delegation authority.
+                        let actual = Permission {
+                            sources: projected.sources.clone(),
+                            loans: original.loans.clone(),
+                        };
+                        let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
+                        checks.check(&actual, write, requirements, b)?;
+                    }
                     InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
