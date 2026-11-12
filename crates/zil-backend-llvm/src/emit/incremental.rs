@@ -547,7 +547,11 @@ mod mixed_tests {
         let mut root = function(
             1,
             InstructionKind::Constant(Constant::I32(7)),
-            vec![Type::I32, Type::Managed(Box::new(Type::TaskI32))],
+            vec![
+                Type::I32,
+                Type::Managed(Box::new(Type::TaskI32)),
+                Type::Unit,
+            ],
         );
         root.blocks[0].instructions.extend([
             Instruction {
@@ -559,7 +563,9 @@ mod mixed_tests {
                 span: Span::default(),
             },
             Instruction {
-                result: None,
+                // Task operations publish Unit SSA results as well. This is
+                // the same shape emitted by Types::tasks through self.value.
+                result: Some(ValueId(2)),
                 kind: InstructionKind::TaskFinishDestroy { task: ValueId(1) },
                 span: Span::default(),
             },
