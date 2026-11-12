@@ -34,6 +34,25 @@ pub(super) fn fields<'a>(
         VariantFields::Record(_) => Err(error(span, "record enum variant requires named fields")),
     }
 }
+// A declaration's `manages` role is part of its payload type. Ordinary
+// resource spellings stay observations; only this actual owning field wraps.
+fn payload_formal(field: &VariantTupleField, budget: &mut Budget<'_>) -> R<TypeRef> {
+    budget.ty(&field.ty)?;
+    if field.manages
+        && !matches!(&grouped(&field.ty).kind,TypeKind::Named {path,..} if path.as_slice()==["Managed"])
+    {
+        budget.text("Managed", field.span)?;
+        Ok(TypeRef {
+            span: field.span,
+            kind: TypeKind::Named {
+                path: vec!["Managed".into()],
+                args: vec![GenericArg::Type(field.ty.clone())],
+            },
+        })
+    } else {
+        Ok(field.ty.clone())
+    }
+}
 pub(super) fn substituted(
     ty: &TypeRef,
     found: &BTreeMap<String, TypeRef>,
@@ -1032,7 +1051,8 @@ impl Engine<'_> {
                 if argument.spread {
                     return Err(unsupported(argument.span, "enum payload tuple spread"));
                 }
-                let hint = substituted(field, &found, &mut self.budget)?;
+                let formal = payload_formal(field, &mut self.budget)?;
+                let hint = substituted(&formal, &found, &mut self.budget)?;
                 let unresolved = vars
                     .iter()
                     .any(|v| !found.contains_key(v) && contains(&hint, v));
@@ -1041,7 +1061,7 @@ impl Engine<'_> {
                         matches!(&parameter.kind, GenericParamKind::Type(bounds)
                             if bounds.iter().any(|bound| trait_instances::head(bound).is_some()))
                     })
-                    && trait_bounds::associated::contains(field, &mut self.budget)?
+                    && trait_bounds::associated::contains(&formal, &mut self.budget)?
                 {
                     let bounds = self
                         .traits
@@ -1098,7 +1118,7 @@ impl Engine<'_> {
                         &mut self.budget,
                     )?;
                 } else {
-                    unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
+                    unify(&formal, &actual, &vars, &mut found, span, &mut self.budget)?;
                 }
             }
         }
