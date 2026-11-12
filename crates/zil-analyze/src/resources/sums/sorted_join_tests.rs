@@ -80,6 +80,7 @@ fn nested(missing: bool, variant: u32, birth: Birth) -> Arc<Tree> {
 }
 fn facts(count: u32, variant: u32, birth: Birth) -> Facts {
     Facts {
+        owned_creation: false,
         locals: direct_index::Locals::from_keyed(
             1,
             BTreeMap::from([(LocalId(0), nested(false, variant, birth))]),

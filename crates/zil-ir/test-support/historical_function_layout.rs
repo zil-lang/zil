@@ -213,8 +213,9 @@ impl Walk<'_> {
         self.take(20)?;
         Ok(())
     }
-    fn function(&mut self) -> R<usize> {
+    fn function(&mut self) -> R<Vec<usize>> {
         self.absent()?; // Direct CallKind.
+        let mut insertions = vec![self.pos]; // Explicit Local resume request.
         self.absent()?; // StorageLifeContract.
         if self.tag(1)? == 1 {
             self.words()?;
@@ -232,7 +233,7 @@ impl Walk<'_> {
         if self.tag(1)? == 1 {
             self.callable()?;
         }
-        let insertion = self.pos; // V44 adds protocol_contract: None here.
+        insertions.push(self.pos); // V44 adds protocol_contract: None here.
         self.take(4)?;
         self.text()?;
         if self.tag(1)? == 1 {
@@ -240,6 +241,7 @@ impl Walk<'_> {
             self.text()?;
             self.words()?;
             self.tag(1)?;
+            insertions.push(self.pos); // No cross-driver provider promise.
             self.tag(2)?;
         }
         self.optional_word()?;
@@ -274,7 +276,7 @@ impl Walk<'_> {
             }
         }
         self.take(24)?;
-        Ok(insertion)
+        Ok(insertions)
     }
 }
 /// Insert only the new None fields, then relabel the transport envelope.
@@ -316,11 +318,11 @@ pub fn transport(
     let count = w.count()?;
     let mut insertions = Vec::with_capacity(count);
     for _ in 0..count {
-        insertions.push(w.function()?);
+        insertions.extend(w.function()?);
     }
     let length = bytes
         .len()
-        .checked_add(count)
+        .checked_add(insertions.len())
         .ok_or("fixture output overflow")?;
     if length > max_bytes {
         return Err("fixture output quota".into());

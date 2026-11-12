@@ -440,6 +440,7 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::TaskCreateOwned { .. } => panic!("owning Task creation is outside this retained legacy oracle"),
         InstructionKind::StaticUtf8 { .. } => {
             panic!("runtime UTF8 storage is outside this retained legacy oracle")
         }

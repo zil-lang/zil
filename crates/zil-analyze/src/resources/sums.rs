@@ -838,6 +838,7 @@ fn join_tables<K: Ord>(
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
+    owned_creation: bool,
     locals: direct_index::Locals,
     values: ssa_values::Values,
     captures: BTreeMap<u32, Arc<Tree>>,
@@ -870,6 +871,9 @@ impl Facts {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<bool> {
+        if !self.owned_creation {
+            return Ok(true);
+        }
         budget.lookup(self.locals.len(), "actual Task cleanup local lookup")?;
         match self.locals.get(&local) {
             Some(tree) => tree.live_task(ty, budget),
@@ -1204,6 +1208,7 @@ impl Facts {
 }
 
 pub(super) struct Plan {
+    owned_creation: bool,
     // Immutable local indices whose exact Tree constructor contains tag state.
     // None preserves the established scheduling/fees outside mixed consumers.
     tagged_locals: Option<Vec<LocalId>>,
@@ -1256,6 +1261,7 @@ impl Plan {
         let mut partial = false;
         let mut address_tag = false;
         let mut address_replacement = false;
+        let mut owned_creation = false;
         let mut constants = BTreeMap::new();
         let mut observations = direct_index::Observations::new(f.values.len(), budget)?;
         let mut tests = BTreeMap::new();
@@ -1263,6 +1269,7 @@ impl Plan {
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             budget.spend(1, "Sum instruction inventory")?;
             address_tag |= matches!(i.kind, InstructionKind::PlaceTagAddress { .. });
+            owned_creation |= matches!(i.kind, InstructionKind::TaskCreateOwned { .. });
             address_replacement |= matches!(i.kind, InstructionKind::ReservePlaceAddress { .. });
             partial |= matches!(
                 i.kind,
@@ -1354,6 +1361,7 @@ impl Plan {
             None
         };
         Ok(Some(Self {
+            owned_creation,
             tagged_locals,
             partial: if partial {
                 Some(partial_places::Meta::new(f, budget)?)
@@ -1370,7 +1378,10 @@ impl Plan {
         f: &TypedFunction,
         budget: &mut Budget,
     ) -> CompileResult<Facts> {
-        let mut facts = Facts::default();
+        let mut facts = Facts {
+            owned_creation: self.owned_creation,
+            ..Facts::default()
+        };
         if self.partial.is_some() {
             facts.partial = Some(partial_places::State::default());
         }

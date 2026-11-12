@@ -484,6 +484,7 @@ fn threaded_callback_checks_actual_source_core_raw_and_wire_dependencies() {
                     symbol: function.name.clone(),
                     noescape_parameters: vec![],
                     static_callbacks: false,
+                    thread_driver_transfer: false,
                     scoped_callback: None,
                 });
             }
