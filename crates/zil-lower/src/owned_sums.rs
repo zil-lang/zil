@@ -146,7 +146,11 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
-    pub(super) fn callable_metadata(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
+    pub(super) fn callable_metadata(
+        &mut self,
+        module: &zil_ir::TypedModule,
+        mut recording: Option<&mut AdmissionRecording>,
+    ) -> CompileResult<()> {
         self.metadata(
             module
                 .functions
@@ -155,51 +159,16 @@ impl<'a> Budget<'a> {
                 .saturating_add(module.resources.len()),
         )?;
         for function in &module.functions {
-            if let Some(life) = &function.storage_life {
-                self.stored_contract(life)?;
+            let before = self.cost();
+            if let Some(recording) = recording.as_mut() {
+                recording.metadata_checks += 1;
             }
-            if let Some(contract) = &function.callable_contract {
-                self.metadata(contract.roles.len())?;
-                for role in &contract.roles {
-                    self.metadata(
-                        role.hold
-                            .len()
-                            .saturating_add(role.call.len())
-                            .saturating_add(role.writes.len())
-                            .saturating_add(8),
-                    )?;
-                    if let Some(life) = &role.life {
-                        self.stored_contract(life)?;
-                    }
-                }
-                match &contract.traces {
-                    zil_ir::CallableTraces::Finite(traces) => {
-                        self.metadata(traces.len().saturating_add(1))?;
-                        for trace in traces {
-                            self.metadata(trace.calls.len().saturating_mul(2).saturating_add(1))?;
-                        }
-                    }
-                    zil_ir::CallableTraces::Flow(flow) => {
-                        self.metadata(flow.nodes.len().saturating_add(1))?;
-                        for node in &flow.nodes {
-                            self.metadata(node.calls.len().saturating_mul(2).saturating_add(1))?;
-                            if let zil_ir::CallableFlowNext::Edges(edges) = &node.next {
-                                self.metadata(edges.len())?;
-                            }
-                        }
-                    }
-                }
-            }
-            self.pay(&function.return_type, 0)?;
-            self.copy_work(&function.return_type, 0)?;
-            for ty in function
-                .locals
-                .iter()
-                .map(|l| &l.ty)
-                .chain(&function.values)
-            {
-                self.pay(ty, 0)?;
-                self.copy_work(ty, 0)?;
+            self.function_metadata(function)?;
+            if let Some(recording) = recording.as_mut() {
+                let after = self.cost();
+                recording
+                    .costs
+                    .push([after[0] - before[0], after[1] - before[1]]);
             }
         }
         for closure in &module.closures {
@@ -216,6 +185,66 @@ impl<'a> Budget<'a> {
         for resource in &module.resources {
             self.pay(&resource.payload, 0)?;
             self.copy_work(&resource.payload, 0)?;
+        }
+        Ok(())
+    }
+    pub(super) fn function_metadata(&mut self, function: &TypedFunction) -> CompileResult<()> {
+        if let Some(life) = &function.storage_life {
+            self.stored_contract(life)?;
+        }
+        if let Some(contract) = &function.callable_contract {
+            self.metadata(contract.roles.len())?;
+            for role in &contract.roles {
+                self.metadata(
+                    role.hold
+                        .len()
+                        .saturating_add(role.call.len())
+                        .saturating_add(role.writes.len())
+                        .saturating_add(8),
+                )?;
+                if let Some(life) = &role.life {
+                    self.stored_contract(life)?;
+                }
+            }
+            match &contract.traces {
+                zil_ir::CallableTraces::Finite(traces) => {
+                    self.metadata(traces.len().saturating_add(1))?;
+                    for trace in traces {
+                        self.metadata(trace.calls.len().saturating_mul(2).saturating_add(1))?;
+                    }
+                }
+                zil_ir::CallableTraces::Flow(flow) => {
+                    self.metadata(flow.nodes.len().saturating_add(1))?;
+                    for node in &flow.nodes {
+                        self.metadata(node.calls.len().saturating_mul(2).saturating_add(1))?;
+                        if let zil_ir::CallableFlowNext::Edges(edges) = &node.next {
+                            self.metadata(edges.len())?;
+                        }
+                    }
+                }
+            }
+        }
+        self.pay(&function.return_type, 0)?;
+        self.copy_work(&function.return_type, 0)?;
+        for ty in function
+            .locals
+            .iter()
+            .map(|l| &l.ty)
+            .chain(&function.values)
+        {
+            self.pay(ty, 0)?;
+            self.copy_work(ty, 0)?;
+        }
+        Ok(())
+    }
+    pub(super) fn cost(&self) -> [usize; 2] {
+        [self.nodes, self.work]
+    }
+    pub(super) fn replay(&mut self, cost: [usize; 2]) -> CompileResult<()> {
+        self.nodes = self.nodes.checked_add(cost[0]).ok_or_else(limit)?;
+        self.work = self.work.checked_add(cost[1]).ok_or_else(limit)?;
+        if self.nodes > self.limits.max_nodes || self.work > self.limits.max_analysis_steps {
+            return Err(limit());
         }
         Ok(())
     }
