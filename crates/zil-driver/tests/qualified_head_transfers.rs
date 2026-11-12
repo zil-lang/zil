@@ -1,5 +1,5 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
-use zil_ir::{StorageBase, StorageBinder};
+use zil_ir::StorageBase;
 
 fn core(text: &str) -> zil_ir::CoreModule {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "receiver-borrow.zil", text);
@@ -119,4 +119,13 @@ fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slot
             .any(|error| error.category == zil_base::ResultCategory::SafeReject),
         "old data SSA must retain its original root until last use: {errors:?}"
     );
+}
+
+#[test]
+fn consuming_slice_keeps_the_real_fixed_capability_and_complete_fat_pointer() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-exclusive-slice-take.zil"
+    );
+    let module = typed(text);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }

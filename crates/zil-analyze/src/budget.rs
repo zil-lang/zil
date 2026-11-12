@@ -1714,6 +1714,10 @@ pub(super) fn preflight(
                 }
                 continue;
             }
+            if ty.is_slice_address() && closure.storage_life.is_some() {
+                budget.type_work(ty, true, "captured slice complete finite element type")?;
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
