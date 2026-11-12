@@ -3876,6 +3876,20 @@ impl Flow<'_> {
                             });
                         }
                     }
+                    if super::stored_callables::task_result(definition)
+                        && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
+                        && out_shape.is_some_and(|s| s.owned)
+                    {
+                        // The actual entry's Return is checked by this same
+                        // affine proof. Task port/debt consumers separately
+                        // reconstruct which original environment frame leaves
+                        // crossed this invocation; this is no fresh birth.
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            sources: BTreeSet::new(),
+                            birth: BTreeSet::from([Birth::Incoming]),
+                        });
+                    }
                 }
                 _ => {}
             }

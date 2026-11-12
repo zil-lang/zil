@@ -228,12 +228,21 @@ fn borrowed_owned_definition(
     super::owned_callbacks::signature(module, d, b)
 }
 
+// Scheduling only: executable return sources, complete retained classes and
+// owner responsibility are reconstructed by the Task/stored consumers.
+pub(super) fn task_result(d: &ClosureDefinition) -> bool {
+    d.kind == CallableKind::FnOnce
+        && d.parameters.is_empty()
+        && d.lending_captures.is_empty()
+        && matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || transferred(d)
             || borrowed_owned_candidate(d)
+            || task_result(d)
     })
 }
 pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {

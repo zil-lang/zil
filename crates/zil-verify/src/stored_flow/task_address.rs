@@ -381,17 +381,116 @@ pub(super) fn source_relation(
     source: &Source,
     b: &mut Budget,
 ) -> Check<StorageBinder> {
-    let HoldRoot::Parameter(index) = source.base else {
-        return Err(err("Task result source is activation-local"));
+    let base = match source.base {
+        HoldRoot::Parameter(index) => StorageBase::Parameter(index),
+        HoldRoot::Capture(index) => {
+            let id = f
+                .environment
+                .ok_or_else(|| err("Task result capture has no actual environment"))?;
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| err("Task result capture definition is absent"))?;
+            if d.function != f.id
+                || d.kind != CallableKind::FnOnce
+                || !d.parameters.is_empty()
+                || d.captures.get(index as usize).is_none()
+                || !matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+            {
+                return Err(err(
+                    "Task result capture differs from its actual consuming entry",
+                ));
+            }
+            StorageBase::Capture(index)
+        }
+        _ => return Err(err("Task result source is activation-local")),
     };
-    if let Some(PortOrigin::Task { carrier, port }) = &source.retained_port {
-        let mut path = port_path(&source.leaf, *port);
-        b.spend(path.len().saturating_add(carrier.len()))?;
-        path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
-        carriers::relation(module, f, StorageBase::Parameter(index), &path, b)
-    } else {
-        relation(f, StorageBase::Parameter(index), &source.leaf, b)
+    match &source.retained_port {
+        Some(PortOrigin::Task { carrier, port }) => {
+            let mut path = port_path(&source.leaf, *port);
+            b.spend(path.len().saturating_add(carrier.len()))?;
+            path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
+            carriers::relation(module, f, base, &path, b)
+        }
+        Some(PortOrigin::Dyn { .. }) => {
+            Err(err("Dyn port cannot use a Task result source relation"))
+        }
+        None => relation(f, base, &source.leaf, b),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn invoke(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Payload],
+    summaries: &[Summary],
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Payload> {
+    let InstructionKind::CallClosureOnce { callee, arguments } = &i.kind else {
+        return Err(err("owning Task result needs an actual consuming call"));
+    };
+    let Type::Closure(id) = vt(f, *callee)? else {
+        return Err(err("Task-returning call has no actual closure receiver"));
+    };
+    let d = module
+        .closures
+        .get(id.0 as usize)
+        .filter(|d| super::super::stored_callables::task_result(d))
+        .ok_or_else(|| err("Task-returning call has no actual consuming definition"))?;
+    let mut out = Payload::default();
+    for (path, sources) in &summaries[d.function.0 as usize].task_ports {
+        b.spend(path.len().saturating_add(sources.len()))?;
+        let mut permission = Permission::default();
+        for source in sources {
+            let actual = match source.base {
+                HoldRoot::Capture(index) => {
+                    let Some(PortOrigin::Task { carrier, port }) = &source.retained_port else {
+                        return Err(err(
+                            "returned Task capture is outside the Task-port namespace",
+                        ));
+                    };
+                    if !source.inline.is_empty()
+                        || source.heap_element.is_some()
+                        || !source.heap_parents.is_empty()
+                    {
+                        return Err(err(
+                            "Task capture projection needs its actual data-position consumer",
+                        ));
+                    }
+                    b.spend(
+                        source
+                            .leaf
+                            .len()
+                            .saturating_add(carrier.len())
+                            .saturating_add(2),
+                    )?;
+                    let mut wanted = vec![ContractProjection::Capture(index)];
+                    wanted.extend(source.leaf.iter().copied().map(ContractProjection::Place));
+                    wanted.extend_from_slice(carrier);
+                    wanted.push(ContractProjection::RetainedPort(*port));
+                    let receiver = &values[callee.0 as usize];
+                    b.spend(amount(
+                        receiver.task_ports.len().saturating_add(1),
+                        wanted.len().saturating_add(1),
+                    )?)?;
+                    match receiver.task_ports.iter().find(|(key, _)| *key == wanted) {
+                        Some((_, actual)) => {
+                            permission_work(actual, b)?;
+                            actual.clone()
+                        }
+                        None => Permission::default(),
+                    }
+                }
+                _ => instantiate(module, f, source, arguments, values, state, b)?,
+            };
+            join_permission(&mut permission, &actual, b)?;
+        }
+        insert(&mut out, path, &permission, b)?;
+    }
+    Ok(out)
 }
 fn captured_source_upper(
     f: &TypedFunction,

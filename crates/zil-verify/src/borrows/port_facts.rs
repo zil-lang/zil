@@ -321,25 +321,30 @@ fn select(
     else {
         return Ok(None);
     };
+    select_value(value, &position.path, budget)
+}
+
+fn select_value(
+    value: &Carrier,
+    wanted: &[ContractProjection],
+    budget: &mut Budget,
+) -> Check<Option<Port>> {
     cost(value, budget)?;
     let selected = value
         .ports
         .iter()
         .filter(|(path, _)| {
-            position
-                .path
-                .strip_prefix(path.as_slice())
-                .is_some_and(|suffix| {
-                    suffix
-                        .iter()
-                        .all(|part| matches!(part, ContractProjection::Place(_)))
-                })
+            wanted.strip_prefix(path.as_slice()).is_some_and(|suffix| {
+                suffix
+                    .iter()
+                    .all(|part| matches!(part, ContractProjection::Place(_)))
+            })
         })
         .max_by_key(|(path, _)| path.len());
     let Some((path, row)) = selected else {
         return Ok(None);
     };
-    let suffix = &position.path[path.len()..];
+    let suffix = &wanted[path.len()..];
     let mut actual = row.clone();
     if !suffix.is_empty() {
         actual.origins = actual
@@ -361,6 +366,7 @@ fn invoke(
     summary: &Carrier,
     arguments: &[ValueId],
     values: &[Carrier],
+    environment: Option<&Carrier>,
     budget: &mut Budget,
 ) -> Check<Carrier> {
     cost(summary, budget)?;
@@ -381,7 +387,20 @@ fn invoke(
         for origin in &port.origins {
             match origin {
                 Origin::Input(position) => {
-                    if let Some(actual) = select(values, arguments, position, budget)? {
+                    let selected = if let StorageBase::Capture(index) = position.base {
+                        match environment {
+                            Some(environment) => {
+                                budget.spend(position.path.len().saturating_add(1))?;
+                                let mut path = vec![ContractProjection::Capture(index)];
+                                path.extend_from_slice(&position.path);
+                                select_value(environment, &path, budget)?
+                            }
+                            None => None,
+                        }
+                    } else {
+                        select(values, arguments, position, budget)?
+                    };
+                    if let Some(actual) = selected {
                         budget.spend(actual.origins.len().saturating_add(actual.parents.len()))?;
                         row.origins.extend(actual.origins.iter().cloned());
                         row.parents.extend(actual.parents.iter().cloned());
@@ -596,7 +615,13 @@ fn produce(
             function,
             arguments,
         } => {
-            let mut result = invoke(&summaries[function.0 as usize], arguments, values, budget)?;
+            let mut result = invoke(
+                &summaries[function.0 as usize],
+                arguments,
+                values,
+                None,
+                budget,
+            )?;
             for (path, port) in &mut result.ports {
                 if summaries[function.0 as usize]
                     .ports
@@ -604,6 +629,37 @@ fn produce(
                     .is_some_and(|row| row.fresh)
                     && retained_path(path)
                 {
+                    retain(value, path, port, created, budget)?;
+                }
+            }
+            Ok(result)
+        }
+        InstructionKind::CallClosureOnce { callee, arguments } => {
+            let Type::Closure(id) = &f.values[callee.0 as usize] else {
+                return Err(bad(
+                    instruction.span,
+                    "Task result invocation has no actual environment type",
+                ));
+            };
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .filter(|d| d.kind == CallableKind::FnOnce && d.parameters.is_empty())
+                .ok_or_else(|| {
+                    bad(
+                        instruction.span,
+                        "Task result invocation does not consume its real entry",
+                    )
+                })?;
+            let mut result = invoke(
+                &summaries[d.function.0 as usize],
+                arguments,
+                values,
+                Some(&values[callee.0 as usize]),
+                budget,
+            )?;
+            for (path, port) in &mut result.ports {
+                if port.fresh && retained_path(path) {
                     retain(value, path, port, created, budget)?;
                 }
             }

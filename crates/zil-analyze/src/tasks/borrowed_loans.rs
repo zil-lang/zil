@@ -308,17 +308,44 @@ fn transfer(
         }
         InstructionKind::TakeCapture { index } => Some(take(state, Owner::Capture(*index), b)?),
         InstructionKind::CallClosureOnce { callee, arguments } => {
-            take(state, Owner::Value(*callee), b)?;
+            let environment = take(state, Owner::Value(*callee), b)?;
+            let mut transferred = Roots::new();
+            for debt in environment.values() {
+                fee(b, debt.all.len())?;
+                transferred.extend(&debt.all);
+            }
             for value in arguments {
-                take(state, Owner::Value(*value), b)?;
+                for debt in take(state, Owner::Value(*value), b)?.values() {
+                    fee(b, debt.all.len())?;
+                    transferred.extend(&debt.all);
+                }
             }
-            if output.is_some() {
-                return Err(fail(
-                    i.span,
-                    "Task-returning callable needs its complete returned frame source consumer",
-                ));
-            }
-            None
+            output.map(|output| {
+                let ports = b.task_retained_roots.get(f.id.0 as usize)
+                    .and_then(|rows| rows.get(output.0 as usize))
+                    .ok_or_else(|| fail(i.span,"returned Task lacks its independently reconstructed actual ports"))?;
+                let work = ports.iter().fold(1usize, |work,(path,roots)| work.saturating_add(path.len()).saturating_add(roots.len()));
+                fee(b,work)?;
+                let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
+                let mut returned = Carrier::new();
+                for (owner,exclusive) in &catalog.values[output.0 as usize] {
+                    let mut all = Roots::new();
+                    for (path,roots) in ports {
+                        if matches!(path.strip_prefix(owner.as_slice()),Some([ContractProjection::RetainedPort(_)])) {
+                            all.extend(roots);
+                        }
+                    }
+                    if all.is_empty() || all.iter().any(|root| *root!=HoldRoot::Static && !transferred.contains(root)) {
+                        return Err(fail(i.span,"returned Task dependency is not an actual transferred environment frame root"));
+                    }
+                    returned.insert(owner.clone(),Debt {
+                        exclusive: if *exclusive {all.clone()} else {Roots::new()},
+                        all,
+                    });
+                }
+                carrier_work(&returned,b)?;
+                Ok(returned)
+            }).transpose()?
         }
         InstructionKind::Call {
             function,

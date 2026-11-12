@@ -229,11 +229,18 @@ pub(super) fn owned_entry(
     Ok(())
 }
 
+pub(super) fn task_result(d: &ClosureDefinition) -> bool {
+    d.kind == CallableKind::FnOnce
+        && d.parameters.is_empty()
+        && d.lending_captures.is_empty()
+        && matches!(&d.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}))
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || borrowed_owned_candidate(d)
+            || task_result(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
             }) && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
@@ -299,6 +306,7 @@ pub(super) fn captured_profile(
     }
     if !((d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
+        || task_result(d)
         || d.storage_life
             .as_ref()
             .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())

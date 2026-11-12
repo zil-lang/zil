@@ -55,6 +55,38 @@ fn closed_owner() -> String {
         .to_owned()
 }
 #[test]
+fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
+    for (name, text) in [
+        (
+            "one",
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/returned-task-result-fnonce.zil"
+            ),
+        ),
+        (
+            "second",
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil"
+            ),
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+#[test]
 fn returned_fnonce_moves_the_actual_live_task_and_retains_its_parent() {
     for (name, text) in [
         ("basic", SOURCE.to_owned()),

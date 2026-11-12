@@ -4684,6 +4684,9 @@ fn transfer(
                 out.pointer.loans.insert(marker);
             }
         }
+        kind if super::stored_callables::called(module,f,kind).is_some_and(|(d,_)|super::stored_callables::task_result(d)) => {
+            out=task_address::invoke(module,f,i,values,summaries,state,b)?;
+        }
         kind if super::stored_callables::called(module,f,kind).is_some_and(|(d,_)|receiver_results::applies(d)) => {
             out=receiver_results::invoke(module,f,i,state,values,summaries,slot_ids,loans,b)?;
         }

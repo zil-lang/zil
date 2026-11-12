@@ -251,8 +251,20 @@ pub(super) fn source_binding(
     source: &Target,
     b: &mut Budget,
 ) -> CompileResult<StorageBinder> {
-    let HoldRoot::Parameter(index) = source.base else {
-        return Err(failure("Task result source is not an external input"));
+    let base = match source.base {
+        HoldRoot::Parameter(index) => StorageBase::Parameter(index),
+        HoldRoot::Capture(index) => {
+            let definition = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| d.function == f.id && super::super::stored_callables::task_result(d))
+                .ok_or_else(|| failure("Task capture result lacks its actual consuming entry"))?;
+            if definition.captures.get(index as usize).is_none() {
+                return Err(failure("Task result selects an absent actual capture"));
+            }
+            StorageBase::Capture(index)
+        }
+        _ => return Err(failure("Task result source is activation-local")),
     };
     if let Some(origin) = &source.retained_port {
         let PortOrigin::Task { carrier, port } = origin else {
@@ -261,10 +273,81 @@ pub(super) fn source_binding(
         let mut path = key(&source.stored, *port);
         fee(b, path.len().saturating_add(carrier.len()))?;
         path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
-        carriers::relation(module, f, StorageBase::Parameter(index), &path, b)
+        carriers::relation(module, f, base, &path, b)
     } else {
-        binding(f, StorageBase::Parameter(index), &source.stored, b)
+        binding(f, base, &source.stored, b)
     }
+}
+
+pub(super) fn invoke(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Value],
+    summaries: &[Facts],
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    let InstructionKind::CallClosureOnce { callee, arguments } = &i.kind else {
+        return Err(failure(
+            "Task environment result requires its consuming invocation",
+        ));
+    };
+    let (definition, _) = super::super::stored_callables::called(module, f, &i.kind)
+        .filter(|(d, _)| super::super::stored_callables::task_result(d))
+        .ok_or_else(|| failure("Task environment result lacks its actual entry"))?;
+    let actual = values
+        .get(callee.0 as usize)
+        .ok_or_else(|| failure("Task result receiver is absent"))?;
+    let summary = summaries
+        .get(definition.function.0 as usize)
+        .ok_or_else(|| failure("Task result entry summary is absent"))?;
+    let mut out = Value::default();
+    for (path, sources) in &summary.returned_task_ports {
+        fee(b, path.len().saturating_add(sources.len()))?;
+        let mut permission = Permission::default();
+        for source in sources {
+            let part = if let HoldRoot::Capture(index) = source.base {
+                let Some(PortOrigin::Task { carrier, port }) = &source.retained_port else {
+                    return Err(failure(
+                        "returned Task capture has no actual Task-port namespace",
+                    ));
+                };
+                if !source.place.is_empty()
+                    || source.heap_element.is_some()
+                    || !source.heap_parents.is_empty()
+                {
+                    return Err(failure(
+                        "returned Task capture data projection lacks its actual consumer",
+                    ));
+                }
+                fee(
+                    b,
+                    source
+                        .stored
+                        .len()
+                        .saturating_add(carrier.len())
+                        .saturating_add(2),
+                )?;
+                let mut selected = vec![ContractProjection::Capture(index)];
+                selected.extend(source.stored.iter().copied().map(ContractProjection::Place));
+                selected.extend_from_slice(carrier);
+                selected.push(ContractProjection::RetainedPort(*port));
+                ordered(b, actual.task_ports.len(), selected.len())?;
+                actual
+                    .task_ports
+                    .get(&selected)
+                    .map(|p| port_snapshot(p, selected.len(), b))
+                    .transpose()?
+                    .unwrap_or_default()
+            } else {
+                substitute(source, arguments, values, state, b)?
+            };
+            union(&mut permission, &part, b)?;
+        }
+        out.task_ports.insert(path.clone(), permission);
+    }
+    Ok(out)
 }
 pub(super) fn summarize(
     module: &TypedModule,

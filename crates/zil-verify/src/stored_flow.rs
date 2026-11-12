@@ -3828,6 +3828,10 @@ fn step(
                 Some(i.span),
             ));
         }
+        InstructionKind::CallClosureOnce { callee, .. }
+            if matches!(vt(f,*callee)?,Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(super::stored_callables::task_result)) => {
+            out=task_address::invoke(module,f,i,values,summaries,state,b)?;
+        }
         InstructionKind::ForeignCall { function, .. } => {
             let declaration = module
                 .functions
