@@ -50,9 +50,27 @@ fn cases() -> Vec<(&'static str, String)> {
         ("ready-result-unobserved-by-owner", ready_cancel),
     ]
 }
+fn closed_owner() -> String {
+    SOURCE
+        .replace(
+            "fn worker(input:&mut i32)->i32 {*input+=5;task_yield();return *input;}",
+            "fn worker()->i32 {task_yield();return 42;}",
+        )
+        .replace("<life a>", "")
+        .replace("Task<i32,&'a mut i32>", "Task<i32>")
+        .replace("var number=37;", "")
+        .replace("task_create(worker,&mut number)", "task_create(worker)")
+        .replace("if number!=42{return 91;}number=9;", "")
+}
 #[test]
 fn returned_fnonce_moves_the_actual_live_task_and_retains_its_parent() {
-    for (name, text) in std::iter::once(("basic", SOURCE.to_owned())).chain(cases()) {
+    for (name, text) in [
+        ("basic", SOURCE.to_owned()),
+        ("closed-owner", closed_owner()),
+    ]
+    .into_iter()
+    .chain(cases())
+    {
         let report = compile_source(
             &source(&text),
             &CompileOptions {
@@ -106,7 +124,11 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (name, text) in cases() {
+            for (name, text, expected) in cases()
+                .into_iter()
+                .map(|(name, text)| (name, text, &b"A"[..]))
+                .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..])))
+            {
                 let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
                     "../../out/runs/task-owner-native/{name}-{backend:?}-{optimization:?}"
                 ));
@@ -156,7 +178,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                     .output()
                     .unwrap();
                 assert_eq!(output.status.code(), Some(0), "{name}: {output:?}");
-                assert_eq!(output.stdout, b"A", "{name}: {output:?}");
+                assert_eq!(output.stdout, expected, "{name}: {output:?}");
                 let failed = Command::new(&report.artifacts["executable"])
                     .env("ZIL_TASK_AGGREGATE_FAIL", "1")
                     .output()
@@ -166,7 +188,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                     Some(1),
                     "allocation {name}: {failed:?}"
                 );
-                assert_eq!(failed.stdout, b"A", "allocation {name}: {failed:?}");
+                assert_eq!(failed.stdout, expected, "allocation {name}: {failed:?}");
             }
         }
     }

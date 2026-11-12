@@ -328,7 +328,7 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods || names_budget.needs_source_identity() {
+    if has_generic_methods || names_budget.needs_source_identity() || products.origins.is_some() {
         if let Some(origins) = &mut products.origins {
             if prelude.len != 0 {
                 origins
