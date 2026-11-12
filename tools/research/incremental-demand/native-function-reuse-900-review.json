@@ -1,0 +1,194 @@
+{
+  "valid_for_observational_claim": true,
+  "independent_method": "GNU readelf symbols/sections/relocations plus objdump .text hex reconstruction, separate from original struct-based ELF parser. No ELF execution, linking, compilation, source changes or new performance measurements.",
+  "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+  "objects": [
+    {
+      "role": "cold",
+      "path": "out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o",
+      "sha256": "7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65",
+      "bytes": 52776
+    },
+    {
+      "role": "edited",
+      "path": "out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o",
+      "sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566",
+      "bytes": 52744
+    }
+  ],
+  "provenance": [
+    {
+      "request": "cold",
+      "row_directory": "block-00/requests/00-cold-measured/candidate",
+      "unit_index": 2,
+      "object_sha256": "7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65",
+      "current_action_key": "4cf3c0ea33cd2758d2df344a29df238de3f46965ebae5fd6cbaddfac29f99bfc",
+      "cache_state": "miss"
+    },
+    {
+      "request": "private",
+      "row_directory": "block-00/requests/02-private-measured/candidate",
+      "unit_index": 2,
+      "object_sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566",
+      "current_action_key": "1cfee20391c73799bba43c8ccc911cca6142b4cc9c412293b05008c08107ae8e",
+      "cache_state": "miss"
+    }
+  ],
+  "confirmed": {
+    "defined_nonzero_STT_FUNC_symbols": 42,
+    "equal_selected_function_fragments": 41,
+    "different_symbols": [
+      "zil.fn.5"
+    ],
+    "equal_cold_function_body_bytes": 48315,
+    "cold_function_body_bytes": 49504,
+    "relocations_in_each_object": 40,
+    "all_selected_root_descriptors_match_independent_tools": true,
+    "nonoverlapping_ranges_in_these_objects": true
+  },
+  "sections": {
+    "cold": {
+      "text_size": 49813,
+      "function_body_sum": 49504,
+      "symbol_table_entries": 44,
+      "defined_nonzero_func_symbols": 42,
+      "text_relocations": 40,
+      "nonoverlapping_intervals": true,
+      "readelf_section_lines": [
+        "There are 6 section headers, starting at offset 0xcca8:",
+        "",
+        "Section Headers:",
+        "  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al",
+        "  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0",
+        "  [ 1] .strtab           STRTAB          0000000000000000 00cab8 0001e9 00      0   0  1",
+        "  [ 2] .text             PROGBITS        0000000000000000 000040 00c295 00  AX  0   0 16",
+        "  [ 3] .rela.text        RELA            0000000000000000 00c6f8 0003c0 18   I  5   2  8",
+        "  [ 4] .note.GNU-stack   PROGBITS        0000000000000000 00c2d5 000000 00      0   0  1",
+        "  [ 5] .symtab           SYMTAB          0000000000000000 00c2d8 000420 18      1   2  8",
+        "Key to Flags:",
+        "  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),",
+        "  L (link order), O (extra OS processing required), G (group), T (TLS),",
+        "  C (compressed), x (unknown), o (OS specific), E (exclude),",
+        "  D (mbind), l (large), p (processor specific)"
+      ]
+    },
+    "edited": {
+      "text_size": 49781,
+      "function_body_sum": 49482,
+      "symbol_table_entries": 44,
+      "defined_nonzero_func_symbols": 42,
+      "text_relocations": 40,
+      "nonoverlapping_intervals": true,
+      "readelf_section_lines": [
+        "There are 6 section headers, starting at offset 0xcc88:",
+        "",
+        "Section Headers:",
+        "  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al",
+        "  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0",
+        "  [ 1] .strtab           STRTAB          0000000000000000 00ca98 0001e9 00      0   0  1",
+        "  [ 2] .text             PROGBITS        0000000000000000 000040 00c275 00  AX  0   0 16",
+        "  [ 3] .rela.text        RELA            0000000000000000 00c6d8 0003c0 18   I  5   2  8",
+        "  [ 4] .note.GNU-stack   PROGBITS        0000000000000000 00c2b5 000000 00      0   0  1",
+        "  [ 5] .symtab           SYMTAB          0000000000000000 00c2b8 000420 18      1   2  8",
+        "Key to Flags:",
+        "  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),",
+        "  L (link order), O (extra OS processing required), G (group), T (TLS),",
+        "  C (compressed), x (unknown), o (OS specific), E (exclude),",
+        "  D (mbind), l (large), p (processor specific)"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "command": [
+        "readelf",
+        "-SW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o"
+      ],
+      "output": "/tmp/native-reuse-cold-sections.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "readelf",
+        "-sW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o"
+      ],
+      "output": "/tmp/native-reuse-cold-symbols.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "readelf",
+        "-rW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o"
+      ],
+      "output": "/tmp/native-reuse-cold-relocations.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "objdump",
+        "-s",
+        "-j",
+        ".text",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o"
+      ],
+      "output": "/tmp/native-reuse-cold-text.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "readelf",
+        "-SW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+      ],
+      "output": "/tmp/native-reuse-edited-sections.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "readelf",
+        "-sW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+      ],
+      "output": "/tmp/native-reuse-edited-symbols.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "readelf",
+        "-rW",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+      ],
+      "output": "/tmp/native-reuse-edited-relocations.txt",
+      "exit": 0
+    },
+    {
+      "command": [
+        "objdump",
+        "-s",
+        "-j",
+        ".text",
+        "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o"
+      ],
+      "output": "/tmp/native-reuse-edited-text.txt",
+      "exit": 0
+    }
+  ],
+  "limitations": [
+    "42 counts emitted nonzero-size defined STT_FUNC symbols in one CGU, not independently established source-function entities or the 425-function project. Optimization can clone/merge/eliminate symbols in general.",
+    "Equality is post-compilation output observation; it proves neither that LLVM work was skipped nor that a future cache may safely omit optimization/emission.",
+    "Only body bytes, selected binding/visibility/section flags and symbolic relocations relative to each function were compared. Absolute layout, target symbol values/sizes, constant/global payloads, module flags, target/pipeline options and cross-function optimization dependencies are not a complete proven product key.",
+    "These two scalar objects have only .strtab/.text/.rela.text/.note.GNU-stack/.symtab plus null; no exercised unwind, debug, COMDAT/group or constant/global-data payload establishes general reuse safety.",
+    "A reusable native product would need an explicit input/dependency contract plus complete native metadata/relocation/linkage handling and current Verify/target/ABI binding. Equal output cannot supply those proofs.",
+    "Source provenance is the fixed formal manifest/build-binary association and per-row CGU2 object hashes; the object itself does not embed a compiler-source authenticity proof."
+  ],
+  "reviewed_root_script": {
+    "path": "out/runs/native-function-reuse-feasibility-900/inspect.py",
+    "sha256": "ae4f2939a2fa0c28d3d985b8d1db4e49f10c6bb05bae8465d2f94e6d7f913688",
+    "notes": "Original extraction is appropriate for these bounded ELF64 little-endian x86-64 ET_REL inputs; SHT_REL is rejected. Generic aliases/overlaps and full relocation widths/context are not a general supported reusable-object API; this review independently verifies no overlaps and width-4 relocation containment for the actual files."
+  },
+  "result_sha256": "fee132c4abc5bb630368cb54c6af2268aafdfe0a52a543c2cc7ce1bed4e0e963",
+  "script_sha256": "e460a545838ab2e0b1f6d38aed525ac6753496463eff493a4730e84ba970d810"
+}

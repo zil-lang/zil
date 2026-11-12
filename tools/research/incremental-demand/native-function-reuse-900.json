@@ -1,0 +1,1713 @@
+{
+  "schema": "native-function-code-opportunity-v1",
+  "compiler_source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+  "scope": "Existing formal block0 candidate cold/private CGU2 object bytes, no new compilation or timing.",
+  "cold": {
+    "path": "out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o",
+    "sha256": "7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65",
+    "bytes": 52776,
+    "functions": {
+      "zil.fn.5": {
+        "bytes": 1189,
+        "code_sha256": "b832822471c15d5a6a49673f6c6458a01ad2d6261e68450ff614d6b14f3532be",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.6": {
+        "bytes": 1193,
+        "code_sha256": "37691a55cee28b04473c1e21a851eda3a92540288d9c30eed03af172e87d8b1b",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.7": {
+        "bytes": 1193,
+        "code_sha256": "c0feca122fa169589cb32cbee5ab1dee7b5a8163de60491349dd4b83d4091da8",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.8": {
+        "bytes": 1193,
+        "code_sha256": "4f8e4c132460fa2e6545c51f17edbb409f17cf16940c51f5b112178c0ab5dade",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.9": {
+        "bytes": 1180,
+        "code_sha256": "c7d098db4ab0cea152b431620239068506640b76932c3308442db7b91352b9ce",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.10": {
+        "bytes": 1165,
+        "code_sha256": "1a30b6592f32cf6ce7c9faf105f48a4e48266d62143fc0bf8f69f330724d2106",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.11": {
+        "bytes": 1193,
+        "code_sha256": "6661f53ab3774ca99311482835d76a8e8589ab40f29e2e8c3b7ddfdf07c8733e",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.12": {
+        "bytes": 1193,
+        "code_sha256": "25a44b41aed9c6d1e8ba2bccb4ac8967a455215aba30b3db7544ecc61908523a",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.13": {
+        "bytes": 1193,
+        "code_sha256": "fda5c98d658f6fb6fe6ecb1efa76b22bd48cd59b42d0e8f8ee8c8d82160cdcf5",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.14": {
+        "bytes": 1193,
+        "code_sha256": "8fbdcb96959fc660f10dd14de808996098f83ca40dff427f0536d3a51751e7d1",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.15": {
+        "bytes": 1193,
+        "code_sha256": "ab9fb82a8638f48403ffbd2dff2304de8255bbef65ff60b23d55966056257962",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.16": {
+        "bytes": 1182,
+        "code_sha256": "c9a13d98394df599a3d9bfc6ac13a353d77b7228a5ce65c9d0c3b8a4fa4c1585",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.17": {
+        "bytes": 1187,
+        "code_sha256": "9daf3c92943a79a8ad1e942b62c09ecf7da2b11edd9345741daa9062675c33d2",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.18": {
+        "bytes": 1189,
+        "code_sha256": "7142223fd58ec3c31f16a5b9185af6619cac99d98fb000e964b2d267d7fad53c",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.19": {
+        "bytes": 1188,
+        "code_sha256": "97b492d82ee84d60a975b6bf535e229326ddab9061361061adcaecdf0b1c191d",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.20": {
+        "bytes": 1157,
+        "code_sha256": "c100015f8d58bfbea48624b3f95554277fb770131647ba054d1c6ac246b30cc2",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.21": {
+        "bytes": 1193,
+        "code_sha256": "b4c761d829a1d1a6abda4b12548e68b570c9154e61daa943ebda3d10ec9346e6",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.22": {
+        "bytes": 1193,
+        "code_sha256": "238db70e4b6c0d71eb248df623dd0c5c1132a527269221dac15cc827f94b05e8",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.23": {
+        "bytes": 1193,
+        "code_sha256": "145ab6e6e08832193140f30a3770a5db7b7606d3e138ec24127ba3fb61153ec0",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.24": {
+        "bytes": 1193,
+        "code_sha256": "1db0193f8d705db826951b7d2265aa7414386ddc0edc5b56c8687c68a75ad038",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.25": {
+        "bytes": 997,
+        "code_sha256": "771556b933f08c95bc3257939c3588a9fb55443c0899173a3816978f8a0f167f",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": [
+          {
+            "offset": 17,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.5",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 34,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.6",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 44,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.7",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 54,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.8",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 64,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.9",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 74,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.10",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 84,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.11",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 95,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.12",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 106,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.13",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 117,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.14",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 128,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.15",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 139,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.16",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 150,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.17",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 161,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.18",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 172,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.19",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 183,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.20",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 194,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.21",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 205,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.22",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 216,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.23",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 227,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.24",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          }
+        ]
+      },
+      "zil.fn.341": {
+        "bytes": 1182,
+        "code_sha256": "6a6edaddb19bf2aeadb2faa1f45f3ee64fc76e82e54d754ba2573f3d81111811",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.342": {
+        "bytes": 1163,
+        "code_sha256": "1b04d793d1a3d7ad642dd28abd55ee78b746e84a3e9a4be836909b13adb8fd11",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.343": {
+        "bytes": 1193,
+        "code_sha256": "8fe54ea960db6ce8087da3612498e79e962794208af39e44d7eb8131294994fc",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.344": {
+        "bytes": 1193,
+        "code_sha256": "036096ab5ec7633b68ba7074864ca68b84d76bfb22ef83468866c1def9047b69",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.345": {
+        "bytes": 1193,
+        "code_sha256": "4fbb07cd21a51a60a71f294fd5b2ac22bea300b8cd6a53c19b57b79dfd880cc9",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.346": {
+        "bytes": 1193,
+        "code_sha256": "60058db8803352103eac1b831252acd37b6acdd2de7dbbcddd9e70888922e2a1",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.347": {
+        "bytes": 1193,
+        "code_sha256": "ea3572ff9f4d3f4b89c3d650defd14713a6fefdd232ea71cb0f65fb663e02670",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.348": {
+        "bytes": 1193,
+        "code_sha256": "a26ceca9111bfa096b858db43815a6dc07e125d914f629e30d2635c5ba91773a",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.349": {
+        "bytes": 1182,
+        "code_sha256": "d1eb3fb04f2405cc8feb719af3a2071cf606fcd27dcd3689e15be4e583a370db",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.350": {
+        "bytes": 1187,
+        "code_sha256": "e0fad131d9606189faa5966b545e742600e5da5ca00a822b4dbf0f12ab5108ed",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.351": {
+        "bytes": 1188,
+        "code_sha256": "ce248578ef40a5c8545190a83d298aca6439705febe4ea540e226441c5834f3d",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.352": {
+        "bytes": 1153,
+        "code_sha256": "b018262843f965236546cf74a1601efebc2a7d4dc0dc532cefa48ffad3ebfd53",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.353": {
+        "bytes": 1193,
+        "code_sha256": "0e30beb1051bced63ea050ce52b64eb7df0061d7040d4588a460f596ab267169",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.354": {
+        "bytes": 1193,
+        "code_sha256": "b7c955df885c3029272e68228c0cd10b84812407e201dec792474df274315412",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.355": {
+        "bytes": 1193,
+        "code_sha256": "9a5e5f3fa8b94930ab6b43abd8db2da5893affa846889f4acb76f7d9c03a1e2c",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.356": {
+        "bytes": 1193,
+        "code_sha256": "f8e729de47122736a930948158bdb3e4188b9af0dcdb79d87f24702c9601ec04",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.357": {
+        "bytes": 1193,
+        "code_sha256": "899078b7d0ae93cd0576e5f6bcc673f5379a5f08341d5c81e6c43d690e3aa7ef",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.358": {
+        "bytes": 1193,
+        "code_sha256": "7f308b18da70b448fee78ba80b482e6195e2d62d89854743348780178dd05271",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.359": {
+        "bytes": 1193,
+        "code_sha256": "30a65c25326dce176fb09f598b2f2714651e02d64f192995e1e6cb06dffb9dac",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.360": {
+        "bytes": 1193,
+        "code_sha256": "c4f66b54bd6e46637294c8d184738e2f8187d0a7bd189d02488d455c4d46aa2b",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.361": {
+        "bytes": 997,
+        "code_sha256": "771556b933f08c95bc3257939c3588a9fb55443c0899173a3816978f8a0f167f",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": [
+          {
+            "offset": 17,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.341",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 34,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.342",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 44,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.343",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 54,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.344",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 64,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.345",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 74,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.346",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 84,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.347",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 95,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.348",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 106,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.349",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 117,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.350",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 128,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.351",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 139,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.352",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 150,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.353",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 161,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.354",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 172,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.355",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 183,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.356",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 194,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.357",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 205,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.358",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 216,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.359",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 227,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.360",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          }
+        ]
+      }
+    }
+  },
+  "edited": {
+    "path": "out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o",
+    "sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566",
+    "bytes": 52744,
+    "functions": {
+      "zil.fn.5": {
+        "bytes": 1167,
+        "code_sha256": "de899264066bd789578ab6dfa4d07457aba30755c90fa4eeb15e5ed1671b973a",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.6": {
+        "bytes": 1193,
+        "code_sha256": "37691a55cee28b04473c1e21a851eda3a92540288d9c30eed03af172e87d8b1b",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.7": {
+        "bytes": 1193,
+        "code_sha256": "c0feca122fa169589cb32cbee5ab1dee7b5a8163de60491349dd4b83d4091da8",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.8": {
+        "bytes": 1193,
+        "code_sha256": "4f8e4c132460fa2e6545c51f17edbb409f17cf16940c51f5b112178c0ab5dade",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.9": {
+        "bytes": 1180,
+        "code_sha256": "c7d098db4ab0cea152b431620239068506640b76932c3308442db7b91352b9ce",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.10": {
+        "bytes": 1165,
+        "code_sha256": "1a30b6592f32cf6ce7c9faf105f48a4e48266d62143fc0bf8f69f330724d2106",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.11": {
+        "bytes": 1193,
+        "code_sha256": "6661f53ab3774ca99311482835d76a8e8589ab40f29e2e8c3b7ddfdf07c8733e",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.12": {
+        "bytes": 1193,
+        "code_sha256": "25a44b41aed9c6d1e8ba2bccb4ac8967a455215aba30b3db7544ecc61908523a",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.13": {
+        "bytes": 1193,
+        "code_sha256": "fda5c98d658f6fb6fe6ecb1efa76b22bd48cd59b42d0e8f8ee8c8d82160cdcf5",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.14": {
+        "bytes": 1193,
+        "code_sha256": "8fbdcb96959fc660f10dd14de808996098f83ca40dff427f0536d3a51751e7d1",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.15": {
+        "bytes": 1193,
+        "code_sha256": "ab9fb82a8638f48403ffbd2dff2304de8255bbef65ff60b23d55966056257962",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.16": {
+        "bytes": 1182,
+        "code_sha256": "c9a13d98394df599a3d9bfc6ac13a353d77b7228a5ce65c9d0c3b8a4fa4c1585",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.17": {
+        "bytes": 1187,
+        "code_sha256": "9daf3c92943a79a8ad1e942b62c09ecf7da2b11edd9345741daa9062675c33d2",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.18": {
+        "bytes": 1189,
+        "code_sha256": "7142223fd58ec3c31f16a5b9185af6619cac99d98fb000e964b2d267d7fad53c",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.19": {
+        "bytes": 1188,
+        "code_sha256": "97b492d82ee84d60a975b6bf535e229326ddab9061361061adcaecdf0b1c191d",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.20": {
+        "bytes": 1157,
+        "code_sha256": "c100015f8d58bfbea48624b3f95554277fb770131647ba054d1c6ac246b30cc2",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.21": {
+        "bytes": 1193,
+        "code_sha256": "b4c761d829a1d1a6abda4b12548e68b570c9154e61daa943ebda3d10ec9346e6",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.22": {
+        "bytes": 1193,
+        "code_sha256": "238db70e4b6c0d71eb248df623dd0c5c1132a527269221dac15cc827f94b05e8",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.23": {
+        "bytes": 1193,
+        "code_sha256": "145ab6e6e08832193140f30a3770a5db7b7606d3e138ec24127ba3fb61153ec0",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.24": {
+        "bytes": 1193,
+        "code_sha256": "1db0193f8d705db826951b7d2265aa7414386ddc0edc5b56c8687c68a75ad038",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.25": {
+        "bytes": 997,
+        "code_sha256": "771556b933f08c95bc3257939c3588a9fb55443c0899173a3816978f8a0f167f",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": [
+          {
+            "offset": 17,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.5",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 34,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.6",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 44,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.7",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 54,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.8",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 64,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.9",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 74,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.10",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 84,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.11",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 95,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.12",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 106,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.13",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 117,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.14",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 128,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.15",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 139,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.16",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 150,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.17",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 161,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.18",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 172,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.19",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 183,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.20",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 194,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.21",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 205,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.22",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 216,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.23",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 227,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.24",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          }
+        ]
+      },
+      "zil.fn.341": {
+        "bytes": 1182,
+        "code_sha256": "6a6edaddb19bf2aeadb2faa1f45f3ee64fc76e82e54d754ba2573f3d81111811",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.342": {
+        "bytes": 1163,
+        "code_sha256": "1b04d793d1a3d7ad642dd28abd55ee78b746e84a3e9a4be836909b13adb8fd11",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.343": {
+        "bytes": 1193,
+        "code_sha256": "8fe54ea960db6ce8087da3612498e79e962794208af39e44d7eb8131294994fc",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.344": {
+        "bytes": 1193,
+        "code_sha256": "036096ab5ec7633b68ba7074864ca68b84d76bfb22ef83468866c1def9047b69",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.345": {
+        "bytes": 1193,
+        "code_sha256": "4fbb07cd21a51a60a71f294fd5b2ac22bea300b8cd6a53c19b57b79dfd880cc9",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.346": {
+        "bytes": 1193,
+        "code_sha256": "60058db8803352103eac1b831252acd37b6acdd2de7dbbcddd9e70888922e2a1",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.347": {
+        "bytes": 1193,
+        "code_sha256": "ea3572ff9f4d3f4b89c3d650defd14713a6fefdd232ea71cb0f65fb663e02670",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.348": {
+        "bytes": 1193,
+        "code_sha256": "a26ceca9111bfa096b858db43815a6dc07e125d914f629e30d2635c5ba91773a",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.349": {
+        "bytes": 1182,
+        "code_sha256": "d1eb3fb04f2405cc8feb719af3a2071cf606fcd27dcd3689e15be4e583a370db",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.350": {
+        "bytes": 1187,
+        "code_sha256": "e0fad131d9606189faa5966b545e742600e5da5ca00a822b4dbf0f12ab5108ed",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.351": {
+        "bytes": 1188,
+        "code_sha256": "ce248578ef40a5c8545190a83d298aca6439705febe4ea540e226441c5834f3d",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.352": {
+        "bytes": 1153,
+        "code_sha256": "b018262843f965236546cf74a1601efebc2a7d4dc0dc532cefa48ffad3ebfd53",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.353": {
+        "bytes": 1193,
+        "code_sha256": "0e30beb1051bced63ea050ce52b64eb7df0061d7040d4588a460f596ab267169",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.354": {
+        "bytes": 1193,
+        "code_sha256": "b7c955df885c3029272e68228c0cd10b84812407e201dec792474df274315412",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.355": {
+        "bytes": 1193,
+        "code_sha256": "9a5e5f3fa8b94930ab6b43abd8db2da5893affa846889f4acb76f7d9c03a1e2c",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.356": {
+        "bytes": 1193,
+        "code_sha256": "f8e729de47122736a930948158bdb3e4188b9af0dcdb79d87f24702c9601ec04",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.357": {
+        "bytes": 1193,
+        "code_sha256": "899078b7d0ae93cd0576e5f6bcc673f5379a5f08341d5c81e6c43d690e3aa7ef",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.358": {
+        "bytes": 1193,
+        "code_sha256": "7f308b18da70b448fee78ba80b482e6195e2d62d89854743348780178dd05271",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.359": {
+        "bytes": 1193,
+        "code_sha256": "30a65c25326dce176fb09f598b2f2714651e02d64f192995e1e6cb06dffb9dac",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.360": {
+        "bytes": 1193,
+        "code_sha256": "c4f66b54bd6e46637294c8d184738e2f8187d0a7bd189d02488d455c4d46aa2b",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": []
+      },
+      "zil.fn.361": {
+        "bytes": 997,
+        "code_sha256": "771556b933f08c95bc3257939c3588a9fb55443c0899173a3816978f8a0f167f",
+        "section": ".text",
+        "section_flags": 6,
+        "info": 18,
+        "visibility": 0,
+        "relocations": [
+          {
+            "offset": 17,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.341",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 34,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.342",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 44,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.343",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 54,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.344",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 64,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.345",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 74,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.346",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 84,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.347",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 95,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.348",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 106,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.349",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 117,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.350",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 128,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.351",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 139,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.352",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 150,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.353",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 161,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.354",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 172,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.355",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 183,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.356",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 194,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.357",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 205,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.358",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 216,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.359",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          },
+          {
+            "offset": 227,
+            "type": 4,
+            "target": {
+              "name": "zil.fn.360",
+              "info": 18,
+              "other": 0,
+              "section": ".text"
+            },
+            "addend": -4
+          }
+        ]
+      }
+    }
+  },
+  "unchanged_function_code_and_symbolic_relocations": [
+    "zil.fn.6",
+    "zil.fn.7",
+    "zil.fn.8",
+    "zil.fn.9",
+    "zil.fn.10",
+    "zil.fn.11",
+    "zil.fn.12",
+    "zil.fn.13",
+    "zil.fn.14",
+    "zil.fn.15",
+    "zil.fn.16",
+    "zil.fn.17",
+    "zil.fn.18",
+    "zil.fn.19",
+    "zil.fn.20",
+    "zil.fn.21",
+    "zil.fn.22",
+    "zil.fn.23",
+    "zil.fn.24",
+    "zil.fn.25",
+    "zil.fn.341",
+    "zil.fn.342",
+    "zil.fn.343",
+    "zil.fn.344",
+    "zil.fn.345",
+    "zil.fn.346",
+    "zil.fn.347",
+    "zil.fn.348",
+    "zil.fn.349",
+    "zil.fn.350",
+    "zil.fn.351",
+    "zil.fn.352",
+    "zil.fn.353",
+    "zil.fn.354",
+    "zil.fn.355",
+    "zil.fn.356",
+    "zil.fn.357",
+    "zil.fn.358",
+    "zil.fn.359",
+    "zil.fn.360",
+    "zil.fn.361"
+  ],
+  "changed_functions": [
+    "zil.fn.5"
+  ],
+  "unchanged_function_count": 41,
+  "total_function_count": 42,
+  "unchanged_code_bytes": 48315,
+  "cold_code_bytes": 49504,
+  "limits": "Only function body bytes, selected ELF metadata and function-relative symbolic relocation rows are compared. Not a complete reusable native product: global/constant contents, unwind/debug/COMDAT/module state and LLVM context independence remain unproven. Same output bytes do not prove execution was skipped or an API can safely skip emission. No speedup is measured.",
+  "evidence_archive": "https://github.com/zil-lang/zil/tree/32e1b04fb859440bb36ec3223cb35b26edf63041/research/incremental-demand-full-pipeline-20261112-v4",
+  "reproduce": "python3 tools/research/incremental-demand/inspect_native_function_reuse.py out/runs/full-pipeline-matched-o2-900-r1/blobs/7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65.o out/runs/full-pipeline-matched-o2-900-r1/blobs/c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566.o",
+  "independent_review": "native-function-reuse-900-review.json"
+}
