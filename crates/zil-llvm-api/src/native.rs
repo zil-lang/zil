@@ -115,6 +115,8 @@ owned!(PassOptions, LLVMDisposePassBuilderOptions);
 owned!(Buffer, LLVMDisposeMemoryBuffer);
 mod builder;
 pub(crate) mod products;
+#[cfg(all(test, feature = "native-products", feature = "text-reference"))]
+mod spill_tests;
 static INIT: Once = Once::new();
 fn error(kind: ErrorKind, message: impl Into<String>) -> Error {
     Error {

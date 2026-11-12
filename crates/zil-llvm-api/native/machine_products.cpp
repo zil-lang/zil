@@ -61,6 +61,7 @@ thread_local uint32_t MachineNumberingTestBits = 0;
 thread_local uint32_t MachineBundleTestBits = 0;
 thread_local uint32_t MachineTypedBodyTestBits = 0;
 thread_local uint32_t MachineFrameTestBits = 0;
+thread_local uint32_t MachineFrameObservationBits = 0;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -1326,7 +1327,17 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         for (auto &BB : *MF)
           if (!BB.isEntryBlock()) BB.setAlignment(llvm::Align(64), R.alignmentTestMax);
     if (MachineNumberingTests)
-      if (auto *MF = MMI.getMachineFunction(F)) testMachineNumbering(*MF, MMI);
+      if (auto *MF = MMI.getMachineFunction(F)) {
+        testMachineNumbering(*MF, MMI);
+        // Actual-emission observations are separate from scratch assertions.
+        // This explicit test scope does not manufacture a frame or CFI entry.
+        if (MF->getFrameInfo().hasStackObjects()) MachineFrameObservationBits |= 1;
+        if (!MF->getFrameInstructions().empty()) MachineFrameObservationBits |= 2;
+        for (const auto &BB : *MF)
+          for (const auto &MI : BB.instrs())
+            if (!MI.memoperands_empty()) MachineFrameObservationBits |= 4;
+        if (!MF->getFrameInfo().getCalleeSavedInfo().empty()) MachineFrameObservationBits |= 8;
+      }
     ++R.stats.asm_printer_runs;
     C.emitted = true;
     if (!C.replay && C.recording) {
@@ -1474,6 +1485,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
     zil::MachineBundleTestBits = 0;
     zil::MachineTypedBodyTestBits = 0;
     zil::MachineFrameTestBits = 0;
+    zil::MachineFrameObservationBits = 0;
   }
   return Old;
 }
@@ -1497,4 +1509,7 @@ extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults() {
 }
 extern "C" uint32_t ZilNativeProductsMachineFrameTestResults() {
   return zil::MachineFrameTestBits;
+}
+extern "C" uint32_t ZilNativeProductsMachineFrameObservationResults() {
+  return zil::MachineFrameObservationBits;
 }
