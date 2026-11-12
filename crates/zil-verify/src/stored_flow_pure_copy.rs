@@ -785,6 +785,13 @@ mod copy_field_borrow_tests {
     fn request(field: Type, output: Type) -> (TypedFunction, Instruction) {
         let (mut module, _) = actual_input::request(actual_input::Scenario::default());
         let f = &mut module.functions[0];
+        let Type::Managed(header) = &f.locals[1].ty else {
+            panic!()
+        };
+        let Type::OwnedStore { element } = header.as_ref() else {
+            panic!()
+        };
+        f.locals[1].ty = element.as_ref().clone();
         let Type::Package { fields, .. } = &mut f.locals[1].ty else {
             panic!()
         };
