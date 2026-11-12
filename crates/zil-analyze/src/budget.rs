@@ -24,6 +24,8 @@ pub(super) struct Budget {
     // inventory enter this table. A key is the address of that node for this
     // one analysis request; it never escapes the request or becomes authority.
     addressed_copy_sums: BTreeMap<usize, bool>,
+    pub(super) large_tag_layout: bool,
+    pub(super) addressed_tag_layout: BTreeMap<usize, bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
@@ -132,6 +134,8 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
+            large_tag_layout: false,
+            addressed_tag_layout: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
             pod_store_carriers: None,

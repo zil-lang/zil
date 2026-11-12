@@ -465,3 +465,64 @@ fn unknown_tag_fixed_point_has_an_exact_smaller_work_boundary() {
         "complete unknown-tag forgetting: fixed point N={fixed_point}, reconstruction N={reconstruction}; N-1/fresh agree"
     );
 }
+
+#[test]
+fn large_tag_layout_noops_match_frozen_complete_transfer_with_missing_owners() {
+    let owner = Type::Package {
+        name: "PlainOwner".into(),
+        fields: vec![
+            ("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+            ("n".into(), Type::I64),
+        ],
+    };
+    let types = [
+        owner.clone(),
+        Type::ErrorUnion {
+            error: Box::new(owner.clone()),
+            result: Box::new(Type::Bool),
+        },
+        Type::Package {
+            name: "NestedOwner".into(),
+            fields: vec![
+                ("child".into(), owner.clone()),
+                ("tag".into(), scalar_enum("ActualCopyTag")),
+            ],
+        },
+        Type::Enum {
+            name: "OwnChoice".into(),
+            variants: vec![("Owner".into(), vec![owner]), ("Empty".into(), vec![])],
+        },
+    ];
+    for ty in types {
+        for tags in 0..8 {
+            for missing in 0..16 {
+                let mut original =
+                    Tree::unknown(&ty, &mut Budget::new(&Limits::default())).unwrap();
+                vary(&mut original, tags, missing, &mut 0);
+                let alias = original.clone();
+                let mut expected = original.clone();
+                expected
+                    .forget_by_reconstruction(&ty, &mut Budget::new(&Limits::default()))
+                    .unwrap();
+                let mut budget = Budget::new(&Limits::default());
+                budget.large_tag_layout = true;
+                original
+                    .forget_addressed_copy_tags(&ty, &mut budget)
+                    .unwrap();
+                assert_eq!(
+                    original, expected,
+                    "type={ty:?} tags={tags} missing={missing}"
+                );
+                original
+                    .forget_addressed_copy_tags(&ty, &mut budget)
+                    .unwrap();
+                assert_eq!(original, expected);
+                let mut frozen_alias = alias.clone();
+                frozen_alias
+                    .forget_by_reconstruction(&ty, &mut Budget::new(&Limits::default()))
+                    .unwrap();
+                assert_eq!(frozen_alias, expected);
+            }
+        }
+    }
+}

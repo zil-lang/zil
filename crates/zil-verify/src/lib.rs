@@ -332,6 +332,8 @@ struct Budget {
     returned_environment_sources: bool,
     nested_callable_sources: bool,
     addressed_copy_sums: BTreeMap<usize, bool>,
+    large_tag_layout: bool,
+    addressed_tag_layout: BTreeMap<usize, u8>,
     pod_carriers: Option<dynamic_store::CarrierCache>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
@@ -411,6 +413,8 @@ impl Budget {
             returned_environment_sources: false,
             nested_callable_sources: false,
             addressed_copy_sums: BTreeMap::new(),
+            large_tag_layout: false,
+            addressed_tag_layout: BTreeMap::new(),
             pod_carriers: None,
             static_utf8: false,
             pod_stores: false,
