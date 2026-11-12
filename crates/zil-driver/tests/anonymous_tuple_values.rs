@@ -13,6 +13,9 @@ const BUFFER: &str = include_str!("../../../tests/fixtures/qualified-values/buff
 const NESTED: &str = include_str!("../../../tests/fixtures/qualified-values/nested-anonymous.zil");
 const NESTED_EXCLUSIVE: &str =
     include_str!("../../../tests/fixtures/qualified-values/nested-exclusive-anonymous.zil");
+const ELIDED: &str = include_str!("../../../tests/fixtures/qualified-values/elided-anonymous.zil");
+const ELIDED_RELAY: &str =
+    include_str!("../../../tests/fixtures/qualified-values/elided-relay-anonymous.zil");
 fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "anonymous-tuple.zil", text)
 }
@@ -54,6 +57,8 @@ fn actual_anonymous_tuple_sources_verify_raw_wire() {
         ("buffer", BUFFER),
         ("nested", NESTED),
         ("nested-exclusive", NESTED_EXCLUSIVE),
+        ("elided", ELIDED),
+        ("elided-relay", ELIDED_RELAY),
     ] {
         let (module, candidate) = prepare(text);
         if let Some(dir) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
@@ -76,6 +81,8 @@ fn anonymous_tuple_values_run_both_backends_with_real_cleanup() {
         ("buffer", BUFFER, b"".as_slice()),
         ("nested", NESTED, b"".as_slice()),
         ("nested-exclusive", NESTED_EXCLUSIVE, b"".as_slice()),
+        ("elided", ELIDED, b"".as_slice()),
+        ("elided-relay", ELIDED_RELAY, b"".as_slice()),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -281,6 +288,8 @@ fn anonymous_tuple_verification_has_exact_fresh_work_boundaries() {
         ("buffer", BUFFER),
         ("nested", NESTED),
         ("nested-exclusive", NESTED_EXCLUSIVE),
+        ("elided", ELIDED),
+        ("elided-relay", ELIDED_RELAY),
     ] {
         let (module, candidate) = prepare(text);
         let limits = Limits::default();
@@ -492,5 +501,65 @@ fn byte_owner_in_anonymous_tuple_has_one_real_free_on_success_and_allocation_fai
                 assert!(ran.stderr.is_empty());
             }
         }
+    }
+}
+
+#[test]
+fn elided_inputs_preserve_independent_domains_and_reject_ambiguous_results() {
+    use zil_ir::InstructionKind as I;
+    let (module, candidate) = prepare(ELIDED);
+    verify(module.clone(), candidate.clone());
+    let sum = module.functions.iter().find(|f| f.name == "sum").unwrap();
+    let life = sum.storage_life.as_ref().unwrap();
+    assert_eq!(life.fixed_binder_count, 0);
+    assert_eq!(life.invocation_binder_count, 2);
+    let mut changed = module;
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "sum")
+        .unwrap();
+    let instruction = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(&i.kind,I::MakeAggregate {fields} if fields.len()==2))
+        .unwrap();
+    let I::MakeAggregate { fields } = &mut instruction.kind else {
+        unreachable!()
+    };
+    fields[1] = fields[0];
+    let mut forged = candidate;
+    forged.module_fingerprint = changed.fingerprint();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for decoded in [false, true] {
+        let (raw, plan) = if decoded {
+            let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+        } else {
+            (changed.clone(), forged.clone())
+        };
+        let errors = zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject),
+            "elided source forgery Wire={decoded}: {errors:?}"
+        );
+    }
+    // Actual no-input and two-independent-input bare result elision has no
+    // invented source. These are whole Source consumers, not shape-only tests.
+    for invalid in [
+        "fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main(){}",
+        "fn missing()->&i32{var local:i32=7;return &local}fn main(){}",
+    ] {
+        let report = compile_source(&input(invalid), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
     }
 }
