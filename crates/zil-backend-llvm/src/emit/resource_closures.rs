@@ -549,27 +549,31 @@ impl FunctionEmitter<'_> {
             .expect("verified active environment");
         let definition = self.closure_definition(environment)?;
         let ty = definition.captures[index as usize].clone();
-        let flag = flag_index(definition, index);
-        let flag_ptr = self.temp();
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name((flag_ptr).clone())),
-            m::Op::Gep {
-                ty: (environment_type(environment)).clone(),
-                ptr: m::local("env".into()),
-                indices: vec![
-                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                    m::Arg::new(m::Ty::Int(32), m::val(flag)),
-                ],
-            },
-        )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
-                ptr: m::val((flag_ptr).clone()),
-                align: 1,
-            },
-        )));
+        // An affine borrowed pointer has no destructor flag. Its unique Take
+        // is proved before code generation; only owning payloads carry flags.
+        if flag_count(&ty) > 0 {
+            let flag = flag_index(definition, index);
+            let flag_ptr = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name((flag_ptr).clone())),
+                m::Op::Gep {
+                    ty: (environment_type(environment)).clone(),
+                    ptr: m::local("env".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                        m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                    ],
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                    ptr: m::val((flag_ptr).clone()),
+                    align: 1,
+                },
+            )));
+        }
         let address = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((address).clone())),
