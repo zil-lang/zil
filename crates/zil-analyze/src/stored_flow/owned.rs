@@ -53,7 +53,8 @@ pub(super) fn ordinary_value(
     fee(b, 1)?;
     match ty {
         Type::Address { inner, .. }
-            if matches!(inner.as_ref(), Type::Managed(_) | Type::Package { .. }) => {
+            if matches!(inner.as_ref(), Type::Managed(_) | Type::Package { .. }) =>
+        {
             ordinary_value(module, inner, b)
         }
         Type::Managed(payload) | Type::Desc(payload) => match payload.as_ref() {
@@ -66,7 +67,9 @@ pub(super) fn ordinary_value(
                 let mut count = 0usize;
                 for resource in &module.resources {
                     fee(b, resource.name.len().saturating_add(19))?;
-                    if resource.payload == Type::ByteBuffer || resource.name == "@builtin:ByteBuffer" {
+                    if resource.payload == Type::ByteBuffer
+                        || resource.name == "@builtin:ByteBuffer"
+                    {
                         if resource.payload != Type::ByteBuffer
                             || resource.name != "@builtin:ByteBuffer"
                             || resource.teardown.is_some()
@@ -77,7 +80,9 @@ pub(super) fn ordinary_value(
                     }
                 }
                 if count != 1 {
-                    return Err(failure("ordinary byte owner lacks a unique actual resource"));
+                    return Err(failure(
+                        "ordinary byte owner lacks a unique actual resource",
+                    ));
                 }
                 Ok(true)
             }

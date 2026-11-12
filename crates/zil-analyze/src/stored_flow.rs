@@ -3028,8 +3028,7 @@ fn seed_value(
     b: &mut Budget,
 ) -> CompileResult<Value> {
     let mut value = Value::default();
-    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..})
-        || b.nested_store_windows && matches!(payload.as_ref(),Type::ByteBuffer|Type::Record{..}))
+    if matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore{..}|Type::ByteBuffer|Type::Record{..}))
     {
         fee(b, 1)?;
         value.store_description.targets.insert(Target {
@@ -3556,7 +3555,8 @@ fn substitute(
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             union(&mut out, &value.store_description, b)?;
         }
         out
@@ -4816,7 +4816,7 @@ fn transfer(
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. }
-        | InstructionKind::OwnedStoreBorrowMut { store, .. } if b.masked_stored_tasks() => {
+        | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
             let description = &get(*store)?.store_description;
             if description.targets.is_empty() {
                 return Err(failure(
@@ -5041,9 +5041,10 @@ fn transfer(
     capture_after::invoke(module, f, i, state, values, summaries, slot_ids, loans, b)?;
     if let Some(result) = i.result
         && let Type::Desc(payload) = value_type(f, result)?
-        && (matches!(payload.as_ref(), Type::OwnedStore { .. })
-            || b.nested_store_windows
-                && matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. }))
+        && matches!(
+            payload.as_ref(),
+            Type::OwnedStore { .. } | Type::ByteBuffer | Type::Record { .. }
+        )
     {
         let source = match i.kind {
             InstructionKind::DescribeLocal { local } => {
@@ -5138,11 +5139,10 @@ fn transfer(
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. }
-        ) || b.nested_store_windows
-            && matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })
-            || b.store_option_results
-                && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. })
-            || matches!(i.kind, InstructionKind::ReadCapture { index }
+        ) || matches!(
+            i.kind,
+            InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. }
+        ) || matches!(i.kind, InstructionKind::ReadCapture { index }
                 if f.environment.and_then(|id| module.closures.get(id.0 as usize))
                     .and_then(|d| d.captures.get(index as usize))
                     .is_some_and(super::stored_callables::exclusive_capture))
@@ -5415,7 +5415,9 @@ fn active(
             } else {
                 active_loans_union(&mut direct, &value.held, b)?;
             }
-            if b.nested_store_windows {
+            if !value.store_description.targets.is_empty()
+                || !value.store_description.loans.is_empty()
+            {
                 active_loans_union(&mut direct, &value.store_description, b)?;
             }
             if b.dyn_contexts {
@@ -5464,7 +5466,8 @@ fn active(
         if !value.environment.is_empty() {
             active_loans_union(&mut direct, &value.held, b)?;
         }
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             active_loans_union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
@@ -5511,7 +5514,9 @@ fn active_by_permission(
             } else {
                 union(&mut direct, &value.held, b)?;
             }
-            if b.nested_store_windows {
+            if !value.store_description.targets.is_empty()
+                || !value.store_description.loans.is_empty()
+            {
                 union(&mut direct, &value.store_description, b)?;
             }
             if b.dyn_contexts {
@@ -5559,7 +5564,8 @@ fn active_by_permission(
         if !value.environment.is_empty() {
             union(&mut direct, &value.held, b)?;
         }
-        if b.nested_store_windows {
+        if !value.store_description.targets.is_empty() || !value.store_description.loans.is_empty()
+        {
             union(&mut direct, &value.store_description, b)?;
         }
         for leaf in value.slots.values() {
@@ -5931,9 +5937,7 @@ fn windows(
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
             let checked = (|| -> CompileResult<()> {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
-                if b.nested_store_windows
-                    && let Some((head, write)) = super::nested_store::head_access(&i.kind)
-                {
+                if let Some((head, write)) = super::nested_store::head_access(&i.kind) {
                     let actual = &values[head.0 as usize].store_description;
                     if actual.targets.is_empty() {
                         return Err(failure("head operation has no actual descriptor source"));
@@ -6110,9 +6114,7 @@ fn windows(
                     }
                     InstructionKind::DropManaged { local }
                     | InstructionKind::DropPackage { local }
-                    | InstructionKind::DropErrorUnion { local }
-                        if b.nested_store_windows =>
-                    {
+                    | InstructionKind::DropErrorUnion { local } => {
                         fee(b, 1)?;
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
@@ -6479,7 +6481,7 @@ fn windows(
                         arguments,
                     } => {
                         let callee = &module.functions[function.0 as usize];
-                        if b.nested_store_windows {
+                        if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
                                 let actual = substitute(target, arguments, values, &state, b)?;
                                 if actual.targets.is_empty() {
@@ -7504,7 +7506,10 @@ pub(super) fn infer(
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                format!("stored profile requires ordinary direct function bodies: {}", f.name),
+                format!(
+                    "stored profile requires ordinary direct function bodies: {}",
+                    f.name
+                ),
                 Some(f.span),
             )]);
         }
@@ -7585,7 +7590,10 @@ pub(super) fn infer(
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    format!("owned or opaque value has no actual stored permission integration in {}: {ty:?}", f.name),
+                    format!(
+                        "owned or opaque value has no actual stored permission integration in {}: {ty:?}",
+                        f.name
+                    ),
                     Some(f.span),
                 )]);
             }
@@ -7987,20 +7995,19 @@ fn actual_instructions(
                 && !unpack_failure
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
-                && !(b.masked_stored_tasks()
-                    && matches!(
-                        i.kind,
-                        InstructionKind::OwnedStoreNew { .. }
-                            | InstructionKind::OwnedStoreReserve { .. }
-                            | InstructionKind::OwnedStorePush { .. }
-                            | InstructionKind::OwnedStorePop { .. }
-                            | InstructionKind::OwnedStoreCapacity { .. }
-                            | InstructionKind::OwnedStoreLen { .. }
-                            | InstructionKind::OwnedStoreBorrow { .. }
-                            | InstructionKind::OwnedStoreBorrowMut { .. }
-                            | InstructionKind::DropErrorUnion { .. }
-                            | InstructionKind::DescribePackageField { .. }
-                    ))
+                && !(matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreNew { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStoreCapacity { .. }
+                        | InstructionKind::OwnedStoreLen { .. }
+                        | InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                        | InstructionKind::DropErrorUnion { .. }
+                        | InstructionKind::DescribePackageField { .. }
+                ))
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(f, i, b)?
@@ -8060,7 +8067,10 @@ fn actual_instructions(
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    format!("instruction is outside the actual stored profile, including in unreachable blocks in {}: {:?}", f.name, i.kind),
+                    format!(
+                        "instruction is outside the actual stored profile, including in unreachable blocks in {}: {:?}",
+                        f.name, i.kind
+                    ),
                     Some(i.span),
                 )]);
             }

@@ -772,7 +772,9 @@ fn relation_inner(
                         && matches!(target, Type::Package { .. })
                     || self.allow_callback && matches!(target, Type::Closure(_)))
                 {
-                    return Err(bad(&format!("signature pointee is outside the implemented profile: {target:?}")));
+                    return Err(bad(&format!(
+                        "signature pointee is outside the implemented profile: {target:?}"
+                    )));
                 }
             } else if !(target.is_copy_value()
                 || class_free_owned_tree(target)

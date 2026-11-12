@@ -659,19 +659,31 @@ fn zero_debt_environment(
     ) -> CompileResult<bool> {
         budget.spend(1, "actual environment cleanup debt node")?;
         if depth > budget.partial_depth {
-            return Err(vec![Diagnostic::limit(Phase::Analyze, "environment cleanup debt depth", None)]);
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "environment cleanup debt depth",
+                None,
+            )]);
         }
         match ty {
             Type::Address { .. } | Type::Desc(_) => Ok(true),
             Type::BorrowedStorage { storage, .. } => zero(module, storage, depth + 1, budget),
             Type::Closure(id) => {
-                budget.lookup(module.closures.len(), "actual environment cleanup definition")?;
-                let definition = module.closures.get(id.0 as usize)
+                budget.lookup(
+                    module.closures.len(),
+                    "actual environment cleanup definition",
+                )?;
+                let definition = module
+                    .closures
+                    .get(id.0 as usize)
                     .ok_or_else(|| error("cleanup environment definition absent"))?;
                 if definition.id != *id {
                     return Err(error("cleanup environment identity differs"));
                 }
-                budget.spend(definition.captures.len(), "actual cleanup capture inventory")?;
+                budget.spend(
+                    definition.captures.len(),
+                    "actual cleanup capture inventory",
+                )?;
                 for capture in &definition.captures {
                     if !zero(module, capture, depth + 1, budget)? {
                         return Ok(false);
@@ -679,11 +691,20 @@ fn zero_debt_environment(
                 }
                 Ok(true)
             }
-            Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. }
-            | Type::MutexGuard { .. } | Type::Registration { .. }
-            | Type::AsyncRegistration { .. } | Type::Task { .. } | Type::TaskI32 => Ok(false),
+            Type::Managed(_)
+            | Type::Package { .. }
+            | Type::OwnedDyn { .. }
+            | Type::MutexGuard { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. }
+            | Type::Task { .. }
+            | Type::TaskI32 => Ok(false),
             _ => {
-                budget.type_work(ty, false, "actual environment finite Copy cleanup companion")?;
+                budget.type_work(
+                    ty,
+                    false,
+                    "actual environment finite Copy cleanup companion",
+                )?;
                 Ok(ty.is_copy_value())
             }
         }
@@ -3412,7 +3433,9 @@ impl Flow<'_> {
                                 let zero_environment = !new_store_sum
                                     && zero_debt_environment(self.module, local_ty, budget)?;
                                 if !zero_environment
-                                    && (!new_store_sum || !state.sums.no_live_owner(*local, budget)?) {
+                                    && (!new_store_sum
+                                        || !state.sums.no_live_owner(*local, budget)?)
+                                {
                                     return Err(error(&format!(
                                         "storage boundary discards an owned carrier in {} local {} block {} instruction {}: {:?}",
                                         f.name, local.0, b, position, local_ty,
