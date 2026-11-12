@@ -293,6 +293,7 @@ pub(super) fn receiver(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn substitute(
     module: &TypedModule,
     f: &TypedFunction,
