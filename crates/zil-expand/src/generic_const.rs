@@ -401,10 +401,10 @@ pub(super) fn definition<'a>(
                 for arg in args {
                     match arg {
                         GenericArg::AssociatedBinding(binding) => {
-                            return Err(error(
+                            return Err(vec![error(
                                 binding.span,
                                 "associated equations require the original trait application obligation consumer",
-                            ));
+                            )]);
                         }
                         GenericArg::Lifetime(name) => self.text(name, ty.span)?,
                         GenericArg::Type(ty)
@@ -432,10 +432,10 @@ pub(super) fn definition<'a>(
                 for argument in arguments {
                     match argument {
                         GenericArg::AssociatedBinding(binding) => {
-                            return Err(error(
+                            return Err(vec![error(
                                 binding.span,
                                 "associated equations require the original trait application obligation consumer",
-                            ));
+                            )]);
                         }
                         GenericArg::Lifetime(name) => self.text(name, expression.span)?,
                         GenericArg::Type(ty)

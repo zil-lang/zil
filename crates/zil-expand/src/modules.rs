@@ -1192,6 +1192,7 @@ impl Visitor<'_, '_, '_> {
         match arg {
             GenericArg::AssociatedBinding(binding) => {
                 return Err(error(
+                    "E-SOURCE-ASSOCIATED-BINDING",
                     binding.span,
                     "associated equations require the original trait application obligation consumer",
                 ));
