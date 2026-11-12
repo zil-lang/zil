@@ -64,6 +64,8 @@ thread_local uint32_t MachineBundleTestBits = 0;
 thread_local uint32_t MachineTypedBodyTestBits = 0;
 thread_local uint32_t MachineFrameTestBits = 0;
 thread_local uint32_t MachineFrameObservationBits = 0;
+thread_local uint32_t MachineHeaderTestBits = 0;
+thread_local bool MachineHeaderDisabledForTests = false;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -912,6 +914,31 @@ bool restoreBlockEmission(llvm::MachineFunction &MF, const Snapshot &S) {
   return true;
 }
 
+// The former full-body text compared displayed MBB numbers. Preserve that
+// independent read-back, and the stronger private-number table/epoch binding,
+// after the SDK setter succeeds; typed block records use layout ordinals.
+bool currentBlockStateEquals(const llvm::MachineFunction &MF, const Snapshot &S) {
+  if (MF.size() != S.blockNumbers.size() || MF.size() != S.analysisNumbers.size() ||
+      MF.size() != S.blockEmission.size() || MF.getNumBlockIDs() != S.blockIDCapacity ||
+      MF.getMaxAnalysisBlockNumber() != S.nextAnalysisNumber ||
+      MF.getAnalysisBlockNumberEpoch() != S.analysisEpoch) return false;
+  size_t I = 0;
+  for (const auto &BB : MF) {
+    if (BB.getNumber() < 0 || unsigned(BB.getNumber()) != S.blockNumbers[I] ||
+        BB.getAnalysisNumber() != S.analysisNumbers[I] ||
+        MF.getBlockNumbered(S.blockNumbers[I]) != &BB ||
+        BB.getMaxBytesForAlignment() != S.blockEmission[I].maxAlignmentBytes ||
+        BB.hasLabelMustBeEmitted() != S.blockEmission[I].forceLabel) return false;
+    const auto &Expected = S.blockEmission[I].predecessors;
+    if (BB.pred_size() != Expected.size()) return false;
+    size_t P = 0;
+    for (const auto *Pred : BB.predecessors())
+      if (Pred->getNumber() < 0 || unsigned(Pred->getNumber()) != Expected[P++]) return false;
+    ++I;
+  }
+  return true;
+}
+
 std::string machineText(const llvm::MachineModuleInfo &MMI,
                         const llvm::MachineFunction &MF) {
   std::string Text;
@@ -931,7 +958,7 @@ std::string emptyBodyHeader(llvm::StringRef Text) {
 }
 std::string machineHeader(const llvm::MachineModuleInfo &MMI,
                           const llvm::MachineFunction &MF) {
-  if (!targetInfoAPI().printHeader) return {};
+  if (!targetInfoAPI().printHeader || MachineHeaderDisabledForTests) return {};
   std::string Text;
   llvm::raw_string_ostream OS(Text);
   if (!targetInfoAPI().printHeader(&MMI, &MF, &OS)) return {};
@@ -1428,6 +1455,54 @@ void testFrameProducts(llvm::MachineFunction &Current) {
   if (OwnersRejected) MachineFrameTestBits |= 128;
 }
 
+// Real-emission header oracle plus a scratch MMI with its own registered MF.
+// No scratch instruction/block is added to the actual object being emitted.
+void testMachineHeader(llvm::MachineFunction &Current, llvm::MachineModuleInfo &MMI) {
+  if (!targetInfoAPI().printHeader || MachineHeaderDisabledForTests) return;
+  const std::string Actual = machineHeader(MMI, Current);
+  if (Actual.empty() || Actual != emptyBodyHeader(machineText(MMI, Current))) return;
+  Snapshot Numbers;
+  Numbers.blockIDCapacity = Current.getNumBlockIDs();
+  Numbers.nextAnalysisNumber = Current.getMaxAnalysisBlockNumber();
+  Numbers.analysisEpoch = Current.getAnalysisBlockNumberEpoch();
+  for (const auto &B : Current) {
+    Numbers.blockNumbers.push_back(B.getNumber());
+    Numbers.analysisNumbers.push_back(B.getAnalysisNumber());
+    BlockEmissionState E{B.getMaxBytesForAlignment(), B.hasLabelMustBeEmitted(), {}};
+    for (const auto *Pred : B.predecessors()) E.predecessors.push_back(Pred->getNumber());
+    Numbers.blockEmission.push_back(std::move(E));
+  }
+  if (!currentBlockStateEquals(Current, Numbers)) return;
+  if (!Numbers.blockNumbers.empty()) {
+    ++Numbers.blockNumbers.front();
+    if (currentBlockStateEquals(Current, Numbers)) return;
+  }
+  MachineHeaderTestBits |= 1;
+  llvm::MachineModuleInfo Scratch(&Current.getTarget());
+  auto &MF = Scratch.getOrCreateMachineFunction(Current.getFunction());
+  MF.getRegInfo().freezeReservedRegs();
+  auto *BB = MF.CreateMachineBasicBlock(); MF.push_back(BB);
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  auto *MI = MF.CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  BB->push_back(MI); MI->addOperand(MF, llvm::MachineOperand::CreateImm(-173));
+  const std::string Header = machineHeader(Scratch, MF), Full = machineText(Scratch, MF);
+  if (Header.empty() || Header != emptyBodyHeader(Full)) return;
+  MachineHeaderTestBits |= 2;
+  BodyState Before, After;
+  if (!captureBody(MF, Before)) return;
+  MI->getOperand(0).setImm(-174);
+  if (!captureBody(MF, After) || Before == After ||
+      machineHeader(Scratch, MF) != Header || machineText(Scratch, MF) == Full) return;
+  MachineHeaderTestBits |= 4;
+  frame::State Frame;
+  if (!frame::capture(MF, Frame, MaxMachinePayload) || !currentCFIEquals(MF, Frame)) return;
+  // An unreferenced extra CFI entry is invisible even to old full MIR. Exact
+  // frame-table equality still rejects it rather than relying on header text.
+  MF.addFrameInst(llvm::MCCFIInstruction::cfiDefCfa(nullptr, 7, 16));
+  if (currentCFIEquals(MF, Frame) || machineHeader(Scratch, MF) != Header) return;
+  MachineHeaderTestBits |= 8;
+}
+
 // Invoked only by an explicit test scope. The scratch MF is never registered
 // with current MMI, and none of its blocks enter the actual emitted function.
 void testMachineNumbering(llvm::MachineFunction &Current,
@@ -1436,6 +1511,7 @@ void testMachineNumbering(llvm::MachineFunction &Current,
   MachineNumberingTestsRan = true;
   testTypedBody(Current);
   testFrameProducts(Current);
+  testMachineHeader(Current, MMI);
   llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
                            Current.getSubtarget(), Current.getContext(), 37);
   // Match MachineModuleInfo's construction contract: the constructor creates
@@ -1732,6 +1808,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
               } else if (!restoreBlockEmission(*MF, *C.replay)) {
                 diagnose(F, "restore-block-emission-state");
                 R.fail();
+              } else if (!currentBlockStateEquals(*MF, *C.replay)) {
+                diagnose(F, "current-block-state-difference");
+                R.fail();
               } else {
                 MF->getProperties() = C.replay->properties;
                 BodyState CurrentBody;
@@ -1920,6 +1999,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
     zil::MachineTypedBodyTestBits = 0;
     zil::MachineFrameTestBits = 0;
     zil::MachineFrameObservationBits = 0;
+    zil::MachineHeaderTestBits = 0;
   }
   return Old;
 }
@@ -1946,4 +2026,13 @@ extern "C" uint32_t ZilNativeProductsMachineFrameTestResults() {
 }
 extern "C" uint32_t ZilNativeProductsMachineFrameObservationResults() {
   return zil::MachineFrameObservationBits;
+}
+
+extern "C" uint32_t ZilNativeProductsMachineHeaderTestResults() {
+  return zil::MachineHeaderTestBits;
+}
+extern "C" int ZilNativeProductsMachineHeaderDisabledForTests(int Disabled) {
+  const bool Old = zil::MachineHeaderDisabledForTests;
+  zil::MachineHeaderDisabledForTests = Disabled != 0;
+  return Old;
 }

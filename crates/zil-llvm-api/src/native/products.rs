@@ -126,6 +126,10 @@ mod enabled {
         fn ZilNativeProductsMachineBundleTestResults() -> u32;
         #[cfg(test)]
         fn ZilNativeProductsMachineTypedBodyTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineHeaderTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineHeaderDisabledForTests(disabled: c_int) -> c_int;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
         #[cfg(all(test, feature = "text-reference"))]
@@ -360,6 +364,10 @@ mod enabled {
             // returned. The mask contains no native owner or reuse authority.
             unsafe { ZilNativeProductsMachineTypedBodyTestResults() }
         }
+        pub(crate) fn header_results(&self) -> u32 {
+            // SAFETY: same-thread explicit scratch-only status, no LLVM owner.
+            unsafe { ZilNativeProductsMachineHeaderTestResults() }
+        }
         #[cfg(feature = "text-reference")]
         pub(crate) fn frame_results(&self) -> u32 {
             // SAFETY: same-thread read of the completed scratch-only mask.
@@ -370,6 +378,23 @@ mod enabled {
             // SAFETY: an observation mask contains no foreign owner or authority.
             unsafe { ZilNativeProductsMachineFrameObservationResults() }
         }
+    }
+    #[cfg(test)]
+    pub(crate) struct MachineHeaderDisabledGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl Drop for MachineHeaderDisabledGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the same thread's previous explicit test mode.
+            unsafe {
+                ZilNativeProductsMachineHeaderDisabledForTests(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_header_disabled_for_test() -> MachineHeaderDisabledGuard {
+        // SAFETY: test-only thread-local mode, not an LLVM owner or authority.
+        let old = unsafe { ZilNativeProductsMachineHeaderDisabledForTests(1) };
+        MachineHeaderDisabledGuard(old, std::marker::PhantomData)
     }
     #[cfg(test)]
     impl Drop for MachineNumberingTestsGuard {

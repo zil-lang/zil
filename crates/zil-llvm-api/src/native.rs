@@ -1252,6 +1252,67 @@ mod native_machine_numbering_tests {
     }
 
     #[test]
+    fn exact_header_and_typed_body_replace_only_redundant_full_mir_text() {
+        let source = source();
+        let config = Config {
+            triple: &source.triple,
+            optimization: Optimization::O2,
+        };
+        let compile = |prior| {
+            compile_module_with_native_products(
+                &source,
+                &config,
+                FunctionMerging::Disabled,
+                &|| false,
+                prior,
+            )
+            .unwrap()
+        };
+        let ordinary =
+            compile_module(&source, &config, FunctionMerging::Disabled, &|| false).unwrap();
+        let (cold, _, prior) = {
+            let scope = products::machine_numbering_tests_for_test();
+            let result = compile(None);
+            assert_eq!(
+                scope.header_results(),
+                15,
+                "actual header/full oracle and typed-body/CFI counterexamples must execute"
+            );
+            result
+        };
+        let cold_work = cold.receipt.native_products.as_ref().unwrap();
+        assert_eq!(cold_work.machine_function_executions, 2);
+        assert_eq!(cold_work.failed_replays, 0);
+        assert_eq!(cold.bytes, ordinary.bytes);
+        let prior = prior.unwrap();
+        let (warm, _, _) = compile(Some(&prior));
+        let work = warm.receipt.native_products.as_ref().unwrap();
+        assert_eq!(work.machine_function_reuses, 2);
+        assert_eq!(work.machine_function_executions, 0);
+        assert_eq!(work.failed_replays, 0);
+        assert_eq!(work.fresh_context_fallbacks, 0);
+        assert_eq!(warm.bytes, ordinary.bytes);
+        let (full, _, full_prior) = {
+            let _mode = products::machine_header_disabled_for_test();
+            compile(None)
+        };
+        let full_work = full.receipt.native_products.as_ref().unwrap();
+        assert!(cold_work.mir_snapshot_bytes < full_work.mir_snapshot_bytes);
+        assert_eq!(full.bytes, ordinary.bytes);
+        let (full_warm, _, _) = compile(Some(&full_prior.unwrap()));
+        assert_eq!(
+            full_warm
+                .receipt
+                .native_products
+                .as_ref()
+                .unwrap()
+                .machine_function_reuses,
+            2
+        );
+        assert_eq!(full_warm.bytes, ordinary.bytes);
+    }
+
+    #[test]
     fn scratch_number_state_checks_real_graph_updates_and_rejections() {
         // High bit proves the scratch procedure actually ran; bits 0..14 prove
         // sparse/permuted numbering, real dominators, malformed/cap rejections,
