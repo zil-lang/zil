@@ -58,3 +58,10 @@ A missing or unknown row proves neither. The complete actual directory also
 preserves phantom classes without manufacturing data targets. These facts do
 not erase named classes or establish that the whole scope has zero classes.
 Every pending obligation must be discharged before module verification ends.
+
+An inline owned-region view names the real initialized physical windows under
+its actual head permission. Distinct fields with the same Type and class remain
+distinct windows. Creating a projected field view checks its selected window
+against live loans while retaining its input ancestry; its newly created child
+cannot serve as its own delegation authority. A stored Address or Desc payload
+ends the owning traversal and cannot be followed as an owned descendant.
