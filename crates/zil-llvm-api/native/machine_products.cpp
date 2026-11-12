@@ -15,6 +15,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Target/TargetMachine.h"
+#include <algorithm>
 #include <dlfcn.h>
 #include <map>
 #include <mutex>
@@ -26,6 +27,7 @@ namespace zil {
 namespace {
 using ID = const void *;
 thread_local bool MachineDiagnostics = false;
+thread_local int MachineAlignmentTestMax = -1;
 thread_local bool MachineNumberingTests = false;
 thread_local bool MachineNumberingTestsRan = false;
 thread_local uint32_t MachineNumberingTestBits = 0;
@@ -64,10 +66,11 @@ struct TargetInfoAPI {
   int (*restore)(void *, const void *);
   void (*dispose)(void *);
   const void *(*printerID)();
+  int (*hasBlockOwners)(const void *);
   int (*restoreBlockNumbers)(void *, unsigned, unsigned, unsigned,
                              const unsigned *, const unsigned *, uint64_t);
   bool available() const {
-    return clone && restore && dispose && printerID && restoreBlockNumbers;
+    return clone && restore && dispose && printerID && hasBlockOwners && restoreBlockNumbers;
   }
 };
 const TargetInfoAPI &targetInfoAPI() {
@@ -76,6 +79,7 @@ const TargetInfoAPI &targetInfoAPI() {
       reinterpret_cast<int (*)(void *, const void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreX86ProductInfo")),
       reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMDisposeX86ProductInfo")),
       reinterpret_cast<const void *(*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMAsmPrinterPassID")),
+      reinterpret_cast<int (*)(const void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMHasMachineProductBlockOwners")),
       reinterpret_cast<int (*)(void *, unsigned, unsigned, unsigned,
                               const unsigned *, const unsigned *, uint64_t)>(
           dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers"))};
@@ -101,6 +105,11 @@ PassStep describe(llvm::Pass &P, bool Machine) {
   for (ID D : AU.getUsedSet()) S.dependencies.push_back(D);
   return S;
 }
+struct BlockEmissionState {
+  unsigned maxAlignmentBytes;
+  bool forceLabel;
+  std::vector<unsigned> predecessors;
+};
 struct Snapshot {
   std::string input, world, mir;
   std::shared_ptr<const void> targetInfo;
@@ -110,6 +119,7 @@ struct Snapshot {
   // Only scalar IDs escape; the inverse table is rebuilt with CURRENT MBBs.
   unsigned blockIDCapacity = 0, nextAnalysisNumber = 0, analysisEpoch = 0;
   std::vector<unsigned> blockNumbers, analysisNumbers;
+  std::vector<BlockEmissionState> blockEmission;
   std::vector<PassStep> pipeline, sequence;
   size_t firstMachine = 0;
   std::set<ID> emissionProviders;
@@ -148,6 +158,10 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   }
   for (const auto *Numbers : {&S.blockNumbers, &S.analysisNumbers})
     for (unsigned Number : *Numbers) { (void)Number; N = boundedAdd(N, sizeof(unsigned)); }
+  for (const auto &Block : S.blockEmission) {
+    N = boundedAdd(N, sizeof(BlockEmissionState));
+    for (unsigned Pred : Block.predecessors) { (void)Pred; N = boundedAdd(N, sizeof(unsigned)); }
+  }
   N = boundedAdd(N, stepsPayload(S.pipeline));
   N = boundedAdd(N, stepsPayload(S.sequence));
   for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
@@ -206,6 +220,16 @@ bool inputDomain(const llvm::Function &F) {
 
 bool snapshotDomain(llvm::MachineFunction &MF) {
   const auto &Frame = MF.getFrameInfo();
+  // The current product does not retain EH/section/symbol owners or BB-ID
+  // profile state. Keep this exclusion explicit at the machine consumer.
+  if (targetInfoAPI().hasBlockOwners(&MF) || MF.getSection() || MF.hasInlineAsm() || MF.hasWinCFI() ||
+      MF.callsEHReturn() || MF.callsUnwindInit() || MF.hasEHContTarget() ||
+      MF.hasEHScopes() || MF.hasEHFunclets() || MF.hasBBSections() ||
+      MF.getTarget().Options.BBAddrMap ||
+      MF.getTarget().Options.BBSections != llvm::BasicBlockSection::None ||
+      !MF.getPrefetchTargets().empty() || !MF.getLandingPads().empty() ||
+      !MF.getTypeInfos().empty() || !MF.getFilterIds().empty())
+    return false;
   // MIR renumbers stack objects and drops dead slots. No frame index may enter
   // the opaque target-info copy until a separate relocation proof exists.
   if (Frame.getObjectIndexBegin() != 0 || Frame.getObjectIndexEnd() != 0 ||
@@ -221,14 +245,22 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       X->getStackPtrSaveMI() || X->hasPreallocatedCall() ||
       X->hasSwiftAsyncContext() || X->getHasSEHFramePtrSave())
     return false;
-  for (const auto &BB : MF)
+  for (const auto &BB : MF) {
+    if (BB.hasAddressTaken() || BB.isEHPad() || BB.isEHScopeEntry() ||
+        BB.isEHContTarget() || BB.isEHFuncletEntry() || BB.isCleanupFuncletEntry() ||
+        BB.isBeginSection() || BB.isEndSection() || BB.getBBID() ||
+        BB.getSectionID() != llvm::MBBSectionID(0) || BB.getIrrLoopHeaderWeight() ||
+        BB.getCallFrameSize() != 0)
+      return false;
     for (const auto &MI : BB) {
       // X86 TRAP/UD2 deliberately carries mayLoad for scheduling, although it
       // has no memory operand. Other trapping forms (UD1 memory etc.) have
       // explicit operands and remain outside this no-memory snapshot domain.
       const bool PlainTrap = MI.getDesc().isTrap() && MI.getNumExplicitOperands() == 0;
       if (MI.isCall() || MI.isInlineAsm() || (MI.mayLoad() && !PlainTrap) || MI.mayStore() ||
-          !MI.memoperands_empty() || MI.getDebugLoc())
+          !MI.memoperands_empty() || MI.getDebugLoc() || MI.getPreInstrSymbol() ||
+          MI.getPostInstrSymbol() || MI.getPCSections() || MI.getHeapAllocMarker() ||
+          MI.getMMRAMetadata() || MI.getDeactivationSymbol() || MI.peekDebugInstrNum())
         return false;
       // References are exclusively current physical registers, scalar values
       // and current MBBs. No symbol, global, metadata, regmask or pooled owner.
@@ -240,6 +272,43 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
         }
       }
     }
+  }
+  return true;
+}
+
+// Validate all predecessor multisets before changing any current block. The
+// replacement list contains exactly the current owners, in the proved order;
+// successors, probabilities and CFG membership remain unchanged.
+bool restoreBlockEmission(llvm::MachineFunction &MF, const Snapshot &S) {
+  if (MF.size() != S.blockEmission.size()) return false;
+  std::map<unsigned, llvm::MachineBasicBlock *> Current;
+  for (auto &BB : MF) Current.emplace(BB.getNumber(), &BB);
+  std::vector<std::vector<llvm::MachineBasicBlock *>> Ordered;
+  size_t I = 0;
+  for (auto &BB : MF) {
+    const auto &State = S.blockEmission[I++];
+    std::vector<unsigned> Actual, Expected = State.predecessors;
+    for (const auto *Pred : BB.predecessors()) Actual.push_back(Pred->getNumber());
+    std::sort(Actual.begin(), Actual.end());
+    std::sort(Expected.begin(), Expected.end());
+    if (Actual != Expected || (BB.hasLabelMustBeEmitted() && !State.forceLabel))
+      return false;
+    std::vector<llvm::MachineBasicBlock *> Preds;
+    for (unsigned Number : State.predecessors) {
+      auto It = Current.find(Number);
+      if (It == Current.end()) return false;
+      Preds.push_back(It->second);
+    }
+    Ordered.push_back(std::move(Preds));
+  }
+  I = 0;
+  for (auto &BB : MF) {
+    const auto &State = S.blockEmission[I];
+    BB.setMaxBytesForAlignment(State.maxAlignmentBytes);
+    if (State.forceLabel) BB.setLabelMustBeEmitted();
+    std::copy(Ordered[I].begin(), Ordered[I].end(), BB.pred_begin());
+    ++I;
+  }
   return true;
 }
 
@@ -380,6 +449,7 @@ struct MachineRequest {
   std::shared_ptr<const MachineProducts> prior;
   ZilNativeProductStats &stats;
   bool &failed;
+  int alignmentTestMax;
   std::map<const llvm::Function *, Current> current;
   size_t reservedBytes = 0;
   size_t reservedSlots = 0;
@@ -411,9 +481,14 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     llvm::Module &M, llvm::TargetMachine &TM, const std::string &Config,
     std::shared_ptr<const MachineProducts> Prior, ZilNativeProductStats &Stats,
     bool &Failed) {
-  if (!targetInfoAPI().available() || Config.size() > MaxMachinePayload)
+  std::string BoundConfig = Config;
+  if (MachineAlignmentTestMax >= 0)
+    BoundConfig += "; explicit-test-block-align64-max=" + std::to_string(MachineAlignmentTestMax);
+  if (!targetInfoAPI().available() || BoundConfig.size() > MaxMachinePayload)
     return {nullptr, [](MachineRequest *R) { delete R; }};
-  return {new MachineRequest{M, TM, Config, std::move(Prior), Stats, Failed, {}, Config.size(), 0},
+  const size_t ConfigBytes = BoundConfig.size();
+  return {new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
+                             MachineAlignmentTestMax, {}, ConfigBytes, 0},
           [](MachineRequest *R) { delete R; }};
 }
 
@@ -485,6 +560,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
                            C.replay->analysisNumbers.data(), C.replay->blockNumbers.size())) {
               diagnose(F, "restore-machine-number-state");
               R.fail();
+            } else if (!restoreBlockEmission(*MF, *C.replay)) {
+              diagnose(F, "restore-block-emission-state");
+              R.fail();
             } else {
               MF->getProperties() = C.replay->properties;
               if (!snapshotDomain(*MF)) {
@@ -522,6 +600,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     return 1;
   }
   if (Printer) {
+    // A test can exercise actual padding emission. This policy is bound in
+    // request.config; warm replay must restore it, never reapply the setter.
+    if (!C.replay && R.alignmentTestMax >= 0)
+      if (auto *MF = MMI.getMachineFunction(F))
+        for (auto &BB : *MF)
+          if (!BB.isEntryBlock()) BB.setAlignment(llvm::Align(64), R.alignmentTestMax);
     if (MachineNumberingTests)
       if (auto *MF = MMI.getMachineFunction(F)) testMachineNumbering(*MF, MMI);
     ++R.stats.asm_printer_runs;
@@ -545,6 +629,9 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           for (const auto &BB : *MF) {
             C.recording->blockNumbers.push_back(BB.getNumber());
             C.recording->analysisNumbers.push_back(BB.getAnalysisNumber());
+            BlockEmissionState State{BB.getMaxBytesForAlignment(), BB.hasLabelMustBeEmitted(), {}};
+            for (const auto *Pred : BB.predecessors()) State.predecessors.push_back(Pred->getNumber());
+            C.recording->blockEmission.push_back(std::move(State));
           }
           C.recording->mir = machineText(MMI, *MF);
           R.stats.mir_snapshot_bytes += C.recording->mir.size();
@@ -648,4 +735,10 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
 extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults() {
   return zil::MachineNumberingTestBits |
          (zil::MachineNumberingTestsRan ? uint32_t(0x80000000) : 0);
+}
+
+extern "C" int ZilNativeProductsMachineAlignmentTest(int MaxBytes) {
+  const int Old = zil::MachineAlignmentTestMax;
+  if (MaxBytes >= -1) zil::MachineAlignmentTestMax = MaxBytes;
+  return Old;
 }
