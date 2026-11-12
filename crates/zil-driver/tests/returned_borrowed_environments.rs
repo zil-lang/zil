@@ -1068,20 +1068,40 @@ fn nested_qualified_factory_preserves_child_classes_sources_and_cleanup() {
 
 #[test]
 fn inline_nested_qualified_factory_transfers_actual_child_classes() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/inline-nested-qualified-callback.zil");
-    let module=typed_source(source);
-    assert!(module.closures.iter().any(|d|d.captures.iter().any(|ty|matches!(ty,zil_ir::Type::Closure(_)))));
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/inline-nested-qualified-callback.zil"
+    );
+    let module = typed_source(source);
+    assert!(module.closures.iter().any(|d| {
+        d.captures
+            .iter()
+            .any(|ty| matches!(ty, zil_ir::Type::Closure(_)))
+    }));
     for d in &module.closures {
-        if d.captures.iter().any(|ty|matches!(ty,zil_ir::Type::BorrowedStorage{..})) {assert!(d.storage_life.is_some());}
+        if d.captures
+            .iter()
+            .any(|ty| matches!(ty, zil_ir::Type::BorrowedStorage { .. }))
+        {
+            assert!(d.storage_life.is_some());
+        }
     }
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    let mut erased=module.clone();
-    for d in &mut erased.closures {d.storage_life=None;}
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut erased = module.clone();
+    for d in &mut erased.closures {
+        d.storage_life = None;
+    }
     for function in &mut erased.functions {
-        if function.environment.is_some(){function.storage_life=None;}
-        if let Some(life)=&mut function.storage_life {life.classes.retain(|row|row.position.base!=zil_ir::StorageBase::Result);}
+        if function.environment.is_some() {
+            function.storage_life = None;
+        }
+        if let Some(life) = &mut function.storage_life {
+            life.classes
+                .retain(|row| row.position.base != zil_ir::StorageBase::Result);
+        }
     }
-    assert!(zil_analyze::analyze(&erased,&Limits::default()).is_err());
-    let bad=source.replace("fn make<life a>","fn make<life a,life b>").replace("other:&'a i32","other:&'b i32");
-    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+    assert!(zil_analyze::analyze(&erased, &Limits::default()).is_err());
+    let bad = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/inline-nested-distinct-formal-classes.zil"
+    );
+    assert!(zil_analyze::analyze(&typed_source(bad), &Limits::default()).is_err());
 }
