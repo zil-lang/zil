@@ -647,7 +647,6 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
         || !closures::value_signature(&bound.parameters, &bound.result)
-        || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {
                 identity: function.id,

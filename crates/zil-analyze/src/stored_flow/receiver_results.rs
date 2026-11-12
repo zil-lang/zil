@@ -4,7 +4,7 @@
 use super::*;
 
 pub(super) fn applies(d: &ClosureDefinition) -> bool {
-    super::super::stored_callables::lending(d)
+    (super::super::stored_callables::lending(d) || super::super::stored_callables::transferred(d))
         && d.storage_life.as_ref().is_some_and(|life| {
             super::super::signature_life::outer(life, StorageBase::Result).is_some()
         })

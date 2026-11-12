@@ -528,13 +528,7 @@ fn positions(
 ) -> R<Vec<Position>> {
     pay(left, 1, span)?;
     let mut positions = Vec::new();
-    let (inner, pointer) = if let Type::Address { mutable, inner } = ty {
-        if *mutable {
-            return Err(unsupported(
-                span,
-                "source capture relation requires shared explicit addresses",
-            ));
-        }
+    let (inner, pointer) = if let Type::Address { inner, .. } = ty {
         positions.push(Position::Borrow(StoragePosition { base, path: vec![] }));
         (inner.as_ref(), true)
     } else {
@@ -742,8 +736,9 @@ impl Formation {
         left: &mut usize,
         span: Span,
     ) -> R<StorageLifeContract> {
-        let environment_result =
-            matches!(result, Type::Address { mutable:false, inner } if inner.is_b0_scalar());
+        let environment_result = lending::transferred_result(result);
+        let declared_result=self.proposal.bindings.iter().any(|row|row.position.base==StorageBase::Result)
+            || self.proposal.classes.iter().any(|row|row.position.base==StorageBase::Result);
         if captures.len() != self.captures.len()
             || !(stored_call_value(result) || environment_result)
         {
@@ -797,7 +792,7 @@ impl Formation {
             }
         }
         for position in positions(
-            if environment_result {
+            if environment_result && !declared_result {
                 &Type::Unit
             } else {
                 result
