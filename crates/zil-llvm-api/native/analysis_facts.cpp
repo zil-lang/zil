@@ -18,13 +18,10 @@
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/Support/raw_ostream.h"
 #include <dlfcn.h>
+#include <algorithm>
 namespace zil {
-bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
-                   const std::vector<const void *> &Keys, std::string &Out, AnalysisReplayState *ReplayState, AnalysisFactsMemo *Memo) {
+bool supportedAnalysisKeys(const std::vector<const void *> &Keys) {
   using namespace llvm;
-  Out.clear();
-  if (ReplayState) *ReplayState = {};
-  // Refuse unknown result domains before serializing supported prefixes.
   for (const void *K : Keys)
     if (K != PassInstrumentationAnalysis::ID() && K != TargetIRAnalysis::ID() &&
         K != TargetLibraryAnalysis::ID() && K != DominatorTreeAnalysis::ID() &&
@@ -33,6 +30,15 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
         K != BasicAA::ID() && K != ScopedNoAliasAA::ID() && K != TypeBasedAA::ID() &&
         K != LastRunTrackingAnalysis::ID() && K != OptimizationRemarkEmitterAnalysis::ID() &&
         K != ModuleAnalysisManagerFunctionProxy::ID() && K != AAManager::ID()) return false;
+  return true;
+}
+bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
+                   const std::vector<const void *> &Keys, std::string &Out, AnalysisReplayState *ReplayState, AnalysisFactsMemo *Memo) {
+  using namespace llvm;
+  Out.clear();
+  if (ReplayState) *ReplayState = {};
+  // Shared with the optional product consumer's early admission gate.
+  if (!supportedAnalysisKeys(Keys)) return false;
   raw_string_ostream OS(Out);
   // Preserve result-list order: dependencies and lazy availability can observe
   // it. The enclosing product separately binds exact IR, BB numbering, globals,
@@ -322,4 +328,27 @@ extern "C" int ZilNativeAnalysisFactsTLIMemoCounterexample() {
       !Check(*F, OtherAM, Bounded, Current) ||
       Bounded.targetLibraryProjections() != Projections + 1) return 0;
   return 1;
+}
+
+extern "C" int ZilNativeAnalysisUnsupportedKeysCounterexample() {
+  using namespace llvm;
+  // No analyses are registered: touching the expensive result path here would
+  // assert in LLVM. The shared pure gate must reject the unknown tail first.
+  FunctionAnalysisManager AM;
+  LLVMContext Context; Module M("unknown-analysis-gate", Context);
+  auto *F = Function::Create(FunctionType::get(Type::getVoidTy(Context), false),
+                            GlobalValue::ExternalLinkage, "f", &M);
+  IRBuilder<> B(BasicBlock::Create(Context, "entry", F)); B.CreateRetVoid();
+  static const int UnknownAnalysis = 0;
+  std::vector<const void *> Keys{PassInstrumentationAnalysis::ID(), TargetLibraryAnalysis::ID()};
+  if (!zil::supportedAnalysisKeys(Keys)) return 0;
+  Keys.push_back(&UnknownAnalysis);
+  if (zil::supportedAnalysisKeys(Keys)) return 0;
+  std::string Facts = "must-clear"; zil::AnalysisReplayState State;
+  State.emptyAssumptions = 1;
+  if (zil::analysisFacts(*F, AM, Keys, Facts, &State) || !Facts.empty() ||
+      State.emptyAssumptions != -1) return 0;
+  std::reverse(Keys.begin(), Keys.end());
+  return !zil::supportedAnalysisKeys(Keys) &&
+         !zil::analysisFacts(*F, AM, Keys, Facts) && Facts.empty();
 }

@@ -45,6 +45,9 @@ public:
   uint64_t targetLibraryReuses() const { return TargetLibraryReuses; }
   size_t retainedBytes() const { return RetainedBytes; }
 };
+// Pure identity whitelist only: it never queries/builds an analysis result or
+// inspects IR. The facts checker and optional product scheduler share it.
+bool supportedAnalysisKeys(const std::vector<const void *> &);
 // A complete projection of supported CURRENT result states. Unknown results
 // refuse reuse. Names and static analysis IDs alone are never result proofs.
 bool analysisFacts(llvm::Function &, llvm::FunctionAnalysisManager &,
