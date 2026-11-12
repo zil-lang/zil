@@ -63,7 +63,44 @@ NameState nameState(const Function &F) {
 }
 // Function::print(true) in the pinned LLVM does not initialize its use-list
 // ordering map. Bind that observable state explicitly using current owned IDs.
+// Debug records are a separate instruction stream in LLVM 23. A metadata
+// attachment traversal cannot represent them; unsupported callers must reject
+// the same way as subjects, rather than contribute an incomplete projection.
+bool projectionAttachmentsSupported(const Function &F) {
+  SmallVector<std::pair<unsigned, MDNode *>, 4> Attachments;
+  std::set<const Metadata *> Seen;
+  std::vector<const Metadata *> Pending;
+  auto Add = [&](const auto &V) {
+    Attachments.clear(); V.getAllMetadata(Attachments);
+    for (const auto &E : Attachments) Pending.push_back(E.second);
+  };
+  Add(F);
+  for (const BasicBlock &B : F) {
+    // The pinned accessor performs only Context->getTrailingDbgRecords(this),
+    // despite lacking a const overload. Do not materialize a marker here.
+    if (const_cast<BasicBlock &>(B).getTrailingDbgRecords()) return false;
+    for (const Instruction &I : B) {
+      if (I.hasDbgRecords()) return false;
+      Add(I);
+      // Metadata operands (debug intrinsics etc.) are outside this attachment
+      // schema. In particular LocalAsMetadata is not an ordinary Value Use.
+      for (const Use &U : I.operands()) if (isa<MetadataAsValue>(U.get())) return false;
+    }
+  }
+  while (!Pending.empty()) {
+    const Metadata *MD = Pending.back(); Pending.pop_back();
+    if (!MD || !Seen.insert(MD).second) continue;
+    if (const auto *N = dyn_cast<MDNode>(MD)) {
+      for (const MDOperand &O : N->operands()) Pending.push_back(O.get());
+    } else if (const auto *C = dyn_cast<ConstantAsMetadata>(MD)) {
+      // Do not hide global/body or block-address dependencies in metadata.
+      if (!isa<ConstantInt>(C->getValue()) && !isa<ConstantFP>(C->getValue())) return false;
+    } else if (!isa<MDString>(MD)) return false;
+  }
+  return true;
+}
 bool ownedUseSequence(const Function &F, std::vector<uint32_t> *Out) {
+  if (!projectionAttachmentsSupported(F)) return false;
   DenseMap<const Value *, uint32_t> IDs;
   std::vector<const Value *> Values;
   auto Add = [&](const Value *V) {
@@ -220,6 +257,28 @@ std::string functionText(const Function &F) {
   OS << "\n; value-name-state " << Names.present << ':' << Names.maximum << ':' << Names.counter;
   std::vector<uint32_t> Uses;
   if (!ownedUseSequence(F, &Uses)) return {};
+  // Function::print writes attribute-group and metadata references without
+  // their definitions. Bind the actual values, including nested MD payloads.
+  OS << "\n; complete-function-attributes "; F.getAttributes().print(OS);
+  SmallVector<std::pair<unsigned, MDNode *>, 4> Attachments;
+  F.getAllMetadata(Attachments);
+  for (const auto &E : Attachments) {
+    OS << "\n; complete-function-metadata " << E.first << '\n';
+    E.second->printTree(OS, F.getParent());
+  }
+  uint64_t Ordinal = 0;
+  for (const BasicBlock &B : F) for (const Instruction &I : B) {
+    if (const auto *C = dyn_cast<CallBase>(&I)) if (!C->getAttributes().isEmpty()) {
+      OS << "\n; complete-call-attributes " << Ordinal << ' ';
+      C->getAttributes().print(OS);
+    }
+    Attachments.clear(); I.getAllMetadata(Attachments);
+    for (const auto &E : Attachments) {
+      OS << "\n; complete-instruction-metadata " << Ordinal << ':' << E.first << '\n';
+      E.second->printTree(OS, F.getParent());
+    }
+    ++Ordinal;
+  }
   OS << "\n; owned-use-sequence-v1\n";
   // A private resident byte projection, never LLVM source or a disk format.
   OS.write(reinterpret_cast<const char *>(Uses.data()), Uses.size() * sizeof(uint32_t));
@@ -717,4 +776,40 @@ extern "C" int ZilNativeProductsIncomingCallerCounterexample() {
   // Two unrepresentable caller bodies would both produce an empty string.
   // Neither is admitted as a native product input for the unchanged callee.
   return !verifyModule(M, nullptr) && zil::functionText(*G).empty() && !zil::eligibleFunction(*F);
+}
+
+extern "C" int ZilNativeProductsAttributeMetadataCounterexample() {
+  LLVMContext Context; Module M("attribute-metadata-projection", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  IRBuilder<> FB(BasicBlock::Create(Context, "entry", F)); FB.CreateRet(F->getArg(0));
+  auto *G = Function::Create(FunctionType::get(I32, false), GlobalValue::ExternalLinkage, "caller", &M);
+  IRBuilder<> GB(BasicBlock::Create(Context, "entry", G));
+  auto *Call = GB.CreateCall(F, {GB.getInt32(7)}, "call");
+  auto *Sum = cast<Instruction>(GB.CreateAdd(Call, GB.getInt32(1), "sum")); GB.CreateRet(Sum);
+  Call->addFnAttr(Attribute::NoUnwind);
+  auto Print = [&] { std::string S; raw_string_ostream OS(S); G->print(OS, nullptr, true); return S; };
+  if (verifyModule(M, nullptr) || !zil::ownedUseSequence(*G, nullptr)) return 0;
+  if (zil::readNameStateAPI() && !zil::eligibleFunction(*F)) return 0;
+  std::string Text = Print(), Key = zil::functionText(*G);
+  Call->removeFnAttr(Attribute::NoUnwind); Call->addFnAttr(Attribute::NoFree);
+  if (verifyModule(M, nullptr) || Print() != Text || zil::functionText(*G) == Key) return 0;
+  Call->removeFnAttr(Attribute::NoFree); Call->addFnAttr(Attribute::NoUnwind);
+  if (Print() != Text || zil::functionText(*G) != Key) return 0;
+  auto Payload = [&](unsigned Value) {
+    auto *Child = MDNode::get(Context, {ConstantAsMetadata::get(GB.getInt32(Value))});
+    return MDNode::get(Context, {Child});
+  };
+  Sum->setMetadata("zil.payload", Payload(7));
+  Text = Print(); Key = zil::functionText(*G);
+  Sum->setMetadata("zil.payload", Payload(8));
+  if (verifyModule(M, nullptr) || Print() != Text || zil::functionText(*G) == Key) return 0;
+  Sum->setMetadata("zil.payload", Payload(7));
+  if (Print() != Text || zil::functionText(*G) != Key || !zil::ownedUseSequence(*G, nullptr)) return 0;
+  // A local metadata reference is not represented by Value::uses(). It must
+  // reject, including when reached through an otherwise ordinary caller.
+  Sum->setMetadata("zil.payload", MDNode::get(Context, {ValueAsMetadata::get(Call)}));
+  if (zil::ownedUseSequence(*G, nullptr) || !zil::functionText(*G).empty()) return 0;
+  Sum->setMetadata("zil.payload", nullptr);
+  return !verifyModule(M, nullptr) && zil::ownedUseSequence(*G, nullptr);
 }
