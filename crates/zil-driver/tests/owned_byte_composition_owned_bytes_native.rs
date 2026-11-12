@@ -802,3 +802,90 @@ fn large_owned_closure_codegen_budget_is_exact_and_request_local() {
     .unwrap();
     eprintln!("large owned Closure exact Codegen budget: {low}");
 }
+
+#[test]
+fn borrowed_owned_callback_helpers_reject_reused_argument_in_source_raw_and_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+    let factory =
+        "fn factory()->impl FnMut(Large)->Large{var calls=0;return move(p)=>{calls+=1;return p}}";
+    let helper = "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{return f(p)}";
+    let body = "fn value()->i32{var f=factory();let p=invoke(&mut f,make(3));let q=invoke(&mut f,make(7));return i32(bytes_len(p.bytes)+bytes_len(q.bytes))}";
+    let source = large_closure_program(&format!("{factory}{helper}{body}"));
+    let bad = source.replace(
+        helper,
+        "fn invoke<F:FnMut(Large)->Large>(f:&mut F,p:Large)->Large{let first=f(p);return f(p)}",
+    );
+    let rejected = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "double_owner.zil", bad),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    let src = SourceUnit::new(FileId(0), ModuleId(0), "borrowed_owned_helper.zil", source);
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let helper = raw
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let caller = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "value")
+        .unwrap();
+    let mut first = None;
+    let mut changed = false;
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::Call {
+            function,
+            arguments,
+        } = &mut instruction.kind
+            && *function == helper
+        {
+            assert_eq!(arguments.len(), 2);
+            if let Some(value) = first {
+                arguments[1] = value;
+                changed = true;
+                break;
+            }
+            first = Some(arguments[1]);
+        }
+    }
+    assert!(changed);
+    plan.module_fingerprint = raw.fingerprint();
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
+    let errors = zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits)
+        .err()
+        .unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits)
+        .err()
+        .unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.category == ResultCategory::SafeReject)
+    );
+}
