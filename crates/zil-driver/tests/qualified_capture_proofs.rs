@@ -80,7 +80,10 @@ fn whole_qualified_capture_requires_both_cleanup_and_real_slot_origins() {
                 // owning argument and actual pointer slot.
                 for row in contract.capture_sources.as_mut().unwrap() {
                     for source in &mut row.sources {
-                        source.base = zil_ir::StorageBase::Parameter(1);
+                        let zil_ir::StorageSource::Exact(position) = source else {
+                            panic!("fixture requires exact source");
+                        };
+                        position.base = zil_ir::StorageBase::Parameter(1);
                     }
                 }
             }
