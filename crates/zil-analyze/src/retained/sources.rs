@@ -167,6 +167,74 @@ fn append(
     }
     Ok(out)
 }
+fn stored_read_sources(
+    c: &Context<'_>,
+    storage: ValueId,
+    path: &[ContractProjection],
+    active: &mut BTreeSet<(FunctionId, ValueId, Path)>,
+    depth: usize,
+    b: &mut Budget,
+) -> CompileResult<Sources> {
+    pay(b, path.len().saturating_add(1))?;
+    if depth > b.partial_depth {
+        return Err(err("stored source traversal exceeds depth bound"));
+    }
+    match c.defs.get(storage.0 as usize).copied().flatten() {
+        Some(
+            InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local },
+        ) => local_sources(c, *local, path, active, depth + 1, b),
+        Some(InstructionKind::BorrowPlaceLocal {
+            local,
+            path: prefix,
+            ..
+        }) => {
+            pay(b, prefix.len().saturating_add(path.len()))?;
+            let mut full = prefix
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            full.extend_from_slice(path);
+            local_sources(c, *local, &full, active, depth + 1, b)
+        }
+        Some(InstructionKind::ReborrowAddress { address, .. }) => {
+            stored_read_sources(c, *address, path, active, depth + 1, b)
+        }
+        Some(InstructionKind::AddressField { address, index }) => {
+            pay(b, path.len().saturating_add(1))?;
+            let mut full = vec![ContractProjection::Place(PlaceProjection::Field(*index))];
+            full.extend_from_slice(path);
+            stored_read_sources(c, *address, &full, active, depth + 1, b)
+        }
+        Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) => {
+            let mut out = Sources::new();
+            if let Some(index) = c.f.parameters.iter().position(|p| p == local) {
+                if matches!(c.f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                    out.insert(StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: path.to_vec(),
+                    });
+                }
+            }
+            if let Some(writes) = c.stores.get(local) {
+                for value in writes {
+                    extend(
+                        &mut out,
+                        stored_read_sources(c, *value, path, active, depth + 1, b)?,
+                        b,
+                    )?;
+                }
+            }
+            if out.is_empty() {
+                Err(err("stored read has no actual initialized carrier"))
+            } else {
+                Ok(out)
+            }
+        }
+        _ => append(resolve(c, storage, &[], active, depth + 1, b)?, path, b),
+    }
+}
+
 fn resolve(
     c: &Context<'_>,
     v: ValueId,
@@ -228,7 +296,7 @@ fn resolve(
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
             p.extend_from_slice(path);
-            append(resolve(c, *storage, &[], active, depth + 1, b)?, &p, b)
+            stored_read_sources(c, *storage, &p, active, depth + 1, b)
         }
         InstructionKind::MakeClosure { captures, .. } => {
             let Some((ContractProjection::Capture(index), tail)) = path.split_first() else {

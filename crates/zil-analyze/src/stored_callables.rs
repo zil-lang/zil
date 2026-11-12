@@ -258,6 +258,8 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 capture(t) || owned_capture(t, b)?
             } else {
                 scalar(t)
+                    || capture(t)
+                    || b.returned_borrowed_environments.contains(&d.id) && owned_capture(t, b)?
             };
         }
         if !admitted {

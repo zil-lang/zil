@@ -40,6 +40,8 @@ pub(super) struct Budget {
     pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    // Schedules actual returned-environment transport; contracts grant no roots.
+    pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
@@ -143,6 +145,7 @@ impl Budget {
             affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
+            returned_borrowed_environments: BTreeSet::new(),
             replacement_functions: BTreeSet::new(),
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
@@ -1786,7 +1789,26 @@ pub(super) fn preflight(
 
             // Scheduling only. retained::sources independently proves every
             // external leaf before any actual root/parent substitution.
-            budget.owning_address_captures |= contract.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
+            budget.owning_address_captures |= contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty());
+            if contract
+                .capture_sources
+                .as_ref()
+                .is_some_and(|rows| !rows.is_empty())
+            {
+                budget.input(
+                    budget
+                        .returned_borrowed_environments
+                        .len()
+                        .saturating_add(1),
+                    "returned environment transport schedule",
+                )?;
+                budget
+                    .returned_borrowed_environments
+                    .insert(contract.closure);
+            }
             count(
                 0,
                 contract.lending_captures.len(),

@@ -5,13 +5,20 @@ type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {
     inputs: BTreeSet<StoragePosition>,
+    // Pointer storage is distinct from the targets stored inside a holder.
+    places: BTreeSet<(LocalId, Path)>,
     local: bool,
+    unknown: bool,
 }
 type Row = BTreeMap<Path, Origins>;
 fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
     spend(left, row.len(), span)?;
     for (path, origins) in row {
         spend(left, path.len().saturating_add(origins.inputs.len()), span)?;
+        spend(left, origins.places.len(), span)?;
+        for (_, path) in &origins.places {
+            spend(left, path.len(), span)?;
+        }
         for source in &origins.inputs {
             spend(left, source.path.len(), span)?;
         }
@@ -24,10 +31,12 @@ fn join(to: &mut Row, from: &Row, left: &mut usize, span: Span) -> R<bool> {
     let mut changed = false;
     for (path, origins) in from {
         let at = to.entry(path.clone()).or_default();
-        let before = (at.inputs.len(), at.local);
+        let before = (at.inputs.len(), at.places.len(), at.local, at.unknown);
         at.inputs.extend(origins.inputs.iter().cloned());
+        at.places.extend(origins.places.iter().cloned());
         at.local |= origins.local;
-        changed |= before != (at.inputs.len(), at.local);
+        at.unknown |= origins.unknown;
+        changed |= before != (at.inputs.len(), at.places.len(), at.local, at.unknown);
     }
     Ok(changed)
 }
@@ -128,6 +137,8 @@ fn seed(
                     .map(|base| BTreeSet::from([StoragePosition { base, path }]))
                     .unwrap_or_default(),
                 local: base.is_none(),
+                unknown: base.is_none(),
+                places: BTreeSet::new(),
             },
         );
     }
@@ -169,10 +180,50 @@ fn pointed(row: &Row, path: &[ContractProjection], left: &mut usize, span: Span)
                 source
             })
             .collect();
+        o.places = o
+            .places
+            .into_iter()
+            .map(|(local, mut at)| {
+                at.extend_from_slice(path);
+                (local, at)
+            })
+            .collect();
         out.insert(Vec::new(), o);
     }
     Ok(out)
 }
+fn stored_read(
+    row: &Row,
+    path: &[ContractProjection],
+    state: &[Row],
+    left: &mut usize,
+    span: Span,
+) -> R<Row> {
+    let mut out = Row::new();
+    if let Some(origin) = row.get(&Vec::new()) {
+        let mut external = copy(row, left, span)?;
+        if let Some(at) = external.get_mut(&Vec::new()) {
+            at.places.clear();
+            at.local &= origin.places.is_empty();
+        }
+        if !origin.inputs.is_empty() || origin.places.is_empty() || origin.unknown {
+            join(&mut out, &pointed(&external, path, left, span)?, left, span)?;
+        }
+        for (local, prefix) in &origin.places {
+            spend(left, prefix.len().saturating_add(path.len()), span)?;
+            let mut full = prefix.clone();
+            full.extend_from_slice(path);
+            join(
+                &mut out,
+                &select(&state[local.0 as usize], &full, left, span)?,
+                left,
+                span,
+            )?;
+        }
+    }
+    Ok(out)
+}
+
 fn solve(
     module: &TypedModule,
     f: &TypedFunction,
@@ -253,11 +304,46 @@ fn solve(
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                             copy(&state[local.0 as usize], left, at)?
                         }
-                        InstructionKind::BorrowLocal { .. }
-                        | InstructionKind::BorrowLocalMut { .. }
-                        | InstructionKind::BorrowPlaceLocal { .. }
-                        | InstructionKind::BorrowFieldLocal { .. } => {
-                            seed(module, &f.values[result.0 as usize], None, left, at, limit)?
+                        InstructionKind::BorrowLocal { local }
+                        | InstructionKind::BorrowLocalMut { local } => {
+                            let mut r =
+                                seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                            if let Some(origin) = r.get_mut(&Vec::new()) {
+                                origin.unknown = false;
+                                origin.places.insert((*local, Vec::new()));
+                            }
+                            r
+                        }
+                        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                            let mut r =
+                                seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                            if let Some(origin) = r.get_mut(&Vec::new()) {
+                                origin.unknown = false;
+                                origin.places.insert((
+                                    *local,
+                                    path.iter()
+                                        .copied()
+                                        .map(ContractProjection::Place)
+                                        .collect(),
+                                ));
+                            }
+                            r
+                        }
+                        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                            let mut r =
+                                seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                            if let Some(origin) = r.get_mut(&Vec::new()) {
+                                origin.unknown = false;
+                                origin.places.insert((
+                                    *local,
+                                    path.iter()
+                                        .map(|i| {
+                                            ContractProjection::Place(PlaceProjection::Field(*i))
+                                        })
+                                        .collect(),
+                                ));
+                            }
+                            r
                         }
                         InstructionKind::ReborrowAddress { address, .. }
                         | InstructionKind::DescribeAddress { address } => {
@@ -279,13 +365,14 @@ fn solve(
                             left,
                             at,
                         )?,
-                        InstructionKind::LoadStoredBorrow { storage, path, .. } => pointed(
+                        InstructionKind::LoadStoredBorrow { storage, path, .. } => stored_read(
                             &values[storage.0 as usize],
                             &path
                                 .iter()
                                 .copied()
                                 .map(ContractProjection::Place)
                                 .collect::<Vec<_>>(),
+                            &state,
                             left,
                             at,
                         )?,
@@ -368,6 +455,7 @@ fn solve(
                             for (path, origins) in &summaries[function.0 as usize] {
                                 let mut o = Origins {
                                     local: origins.local,
+                                    unknown: origins.unknown,
                                     ..Origins::default()
                                 };
                                 for source in &origins.inputs {
@@ -475,6 +563,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut hold = BTreeSet::new();
         for (path, origins) in &summaries[f.id.0 as usize] {
             if origins.local
+                || origins.unknown
                 || origins.inputs.is_empty()
                 || origins
                     .inputs

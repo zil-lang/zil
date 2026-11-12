@@ -3143,7 +3143,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
                     self.transferred_closure(value, value_type);
-                    target_type.unify(value_type, &mut self.graph, value.span)?;
+                    if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                        value_type.bind(&mut self.graph, expected, value.span)?;
+                    } else {
+                        target_type.unify(value_type, &mut self.graph, value.span)?;
+                    }
                 }
                 CoreStatementKind::Expression(expression) => {
                     self.expr(expression, depth + 1)?;
@@ -3532,10 +3536,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .get(name)
                     .and_then(|(source, _)| self.captured_variables.get(source).copied())
             })
-            && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+            && let Some(ty) = self.graph.ty(variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
         {
             let field = aggregates::field(&ty, member, span)?.1;
-            if !matches!(field, Type::Managed(_)) {
+            if !matches!(field, Type::Managed(_)) && !packages::product::owned_supported(&field) {
                 return Err(error(
                     "E-GIVE-TYPE",
                     span,
@@ -3715,7 +3720,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 let probe = self.expr(object, depth + 1)?;
                 self.owner_type(probe, owner.as_ref(), expression.span)?;
                 if let LocalType::Scalar(variable) = probe
-                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                    && let Some(ty) = self.graph.ty(variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     // Assignment targets the owning slot, while a value
                     // projection of the same field produces a descriptor.
@@ -3724,7 +3730,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     return self.known(&field, expression.span);
                 }
                 if let LocalType::Address(variable, _) = probe
-                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                    && let Some(ty) = self.graph.ty(variable)?
+            && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     self.graph.reserve_type(&ty, 0, expression.span)?;
                     let field = aggregates::field(&ty, member, expression.span)?.1;
