@@ -1,0 +1,52 @@
+{
+  "archive": {
+    "bytes": 25615095,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "2799ee2968b54757ddc486178bec89589409a7b74e278c79f25afd950b6c50ad"
+      },
+      {
+        "bytes": 449271,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "f701d14a03a3133c97118506e0426f18edeb8864b0de4d998afce8c3673ff1af"
+      }
+    ],
+    "sha256": "68badcc2bfb512d2e2657a37e37971e454863a652609ae9dae6dbf83611d4984",
+    "tar_bytes": 72161280
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 72146000,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-15/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      {
+        "bytes": 7433,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-15/runtime-blobs/33eea106977ad3bb8509213d3a5262698225e54e51cf1f904e195028520cdbe1.maps",
+        "sha256": "33eea106977ad3bb8509213d3a5262698225e54e51cf1f904e195028520cdbe1"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V21 full original combined profile15 SDK16 checkpoint. Frozen compiledsource4b809bbfedb92b23062d5bf151eb75fef4bfcd35/tree0cdc093e968f73a7d7295afdb3192686da7e8622/binary4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4 and SDK16 DSO3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b; baseline3ec7 originalSDK. Original425/22files/CGU16/O2/jobs1/push+profile only, no lateflag/customELF. Full34rows/18measured16parents/15success2safeerrorpairs/180recordednative, original source-specific qualifier5a72 passed strict full-recordedELF plus rawLLVM identity-comment policy. Complete495file/415601601B master is disjoint union authority. Each fixed shard fully freshlyHTTPS restored and SHA/size/mode verified before exact-master-matched original raw retirement; no full assembled fresh qualifier or native rerun claimed. SDK16/immutable/source/Git originals never retired. Metadata separately binds SDKbuild01, gate08 compile101 with zero tests, full09/10 gates, release17/18, source trees,12tool tests, reviews/proofs/cleanup15/V20 receipts and both documentationd36 history plus0f1 object-receipt262 versus phase269 correction. No priorcandidate/Rust cross-window timing ratio.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "documentation_d36": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+      "profile15": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35"
+    }
+  },
+  "inventory_sha256": "c919b821830fdc2d24bd298f5c9f1d68a99a997ab1c70c650e925ee321e6be3f",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-15/runtime-blobs/2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250.dso",
+    "zil-push-main/out/runs/full-push-native-profile-15/runtime-blobs/33eea106977ad3bb8509213d3a5262698225e54e51cf1f904e195028520cdbe1.maps"
+  ],
+  "source_root": "/workspace"
+}
