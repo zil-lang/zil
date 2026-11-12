@@ -2568,3 +2568,6 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
 
 #[path = "mixed_lowering_tests.rs"]
 mod mixed_lowering_tests;
+
+#[path = "whole_machine_tests.rs"]
+mod whole_machine_tests;

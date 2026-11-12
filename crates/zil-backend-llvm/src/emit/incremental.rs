@@ -5,6 +5,10 @@ use super::*;
 use std::sync::Arc;
 mod whole;
 pub(super) use whole::WholeOptions;
+#[cfg(test)]
+pub(super) use whole::initial_work;
+#[cfg(test)]
+pub(crate) use whole::with_initial_work;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Session {

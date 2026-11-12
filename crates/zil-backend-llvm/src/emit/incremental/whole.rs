@@ -175,7 +175,7 @@ impl Session {
             || product.limits != *verified.limits()
             || product.before != before
             || !product.module.matches(verified.module())
-            || product.layouts != lir.layouts.as_ref()
+            || product.layouts.as_slice() != lir.layouts.as_ref()
             || product.functions.len() != lir.functions.len()
             || !checked_scalar_domain(verified)
         {
@@ -241,4 +241,27 @@ impl Session {
             collected: output.1,
         }));
     }
+}
+
+// Isolate the original emitter's budget boundary without changing the current
+// independent Verify limit. Production always starts from the checked limit;
+// tests may only reduce the actual ledger before the unchanged current prefix.
+#[cfg(test)]
+thread_local! {
+    static INITIAL_WORK: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+pub(in crate::emit) fn initial_work(limit: usize) -> usize {
+    INITIAL_WORK.get().map_or(limit, |work| work.min(limit))
+}
+#[cfg(test)]
+pub(crate) fn with_initial_work<T>(work: usize, run: impl FnOnce() -> T) -> T {
+    struct Reset(Option<usize>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            INITIAL_WORK.set(self.0);
+        }
+    }
+    let _reset = Reset(INITIAL_WORK.replace(Some(work)));
+    run()
 }

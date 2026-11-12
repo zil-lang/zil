@@ -181,6 +181,10 @@ pub(crate) fn lower_view_with_session(
         requested_jobs: jobs,
     };
     let mut remaining_work = verified.limits().max_analysis_steps;
+    #[cfg(test)]
+    {
+        remaining_work = incremental::initial_work(remaining_work);
+    }
     stored_borrows::reserve_callable_metadata(
         verified.module(),
         verified.limits(),
