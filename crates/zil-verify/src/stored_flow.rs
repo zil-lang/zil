@@ -6900,7 +6900,9 @@ fn solve_check(
             }
             let receiver_sources = if b.closure_receiver_borrows {
                 receiver::held_sources(p, solution, b)?
-            } else { Vec::new() };
+            } else {
+                Vec::new()
+            };
             let mut actual = BTreeSet::new();
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
