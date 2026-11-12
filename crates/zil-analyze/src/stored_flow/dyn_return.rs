@@ -509,6 +509,7 @@ pub(super) fn sites(
     if !b.dyn_contexts {
         return Ok(());
     }
+    fee(b, 1)?;
     let InstructionKind::Call { function, .. } = &instruction.kind else {
         return Ok(());
     };
