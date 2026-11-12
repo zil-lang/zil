@@ -27,6 +27,21 @@ impl PartialEq for FunctionInputRevision {
     }
 }
 impl Eq for FunctionInputRevision {}
+/// Sealed relative function-body input, distinct from raw NodeId placement.
+/// Minted only by actual successful lowering; equality binds declaration bytes,
+/// parser attribute/file/slot inputs and all generated-name dependencies in
+/// FunctionLowerBinding. Consumers must separately bind the current complete
+/// InputContext, owner, declaration identity, positions, target and quotas.
+/// This is neither a content hash nor Types/Verify authority.
+#[derive(Clone, Debug)]
+pub struct FunctionBodyRevision(Arc<()>);
+impl PartialEq for FunctionBodyRevision {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for FunctionBodyRevision {}
+
 /// Process-local identity of an actual declaration owner. Bodies and current
 /// diagnostic bindings may change without changing this identity. Constructors
 /// stay private: neither a source name nor a public hash can mint an owner.
@@ -185,6 +200,17 @@ impl ProducedProgram {
         name: &str,
     ) -> Option<&FunctionInputRevision> {
         Some(&self.functions.get(&module)?.get(name)?.input_revision)
+    }
+    /// The producer's closed body projection for this exact immutable input.
+    /// Unlike the legacy input revision, unrelated raw NodeId relocation does
+    /// not change this token. Generated temporary/discard naming dependencies
+    /// remain part of its producer proof; current placement is not authorized.
+    pub fn function_body_revision(
+        &self,
+        module: ModuleId,
+        name: &str,
+    ) -> Option<&FunctionBodyRevision> {
+        Some(&self.functions.get(&module)?.get(name)?.body_revision)
     }
     /// Compiler-local fingerprint of current declaration bytes and absolute
     /// source binding; relocation still changes it. This is not a wire key.
@@ -510,7 +536,7 @@ struct FunctionInput {
     owner: FunctionOwner,
     // Private body projection binds actual source bytes and declaration slot;
     // unlike the legacy input_revision it does not identify relocated NodeIds.
-    body_revision: FunctionInputRevision,
+    body_revision: FunctionBodyRevision,
     interface_revision: FunctionInputRevision,
     lower_binding: FunctionLowerBinding,
     span: Span,
@@ -983,7 +1009,7 @@ impl ExpandSession {
                             |old| old.interface_revision.clone(),
                         ),
                         body_revision: same_body.map_or_else(
-                            || FunctionInputRevision(Arc::new(())),
+                            || FunctionBodyRevision(Arc::new(())),
                             |old| old.body_revision.clone(),
                         ),
                         owner: previous_owner.unwrap_or_else(|| FunctionOwner(Arc::new(()))),

@@ -325,7 +325,7 @@ impl Directory {
     fn native_scalar_project(&self, label: &str) -> ProjectSources {
         assert!(matches!(
             label,
-            "cold" | "private" | "positions" | "error" | "recovery" | "alias"
+            "cold" | "private" | "positions" | "error" | "recovery" | "alias" | "alias_error"
         ));
         let mut main = "import io\n".to_owned();
         for i in 0..20 {
@@ -353,7 +353,7 @@ impl Directory {
                 } else {
                     0
                 };
-                if label == "alias" && i == 0 && j == 0 {
+                if matches!(label, "alias" | "alias_error") && i == 0 && j == 0 {
                     text += "fn h0(x: i32) -> i32 {\n    let input_copy: i32 = x\n    var y: i32 = input_copy\n";
                 } else {
                     text += &format!("fn h{j}(x: i32) -> i32 {{\n    var y: i32 = x\n");
@@ -365,7 +365,7 @@ impl Directory {
                         "    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n"
                     );
                 }
-                text += if label == "error" && i == 0 && j == 0 {
+                text += if matches!(label, "error" | "alias_error") && i == 0 && j == 0 {
                     "    return absent_name\n}\n"
                 } else {
                     "    return y\n}\n"
@@ -645,4 +645,111 @@ fn native_scalar_alias_rebinds_raw_ids_without_clearing_plain_hint_receipts() {
     assert_eq!(types.position_rebindings, 20);
     assert_eq!(current(&session, &report).module.functions.len(), 425);
     assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn native_structural_error_recovery_reuses_body_identity_with_current_raw_placement() {
+    fn core(session: &CompilationSession, report: &CompileReport) -> zil_ir::CoreProgram {
+        session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::ProjectCore(prepared)
+                    if prepared.program().source_fingerprint == report.input_fingerprint =>
+                {
+                    Some(prepared.program().clone())
+                }
+                _ => None,
+            })
+            .expect("actual current raw Core")
+    }
+    let dir = Directory::new();
+    let options = CompileOptions {
+        push_reuse: true,
+        stop_after: Stage::Lower,
+        ..Default::default()
+    };
+    let mut session = CompilationSession::with_capacity(256);
+    let cold_sources = dir.native_scalar_project("cold");
+    let cold = session.compile_project(&cold_sources, &options);
+    assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+    compare(&session, &cold, &cold_sources, &options);
+    let old_core = core(&session, &cold);
+    let old_typed = current(&session, &cold).clone();
+    for label in ["alias_error", "alias"] {
+        let sources = dir.native_scalar_project(label);
+        let texts: BTreeMap<_, _> = sources
+            .modules
+            .iter()
+            .map(|unit| {
+                (
+                    Path::new(&unit.path).file_name().unwrap().to_str().unwrap(),
+                    &unit.text,
+                )
+            })
+            .collect();
+        let mut joined = String::new();
+        for (name, text) in texts {
+            joined.push_str(name);
+            joined.push('\0');
+            joined.push_str(text);
+            joined.push('\0');
+        }
+        assert_eq!(
+            Fingerprint::of(joined.as_bytes()).to_hex(),
+            if label == "alias_error" {
+                "3ec9013a61114da681ab70f651aa602c500672595f72869bb33f8f7ae913450e"
+            } else {
+                "5a51c60f12e9ca7b4f85e7968fd80d694ea40d7e961eb628d30e1e26436b8e4f"
+            }
+        );
+        let report = session.compile_project(&sources, &options);
+        compare(&session, &report, &sources, &options);
+        if label == "alias_error" {
+            assert_ne!(report.status, ResultCategory::Success);
+            assert_eq!(report.phase, Phase::Types);
+            assert_eq!(report.verification_runs, 0);
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let work = report.types_push_work.as_ref().unwrap();
+            assert_eq!(work.context_rebuilds, 0, "{}", report.to_json());
+            assert_eq!(work.body_checks, 1);
+            assert_eq!(work.position_rebindings, 20);
+            assert_eq!(work.retained_functions, 404);
+            let new_core = core(&session, &report);
+            let before = old_core
+                .modules
+                .iter()
+                .find(|m| m.core.module_id == ModuleId(2))
+                .unwrap();
+            let after = new_core
+                .modules
+                .iter()
+                .find(|m| m.core.module_id == ModuleId(2))
+                .unwrap();
+            assert_eq!(after.core.functions[1].name, "h1");
+            assert_ne!(before.core.functions[1].id, after.core.functions[1].id);
+            assert_ne!(before.exports, after.exports);
+            let typed = current(&session, &report);
+            assert_eq!(typed.module.functions.len(), 425);
+            for (old, current) in old_typed
+                .module
+                .functions
+                .iter()
+                .zip(&typed.module.functions)
+            {
+                assert_eq!(
+                    old.id, current.id,
+                    "concrete function identity is the current declaration slot, not the relocated Core NodeId"
+                );
+            }
+            assert_plain_checkpoint_is_bound(&session, &report);
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
 }

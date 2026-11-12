@@ -1139,6 +1139,15 @@ fn private_body_projection_keeps_current_raw_node_and_temporary_bindings() {
         cold.function_input_revision(ModuleId(0), "second"),
         current.function_input_revision(ModuleId(0), "second")
     );
+    assert_ne!(
+        cold.function_body_revision(ModuleId(0), "second"),
+        current.function_body_revision(ModuleId(0), "second"),
+        "actual module-global temporary names remain body dependencies"
+    );
+    assert_eq!(
+        cold.function_body_revision(ModuleId(0), "third"),
+        current.function_body_revision(ModuleId(0), "third")
+    );
     assert!(
         current
             .change_batch()
@@ -1240,4 +1249,54 @@ fn item_lowering_replaces_actual_core_leaf_and_replays_current_source_map() {
         "changed NodeId/map-base requires real current lowering"
     );
     assert_eq!(session.last_stats().executed_lower_items, 3);
+}
+
+#[test]
+fn body_revision_separates_placement_without_hiding_generated_names() {
+    let limits = Limits::default();
+    let text = "fn first(x:i32)->i32=>x; fn discard(x:i32)->i32 {let _=x;return x;} fn sibling(x:i32)->i32=>x;";
+    let mut session = ExpandSession::default();
+    let initial = checked(&mut session, &[parsed(0, text)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let edited = text.replace(
+        "fn first(x:i32)->i32=>x;",
+        "fn first(x:i32)->i32 {let alias=x;return alias;}",
+    );
+    let current = checked(&mut session, &[parsed(0, &edited)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_ne!(
+        initial.program().modules[0].core.functions[2].id,
+        current.program().modules[0].core.functions[2].id
+    );
+    assert_ne!(
+        initial.function_input_revision(ModuleId(0), "sibling"),
+        current.function_input_revision(ModuleId(0), "sibling")
+    );
+    assert_eq!(
+        initial.function_body_revision(ModuleId(0), "sibling"),
+        current.function_body_revision(ModuleId(0), "sibling")
+    );
+    assert_eq!(
+        initial.function_owner(ModuleId(0), "sibling"),
+        current.function_owner(ModuleId(0), "sibling")
+    );
+    assert_ne!(
+        initial.function_body_revision(ModuleId(0), "discard"),
+        current.function_body_revision(ModuleId(0), "discard"),
+        "actual $discard NodeId-derived Core names belong to body input"
+    );
+    assert_ne!(
+        initial.function_body_revision(ModuleId(0), "first"),
+        current.function_body_revision(ModuleId(0), "first")
+    );
+    assert_eq!(
+        initial.change_batch().context(),
+        current.change_batch().context()
+    );
+    assert_eq!(
+        initial.change_batch().namespace_context(),
+        current.change_batch().namespace_context()
+    );
 }

@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use zil_base::{ModuleId, NodeId};
 use zil_expand::{
-    ExpansionEpoch, FunctionInputRevision, FunctionOwner, InputContext, NamespaceContext,
+    ExpansionEpoch, FunctionBodyRevision, FunctionOwner, InputContext, NamespaceContext,
     ProducedProgram,
 };
 
@@ -330,7 +330,7 @@ impl TypesPushSession {
             row.node = function.id;
             row.input = Some(
                 produced
-                    .function_input_revision(old.module, &old.name)?
+                    .function_body_revision(old.module, &old.name)?
                     .clone(),
             );
             rows = rows.replace(index, row)?;
@@ -557,8 +557,10 @@ impl Context {
     /// The successful CFG owner is unchanged until the entire request succeeds.
     /// These are producer-minted input identities, not hashes, dirty hints or
     /// Types/Verify authority. The producer preserves one only for identical
-    /// parser declaration bytes plus attribute/file/node/temporary-name binding
-    /// under its complete input environment. Absolute positions are separate.
+    /// parser declaration bytes plus attribute/file/generated-name binding.
+    /// Complete input context is checked below; current raw NodeId/positions
+    /// remain separate bindings. Concrete Typed FunctionId comes from the
+    /// unchanged declaration namespace, never from a raw Core node number.
     fn bridge_inputs(&self, produced: &ProducedProgram) -> Option<BTreeMap<usize, Work>> {
         let batch = produced.change_batch();
         if batch.context() != &self.input_context
@@ -579,8 +581,16 @@ impl Context {
             let old = self.rows.get(index)?;
             let module = produced.program().modules.get(old.location.0)?;
             let function = module.core.functions.get(old.location.1)?;
-            let input = produced.function_input_revision(old.module, &old.name)?;
+            let input = produced.function_body_revision(old.module, &old.name)?;
             if old.id.0 as usize != index
+                || self.program.module.functions.get(index)?.id != old.id
+                || self
+                    .tables
+                    .get(&old.module)?
+                    .get(&old.name)?
+                    .concrete_id(function.span)
+                    .ok()?
+                    != old.id
                 || module.core.module_id != old.module
                 || function.name != old.name
                 || produced.function_owner(old.module, &old.name) != old.owner.as_ref()
@@ -588,12 +598,11 @@ impl Context {
                 return None;
             }
             let same_input = input == old.input.as_ref()?;
-            // The legacy input projection binds declaration node IDs. Treat
-            // any contradiction as unknown rather than retargeting a result.
-            if same_input && function.id != old.node {
-                return None;
-            }
-            if !same_input || function.span != old.span {
+            // Even equal body inputs must visit the binding path when current
+            // raw placement changes. It refreshes Row.node/span and rebases the
+            // actual CFG positions; typed FunctionId stays bound to this same
+            // declaration slot and the current complete namespace.
+            if !same_input || function.span != old.span || function.id != old.node {
                 work.insert(
                     index,
                     Work {
@@ -737,7 +746,7 @@ impl Recording {
             row.owner = Some(produced.function_owner(row.module, &row.name)?.clone());
             row.input = Some(
                 produced
-                    .function_input_revision(row.module, &row.name)?
+                    .function_body_revision(row.module, &row.name)?
                     .clone(),
             );
             row.names = *names;
@@ -821,7 +830,7 @@ struct Row {
     node: NodeId,
     name: String,
     owner: Option<FunctionOwner>,
-    input: Option<FunctionInputRevision>,
+    input: Option<FunctionBodyRevision>,
     span: Span,
     cfg: [usize; 6],
     names: usize,
@@ -1978,5 +1987,160 @@ mod tests {
             actual.program.as_ref(),
             &fresh(&recovered, &limits).unwrap()
         );
+    }
+
+    #[test]
+    fn failed_structural_gap_updates_raw_placement_without_rechecking_equal_bodies() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let text = |body: &str| {
+            format!(
+                "fn first(x:i32)->i32 {{{body:<64}}} fn second(x:i32)->i32=>x+2; fn third(x:i32)->i32=>x+3;"
+            )
+        };
+        let initial = produced(
+            &mut expand,
+            &[parse(0, &text("return x;"), &limits)],
+            &limits,
+        );
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let successful = session.current.clone().unwrap();
+        let bad = produced(
+            &mut expand,
+            &[parse(0, &text("let alias=x;return missing;"), &limits)],
+            &limits,
+        );
+        let bad = prepared(&bad, &limits);
+        assert_eq!(
+            apply(&mut session, &bad, &limits).unwrap_err(),
+            fresh(&bad, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &successful));
+        let current = produced(
+            &mut expand,
+            &[parse(0, &text("let alias=x;return alias;"), &limits)],
+            &limits,
+        );
+        let before = &initial.program().modules[0].core.functions[1];
+        let after = &current.program().modules[0].core.functions[1];
+        assert_ne!(before.id, after.id);
+        assert_eq!(
+            before.span, after.span,
+            "isolate NodeId placement from positions"
+        );
+        assert_ne!(
+            initial.function_input_revision(ModuleId(0), "second"),
+            current.function_input_revision(ModuleId(0), "second")
+        );
+        assert_eq!(
+            initial.function_body_revision(ModuleId(0), "second"),
+            current.function_body_revision(ModuleId(0), "second")
+        );
+        let prepared_current = prepared(&current, &limits);
+        let update = apply(&mut session, &prepared_current, &limits).unwrap();
+        assert_eq!(update.stats.context_rebuilds, 0);
+        assert_eq!(update.stats.body_checks, 1);
+        assert_eq!(update.stats.position_rebindings, 0);
+        assert_eq!(update.stats.receipt_tree_updates, 3);
+        assert_eq!(
+            update.program.as_ref(),
+            &fresh(&prepared_current, &limits).unwrap()
+        );
+        for index in [1, 2] {
+            assert!(Arc::ptr_eq(
+                cold.program.module.functions.owner(index).unwrap(),
+                update.program.module.functions.owner(index).unwrap()
+            ));
+            assert_eq!(
+                session
+                    .current
+                    .as_ref()
+                    .unwrap()
+                    .rows
+                    .get(index)
+                    .unwrap()
+                    .node,
+                current.program().modules[0].core.functions[index].id
+            );
+            assert_eq!(
+                update.program.module.functions[index].id,
+                FunctionId(index as u32)
+            );
+        }
+        // A following ordinary sparse edit must consume the newly bound raw
+        // NodeId, rather than hiding a stale row behind an unchanged Typed ID.
+        let next = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &text("let alias=x;return alias;").replace("x+2", "x+7"),
+                &limits,
+            )],
+            &limits,
+        );
+        let next = prepared(&next, &limits);
+        let update = apply(&mut session, &next, &limits).unwrap();
+        assert_eq!(update.stats.context_rebuilds, 0);
+        assert_eq!(update.stats.body_checks, 1);
+        assert_eq!(update.program.as_ref(), &fresh(&next, &limits).unwrap());
+    }
+
+    #[test]
+    fn failed_structural_gap_rechecks_actual_node_named_body_dependencies() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let source = "fn first(x:i32)->i32=>x; fn discard(x:i32)->i32 {let _=x;return x;} fn sibling(x:i32)->i32=>x;";
+        let initial = produced(&mut expand, &[parse(0, source, &limits)], &limits);
+        apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let bad = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &source.replacen(
+                    "fn first(x:i32)->i32=>x;",
+                    "fn first(x:i32)->i32 {let alias=x;return missing;}",
+                    1,
+                ),
+                &limits,
+            )],
+            &limits,
+        );
+        let bad = prepared(&bad, &limits);
+        assert_eq!(
+            apply(&mut session, &bad, &limits).unwrap_err(),
+            fresh(&bad, &limits).unwrap_err()
+        );
+        let current = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &source.replacen(
+                    "fn first(x:i32)->i32=>x;",
+                    "fn first(x:i32)->i32 {let alias=x;return alias;}",
+                    1,
+                ),
+                &limits,
+            )],
+            &limits,
+        );
+        assert_ne!(
+            initial.function_body_revision(ModuleId(0), "discard"),
+            current.function_body_revision(ModuleId(0), "discard")
+        );
+        assert_eq!(
+            initial.function_body_revision(ModuleId(0), "sibling"),
+            current.function_body_revision(ModuleId(0), "sibling")
+        );
+        let current = prepared(&current, &limits);
+        let update = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(update.stats.context_rebuilds, 0);
+        assert_eq!(
+            update.stats.body_checks, 2,
+            "generated $discard names changed in the second body"
+        );
+        assert_eq!(update.stats.position_rebindings, 1);
+        assert_eq!(update.program.as_ref(), &fresh(&current, &limits).unwrap());
     }
 }
