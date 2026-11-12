@@ -3,7 +3,12 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 type Path = Vec<ContractProjection>;
-type Sources = BTreeSet<StoragePosition>;
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ActualSource {
+    Input(StoragePosition),
+    Static,
+}
+type Sources = BTreeSet<ActualSource>;
 fn pay(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "returned environment actual source proof")
 }
@@ -146,7 +151,13 @@ fn context<'a>(
 fn extend(to: &mut Sources, from: Sources, b: &mut Budget) -> CompileResult<()> {
     pay(b, to.len().saturating_add(from.len()))?;
     for s in &from {
-        pay(b, s.path.len())?;
+        pay(
+            b,
+            match s {
+                ActualSource::Input(position) => position.path.len(),
+                ActualSource::Static => 1,
+            },
+        )?;
     }
     to.extend(from);
     Ok(())
@@ -162,7 +173,15 @@ fn append(
     )?;
     let mut out = Sources::new();
     for mut source in sources.pop_first().into_iter().chain(sources) {
-        source.path.extend_from_slice(path);
+        match &mut source {
+            ActualSource::Input(position) => position.path.extend_from_slice(path),
+            ActualSource::Static if path.is_empty() => {}
+            ActualSource::Static => {
+                return Err(err(
+                    "static byte storage cannot supply an aggregate field path",
+                ));
+            }
+        }
         out.insert(source);
     }
     Ok(out)
@@ -211,10 +230,10 @@ fn stored_read_sources(
             if let Some(index) = c.f.parameters.iter().position(|p| p == local)
                 && matches!(c.f.locals[local.0 as usize].ty, Type::Address { .. })
             {
-                out.insert(StoragePosition {
+                out.insert(ActualSource::Input(StoragePosition {
                     base: StorageBase::Parameter(index as u32),
                     path: path.to_vec(),
-                });
+                }));
             }
             if let Some(writes) = c.stores.get(local) {
                 for value in writes {
@@ -261,11 +280,27 @@ fn resolve(
         .flatten()
         .ok_or_else(|| err("source value has no actual definition"))?
     {
+        InstructionKind::StaticUtf8 { .. } => {
+            if !path.is_empty()
+                || !matches!(c.f.values.get(v.0 as usize),Some(Type::Address{mutable:false,inner})if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+            {
+                return Err(err(
+                    "StaticUtf8 source must be its complete immutable byte slice",
+                ));
+            }
+            Ok(Sources::from([ActualSource::Static]))
+        }
         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
             local_sources(c, *local, path, active, depth + 1, b)
         }
         InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::DescribeAddress { address } => {
+            resolve(c, *address, path, active, depth + 1, b)
+        }
+        InstructionKind::AddressIndex { address, .. }
+        | InstructionKind::AddressSlice { address, .. }
+            if path.is_empty() =>
+        {
             resolve(c, *address, path, active, depth + 1, b)
         }
         InstructionKind::AddressField { address, index } => {
@@ -361,10 +396,10 @@ fn resolve(
             local_sources(c, *local, &p, active, depth + 1, b)
         }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
-            Ok(Sources::from([StoragePosition {
+            Ok(Sources::from([ActualSource::Input(StoragePosition {
                 base: StorageBase::Capture(*index),
                 path: path.to_vec(),
-            }]))
+            })]))
         }
         InstructionKind::Call {
             function,
@@ -379,6 +414,10 @@ fn resolve(
             let mut out = Sources::new();
             for returned in &callee.returned {
                 for source in resolve(&callee, *returned, path, active, depth + 1, b)? {
+                    let ActualSource::Input(source) = source else {
+                        out.insert(ActualSource::Static);
+                        continue;
+                    };
                     let StorageBase::Parameter(index) = source.base else {
                         return Err(err("callee result is not rooted in an actual input"));
                     };
@@ -423,10 +462,10 @@ fn local_sources(
         leaves(c.module, ty, &mut Vec::new(), &mut leaves_at, 0, b)?;
         if matches!(ty, Type::Address { .. } | Type::Desc(_)) || leaves_at.iter().any(|p| p == path)
         {
-            out.insert(StoragePosition {
+            out.insert(ActualSource::Input(StoragePosition {
                 base: StorageBase::Parameter(index as u32),
                 path: path.to_vec(),
-            });
+            }));
         }
     }
     if let Some(values) = c.stores.get(&local) {
@@ -598,13 +637,31 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
         let claim = claims[0];
         let (expected, _) = endpoint(module, &f.return_type, &path, b)?;
         for pair in claim.sources.windows(2) {
-            if crate::exact_storage_source(&pair[0])? >= crate::exact_storage_source(&pair[1])? {
+            let canonical = match (&pair[0], &pair[1]) {
+                (StorageSource::Exact(left), StorageSource::Exact(right)) => left < right,
+                (StorageSource::Exact(_), StorageSource::Static { .. }) => true,
+                (StorageSource::Static { .. }, _) => false,
+                _ => return Err(err("source upper uses an unsupported source expression")),
+            };
+            if !canonical {
                 return Err(err(
                     "source upper must contain distinct canonical actual inputs",
                 ));
             }
         }
         for atom in &claim.sources {
+            if let StorageSource::Static { leaf, mode } = atom {
+                b.type_work(leaf, false, "static capture upper complete leaf")?;
+                if *mode != StoredBorrowMode::SharedAddress
+                    || leaf != expected
+                    || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                {
+                    return Err(err(
+                        "static capture upper changes the complete immutable byte leaf or mode",
+                    ));
+                }
+                continue;
+            }
             let source = crate::exact_storage_source(atom)?;
             if !matches!(source.base, StorageBase::Parameter(_)) {
                 return Err(err("external source upper is not an actual input"));
@@ -631,7 +688,19 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
             let actual = resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b)?;
             let mut covered = !actual.is_empty();
             for source in &actual {
-                covered &= crate::exact_storage_sources_contain(&claim.sources, source)?;
+                covered &= match source {
+                    ActualSource::Input(position) => claim
+                        .sources
+                        .iter()
+                        .any(|atom| matches!(atom,StorageSource::Exact(upper)if upper==position)),
+                    ActualSource::Static => {
+                        pay(b, claim.sources.len())?;
+                        claim
+                            .sources
+                            .iter()
+                            .any(|atom| matches!(atom, StorageSource::Static { .. }))
+                    }
+                };
             }
             if !covered {
                 return Err(err(
