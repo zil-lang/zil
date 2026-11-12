@@ -1,7 +1,7 @@
 {
   "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
   "version": "23.1.4",
-  "patch_sha256": "5035616ed2fc6daf15d65e24caaa896e5522422311d6498c8f2fe9dfc5ffa214",
+  "patch_sha256": "6c656062c5290542b170635478042f3661c82569027d688fac62813d6c4bd85d",
   "original_files": {
     "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
     "llvm/include/llvm/IR/PassManagerImpl.h": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527",
@@ -18,7 +18,8 @@
     "llvm/include/llvm/Analysis/BasicAliasAnalysis.h": "14b1ed4c6b9fd137a66b1f4a444ce9cc4eb21b91e65b5519a036e2a4e613eb2e",
     "llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h": "d01d2c350b29453e7aae1dce25dd518d8d4f3a8d82ba6c6e67ac9dae8403a5ea",
     "llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h": "55617eaa52312f1c43ee6a2390e25a2e40a33ebe36b5e889b27f52b0e92ac784",
-    "llvm/include/llvm/CodeGen/MachineBasicBlock.h": "c69c1aca8c10b2291b40f8acf62f206f23fbd3c1f25a9bbe6e060361b1867dcc"
+    "llvm/include/llvm/CodeGen/MachineBasicBlock.h": "c69c1aca8c10b2291b40f8acf62f206f23fbd3c1f25a9bbe6e060361b1867dcc",
+    "llvm/include/llvm/Analysis/AliasAnalysis.h": "9a46702ce182cb543dbf2e7629c4d31141704ffefc196ffc27c32a2f4ab26b7e"
   },
   "compile_units": [
     {
@@ -67,7 +68,8 @@
     "llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
     "llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
     "llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h",
-    "llvm/include/llvm/CodeGen/MachineBasicBlock.h"
+    "llvm/include/llvm/CodeGen/MachineBasicBlock.h",
+    "llvm/include/llvm/Analysis/AliasAnalysis.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
   "default_behavior": "No installed thread-local hook: original actual pass objects, order and invalidation. AsmPrinter/streamer original objects. Explicit native_products=false by default.",
