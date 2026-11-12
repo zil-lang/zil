@@ -364,6 +364,7 @@ impl<'a> Engine<'a> {
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.source_enum_return = None;
+                self.signature_candidate = None;
                 self.life_scope.clear();
                 let mut callable_parameters = Vec::new();
                 let mut callable_profile = function.where_clause.is_empty();
@@ -398,6 +399,7 @@ impl<'a> Engine<'a> {
                     Ok(())
                 })?;
                 pending.source_enum_return = self.source_enum_return.take();
+                pending.signature_candidate = self.signature_candidate.take();
             }
             self.budget.node(pending.item.span, 0)?;
             ready.push_back(pending);
@@ -413,6 +415,40 @@ impl<'a> Engine<'a> {
     pub(super) fn stored_signature(&mut self, function: &mut Function) -> R<bool> {
         self.stored_signature_context(function, &[])
     }
+    // Anonymous tuples with direct borrowed leaves need a joint scope. The
+    // candidate is attached to this actual emission, never a nominal stand-in.
+    fn anonymous_signature_actual(&mut self, source:&TypeRef) -> R<Option<stored_types::QualifiedActual>> {
+        fn direct(ty:&TypeRef)->bool {
+            match &ty.kind {
+                TypeKind::Group(inner)=>direct(inner),
+                TypeKind::Tuple(fields)=>fields.iter().any(direct),
+                TypeKind::Reference{lifetime:Some(_),..}=>true,
+                _=>false,
+            }
+        }
+        let mut tuple=source;
+        while let TypeKind::Group(inner)=&tuple.kind {self.budget.node(tuple.span,0)?;tuple=inner;}
+        if !matches!(tuple.kind,TypeKind::Tuple(_)) {return Ok(None);}
+        self.budget.ty(source)?;
+        if !direct(source){return Ok(None)}
+        let mut source=source.clone();
+        self.qualified_type_actual(&mut source,0)
+    }
+
+    fn anonymous_signature_occurrences(&mut self, actual:&stored_types::QualifiedActual,
+        base:zil_ir::StorageBase, occurrences:&mut Vec<stored_types::Occurrence>,span:Span)->R<()> {
+        let zil_ir::Type::BorrowedStorage{life,..}=&actual.ty else {return Err(error(span,"anonymous signature lost its joint scope"));};
+        if life.binder_count as usize!=actual.classes.len(){return Err(error(span,"anonymous signature class count disagrees"));}
+        for (class,source) in actual.classes.iter().enumerate(){
+            self.budget.node(span,0)?;
+            occurrences.push(stored_types::Occurrence{
+                position:stored_types::OccurrencePosition::Class(zil_ir::SignatureLifeClass{base,path:vec![],class:u32::try_from(class).map_err(|_|error(span,"anonymous signature class overflow"))?}),
+                life:*source,fixed_input:!matches!(base,zil_ir::StorageBase::Result),
+            });
+        }
+        Ok(())
+    }
+
     fn stored_signature_context(
         &mut self,
         function: &mut Function,
@@ -438,6 +474,7 @@ impl<'a> Engine<'a> {
                 source_parameters.push(self.semantic_source_actual(&parameter.ty, &function.name)?);
             }
         }
+        let mut candidate=stored_types::SignatureCandidate::default();
         let mut occurrences = Vec::new();
         let mut stored = false;
         let mut callable_data_profile = true;
@@ -447,7 +484,15 @@ impl<'a> Engine<'a> {
         for (index, parameter) in function.params.iter_mut().enumerate() {
             let before = occurrences.len();
             let mut parameter_stored = false;
-            let physical_witness = self.storage_header(
+            let anonymous=self.anonymous_signature_actual(&parameter.ty)?;
+            let physical_witness = if let Some(actual)=anonymous {
+                let ordinal=u32::try_from(index).map_err(|_|error(parameter.span,"parameter ordinal overflow"))?;
+                self.anonymous_signature_occurrences(&actual,zil_ir::StorageBase::Parameter(ordinal),&mut occurrences,parameter.span)?;
+                parameter.ty=actual.physical;
+                candidate.parameters.insert(ordinal,actual.ty);
+                parameter_stored=true;
+                false
+            } else { self.storage_header(
                 &mut parameter.ty,
                 zil_ir::StorageBase::Parameter(
                     u32::try_from(index)
@@ -459,7 +504,7 @@ impl<'a> Engine<'a> {
                 &mut parameter_stored,
                 &mut next_elided,
                 0,
-            )?;
+            )? };
             stored |= parameter_stored;
             if !callable_parameters.is_empty() {
                 if callable_parameters.len() > 1 {
@@ -506,7 +551,12 @@ impl<'a> Engine<'a> {
             }
         }
         if let Some(result) = &mut function.return_type {
-            self.storage_header(
+            if let Some(actual)=self.anonymous_signature_actual(result)? {
+                self.anonymous_signature_occurrences(&actual,zil_ir::StorageBase::Result,&mut occurrences,result.span)?;
+                *result=actual.physical;
+                candidate.result=Some(actual.ty);
+                stored=true;
+            } else { self.storage_header(
                 result,
                 zil_ir::StorageBase::Result,
                 &mut Vec::new(),
@@ -515,8 +565,9 @@ impl<'a> Engine<'a> {
                 &mut stored,
                 &mut next_elided,
                 0,
-            )?;
+            )?; }
         }
+        if !candidate.parameters.is_empty() || candidate.result.is_some() {self.signature_candidate=Some(candidate);}
         if !stored {
             return Ok(false);
         }

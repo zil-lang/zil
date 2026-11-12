@@ -732,6 +732,7 @@ fn normalize(
     // All source identities, budget visits and project-method checks above
     // retain their original order. No fallible check depends on the copies;
     // transfer each declaration only after those checks have succeeded.
+    let mut signature_candidates=std::mem::take(&mut products.storage.signature_candidates);
     for (ordinal, item) in specialized.items.into_iter().enumerate() {
         let position = if products.origins.is_some() {
             positions[ordinal]
@@ -756,6 +757,11 @@ fn normalize(
                 .entry(output[position].0.id)
                 .or_default()
                 .push(origin);
+        }
+        if let Some(candidate)=signature_candidates.remove(&(specialized.id,ordinal)) {
+            budget.node(item.span,0)?;
+            let key=(output[position].0.id,output[position].0.items.len());
+            products.storage.signature_candidates.insert(key,candidate);
         }
         output[position].0.items.push(item);
     }

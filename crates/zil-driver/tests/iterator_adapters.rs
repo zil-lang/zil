@@ -469,7 +469,7 @@ fn value_is_an_inline_move_contract_and_cleanup_is_an_independent_premise() {
 }
 
 #[test]
-fn inline_values_do_not_acquire_nested_store_element_capability() {
+fn nested_store_admission_requires_actual_element_inventory() {
     let valid =
         "import std.iter\nfn need<T:Value+SyncDrop>(){} fn main(){need::<iter.Drain<i32>>()}";
     let report = compile_project(&project(valid), &CompileOptions::default());
@@ -481,20 +481,7 @@ fn inline_values_do_not_acquire_nested_store_element_capability() {
     );
     let nested = "import std.iter\nfn main(){let nested:Store<iter.Drain<i32>>=store_new()}";
     let report = compile_project(&project(nested), &CompileOptions::default());
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("Store")),
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
 
     let source = "import std.iter\nfn make(give values:Store<i32>)->iter.Drain<i32>{return iter.drain(give values)} fn main(){let values:Store<i32>=store_new()}";
     let (mut typed, mut plan) = raw(source);
@@ -851,4 +838,61 @@ fn store_element_entails_value_and_synchronous_cleanup_in_unused_definitions() {
         assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
         assert_eq!(report.phase,Phase::Expand,"{}",report.to_json());
     }
+}
+
+#[test]
+fn compound_value_actual_preserves_two_independent_borrowed_children() {
+    let source=include_str!("../../../tests/fixtures/qualified-values/compound.zil");
+    let report=compile_project(&project(source),&CompileOptions::default());
+    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    raw(source);
+    native("compound-value",source,b"",false);
+}
+
+#[test]
+fn owning_compound_value_keeps_owner_debt_and_borrowed_sibling() {
+ let source=include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil");
+ let report=compile_project(&project(source),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
+
+#[test]
+fn exclusive_compound_value_preserves_moves_and_each_parent_loan(){
+ let source=include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil");
+ let report=compile_project(&project(source),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
+
+#[test]
+fn ordinary_resource_value_roles_compose_without_turning_descriptions_into_owners(){
+ let source=include_str!("../../../tests/fixtures/qualified-values/resource-value-roles.zil");
+ let report=compile_project(&project(source),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+ raw(source);
+ native("resource-value-roles",source,b"CBA",false);
+ for invalid in [source.replace("give owner","owner"),"resource Ticket{code:i32}fn identity<T:Value>(value:T)->T{return value}fn unused(input:Ticket)->Managed<Ticket>{return identity(give input)}fn main(){}".to_owned()] {
+  let report=compile_project(&project(&invalid),&CompileOptions::default());
+  assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+ }
+}
+
+#[test]
+fn anonymous_compound_source_keeps_joint_scope_at_actual_function_header(){
+ let text=include_str!("../../../tests/fixtures/qualified-values/anonymous-compound.zil");
+ let source=SourceUnit::new(FileId(0),ModuleId(0),"anonymous-compound.zil",text);
+ let syntax=zil_syntax::parse(&source).into_result().unwrap();
+ let core=zil_expand::expand(&source,&syntax).unwrap();
+ let identity=core.functions.iter().find(|function|matches!(&function.return_type,zil_ir::Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),zil_ir::Type::Tuple(_)))).unwrap();
+ let zil_ir::Type::BorrowedStorage{storage,life}=&identity.return_type else {unreachable!()};
+ assert!(matches!(storage.as_ref(),zil_ir::Type::Tuple(fields) if fields.len()==2));
+ assert_eq!(life.binder_count,2);
+ assert_eq!(life.slots.len(),2);
+ assert!(life.nominal_arguments.is_empty());
+ assert_eq!(identity.parameters[0].ty,identity.return_type);
+ let contract=identity.storage_life.as_ref().unwrap();
+ assert_eq!(contract.fixed_binder_count,2);
+ assert_eq!(contract.classes.len(),4);
+ assert!(contract.bindings.is_empty());
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Types,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
 }

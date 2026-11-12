@@ -1,6 +1,19 @@
 use super::*;
 
 impl Expander<'_> {
+    fn source_signature_type(&mut self,parameter:Option<u32>,span:Span)->Option<Type>{
+        let catalog=self.storage_catalog?;
+        if catalog.signature_candidates.is_empty(){return None}
+        let limits=Limits{max_analysis_steps:self.member_owner_limit.saturating_sub(self.member_owner_work),
+            max_nodes:self.member_owner_nodes,max_call_depth:self.member_owner_depth,..Limits::default()};
+        let mut budget=generics::Budget::new(&limits);
+        let result=catalog.signature_type(self.module_id,self.source_item_ordinal,parameter,span,&mut budget);
+        let left=budget.remaining_limits();
+        self.member_owner_work+=limits.max_analysis_steps-left.max_analysis_steps;
+        self.member_owner_nodes=left.max_nodes;
+        match result{Ok(ty)=>ty,Err(error)=>{self.diagnostics.push(error);None}}
+    }
+
     pub(super) fn function(
         &mut self,
         f: &s::Function,
@@ -260,6 +273,11 @@ impl Expander<'_> {
                 param
             })
             .collect();
+        if prefix.is_none() {
+            for (index,parameter) in parameters.iter_mut().enumerate(){
+                if let Some(ty)=self.source_signature_type(Some(index as u32),parameter.span){parameter.ty=ty;}
+            }
+        }
         let receiver = selected.map(|p| {
             let mut parameter = self.param(p);
             if life.is_some() {
@@ -314,7 +332,7 @@ impl Expander<'_> {
                 f.span,
             );
         }
-        let return_type = callable_return.as_ref().map_or_else(
+        let mut return_type = callable_return.as_ref().map_or_else(
             || {
                 f.return_type.as_ref().map_or(Type::Unit, |t| {
                     if life.is_some() {
@@ -332,6 +350,7 @@ impl Expander<'_> {
                 }),
             },
         );
+        if prefix.is_none() && let Some(ty)=self.source_signature_type(None,f.span){return_type=ty;}
         self.return_type = Some(return_type.clone());
         let body = match &f.body {
             s::FunctionBody::Block(b) => self.block(b),

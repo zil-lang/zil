@@ -182,6 +182,16 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind,s::TypeKind::Tuple(_))
+                && (self.direct_type_argument || self.headers.contains(&std::ptr::from_ref(ty))) {
+                self.budget.node(ty.span,depth).map_err(|error|vec![error])?;
+                self.budget.note_stored_lifetimes();
+                let old=self.stored_fields;
+                self.stored_fields=true;
+                let result=ct_selection::walk_type(self,ty,depth);
+                self.stored_fields=old;
+                return result;
+            }
             if matches!(&ty.kind, s::TypeKind::Array { element, length: Some(_) }
                 if matches!(element.kind, s::TypeKind::Reference { mutable: false, lifetime: Some(_), .. }))
                 && self.headers.contains(&std::ptr::from_ref(ty))

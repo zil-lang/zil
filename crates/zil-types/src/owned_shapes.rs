@@ -111,7 +111,7 @@ fn exclusive(ty:&Type)->bool{
  }
 }
 pub(super) fn tuple(ty: &Type) -> bool {
-    matches!(ty, Type::Tuple(_)) && shape(ty).is_some_and(|owns|owns||exclusive(ty))
+    matches!(stored::physical(ty), Type::Tuple(_)) && shape(ty).is_some_and(|owns|owns||exclusive(ty))
 }
 pub(super) fn enumeration(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && shape(ty) == Some(true)
