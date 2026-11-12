@@ -4894,3 +4894,7 @@ mod owned_sum_tests;
 
 #[cfg(test)]
 mod retained_tests;
+
+#[cfg(test)]
+#[path = "wire/static_borrow_tests.rs"]
+mod static_borrow_tests;
