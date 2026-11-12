@@ -110,6 +110,7 @@ fn build_native_products(out: &std::path::Path) {
         "work_products.h",
         "machine_products.h",
         "zil_llvm_work_products_hooks.h",
+        "X86MachineFunctionInfo.h",
     ] {
         println!("cargo:rerun-if-changed=native/{header}");
     }
