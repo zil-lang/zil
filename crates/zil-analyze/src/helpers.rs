@@ -1010,11 +1010,18 @@ pub(super) fn finish_deferred(module: &TypedModule, budget: &mut Budget) -> Comp
         .take()
         .ok_or_else(|| bad("exclusive captured helper has no completed stored CFG proof"))?;
     let selected = |id: FunctionId| completed.get(id.0 as usize) == Some(&true);
-    budget.spend(
+    budget.product(
         budget.pending_exclusive_helpers.len(),
-        "exclusive helper completed body coverage",
+        2,
+        1,
+        "exclusive helper completed obligation snapshot",
     )?;
-    for id in &budget.pending_exclusive_helpers {
+    let pending = budget
+        .pending_exclusive_helpers
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+    for id in &pending {
         let helper = module
             .functions
             .get(id.0 as usize)
