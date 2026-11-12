@@ -1,0 +1,98 @@
+{
+  "schema": "fixed-shard-profile15-and-sdk16-exact-union-v1",
+  "complete": true,
+  "profile_regular_files": 495,
+  "profile_bytes": 415601601,
+  "profile_master_sha256": "7cd710537c308a702c872ad9c432a92225f90fadee692392d043c0cbe0aa5792",
+  "SDK_regular_files": 156,
+  "SDK_regular_bytes": 124312325,
+  "SDK_symlinks": [
+    {
+      "path": ".zil-environment/llvm-function-products-v16/lib/libLLVM-23.so",
+      "target": "libLLVM.so.23.1",
+      "mode": 511
+    }
+  ],
+  "SDK_master_sha256": "66d60847f3e98a53f4a0114eaa054a5089cbf36d29bf2c016eae15a5dbd15c88",
+  "exact_disjoint_profile_and_SDK_regular_unions": true,
+  "original_qualifier5a72_pass": true,
+  "original_controller_root_observed_exit": 0,
+  "original_counts": {
+    "rows": 34,
+    "measured": 18,
+    "parents": 16,
+    "pairs": 17,
+    "successful_pairs": 15,
+    "safe_error_pairs": 2,
+    "native_outcomes_recomputed": 180,
+    "files": 22,
+    "functions": 425
+  },
+  "whole_assembled_fresh_qualifier_rerun": false,
+  "SDK_originals_never_retired": true,
+  "shards": [
+    {
+      "fixed_archive_commit": "af607e5ae3497702cc84eed09755eb433c55adfc",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-01",
+      "manifest_sha256": "b95f9875f3eb3766fd8387bddb400dd832c23faa080557772a38ff1d72fac222",
+      "archive_sha256": "23571850715ca4eb370536f922ec38c9c3edc4d04fb224d6c6b15215c38ccec0",
+      "files": 217,
+      "raw_bytes": 98294198,
+      "archive_bytes": 6895689
+    },
+    {
+      "fixed_archive_commit": "0113c1a5998384fc9ec8e3b8ea12b7a9561e5b8d",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-02",
+      "manifest_sha256": "c626bf8b74efca6056d19bd78b381eb08be69460c0075007bc8a6404813c72cd",
+      "archive_sha256": "08e80b73ed13620753e9600d505a570030f121afb1826d038057544d4fbd990f",
+      "files": 7,
+      "raw_bytes": 96844658,
+      "archive_bytes": 498996
+    },
+    {
+      "fixed_archive_commit": "a5f9dcab059cdb72c516d0de90a1373826a926ea",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-03",
+      "manifest_sha256": "b03a62e0548c756ec72e14b054b7bc971acf253ee662fbdad4d841563cef4d73",
+      "archive_sha256": "c16efe970eef11133c1658d0454115d1d4917a2eb6aa1279aa78041bdc4cffbc",
+      "files": 13,
+      "raw_bytes": 70857565,
+      "archive_bytes": 434183
+    },
+    {
+      "fixed_archive_commit": "7ef2d5583edbf64717a4fa0f9e4155db740791c5",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-04",
+      "manifest_sha256": "e4a0334891d442b9402047432e3de3033fb219222662f98b441ae1c7b5600590",
+      "archive_sha256": "68badcc2bfb512d2e2657a37e37971e454863a652609ae9dae6dbf83611d4984",
+      "files": 2,
+      "raw_bytes": 72153433,
+      "archive_bytes": 25615095
+    },
+    {
+      "fixed_archive_commit": "db770b5b810a30788db17bb5979cec394060fadd",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-05",
+      "manifest_sha256": "84a33cd031e1e16995495e2ca95d71a15cf6192ff6a9d452d44d4b337e17d186",
+      "archive_sha256": "9522ee1e15bc44e98915dfbdc088c287931354d035ced07efc637ceea6aab7ec",
+      "files": 258,
+      "raw_bytes": 77587175,
+      "archive_bytes": 25857993
+    },
+    {
+      "fixed_archive_commit": "3f82b110e2eb71fe6ba16f4bff7769930077f5f6",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-06",
+      "manifest_sha256": "707d209ef0528b5425b6c7623a5d6d1677a4ef2a2a5e2c24c1c12bbcb5f2169b",
+      "archive_sha256": "bd0e0092e3ecb1ec9852ae7aac4302df60d0b84c55ddfbcf69871f874637bb0a",
+      "files": 4,
+      "raw_bytes": 85622481,
+      "archive_bytes": 29000922
+    },
+    {
+      "fixed_archive_commit": "3c0023ae23752256ba64a8e28e0d42648280e062",
+      "archive_path": "research/incremental-demand-full-push-20261112-v21-07",
+      "manifest_sha256": "ae00f047df34522e0520d53892b44bcbe33e9c5da41f34368a12a64bc17f91e2",
+      "archive_sha256": "4900da32f69051a157015acf7515d04905ef785ab102318e329cecd0e276af8d",
+      "files": 152,
+      "raw_bytes": 38689844,
+      "archive_bytes": 9253017
+    }
+  ]
+}
