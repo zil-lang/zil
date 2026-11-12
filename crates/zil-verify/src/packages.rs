@@ -619,10 +619,16 @@ pub(super) fn check_instruction(
                             "package field transfer or cleanup requires an owning field",
                         ));
                     }
-                    Ok(
-                        matches!(instruction.kind, InstructionKind::TakePackageField { .. })
-                            .then(|| ty.clone()),
-                    )
+                    if matches!(instruction.kind, InstructionKind::TakePackageField { .. }) {
+                        if let Some(projected) =
+                            crate::stored_flow::failure_projection(function, instruction, budget)?
+                        {
+                            return Ok(Some(projected));
+                        }
+                        Ok(Some(ty.clone()))
+                    } else {
+                        Ok(None)
+                    }
                 }
                 InstructionKind::StorePackageField { value, .. } => {
                     if !function.locals[local.0 as usize].mutable {

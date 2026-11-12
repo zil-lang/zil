@@ -32,7 +32,8 @@ fn teardowns(
 ) -> CompileResult<Vec<(Vec<u32>, String)>> {
     if matches!(
         payload,
-        Type::Package { .. }
+        Type::BorrowedStorage { .. }
+            | Type::Package { .. }
             | Type::Managed(_)
             | Type::OwnedDyn { .. }
             | Type::Enum { .. }

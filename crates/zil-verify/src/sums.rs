@@ -19,14 +19,16 @@ pub(super) fn owned_enum(ty: &Type) -> bool {
 }
 
 pub(super) fn owned(ty: &Type) -> bool {
-    matches!(
+    (matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-    ) && owned_leaf(ty)
+    ) || matches!(ty, Type::BorrowedStorage {storage,..} if matches!(storage.as_ref(),Type::Tuple(_) | Type::Package{..})))
+        && owned_leaf(ty)
 }
 
 fn owned_leaf(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage { storage, .. } => owned_leaf(storage),
         Type::Managed(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned_leaf),
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
@@ -63,6 +65,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![(ty, false, false)];
     while let Some((ty, in_error, in_product)) = pending.pop() {
         match ty {
+            Type::BorrowedStorage { .. } if owned(ty) => return Ok(true),
             Type::Tuple(_) if owned(ty) => return Ok(true),
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
@@ -104,8 +107,14 @@ pub(super) fn check_type_for(
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
     );
     let mut pending = vec![ty];
+    let mut qualified_addresses = BTreeSet::new();
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if matches!(ty, Type::Address { .. })
+            && qualified_addresses.contains(&(ty as *const Type as usize))
+        {
+            continue;
+        }
         if owning_container {
             dynamic_store::check_owner_field(ty, span)?;
         }
@@ -119,8 +128,31 @@ pub(super) fn check_type_for(
             continue;
         }
         if stored_flow::failure_shape(ty, budget)? {
-            // This finite borrow-only carrier contributes no owning debt.
-            // Its actual permissions remain in Verify's separate stored flow.
+            let Type::BorrowedStorage { storage, .. } = ty else {
+                unreachable!()
+            };
+            if owned_leaf(storage) {
+                let input_fields = match storage.as_ref() {
+                    Type::Tuple(fields) => fields.as_slice(),
+                    Type::Package { fields, .. } => match &fields[1].1 {
+                        Type::Tuple(fields) => fields.as_slice(),
+                        _ => unreachable!(),
+                    },
+                    _ => {
+                        return Err(bad(
+                            span,
+                            "owning qualified failure has no physical product",
+                        ));
+                    }
+                };
+                budget.spend(input_fields.len())?;
+                for input in input_fields {
+                    if matches!(input, Type::Address { .. }) {
+                        qualified_addresses.insert(input as *const Type as usize);
+                    }
+                }
+                pending.push(storage);
+            }
             continue;
         }
         match ty {
@@ -247,6 +279,9 @@ pub(super) fn check_type_for(
 fn shared_enum_physical<'a>(ty: &'a Type, budget: &mut Budget) -> Check<&'a Type> {
     if let Type::BorrowedStorage { storage, .. } = ty {
         let limits = budget.limits.clone();
+        if crate::stored_flow::failure_shape(ty, budget)? {
+            return Ok(storage);
+        }
         if budget.store_option_results
             && crate::stored_flow::option_address::shape(ty, &limits, budget)?
             || budget.stored_enum_addresses
@@ -414,7 +449,7 @@ pub(super) fn check_instruction(
     budget: &mut Budget,
 ) -> Check<Option<Type>> {
     let span = Some(i.span);
-    if crate::stored_flow::failure_unpack(f, i, budget)? {
+    if crate::stored_flow::failure_borrow_only_unpack(f, i, budget)? {
         return Ok(None);
     }
     budget.mark_sum(Some(f.id.0 as usize))?;
@@ -459,7 +494,7 @@ pub(super) fn check_instruction(
         }
         InstructionKind::UnpackTuple { local, fields } => {
             let ty = local_type(f, *local, span)?;
-            let Type::Tuple(types) = ty else {
+            let Type::Tuple(types) = shared_enum_physical(ty, budget)? else {
                 return Err(bad(span, "UnpackTuple requires actual Tuple"));
             };
             resources::charge_payload(ty, budget)?;
@@ -477,7 +512,7 @@ pub(super) fn check_instruction(
         }
         InstructionKind::DropTuple { local } => {
             let ty = local_type(f, *local, span)?;
-            if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+            if !matches!(shared_enum_physical(ty, budget)?, Type::Tuple(_)) || ty.is_copy_value() {
                 return Err(bad(span, "DropTuple requires owning Tuple"));
             }
             Ok(None)
@@ -606,8 +641,40 @@ enum Content {
 }
 
 impl Content {
+    fn no_cleanup_debt(&self, b: &mut Budget) -> Check<bool> {
+        b.spend(1)?;
+        match self {
+            Content::Copy | Content::Missing(_) => Ok(true),
+            Content::Leaf(_) => Ok(false),
+            Content::Product(children) => {
+                b.spend(children.len())?;
+                for child in children {
+                    if !child.no_cleanup_debt(b)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Content::Sum(alternatives, _) => {
+                if alternatives.is_empty() {
+                    return Ok(false);
+                }
+                b.spend(alternatives.len())?;
+                for children in alternatives.values() {
+                    b.spend(children.len())?;
+                    for child in children {
+                        if !child.no_cleanup_debt(b)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+        }
+    }
     fn live_async(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
         b.spend(1)?;
+        let ty = shared_enum_physical(ty, b)?;
         match (self, ty) {
             (Content::Missing(_), _) => Ok(false),
             (Content::Leaf(_), Type::Managed(t)) => {
@@ -659,6 +726,7 @@ impl Content {
     }
     fn live_task(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
         b.spend(1)?;
+        let ty = shared_enum_physical(ty, b)?;
         match (self, ty) {
             (Content::Missing(_), _) => Ok(false),
             (Content::Leaf(_), Type::Managed(_)) => Ok(true),
@@ -1431,6 +1499,8 @@ type UnpackedFresh = (LocalId, u8, FieldFresh);
 pub(super) struct Bridge {
     // Derived from this kernel's selected pre-drop Content, never producer metadata.
     pub(super) task_cleanup: Option<bool>,
+    // Exact selected pre-drop contents; absent keeps ordinary order obligations.
+    pub(super) empty_failure_cleanup: Option<bool>,
     pub(super) result: Option<u8>,
     pub(super) package: FieldFresh,
     pub(super) unpack: Vec<UnpackedFresh>,
@@ -2354,6 +2424,13 @@ impl Flow<'_> {
                             InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
                         )
                     {
+                        if crate::stored_flow::failure_shape(
+                            &self.f.locals[local.0 as usize].ty,
+                            budget,
+                        )? {
+                            bridge.empty_failure_cleanup =
+                                Some(state.locals[local.0 as usize].no_cleanup_debt(budget)?);
+                        }
                         bridge.task_cleanup = Some(
                             state.initialized.get(local.0 as usize, budget)? & 2 != 0
                                 && state.locals[local.0 as usize]

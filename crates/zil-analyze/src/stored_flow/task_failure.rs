@@ -49,12 +49,19 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
             {
                 return Err(failure("failure complete input identity differs"));
             }
-            if inputs
-                .iter()
-                .any(|t| !t.is_copy_value() && !matches!(t, Type::Address { .. }))
-            {
+            if inputs.iter().any(|t| {
+                !t.is_copy_value()
+                    && !matches!(t, Type::Address { .. })
+                    && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
+            }) {
                 return Err(failure(
                     "mixed owning failure view requires its complete per-leaf responsibility consumer",
+                ));
+            }
+            let owner = inputs.iter().any(|t| matches!(t, Type::Managed(_)));
+            if matches!(storage, Type::Package { .. }) != owner {
+                return Err(failure(
+                    "failure carrier shell must match its actual input responsibilities",
                 ));
             }
             (inputs, true)
@@ -62,10 +69,11 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
         Type::Tuple(inputs) => (inputs, false),
         _ => return Ok(false),
     };
-    if inputs
-        .iter()
-        .any(|t| !t.is_copy_value() && !matches!(t, Type::Address { .. }))
-    {
+    if inputs.iter().any(|t| {
+        !t.is_copy_value()
+            && !matches!(t, Type::Address { .. })
+            && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
+    }) {
         return Err(failure(
             "mixed owning input view requires its complete per-leaf responsibility consumer",
         ));
@@ -169,6 +177,16 @@ pub(super) fn instance(i: &LifeNominalInstance, b: &mut Budget) -> CompileResult
             "anonymous view must not invent a nominal declaration",
         ));
     };
+    let actual_declaration = if matches!(storage.as_ref(), Type::Package { .. }) {
+        zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE
+    } else {
+        zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+    };
+    if i.declaration != actual_declaration {
+        return Err(failure(
+            "failure nominal declaration kind differs from its actual shell",
+        ));
+    }
     let [
         LifeNominalActual::Type(inputs),
         LifeNominalActual::Type(Type::Task {
@@ -223,25 +241,35 @@ pub(super) fn projection(
     if !b.task_failure_carriers {
         return Ok(None);
     }
-    let InstructionKind::LoadStoredBorrow {
-        storage,
-        path,
-        mode: StoredBorrowLoad::Take,
-    } = &i.kind
-    else {
-        return Ok(None);
+    let selected = [PlaceProjection::Field(1)];
+    let (inner, path): (&Type, &[PlaceProjection]) = match &i.kind {
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode: StoredBorrowLoad::Take,
+        } if path.as_slice() == selected => {
+            let Type::Address {
+                mutable: true,
+                inner,
+            } = value_type(f, *storage)?
+            else {
+                return Ok(None);
+            };
+            (inner, path)
+        }
+        InstructionKind::TakePackageField { local, index: 1 } => {
+            let Some(parent) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+                return Ok(None);
+            };
+            if !matches!(parent, Type::BorrowedStorage {storage,..} if matches!(storage.as_ref(),Type::Package{..}))
+            {
+                return Ok(None);
+            }
+            (parent, &selected)
+        }
+        _ => return Ok(None),
     };
-    if path.as_slice() != [PlaceProjection::Field(1)] {
-        return Ok(None);
-    }
-    let Type::Address {
-        mutable: true,
-        inner,
-    } = value_type(f, *storage)?
-    else {
-        return Ok(None);
-    };
-    let Type::BorrowedStorage { storage: raw, life } = inner.as_ref() else {
+    let Type::BorrowedStorage { storage: raw, life } = inner else {
         return Ok(None);
     };
     let (Type::Record { name, fields } | Type::Package { name, fields }) = raw.as_ref() else {
@@ -266,7 +294,7 @@ pub(super) fn projection(
         )?;
         let tail = row
             .path
-            .strip_prefix(path.as_slice())
+            .strip_prefix(path)
             .ok_or_else(|| failure("failure input projection omits a parent slot"))?;
         let next = classes.len() as u32;
         let binder = *classes.entry(row.binder).or_insert(next);
@@ -299,7 +327,7 @@ pub(super) fn create(
     else {
         return Ok(());
     };
-    if !matches!(error.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{name,..}if name.starts_with("@std.task:v1:TaskCreateFailure:")))
+    if !matches!(error.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{name,..}|Type::Package{name,..}if name.starts_with("@std.task:v1:TaskCreateFailure:")))
     {
         return Ok(());
     }
@@ -366,7 +394,7 @@ pub(super) fn take_view(
 }
 
 fn error_carrier(t: &Type) -> bool {
-    matches!(t,Type::ErrorUnion{error,..}if matches!(error.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{name,..}if name.starts_with("@std.task:v1:TaskCreateFailure:"))))
+    matches!(t,Type::ErrorUnion{error,..}if matches!(error.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{name,..}|Type::Package{name,..}if name.starts_with("@std.task:v1:TaskCreateFailure:"))))
 }
 pub(super) fn wrapper(
     f: &TypedFunction,

@@ -491,7 +491,11 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let ty = self.local_type(local)?.clone();
-        if !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) || ty.is_copy_value() {
+        let physical = match &ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            other => other,
+        };
+        if !matches!(physical, Type::Tuple(_) | Type::Enum { .. }) || !self.owns_storage(&ty) {
             return invalid(
                 "E-CODEGEN-CFG",
                 "DropEnum requires an owning Enum local",

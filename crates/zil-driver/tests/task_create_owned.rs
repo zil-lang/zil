@@ -437,6 +437,21 @@ fn owned_constructor_does_not_erase_a_live_owner_on_later_argument_early_return(
 
 #[test]
 fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
+    failure_native_matrix(
+        "borrowed",
+        &[BORROWED, TWO_BORROWED],
+        "create-owned-borrowed-observer.c",
+        b"original borrowed input retained through constructor outcome\n",
+        &[],
+    );
+}
+fn failure_native_matrix(
+    tag: &str,
+    texts: &[&str],
+    observer_file: &str,
+    expected_stdout: &[u8],
+    case_environment: &[(&str, &str)],
+) {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -449,11 +464,11 @@ fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (case, text) in [BORROWED, TWO_BORROWED].into_iter().enumerate() {
+            for (case, text) in texts.iter().copied().enumerate() {
                 let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../../out/runs")
                     .join(format!(
-                        "zil-create-owned-borrowed-{}-{backend:?}-{optimization:?}-{case}",
+                        "zil-create-owned-{tag}-{}-{backend:?}-{optimization:?}-{case}",
                         std::process::id()
                     ));
                 fs::create_dir_all(&dir).unwrap();
@@ -461,9 +476,9 @@ fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
                     .map(PathBuf::from)
                     .unwrap_or_else(|| "clang".into());
                 let object = dir.join("observer.o");
-                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-                "../../tests/language-readiness/task-thread-transfer/create-owned-borrowed-observer.c",
-            );
+                let observer = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/language-readiness/task-thread-transfer")
+                    .join(observer_file);
                 fs::write(dir.join("input.zil"), text).unwrap();
                 fs::copy(&observer, dir.join("observer.c")).unwrap();
                 let built = Command::new(&clang)
@@ -500,6 +515,7 @@ fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
                 assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
                 for fail in [false, true] {
                     let mut command = Command::new(&report.artifacts["executable"]);
+                    command.envs(case_environment.iter().copied());
                     if fail {
                         command.env("ZIL_TASK_ALLOC_FAIL", "1");
                     }
@@ -509,10 +525,7 @@ fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
                         Some(0),
                         "{backend:?}/{optimization:?}/{fail}: {output:?}"
                     );
-                    assert_eq!(
-                        output.stdout,
-                        b"original borrowed input retained through constructor outcome\n"
-                    );
+                    assert_eq!(output.stdout, expected_stdout);
                 }
                 fs::write(
                     dir.join("result.txt"),
@@ -915,4 +928,216 @@ fn an_undeclared_return_phase_includes_the_actual_closing_owner() {
             report.to_json()
         );
     }
+}
+
+const MIXED_BORROWED_OWNER: &str = r#"
+extern "C" fn mixed_input_drop(code:i32);
+extern "C" fn mixed_worker_entry();
+extern "C" fn mixed_worker_ready();
+resource Token{code:i32}
+impl Drop for Token{fn drop(self:Self){unsafe{mixed_input_drop(.code);}}}
+fn observe_entry(){unsafe{mixed_worker_entry();}}
+fn observe_ready(){unsafe{mixed_worker_ready();}}
+fn worker(give token:Token,input:&mut i32)->i32 {observe_entry();*input+=token.code;task_yield();observe_ready();return *input;}
+fn main()->i32 {
+ var number=37;let token=Token{code:5};
+ match task_create_owned(worker,give token,&mut number) {
+ .err(failure)=>{let (token,input)=failure.inputs;*input+=token.code;let answer=*input;if number!=answer{return 91;}return answer-42;},
+ .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);return answer-number;}
+ }
+}
+"#;
+#[test]
+fn mixed_owner_and_borrowed_failure_preserves_both_original_responsibilities() {
+    let report = compile_source(
+        &source(MIXED_BORROWED_OWNER),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn mixed_owner_and_borrowed_failure_native_moves_the_original_owner_once() {
+    failure_native_matrix(
+        "mixed",
+        &[MIXED_BORROWED_OWNER],
+        "create-owned-mixed-observer.c",
+        b"mixed original owner and borrow survived exactly once\n",
+        &[],
+    );
+    let (before, _) = MIXED_BORROWED_OWNER.split_once(".ok(input)=>").unwrap();
+    let cancel = format!(
+        "{before}.ok(input)=>{{var task=give input;match task_poll(&mut task){{.ok(p)=>{{match p{{Poll.Pending()=>{{}},Poll.Ready(_)=>{{return 97;}}}}}},.err(_)=>{{return 98;}}}}task_request_cancel(&mut task);loop{{match task_poll_close(&mut task){{Poll.Pending()=>{{continue;}},Poll.Ready(_)=>{{break;}}}}}}task_finish_destroy(give task);return number-42;}}\n}}\n}}\n"
+    );
+    failure_native_matrix(
+        "mixed-cancel",
+        &[&cancel],
+        "create-owned-mixed-observer.c",
+        b"mixed original owner and borrow survived exactly once\n",
+        &[("ZIL_EXPECT_CANCEL", "1")],
+    );
+}
+
+const TWO_MIXED_BORROWED_OWNERS: &str = r#"
+extern "C" fn mixed_input_drop(code:i32);
+extern "C" fn mixed_worker_entry();
+extern "C" fn mixed_worker_ready();
+fn observe_entry(){unsafe{mixed_worker_entry();}}
+fn observe_ready(){unsafe{mixed_worker_ready();}}
+resource Token{code:i32}
+impl Drop for Token{fn drop(self:Self){unsafe{mixed_input_drop(.code);}}}
+fn worker(give first:Token,give second:Token,first_input:&mut i32,second_input:&mut i32)->i32 {observe_entry();*first_input+=first.code;*second_input+=second.code;task_yield();observe_ready();return *first_input+*second_input;}
+fn main()->i32 {
+ var number=37;var other=43;let first=Token{code:5};let second=Token{code:7};
+ match task_create_owned(worker,give first,give second,&mut number,&mut other) {
+ .err(failure)=>{let (first,second,first_input,second_input)=failure.inputs;*first_input+=first.code;*second_input+=second.code;let answer=*first_input+*second_input;if number!=42{return 91;}if other!=50{return 92;}number=9;other=11;return answer-92;},
+ .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);if number!=42{return 93;}if other!=50{return 94;}number=9;other=11;return answer-92;}
+ }
+}
+"#;
+#[test]
+fn mixed_failure_raw_and_wire_keep_each_original_owner_and_borrow_slot() {
+    use zil_ir::{InstructionKind as I, Type};
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let input = source(TWO_MIXED_BORROWED_OWNERS);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for mutation in 0..7 {
+        let mut forged = typed.clone();
+        match mutation {
+            0 => {
+                let i = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TakePackageField { index: 1, .. }))
+                    .unwrap();
+                let I::TakePackageField { index, .. } = &mut i.kind else {
+                    unreachable!()
+                };
+                *index = 0;
+            }
+            1 | 2 => {
+                let fields = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        I::UnpackTuple { fields, .. } => Some(fields),
+                        _ => None,
+                    })
+                    .unwrap();
+                if mutation == 1 {
+                    fields.pop();
+                } else {
+                    fields[1] = fields[0];
+                }
+            }
+            3 | 4 => {
+                let i = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskCreateOwned { .. }))
+                    .unwrap();
+                let I::TaskCreateOwned {
+                    arguments,
+                    port_bindings,
+                    ..
+                } = &mut i.kind
+                else {
+                    unreachable!()
+                };
+                if mutation == 3 {
+                    arguments[1] = arguments[0];
+                } else {
+                    port_bindings[1] = port_bindings[0].clone();
+                }
+            }
+            5 => {
+                for b in forged.functions.iter_mut().flat_map(|f| &mut f.blocks) {
+                    b.instructions
+                        .retain(|i| !matches!(i.kind, I::UnpackTuple { .. }));
+                }
+            }
+            6 => {
+                let instance = forged
+                    .life_instances
+                    .iter_mut()
+                    .find(|i| i.declaration == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE)
+                    .unwrap();
+                assert!(
+                    matches!(&instance.ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Package{..}))
+                );
+                instance.declaration = zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&forged, &limits).is_err(),
+            "Analyze mixed mutation={mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify mixed mutation={mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire mixed mutation={mutation}"
+        );
+    }
+    for text in [
+        TWO_MIXED_BORROWED_OWNERS.replace(
+            "*first_input+=first.code;*second_input+=second.code;let answer",
+            "number=0;*first_input+=first.code;*second_input+=second.code;let answer",
+        ),
+        TWO_MIXED_BORROWED_OWNERS.replace(
+            "*first_input+=first.code;*second_input+=second.code;let answer",
+            "other=0;*first_input+=first.code;*second_input+=second.code;let answer",
+        ),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+#[test]
+fn mixed_two_same_type_owners_and_borrows_native_keep_order_and_cleanup_once() {
+    failure_native_matrix(
+        "mixed-two",
+        &[TWO_MIXED_BORROWED_OWNERS],
+        "create-owned-mixed-observer.c",
+        b"mixed original owner and borrow survived exactly once\n",
+        &[("ZIL_MIXED_TWO", "1")],
+    );
 }

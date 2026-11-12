@@ -3,7 +3,31 @@
 use super::*;
 use std::hash::Hash;
 
+fn scoped_debt(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } | Type::MutexGuard { .. } => {
+            true
+        }
+        Type::BorrowedStorage { storage, .. } => scoped_debt(storage),
+        Type::Tuple(fields) => fields.iter().any(scoped_debt),
+        Type::Package { fields, .. } => fields.iter().any(|(_, ty)| scoped_debt(ty)),
+        Type::Enum { variants, .. } => variants.iter().any(|(_, ts)| ts.iter().any(scoped_debt)),
+        Type::ErrorUnion { error, result } => scoped_debt(error) || scoped_debt(result),
+        _ => false,
+    }
+}
+fn scoped_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => true,
+        Type::Tuple(fields) => fields.iter().all(|t| scoped_value_type(t, resources)),
+        Type::Package { fields, .. } => fields.iter().all(|(_, t)| scoped_value_type(t, resources)),
+        _ => value_type(ty, resources),
+    }
+}
 pub(super) fn owned_sum(ty: &Type) -> bool {
+    if let Type::BorrowedStorage { storage, .. } = ty {
+        return matches!(storage.as_ref(), Type::Tuple(_)) && scoped_debt(storage);
+    }
     matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -14,6 +38,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         return true;
     }
     match ty {
+        Type::BorrowedStorage { storage, .. } => scoped_value_type(storage, resources),
         Type::Managed(_) => resources::supported_type(ty, resources),
         Type::Array { element, length }
             if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
@@ -47,6 +72,7 @@ fn legacy_flat(ty: &Type) -> bool {
 /// Old Copy and already implemented flat error protocols retain their old path.
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage { storage, .. } => scoped_debt(storage) && new_shape(storage),
         Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
             new_shape(element)
         }
@@ -297,8 +323,11 @@ fn link(
     depth: usize,
 ) -> CompileResult<DropPlan> {
     budget.tree(ty, depth)?;
-    if ty.is_copy_value() {
+    if ty.is_copy_value() || matches!(ty, Type::Address { .. } | Type::Desc(_)) {
         return Ok(DropPlan::Empty);
+    }
+    if let Type::BorrowedStorage { .. } = ty {
+        return Ok(DropPlan::Leaf(symbol(ty)));
     }
     if matches!(
         ty,
@@ -388,6 +417,10 @@ fn plan(
 ) -> CompileResult<DropPlan> {
     budget.tree(ty, depth)?;
     Ok(match ty {
+        Type::BorrowedStorage { storage, .. } => {
+            return plan(storage, resources, budget, depth + 1);
+        }
+        Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
         Type::Managed(_) => return link(ty, resources, budget, depth),
         Type::Package { fields, .. } => {
@@ -628,12 +661,19 @@ pub(super) fn functions<'a>(
         if !ty.is_copy_value()
             && matches!(
                 ty,
-                Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Tuple(_)
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
+                    | Type::BorrowedStorage { .. }
             )
         {
             found.insert(hash, ty);
         }
         match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                visit(storage, found, seen, budget, true, depth + 1)?
+            }
             Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
                 visit(element, found, seen, budget, true, depth + 1)?;
             }

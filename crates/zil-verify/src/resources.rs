@@ -1452,7 +1452,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::UnpackTuple { .. }
-                    if crate::stored_flow::failure_unpack(f, instruction, budget)? => {}
+                    if crate::stored_flow::failure_borrow_only_unpack(f, instruction, budget)? => {}
                 InstructionKind::UnpackVariant { local, fields, .. }
                 | InstructionKind::UnpackTuple { local, fields } => {
                     let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");
@@ -2385,7 +2385,14 @@ impl Transfer<'_> {
                             ));
                         }
                         budget.spend(state.newer[index].len())?;
+                        let empty_failure = self
+                            .sum_rows
+                            .and_then(|rows| rows.get(b))
+                            .and_then(|row| row.get(i))
+                            .and_then(|bridge| bridge.empty_failure_cleanup)
+                            == Some(true);
                         if !slots.retained(index)
+                            && !empty_failure
                             && state.newer[index]
                                 .iter()
                                 .any(|&newer| state.debt[newer] & LIVE != 0)

@@ -65,6 +65,7 @@ impl Builder<'_, '_> {
                 | Type::OwnedDyn { .. }
         ) || matches!(ty, Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. }))
+            || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)) && tasks::failure::owns(storage))
             || errors::owned(ty)
             || owned_shapes::sum(ty)
             || packages::owned_array_supported(ty)
@@ -83,7 +84,9 @@ impl Builder<'_, '_> {
                 if matches!(storage.as_ref(), Type::Package { .. }))
         {
             Some(InstructionKind::DropPackage { local })
-        } else if owned_shapes::tuple(ty) {
+        } else if owned_shapes::tuple(ty)
+            || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)) && tasks::failure::owns(storage))
+        {
             Some(InstructionKind::DropTuple { local })
         } else if owned_shapes::enumeration(ty) {
             Some(InstructionKind::DropEnum { local })

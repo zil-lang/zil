@@ -467,6 +467,12 @@ impl FunctionEmitter<'_> {
             {
                 true
             }
+            Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)) => {
+                let Type::Tuple(fields) = storage.as_ref() else {
+                    unreachable!()
+                };
+                fields.iter().any(|field| self.owns_resource(field))
+            }
             Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {

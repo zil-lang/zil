@@ -14,6 +14,7 @@ mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage { storage, .. } => owned(storage),
         Type::Managed(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
@@ -25,7 +26,12 @@ pub(crate) fn owned(ty: &Type) -> bool {
 
 pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(ty, true, "ordinary Sum admission")?;
-    fn walk(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<(bool, bool)> {
+    fn walk(
+        module: &TypedModule,
+        ty: &Type,
+        budget: &mut Budget,
+        scoped: bool,
+    ) -> CompileResult<(bool, bool)> {
         budget.spend(1, "ordinary Sum shape")?;
         if !ty.is_copy_value()
             && (super::super::stored_flow::pure_inline(module, ty, budget)?
@@ -34,6 +40,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             return Ok((false, false));
         }
         match ty {
+            Type::BorrowedStorage { storage, .. }
+                if crate::stored_flow::failure_shape(ty, budget)? =>
+            {
+                walk(module, storage, budget, true)
+            }
+            Type::Address { .. } if scoped => Ok((false, false)),
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {
                     crate::ownership_store::ordinary_owned(module, ty, budget)?;
@@ -55,7 +67,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 let mut store = false;
                 let mut owner = false;
                 for field in fields {
-                    let (s, o) = walk(module, field, budget)?;
+                    let (s, o) = walk(module, field, budget, scoped)?;
                     store |= s;
                     owner |= o;
                 }
@@ -80,7 +92,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     if n.is_empty() || !names.insert(n) {
                         return Err(error("duplicate Product field"));
                     }
-                    let (has_store, has_owner) = walk(module, t, budget)?;
+                    let (has_store, has_owner) = walk(module, t, budget, scoped)?;
                     store |= has_store;
                     owner |= has_owner;
                 }
@@ -110,7 +122,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                         return Err(error("duplicate Enum variant"));
                     }
                     for t in fields {
-                        let (has_store, has_owner) = walk(module, t, budget)?;
+                        let (has_store, has_owner) = walk(module, t, budget, scoped)?;
                         store |= has_store;
                         owner |= has_owner;
                     }
@@ -118,11 +130,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
+                let qualified_failure = crate::stored_flow::failure_shape(e, budget)?;
                 let owning_failure = matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && matches!(e.as_ref(),Type::Package{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs"));
-                if owning_failure {
-                    let (a, ao) = walk(module, e, budget)?;
-                    let (b, bo) = walk(module, result, budget)?;
+                if owning_failure || qualified_failure {
+                    let (a, ao) = walk(module, e, budget, scoped)?;
+                    let (b, bo) = walk(module, result, budget, scoped)?;
                     return Ok((a || b, ao || bo));
                 }
                 // Direct Managed success keeps its existing Copy-error rule.
@@ -153,8 +166,8 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                         }
                     }
                 }
-                let (a, b) = walk(module, e, budget)?;
-                let (c, d) = walk(module, result, budget)?;
+                let (a, b) = walk(module, e, budget, scoped)?;
+                let (c, d) = walk(module, result, budget, scoped)?;
                 Ok((a | c, b | d))
             }
             t if t.is_copy_value() => Ok((false, false)),
@@ -163,7 +176,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             )),
         }
     }
-    walk(module, ty, budget).map(|(store, _)| store)
+    walk(module, ty, budget, false).map(|(store, _)| store)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -184,6 +197,7 @@ impl Tree {
         if self.missing {
             return Ok(false);
         }
+        let ty = super::package_storage(ty);
         match (&self.node, ty) {
             (Node::Leaf(_), Type::Managed(t)) => {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
@@ -237,6 +251,7 @@ impl Tree {
         if self.missing {
             return Ok(false);
         }
+        let ty = super::package_storage(ty);
         match (&self.node, ty) {
             (Node::Leaf(_), Type::Managed(_)) => Ok(true),
             (Node::Product(children), Type::Tuple(fields)) => {
@@ -287,6 +302,7 @@ impl Tree {
     }
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
+        let ty = super::package_storage(ty);
         let node = match ty {
             Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
             Type::Tuple(fields) => {
@@ -550,6 +566,7 @@ impl Tree {
     }
     fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum existing unknown tag shape")?;
+        let ty = super::package_storage(ty);
         match (&self.node, ty) {
             // Match Tree::unknown's actual terminal representation. A Leaf
             // may carry different births, so conservatively rebuild it even
@@ -1535,7 +1552,7 @@ impl Plan {
         budget: &mut Budget,
     ) -> CompileResult<Option<BTreeSet<Birth>>> {
         budget.spend(1, "Sum instruction facts")?;
-        if crate::stored_flow::failure_unpack(f, i, budget)? {
+        if crate::stored_flow::failure_borrow_only_unpack(f, i, budget)? {
             let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
                 unreachable!()
             };
@@ -2146,7 +2163,8 @@ impl Plan {
             }
             InstructionKind::UnpackTuple { local, fields } => {
                 let tree = facts.local(*local, budget)?;
-                let Type::Tuple(types) = &f.locals[local.0 as usize].ty else {
+                let Type::Tuple(types) = super::package_storage(&f.locals[local.0 as usize].ty)
+                else {
                     return Err(error("UnpackTuple source requires Tuple"));
                 };
                 if types.len() != fields.len() || i.result.is_some() {
@@ -2176,8 +2194,10 @@ impl Plan {
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropTuple { local } => {
-                if !matches!(f.locals[local.0 as usize].ty, Type::Tuple(_))
-                    || !budget.sum_type(&f.locals[local.0 as usize].ty)?
+                if !matches!(
+                    super::package_storage(&f.locals[local.0 as usize].ty),
+                    Type::Tuple(_)
+                ) || !budget.sum_type(&f.locals[local.0 as usize].ty)?
                     || i.result.is_some()
                 {
                     return Err(error("DropTuple requires owning Tuple and no result"));

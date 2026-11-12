@@ -3070,6 +3070,18 @@ impl<'a> Builder<'a, '_> {
                 .ty;
             let temporary = self.temp(parent.clone(), e.span)?;
             self.store(temporary, value, e.span)?;
+            if matches!(&parent, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
+                let result = self.value(
+                    InstructionKind::TakePackageField {
+                        local: temporary,
+                        index: 1,
+                    },
+                    view.clone(),
+                    e.span,
+                )?;
+                return Ok((result, view));
+            }
             let storage = self.value(
                 InstructionKind::BorrowLocalMut { local: temporary },
                 Type::Address {
