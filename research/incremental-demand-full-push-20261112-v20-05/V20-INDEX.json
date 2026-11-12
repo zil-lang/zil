@@ -1,0 +1,79 @@
+{
+  "SDK16_built_or_measured": false,
+  "archive_integrity_status": "complete_all4_storage_shards_fixed_remote_fresh_https_full_file_verified",
+  "compiled_source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+  "compiled_tree": "ee5972a66a6e8baf1266d0dc307c4fba8dd2c23b",
+  "complete_matrix_validator_pass": false,
+  "documentation_source": "d6a7d3092db11d76e3142e12cbe5859a194789d3",
+  "exact_disjoint_original_union": true,
+  "finished_utc": "2026-11-12T21:58:53.731499+00:00",
+  "initial_CAPI_gate_source": "794829fd3d586932934c6ac03a6e747562629a88",
+  "machine_quality_failure_relabelled": false,
+  "master_sha256": "29bd75e9256168fe943ceba336dabf9cd99f3ef40a37b41f4e2549759de8a237",
+  "measurement_status": "failed_partial",
+  "metadata_and_immutable_binary_shard": 4,
+  "old_recorded_ELF_codegen_identity_all_true": true,
+  "old_rows_valid": false,
+  "original_bytes": 232189571,
+  "original_controller_exit": 1,
+  "original_files": 248,
+  "original_recorded_native_outcomes": 24,
+  "original_recorded_rows": 4,
+  "payload_shards": [
+    1,
+    2,
+    3
+  ],
+  "release16_binary_sha256": "f7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8",
+  "remote_ref": "refs/heads/archive/source-history",
+  "schema": "failed-profile14-v20-fixed-archive-index-v1",
+  "scope": "Complete original FAILED PARTIAL profile14: only4rows/24recordednative/controller1/oldvalidFalse. Old ELF/codegen identity true for all rows does not override captured new machine-quality refusal on zero-size markers; all16 units reported0removed. This is NOT a complete34row profile,270row matrix, accepted performance result, or complete-validator pass. Original helpers/source/DSO/ELF/machine-quality bytes and old tool text are unchanged. All248 original files freshHTTPS fully restored per shard with SHA256/size/mode verified; exact disjoint union equals full pre-retirement master, then original raw materializations retired only after master/piece match. Metadata04 preserves CAPI source794 and compiledbe64 full trees, immutable release16 and source/tree/build/SDK15 binding, full executed gate06/07 evidence including original Clippy16=101 and success followups, allCLI5 commands/outputs/receipt, exact docs/reviews/negative/proof atd6, both comparator author versionsb7aab23/54682c and tests without retroactive relabelling, cleanup14 fullmanifest/first49MB receipt, and V19 recovery. Gate06 plannedfmt14/release16 did not execute after Clippy101; later release16 belongs to gate07/be64. MIRheader259/4bba patches and reviews are source-only future SDK16 components, not built or measured. All immutable/source/SDK/runtime/Gitobjects preserved; no old skipped parts restored, no alternate rawref or rejected-ref retry.",
+  "shards": [
+    {
+      "archive_bytes": 2608161,
+      "archive_path": "research/incremental-demand-full-push-20261112-v20-01",
+      "archive_sha256": "8a2634d6f8935c18a76282c1eb23e6237bcaf56018311b1f1c4bc6e3d474aaa6",
+      "bootstrap_sha256": "a9f878043a2af0f8dcd7c70a371dd56cdebe5ee861f338a728f9fa00473c7cbd",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/e0d83e708e04979599db9c27f8ba9130c377c4d9/research/incremental-demand-full-push-20261112-v20-01/restore_https.py",
+      "files": 148,
+      "fixed_archive_commit": "e0d83e708e04979599db9c27f8ba9130c377c4d9",
+      "manifest_sha256": "0b7e0c3cfd17bd59618385fd562cfb15e2fb3761913b6dbe5e36633b442c7b69",
+      "raw_bytes": 86634626
+    },
+    {
+      "archive_bytes": 25728253,
+      "archive_path": "research/incremental-demand-full-push-20261112-v20-02",
+      "archive_sha256": "66a58cf6ae6cead564d8831781103b230a2c4fde87c7a7d62bffb0c92dff3db1",
+      "bootstrap_sha256": "c8961fdcddc73aa681430696189a2f7e93d3ed15194c1f16b398d55d2baf8283",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/67d516c4dddfa1794cb4c0c87d7757a69852e55e/research/incremental-demand-full-push-20261112-v20-02/restore_https.py",
+      "files": 2,
+      "fixed_archive_commit": "67d516c4dddfa1794cb4c0c87d7757a69852e55e",
+      "manifest_sha256": "088447d58ea09c453b042f85525e070ecfa768686e3b4abacea2f11d1cc38c92",
+      "raw_bytes": 72399834
+    },
+    {
+      "archive_bytes": 25667056,
+      "archive_path": "research/incremental-demand-full-push-20261112-v20-03",
+      "archive_sha256": "13296446b438be6428e41fe2de6c1310ad156aee6075a988547a684590bb53f9",
+      "bootstrap_sha256": "93462e4845cd15f5f8e017339c6249a1de7c138b3d097c252d0c500ff1720eb2",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/772e2637ac9fa7c45d1a425212f9a6b6a11f02b2/research/incremental-demand-full-push-20261112-v20-03/restore_https.py",
+      "files": 100,
+      "fixed_archive_commit": "772e2637ac9fa7c45d1a425212f9a6b6a11f02b2",
+      "manifest_sha256": "9d5fd05fafcaf9315a4b27a045c1145eaf70051ef582bcd73e449efd74e67849",
+      "raw_bytes": 73228950
+    },
+    {
+      "archive_bytes": 26755535,
+      "archive_path": "research/incremental-demand-full-push-20261112-v20-04",
+      "archive_sha256": "53bce5b3cbc3c34d782002c7edf3105e66c0b1a379607c22357569ce0ef82665",
+      "bootstrap_sha256": "45a69559cc81dd0fde410f935ea4817225b668ba2fe65230ab0a63e64a737163",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/e3763f98ea1910ff244a57887c1a73b51f3e0f9c/research/incremental-demand-full-push-20261112-v20-04/restore_https.py",
+      "files": 138,
+      "fixed_archive_commit": "e3763f98ea1910ff244a57887c1a73b51f3e0f9c",
+      "manifest_sha256": "777c4e30bfeba038fdce89a6d122e865dccc1d86c2c162c5f5d57b98da5c658b",
+      "raw_bytes": 45291994
+    }
+  ],
+  "source_tool_build_bindings_sha256": "d1739e3a811b10ec145ac4982760627545790366c74ab97de34c3ff771164f8c",
+  "whole_assembled_fresh_validator_rerun": false
+}
