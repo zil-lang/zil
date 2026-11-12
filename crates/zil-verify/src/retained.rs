@@ -371,7 +371,11 @@ fn check_parameter_claim(
     if external {
         let leaves = sources::capture_leaves(module, id, &budget.limits.clone(), budget)?;
         budget.returned_environment_sources = true;
-        budget.nested_callable_sources |= leaves.iter().any(|leaf| !leaf.position.path.is_empty());
+        // A forwarded capture is selected from the incoming environment, even
+        // when its result position is a direct capture. The stored-target
+        // solver must substitute that actual capture path; ordinary address
+        // roots describe the environment itself, not its stored targets.
+        budget.nested_callable_sources = true;
         owned_callbacks::signature(module, definition, budget)?;
         return sources::parameter_envelope(module, f, id, &leaves, budget);
     }
