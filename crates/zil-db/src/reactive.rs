@@ -135,7 +135,6 @@ impl<K, V> Node<K, V> {
     }
 }
 
-#[derive(Clone)]
 pub struct ReactiveGraph<K, V> {
     nodes: BTreeMap<K, Node<K, V>>,
     // One queue membership per dirty owner. Rank changes move that membership.
@@ -147,6 +146,24 @@ pub struct ReactiveGraph<K, V> {
     stats: ReactiveStats,
     journals: Vec<Journal<K, V>>,
 }
+// A snapshot owns its current state, never another graph's rollback history.
+// In particular cloning inside a transaction must not create an orphaned
+// savepoint which retains old products forever.
+impl<K: Clone, V: Clone> Clone for ReactiveGraph<K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            nodes: self.nodes.clone(),
+            queue: self.queue.clone(),
+            poisoned: self.poisoned,
+            edges: self.edges,
+            topology_revision: self.topology_revision,
+            active_count: self.active_count,
+            stats: self.stats,
+            journals: Vec::new(),
+        }
+    }
+}
+
 impl<K, V> Default for ReactiveGraph<K, V> {
     fn default() -> Self {
         Self {
