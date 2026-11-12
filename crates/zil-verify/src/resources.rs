@@ -2385,6 +2385,25 @@ impl Transfer<'_> {
                         state.desc[dst] = state.desc[src].clone();
                     }
                 }
+                InstructionKind::DropTuple { local }
+                    if slots.managed_local[local.0 as usize].is_none()
+                        && matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{storage,..}
+                            if matches!(storage.as_ref(),Type::Tuple(fields)
+                                if fields.iter().all(|field|field.is_copy_value()||matches!(field,Type::Address{..}))))
+                        && crate::stored_flow::failure_shape(
+                            &f.locals[local.0 as usize].ty,
+                            budget,
+                        )? =>
+                {
+                    if instruction.result.is_some() {
+                        return Err(bad(
+                            span,
+                            "borrow-only input view cleanup cannot return an owner",
+                        ));
+                    }
+                    // Permission/vacancy/parent loans are consumed by this
+                    // kernel's stored flow, independently of resource slots.
+                }
                 InstructionKind::DropManaged { local }
                 | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropMutexGuard { local }
