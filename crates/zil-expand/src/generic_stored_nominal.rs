@@ -457,13 +457,23 @@ impl<'a> Engine<'a> {
         if !self.stored_nominals {
             return Ok(false);
         }
+        self.budget.text(self.storage_function_key.as_ref().unwrap_or(&function.name),function.span)?;
+        let storage_name=self.storage_function_key.as_ref().unwrap_or(&function.name).clone();
         for name in self.products.storage.functions.keys() {
             self.budget.text(name, function.span)?;
             self.budget.text(&function.name, function.span)?;
         }
-        if self.products.storage.functions.contains_key(&function.name) {
+        if self.products.storage.functions.contains_key(&storage_name) {
             return Ok(false);
         }
+        let mut candidate=stored_types::SignatureCandidate::default();
+        let implicit_inputs=self.elide_source_inputs(function,&mut candidate)?;
+        // Keep the semantic result in this actual declaration's source domain.
+        // At a call it must be rebased through actual input occurrences, never
+        // returned as an erased pointer or a callee-local spelling.
+        let source_result=if let Some(result)=&function.return_type{
+            self.semantic_source_actual(result,&storage_name)?.and_then(|actual|actual.application)
+        }else{None};
         let mut source_parameters = Vec::new();
         if !self.life_scope.is_empty() {
             for parameter in &function.params {
@@ -471,12 +481,11 @@ impl<'a> Engine<'a> {
                     std::mem::size_of::<Option<SemanticActual>>(),
                     parameter.span,
                 )?;
-                source_parameters.push(self.semantic_source_actual(&parameter.ty, &function.name)?);
+                source_parameters.push(self.semantic_source_actual(&parameter.ty, &storage_name)?);
             }
         }
-        let mut candidate=stored_types::SignatureCandidate::default();
         let mut occurrences = Vec::new();
-        let mut stored = false;
+        let mut stored = implicit_inputs;
         let mut callable_data_profile = true;
         let mut callable_receivers = 0usize;
         let mut next_elided = u32::try_from(self.life_scope.len())
@@ -567,14 +576,18 @@ impl<'a> Engine<'a> {
                 0,
             )?; }
         }
-        if !candidate.parameters.is_empty() || candidate.result.is_some() {self.signature_candidate=Some(candidate);}
+        if !candidate.parameters.is_empty() || candidate.result.is_some() || !candidate.source_scope.is_empty() {self.signature_candidate=Some(candidate);}
         if !stored {
             return Ok(false);
+        }
+        if let Some(result)=source_result{
+            self.budget.ty(&result)?;self.budget.text(&function.name,function.span)?;
+            self.stored_source_results.insert(storage_name.clone(),result);
         }
         if source_parameters.iter().any(Option::is_some) {
             self.budget.text(&function.name, function.span)?;
             self.stored_source_parameters
-                .insert(function.name.clone(), source_parameters);
+                .insert(storage_name.clone(), source_parameters);
         }
         let (contract, fixed, invocation) = stored_types::contract_with_sources(
             occurrences,
@@ -623,7 +636,7 @@ impl<'a> Engine<'a> {
         self.products
             .storage
             .functions
-            .insert(function.name.clone(), contract);
+            .insert(storage_name, contract);
         // All retained occurrences have been emitted before the old flat
         // function-lifetime producer sees this header. Only direct header
         // references are erased here; arbitrary body/type labels stay checked.

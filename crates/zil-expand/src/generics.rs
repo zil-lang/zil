@@ -138,6 +138,8 @@ mod stored_actuals;
 use stored_actuals::source_unification_key;
 #[path = "generic_stored_nominal.rs"]
 mod stored_nominal;
+#[path = "generic_source_input_life.rs"]
+pub(super) mod source_input_life;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -575,6 +577,8 @@ struct Engine<'a> {
     // storage classes and actual permissions live in the independent catalog.
     stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
     stored_source_parameters: BTreeMap<String, Vec<Option<SemanticActual>>>,
+    stored_source_results: BTreeMap<String, TypeRef>,
+    storage_function_key:Option<String>,
     stored_enum_layouts: BTreeMap<String, StoredEnumLayout>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
@@ -693,6 +697,8 @@ impl<'a> Engine<'a> {
             nominal_source_actuals: BTreeMap::new(),
             stored_record_fields: BTreeMap::new(),
             stored_source_parameters: BTreeMap::new(),
+            stored_source_results: BTreeMap::new(),
+            storage_function_key:None,
             stored_enum_layouts: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
@@ -1953,10 +1959,21 @@ impl<'a> Engine<'a> {
         if self.stored_nominals
             && let ItemKind::Function(function) = &item.kind
         {
+            if let Some(candidate)=&self.signature_candidate && !candidate.source_scope.is_empty(){
+                for name in &candidate.source_scope{
+                    self.budget.text(name,function.span)?;
+                    self.budget.lineage_bytes(std::mem::size_of::<String>().saturating_add(name.len()),function.span)?;
+                }
+                self.life_scope=candidate.source_scope.clone();
+                for input in &candidate.source_inputs{
+                    self.budget.identity_work(input.path.len().saturating_add(2),function.span)?;
+                    if input.parameter as usize>=function.params.len() || input.binder as usize>=self.life_scope.len(){return Err(error(function.span,"implicit Source input scope lost its actual occurrence"))}
+                }
+            }
             for parameter in &function.generics {
                 if matches!(parameter.kind, GenericParamKind::Lifetime) {
                     self.budget.text(&parameter.name, parameter.span)?;
-                    self.life_scope.push(parameter.name.clone());
+                    if !self.life_scope.contains(&parameter.name){self.life_scope.push(parameter.name.clone());}
                 }
             }
         }
@@ -2077,9 +2094,9 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
-                if let Some(source) = self.stored_source_parameters.get(&f.name) {
+                if let Some(source) = self.stored_source_parameters.get(self.storage_function_key.as_ref().unwrap_or(&f.name)) {
                     self.budget.text(&f.name, f.span)?;
-                    env.domain = f.name.clone();
+                    env.domain = self.storage_function_key.as_ref().unwrap_or(&f.name).clone();
                     for (parameter, source) in f.params.iter().zip(source) {
                         if let Some(source) = source {
                             self.budget
@@ -2132,7 +2149,7 @@ impl<'a> Engine<'a> {
                         self.budget.text(name, f.span)?;
                         self.budget.text(&f.name, f.span)?;
                     }
-                    if self.products.storage.functions.contains_key(&f.name) {
+                    if self.products.storage.functions.contains_key(self.storage_function_key.as_ref().unwrap_or(&f.name)) {
                         stored_nominal::erase_stored_header_lifetimes(f);
                         f.generics.retain(|parameter| {
                             !matches!(parameter.kind, GenericParamKind::Lifetime)
@@ -2400,7 +2417,14 @@ impl<'a> Engine<'a> {
                     } else {
                         None
                     };
+                    let key=if let ItemKind::Function(function)=&item.kind{
+                        self.inline_method_storage_key(&i.target,i.trait_type.as_ref(),function)?
+                    }else{None};
+                    let previous_key=std::mem::replace(&mut self.storage_function_key,key);
+                    let previous_candidate=self.signature_candidate.take();
                     let result = self.with_origin(origin, |engine| engine.item(item));
+                    self.signature_candidate=previous_candidate;
+                    self.storage_function_key=previous_key;
                     if let Some(name) = function_name {
                         if let Some(previous) = previous {
                             self.resolved_method_calls.insert(name, previous);
