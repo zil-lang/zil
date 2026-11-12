@@ -852,8 +852,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         &Type::Unit,
                         budget,
                     )?;
-                    super::signature_life::capture_relation(
+                    super::signature_life::closure_relation(
             &module.closures,
+            definition.kind,
                         &definition.parameters,
                         &definition.captures,
                         super::stored_callables::life_result(definition),

@@ -686,11 +686,11 @@ fn call(
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
-    fixed: Option<&[usize]>,
+    fixed: Option<(&[usize], Option<usize>)>,
     e: &mut Equations,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let formal = if let Some(fixed) = fixed {
+    let formal = if let Some((fixed,_)) = fixed {
         crate::signature_life::charge(c, b)?;
         b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
         if fixed.len() != c.fixed_binder_count as usize {
@@ -706,6 +706,9 @@ fn call(
     } else {
         variables(c, e, false, b)?
     };
+    if let (Some((_,Some(head))),Some(binder))=(fixed,super::signature_life::outer(c,StorageBase::Receiver)) {
+        e.equal(head,select(&formal,binder)?,b)?;
+    }
     for (i, arg) in args.iter().enumerate() {
         bind(
             c,
@@ -733,7 +736,7 @@ fn call_with_outer(
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
-    fixed: Option<&[usize]>,
+    fixed: Option<(&[usize], Option<usize>)>,
     context: (&mut Equations, Option<&array_outer::Flow>),
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -742,7 +745,7 @@ fn call_with_outer(
         return call(c, args, output, values, fixed, e, b);
     }
 
-    let formal = if let Some(fixed) = fixed {
+    let formal = if let Some((fixed,_)) = fixed {
         crate::signature_life::charge(c, b)?;
         b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
         if fixed.len() != c.fixed_binder_count as usize {
@@ -758,6 +761,9 @@ fn call_with_outer(
     } else {
         variables(c, e, false, b)?
     };
+    if let (Some((_,Some(head))),Some(binder))=(fixed,super::signature_life::outer(c,StorageBase::Receiver)) {
+        array_outer::binding(e,head,select(&formal,binder)?,flow,b)?;
+    }
     for (i, arg) in args.iter().enumerate() {
         bind_with_outer(
             c,
@@ -818,8 +824,9 @@ pub(super) fn check_role(
             )]);
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        super::signature_life::capture_relation(
+        super::signature_life::closure_relation(
             &module.closures,
+            d.kind,
             &d.parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -908,7 +915,10 @@ fn check_with(
     };
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
-    let receiver_region = if exclusive_head { Some(e.fresh(true, b)?) } else { None };
+    let receiver_region = if let (Some(contract),Some(variables))=(assumptions,header.as_ref())
+        && let Some(binder)=super::signature_life::outer(contract,StorageBase::Receiver) {
+        Some(select(variables,binder)?)
+    } else if exclusive_head { Some(e.fresh(true, b)?) } else { None };
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
@@ -1615,7 +1625,7 @@ fn check_with(
                             life,
                             arguments,
                             i.result,
-                            receiver.classes.as_slice(),
+                            (receiver.classes.as_slice(),receiver.outer),
                             (block_index, instruction_index),
                         ));
                     } else if let Some(life) = role {

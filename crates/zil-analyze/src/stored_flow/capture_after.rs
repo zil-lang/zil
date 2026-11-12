@@ -8,16 +8,27 @@ pub(super) fn has_context(
     definition: &ClosureDefinition,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.mutable_capture_contexts {return Ok(false);}
-    let mut pending=vec![(definition,0usize)];
-    while let Some((d,depth))=pending.pop() {
-        fee(b,d.captures.len())?;
-        if depth>b.partial_depth {return Err(failure("captured holder inventory exceeds finite depth"));}
+    if !b.mutable_capture_contexts {
+        return Ok(false);
+    }
+    let mut pending = vec![(definition, 0usize)];
+    while let Some((d, depth)) = pending.pop() {
+        fee(b, d.captures.len())?;
+        if depth > b.partial_depth {
+            return Err(failure("captured holder inventory exceeds finite depth"));
+        }
         for ty in &d.captures {
-            if super::super::stored_callables::mutable_context_capture(ty) {return Ok(true);}
-            if let Type::Closure(id)=ty {
-                pending.push((module.closures.get(id.0 as usize)
-                    .ok_or_else(||failure("captured holder inventory child absent"))?,depth+1));
+            if super::super::stored_callables::mutable_context_capture(ty) {
+                return Ok(true);
+            }
+            if let Type::Closure(id) = ty {
+                pending.push((
+                    module
+                        .closures
+                        .get(id.0 as usize)
+                        .ok_or_else(|| failure("captured holder inventory child absent"))?,
+                    depth + 1,
+                ));
             }
         }
     }
@@ -368,8 +379,12 @@ pub(super) fn publish_contexts(
             // Empty predecessor/callee facts are bottom during iteration.
             // The complete actual-environment inventory below derive_cfg
             // requires every head and slot before any access window runs.
-            let Some(address) = before.get(&head) else { continue; };
-            if address.targets.is_empty() {continue;}
+            let Some(address) = before.get(&head) else {
+                continue;
+            };
+            if address.targets.is_empty() {
+                continue;
+            }
             let strong = address.targets.len() == 1;
             for slot in &shape.slots {
                 let mut leaf = head.clone();

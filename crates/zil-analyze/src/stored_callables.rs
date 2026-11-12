@@ -78,7 +78,7 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
-    if lending(d) { &Type::Unit } else { &d.result }
+    if lending(d) && !d.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position.base==StorageBase::Receiver)) { &Type::Unit } else { &d.result }
 }
 
 // A scheduling tag, never qualification. definitions() rechecks the complete
@@ -319,8 +319,9 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-            super::signature_life::capture_relation(
+            super::signature_life::closure_relation(
             &module.closures,
+            d.kind,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
