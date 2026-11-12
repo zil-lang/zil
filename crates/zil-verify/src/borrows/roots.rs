@@ -396,11 +396,15 @@ pub(super) fn overlaps_for(
             let (mut a, mut b) = (*a, *b);
             match (a, b) {
                 (Root::Field(l, i), Root::Projection(r, ..))
-                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..)) if l == r => {
+                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..))
+                    if l == r =>
+                {
                     a = mixed_root(f, l, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
                 }
                 (Root::Projection(l, ..), Root::Field(r, i))
-                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i)) if l == r => {
+                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i))
+                    if l == r =>
+                {
                     b = mixed_root(f, r, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
                 }
                 _ => {}

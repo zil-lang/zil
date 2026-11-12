@@ -51,12 +51,19 @@ fn native_stdout(source: &str, expected: &str) {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             let codegen = report.native_codegen.as_ref().unwrap();
             assert_eq!(codegen.backend, backend);
             assert!(codegen.fallback.is_none());
-            let output = Command::new(&report.artifacts["executable"]).output().unwrap();
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
             assert!(output.status.success(), "{output:?}");
             assert_eq!(output.stdout, expected.as_bytes());
             assert!(output.stderr.is_empty());

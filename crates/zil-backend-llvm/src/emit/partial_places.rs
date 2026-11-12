@@ -545,14 +545,14 @@ impl FunctionEmitter<'_> {
         );
         self.event(m::Event::Label(start));
         if prefix.is_empty() {
-        self.place_inst(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new(m::Ty::Int(1), false),
-                ptr: m::local(format!("resource.live.{}", local.0)),
-                align: 1,
-            },
-        );
+            self.place_inst(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), false),
+                    ptr: m::local(format!("resource.live.{}", local.0)),
+                    align: 1,
+                },
+            );
         }
         for (index, leaf) in leaves.iter().enumerate() {
             if !leaf.path.starts_with(prefix) {

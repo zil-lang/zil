@@ -18,7 +18,13 @@ fn actual_nested_product_paths_reach_both_independent_kernels_and_wire() {
         matches!(&i.kind, I::TakeTupleField { path, .. } if path == &[P::Field(0),P::Field(0)])
     }));
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
 }
@@ -47,9 +53,20 @@ fn forged_deep_paths_cannot_duplicate_or_retype_actual_leaf_debt() {
         assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
         let mut candidate = plan.clone();
         candidate.module_fingerprint = module.fingerprint();
-        assert!(zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &Limits::default()).is_err());
-        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
-        assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+        assert!(
+            zil_verify::verify_module(
+                module.clone(),
+                candidate.clone(),
+                &module.target,
+                &Limits::default()
+            )
+            .is_err()
+        );
+        let wire =
+            zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err()
+        );
     }
 }
 
@@ -60,9 +77,16 @@ fn a_deep_borrow_cannot_survive_an_intersecting_move_or_whole_parent_take() {
         "let view=&p.child;let Child{a:moved,b:_,n:_}=p.child;return view.n+moved.n",
         "let Parent{child:Child{a:a,b:ref b,n:ref mut n},side:_}=p;let whole=p;return b.n+*n+whole.child.n+a.n",
     ] {
-        let source = format!("{head}fn main()->i32{{var p=Parent{{child:Child{{a:R{{n:1}},b:R{{n:2}},n:3}},side:R{{n:4}}}};{body}}}");
+        let source = format!(
+            "{head}fn main()->i32{{var p=Parent{{child:Child{{a:R{{n:1}},b:R{{n:2}},n:3}},side:R{{n:4}}}};{body}}}"
+        );
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "negative.zil", source);
         let report = zil_driver::compile_source(&unit, &zil_driver::CompileOptions::default());
-        assert_eq!(report.status, zil_base::ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
     }
 }

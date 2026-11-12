@@ -381,10 +381,12 @@ impl Builder<'_, '_> {
                         InstructionKind::TakeLocal { local: root }
                     } else {
                         match root_ty {
-                            Type::Tuple(_) | Type::Package { .. } => InstructionKind::TakeTupleField {
-                                local: root,
-                                path: path.clone(),
-                            },
+                            Type::Tuple(_) | Type::Package { .. } => {
+                                InstructionKind::TakeTupleField {
+                                    local: root,
+                                    path: path.clone(),
+                                }
+                            }
                             Type::Enum { .. } | Type::ErrorUnion { .. } => {
                                 InstructionKind::TakeVariantField {
                                     local: root,

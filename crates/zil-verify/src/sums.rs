@@ -403,8 +403,8 @@ pub(super) fn check_instruction(
             if root.is_copy_value()
                 || !match i.kind {
                     InstructionKind::TakeTupleField { .. } => {
-                            matches!(root, Type::Tuple(_) | Type::Package { .. })
-                        },
+                        matches!(root, Type::Tuple(_) | Type::Package { .. })
+                    }
                     _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                 }
             {

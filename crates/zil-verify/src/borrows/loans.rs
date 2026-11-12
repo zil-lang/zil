@@ -972,7 +972,12 @@ impl Access<'_> {
             let mut related = false;
             let mut delegated = true;
             for id in own {
-                if super::roots::overlaps_for(self.function, &self.flow.roots[*id], &self.flow.roots[other], budget)? {
+                if super::roots::overlaps_for(
+                    self.function,
+                    &self.flow.roots[*id],
+                    &self.flow.roots[other],
+                    budget,
+                )? {
                     related = true;
                     if !self.flow.parents[*id].contains(&other) {
                         delegated = false;
