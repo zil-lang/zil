@@ -1221,6 +1221,7 @@ fn construct_type(
     };
     nodes.push(node);
     let value = CtTypeRef {
+        scoped_catalogue: None,
         nodes,
         root: CtTypeNodeId(last),
         ambient_classes: Vec::new(),
@@ -1614,11 +1615,13 @@ fn execute_instruction(
         }
         K::Call { .. } => unreachable!("CT calls handled by explicit stack"),
         K::TypePrimitive(s) => Some(CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Primitive(*s)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         })),
         K::TypeBuiltin(b) => Some(CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Builtin(*b)],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -1806,6 +1809,7 @@ mod tests {
     }
     fn snapshot() -> CtSnapshotRequest {
         CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Tokens,
             target_fingerprint: None,
@@ -2313,6 +2317,7 @@ mod tests {
         let mut nodes = vec![CtTypeNode::Primitive(CtScalarTy::I32); 64];
         nodes.push(CtTypeNode::Tuple((0..64).map(CtTypeNodeId).collect()));
         let graph = CtTypeRef {
+            scoped_catalogue: None,
             nodes,
             root: CtTypeNodeId(64),
             ambient_classes: Vec::new(),
@@ -2661,6 +2666,7 @@ mod tests {
         );
         let canonical = crate::canonicalize_anonymous_type(
             &CtTypeRef {
+                scoped_catalogue: None,
                 nodes: vec![
                     CtTypeNode::Primitive(CtScalarTy::I32),
                     CtTypeNode::Primitive(CtScalarTy::Bool),
@@ -2898,6 +2904,7 @@ mod tests {
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         let graph = crate::canonicalize_anonymous_type(
             &CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root: CtTypeNodeId(6),
                 ambient_classes: Vec::new(),
@@ -2994,6 +3001,7 @@ mod tests {
             binder,
         };
         let mut context = CtTypeRef {
+            scoped_catalogue: None,
             root: CtTypeNodeId(3),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I32),
@@ -3094,6 +3102,7 @@ mod tests {
             match attack {
                 0 => {
                     schema.arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         root: CtTypeNodeId(0),
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                         ambient_classes: Vec::new(),
@@ -3212,11 +3221,13 @@ mod tests {
                 name: owner.clone(),
                 arguments: vec![
                     CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                         root: CtTypeNodeId(0),
                         ambient_classes: Vec::new(),
                     }),
                     CtSchemaArgument::Type(CtTypeRef {
+                        scoped_catalogue: None,
                         nodes: vec![CtTypeNode::Primitive(phantom)],
                         root: CtTypeNodeId(0),
                         ambient_classes: Vec::new(),
@@ -3267,6 +3278,7 @@ mod tests {
         );
         let mut cycle = p.clone();
         cycle.record_schemas[0].arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Tuple(vec![CtTypeNodeId(0)])],
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
@@ -3337,6 +3349,7 @@ mod tests {
                 .unwrap(),
             });
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root: CtTypeNodeId(6),
                 ambient_classes: Vec::new(),

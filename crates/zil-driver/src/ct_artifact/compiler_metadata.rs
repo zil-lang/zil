@@ -547,6 +547,7 @@ impl Compiler<'_> {
         let root = root?;
         self.meta_normalize(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes,
@@ -926,6 +927,7 @@ impl Compiler<'_> {
         let ambient_classes = std::mem::take(&mut self.metadata_ambient);
         self.meta_normalize(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes,

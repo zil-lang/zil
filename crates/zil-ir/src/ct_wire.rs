@@ -1721,11 +1721,27 @@ impl Wire for CtTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
-                Self::ScopedDyn { descriptor, context, classes } => {
-                    17u8.encode(e)?; descriptor.encode(e)?; context.encode(e)?; classes.encode(e)?;
+                Self::ScopedDyn {
+                    descriptor,
+                    context,
+                    classes,
+                } => {
+                    17u8.encode(e)?;
+                    descriptor.encode(e)?;
+                    context.encode(e)?;
+                    classes.encode(e)?;
                 }
-                Self::ScopedTask { descriptor, result, context, classes } => {
-                    18u8.encode(e)?; descriptor.encode(e)?; result.encode(e)?; context.encode(e)?; classes.encode(e)?;
+                Self::ScopedTask {
+                    descriptor,
+                    result,
+                    context,
+                    classes,
+                } => {
+                    18u8.encode(e)?;
+                    descriptor.encode(e)?;
+                    result.encode(e)?;
+                    context.encode(e)?;
+                    classes.encode(e)?;
                 }
                 Self::BorrowedStorage { storage, life } => {
                     16u8.encode(e)?;
@@ -1814,8 +1830,17 @@ impl Wire for CtTypeNode {
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| match u8::decode(d)? {
-            17 => Ok(Self::ScopedDyn { descriptor: CtDynamicTypeId::decode(d)?, context: Option::<CtTypeNodeId>::decode(d)?, classes: Vec::<CtLifetimeArgument>::decode(d)? }),
-            18 => Ok(Self::ScopedTask { descriptor: CtDynamicTypeId::decode(d)?, result: CtTypeNodeId::decode(d)?, context: Option::<CtTypeNodeId>::decode(d)?, classes: Vec::<CtLifetimeArgument>::decode(d)? }),
+            17 => Ok(Self::ScopedDyn {
+                descriptor: CtDynamicTypeId::decode(d)?,
+                context: Option::<CtTypeNodeId>::decode(d)?,
+                classes: Vec::<CtLifetimeArgument>::decode(d)?,
+            }),
+            18 => Ok(Self::ScopedTask {
+                descriptor: CtDynamicTypeId::decode(d)?,
+                result: CtTypeNodeId::decode(d)?,
+                context: Option::<CtTypeNodeId>::decode(d)?,
+                classes: Vec::<CtLifetimeArgument>::decode(d)?,
+            }),
             16 => Ok(Self::BorrowedStorage {
                 storage: CtTypeNodeId::decode(d)?,
                 life: crate::StorageLifeShape::decode(d)?,

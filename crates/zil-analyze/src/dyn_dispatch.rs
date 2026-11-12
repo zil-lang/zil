@@ -397,7 +397,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
-        if declaration.implicit_lifetimes.is_some() || declaration.direct_supertraits.is_some()
+        if declaration.implicit_lifetimes.is_some()
+            || declaration.direct_supertraits.is_some()
             || declaration.requirements.is_some()
             || declaration.associated_definitions.is_some()
             || declaration.method_signatures.is_some()

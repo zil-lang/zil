@@ -559,6 +559,7 @@ fn canonical_type_key_mode_inner(
             nodes.push(final_node);
             canonical.push(Canonical {
                 ty: CtTypeRef {
+                    scoped_catalogue: None,
                     nodes,
                     root,
                     ambient_classes: Vec::new(),
@@ -603,6 +604,7 @@ mod tests {
     }
     fn graph(nodes: Vec<CtTypeNode>) -> CtTypeRef {
         CtTypeRef {
+            scoped_catalogue: None,
             root: CtTypeNodeId(nodes.len() as u32 - 1),
             nodes,
             ambient_classes: Vec::new(),

@@ -692,6 +692,7 @@ impl ValueContext {
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| bad())?);
         nodes.push(node);
         Ok(CtTypeRef {
+            scoped_catalogue: None,
             nodes,
             root,
             ambient_classes,
