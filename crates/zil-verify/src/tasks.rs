@@ -398,6 +398,51 @@ pub(super) fn borrowed_signature(
     }
     charge_result_selection(&f.return_type, budget)?;
     super::signature_life::charge(contract, budget)?;
+    if let Some(environment) = f.environment {
+        let definition = module.closures.get(environment.0 as usize).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "Task result environment has no actual definition",
+            )
+        })?;
+        budget.spend(
+            definition
+                .parameters
+                .len()
+                .saturating_add(definition.captures.len())
+                .saturating_add(1),
+        )?;
+        for ty in definition
+            .parameters
+            .iter()
+            .chain(&definition.captures)
+            .chain(std::iter::once(&definition.result))
+        {
+            crate::stored_flow::type_work(ty, &budget.limits.clone(), budget)?;
+        }
+        if definition.function != f.id
+            || definition.parameters != parameters
+            || definition.result != f.return_type
+            || definition.storage_life.as_ref() != Some(contract)
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "Task result entry differs from the complete actual environment signature",
+            ));
+        }
+        super::signature_life::closure_relation(
+            module,
+            &parameters,
+            &definition.captures,
+            definition.kind,
+            &f.return_type,
+            contract,
+            Some(f.span),
+        )?;
+        return Ok(true);
+    }
     super::signature_life::function_relation(
         module,
         &parameters,
