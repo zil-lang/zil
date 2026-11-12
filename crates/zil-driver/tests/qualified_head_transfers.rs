@@ -355,3 +355,36 @@ fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventin
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
 }
+
+#[test]
+fn local_borrowed_callback_has_a_complete_actual_free_class_directory() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/local-borrowed-callback-scope.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    let scope = definition.storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count, 1);
+    assert_eq!(scope.invocation_binder_count, 1);
+    assert!(scope.static_bindings.is_empty());
+    let limits = Limits::default();
+    zil_analyze::analyze(&module, &limits).unwrap();
+}
+
+#[test]
+fn mutable_static_capture_publishes_only_real_static_replacements() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnMut);
+    assert_eq!(
+        definition.storage_life.as_ref().unwrap().static_bindings,
+        vec![zil_ir::StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+}
