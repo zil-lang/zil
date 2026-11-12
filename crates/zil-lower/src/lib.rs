@@ -10,6 +10,9 @@ use zil_ir::{
 };
 use zil_verify::VerifiedModule;
 mod owned_sums;
+mod session;
+use session::AdmissionRecording;
+pub use session::{LowerSession, LowerStats};
 
 /// Retain the independently checked CFG and concrete closure definitions, and
 /// attach the supported target layout. RegisterDefer stays in the retained CFG
@@ -24,19 +27,17 @@ mod owned_sums;
 /// ```
 pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
     let (view, mut budget) = lower_view_with_budget(verified)?;
-    // Clone through the existing instruction walk, paying new variable-length
-    // byte payloads before allocating them. Borrowed lowering has no such copy.
-    let functions = view
-        .functions
-        .iter()
-        .map(|function| clone_function(function, &mut budget))
-        .collect::<CompileResult<_>>()?;
+    // Keep the existing logical byte charges, then share the exact immutable
+    // function tree. Lowering does not rewrite these independently checked CFGs.
+    for function in view.functions {
+        charge_retained_function(function, &mut budget)?;
+    }
     Ok(LirModule {
         schema_version: view.schema_version,
         module_id: view.module_id,
         verified_fingerprint: view.verified_fingerprint,
         target: view.target.clone(),
-        functions,
+        functions: view.functions.clone(),
         closures: view.closures.to_vec(),
         resources: view.resources.to_vec(),
         layouts: view.layouts.into_owned(),
@@ -52,6 +53,13 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
 fn lower_view_with_budget(
     verified: &VerifiedModule,
 ) -> CompileResult<(LirView<'_>, owned_sums::Budget<'_>)> {
+    lower_view_recording(verified, None)
+}
+
+fn lower_view_recording<'a>(
+    verified: &'a VerifiedModule,
+    mut recording: Option<&mut AdmissionRecording>,
+) -> CompileResult<(LirView<'a>, owned_sums::Budget<'a>)> {
     let module = verified.module();
     let target = &module.target;
     if module.schema_version != SCHEMA_VERSION {
@@ -69,11 +77,10 @@ fn lower_view_with_budget(
             None,
         )]);
     }
-    let use_sum_extension = verified.uses_owned_sum_extension();
     let mut sum_budget = owned_sums::Budget::new(verified.limits());
     // Reserve the complete new callable relation before LIR retains/clones it.
     // This budget is also consumed by ordinary owning/stored lowering below.
-    sum_budget.callable_metadata(module)?;
+    sum_budget.callable_metadata(module, recording.as_deref_mut())?;
     sum_budget.dyn_tables(module)?;
     for closure in &module.closures {
         for ty in &closure.captures {
@@ -251,158 +258,177 @@ fn lower_view_with_budget(
             )]);
         }
     }
-    for function in &module.functions {
-        if verified.uses_stored_borrows()
-            && let Some(life) = &function.storage_life
-        {
-            sum_budget.stored_contract(life)?;
+    for (index, function) in module.functions.iter().enumerate() {
+        let before = sum_budget.cost();
+        if let Some(recording) = recording.as_mut() {
+            recording.layout_checks += 1;
         }
-        if !forwarded_callable_signature(function) {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Lower,
-                "forwarded callable result requires the same actual by-value parameter and Returned role",
-                Some(function.span),
-            )]);
+        admit_function(verified, function, &mut sum_budget)?;
+        if let Some(recording) = recording.as_mut() {
+            let after = sum_budget.cost();
+            recording.costs[index][0] += after[0] - before[0];
+            recording.costs[index][1] += after[1] - before[1];
         }
-        let old_return = sum_budget.borrowed(&function.return_type, 0)?
-            || function.return_type.is_copy_value()
-            || function.return_type.is_scalar_or_address()
-            || matches!(function.return_type, Type::MutexGuard { .. })
-            || matches!(function.return_type, Type::OwnedDyn { .. })
-            || resource_type(&function.return_type, &module.resources)
-            || package_value_type(&function.return_type, &module.resources)
-            || error_type(&function.return_type, &module.resources)
-            || owned_array_type(&function.return_type, &module.resources)
-            || (matches!(function.return_type, Type::Closure(_))
-                && function.callable_return_contract.is_some());
-        let extra_return = if old_return {
+    }
+    Ok((current_view(verified), sum_budget))
+}
+
+fn current_view(verified: &VerifiedModule) -> LirView<'_> {
+    let module = verified.module();
+    LirView {
+        resources: &module.resources,
+        schema_version: SCHEMA_VERSION,
+        module_id: module.module_id,
+        verified_fingerprint: verified.fingerprint(),
+        target: &module.target,
+        functions: &module.functions,
+        closures: &module.closures,
+        layouts: std::borrow::Cow::Owned(scalar_layouts_for_width(module.target.pointer_width)),
+    }
+}
+
+fn admit_function(
+    verified: &VerifiedModule,
+    function: &TypedFunction,
+    sum_budget: &mut owned_sums::Budget<'_>,
+) -> CompileResult<()> {
+    let module = verified.module();
+    let use_sum_extension = verified.uses_owned_sum_extension();
+    if verified.uses_stored_borrows()
+        && let Some(life) = &function.storage_life
+    {
+        sum_budget.stored_contract(life)?;
+    }
+    if !forwarded_callable_signature(function) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Lower,
+            "forwarded callable result requires the same actual by-value parameter and Returned role",
+            Some(function.span),
+        )]);
+    }
+    let old_return = sum_budget.borrowed(&function.return_type, 0)?
+        || function.return_type.is_copy_value()
+        || function.return_type.is_scalar_or_address()
+        || matches!(function.return_type, Type::MutexGuard { .. })
+        || matches!(function.return_type, Type::OwnedDyn { .. })
+        || resource_type(&function.return_type, &module.resources)
+        || package_value_type(&function.return_type, &module.resources)
+        || error_type(&function.return_type, &module.resources)
+        || owned_array_type(&function.return_type, &module.resources)
+        || (matches!(function.return_type, Type::Closure(_))
+            && function.callable_return_contract.is_some());
+    let extra_return = if old_return {
+        false
+    } else if use_sum_extension
+        || matches!(&function.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+    {
+        sum_budget.admits(&function.return_type, &module.resources, 0)?
+    } else {
+        false
+    };
+    if !old_return && !extra_return && !sum_budget.pure_composite(&function.return_type, 0)? {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Lower,
+            "lowering requires a supported ordinary function result",
+            Some(function.span),
+        )]);
+    }
+    for id in &function.parameters {
+        let ty = &function.locals[id.0 as usize].ty;
+        let old = sum_budget.borrowed(ty, 0)?
+            || ty.is_copy_value()
+            || ty.is_scalar_or_address()
+            || matches!(ty, Type::MutexGuard { .. })
+            || matches!(ty, Type::OwnedDyn { .. })
+            || resource_type(ty, &module.resources)
+            || resource_head_address(ty)
+            || package_value_type(ty, &module.resources)
+            || error_type(ty, &module.resources)
+            || owned_array_type(ty, &module.resources)
+            || callable_parameter_type(ty, &module.closures);
+        let extra = if old {
             false
         } else if use_sum_extension
-            || matches!(&function.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+            || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
         {
-            sum_budget.admits(&function.return_type, &module.resources, 0)?
+            sum_budget.admits(ty, &module.resources, 0)?
         } else {
             false
         };
-        if !old_return && !extra_return && !sum_budget.pure_composite(&function.return_type, 0)? {
+        if !old && !extra && !sum_budget.pure_composite(ty, 0)? {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a supported ordinary function result",
+                "lowering requires a supported ordinary parameter",
                 Some(function.span),
             )]);
         }
-        for id in &function.parameters {
-            let ty = &function.locals[id.0 as usize].ty;
-            let old = sum_budget.borrowed(ty, 0)?
-                || ty.is_copy_value()
-                || ty.is_scalar_or_address()
-                || matches!(ty, Type::MutexGuard { .. })
-                || matches!(ty, Type::OwnedDyn { .. })
-                || resource_type(ty, &module.resources)
-                || resource_head_address(ty)
-                || package_value_type(ty, &module.resources)
-                || error_type(ty, &module.resources)
-                || owned_array_type(ty, &module.resources)
-                || callable_parameter_type(ty, &module.closures);
-            let extra = if old {
-                false
-            } else if use_sum_extension
+    }
+    for ty in function
+        .locals
+        .iter()
+        .map(|local| &local.ty)
+        .chain(function.values.iter())
+    {
+        let concrete_closure = callable_parameter_type(ty, &module.closures);
+        if !sum_budget.borrowed(ty, 0)?
+            && !ty.is_copy_value()
+            && !concrete_closure
+            && !ty.is_shared_sync_cell_address()
+            && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+            && !matches!(ty, Type::MutexGuard { .. })
+            && !matches!(ty, Type::OwnedDyn { .. })
+            && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
+            && !resource_head_address(ty)
+            && !ty.is_exclusive_task_head_address()
+            && !ty.is_package_address()
+            && !resource_type(ty, &module.resources)
+            && !package_value_type(ty, &module.resources)
+            && !error_type(ty, &module.resources)
+            && !owned_array_type(ty, &module.resources)
+            && !if use_sum_extension
                 || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
             {
                 sum_budget.admits(ty, &module.resources, 0)?
             } else {
                 false
-            };
-            if !old && !extra && !sum_budget.pure_composite(ty, 0)? {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Lower,
-                    "lowering requires a supported ordinary parameter",
-                    Some(function.span),
-                )]);
             }
-        }
-        for ty in function
-            .locals
-            .iter()
-            .map(|local| &local.ty)
-            .chain(function.values.iter())
+            && !sum_budget.pure_value_or_address(ty, 0)?
         {
-            let concrete_closure = callable_parameter_type(ty, &module.closures);
-            if !sum_budget.borrowed(ty, 0)?
-                && !ty.is_copy_value()
-                && !concrete_closure
-                && !ty.is_shared_sync_cell_address()
-                && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !matches!(ty, Type::MutexGuard { .. })
-                && !matches!(ty, Type::OwnedDyn { .. })
-                && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
-                && !resource_head_address(ty)
-                && !ty.is_exclusive_task_head_address()
-                && !ty.is_package_address()
-                && !resource_type(ty, &module.resources)
-                && !package_value_type(ty, &module.resources)
-                && !error_type(ty, &module.resources)
-                && !owned_array_type(ty, &module.resources)
-                && !if use_sum_extension
-                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
-                {
-                    sum_budget.admits(ty, &module.resources, 0)?
-                } else {
-                    false
-                }
-                && !sum_budget.pure_value_or_address(ty, 0)?
-            {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Lower,
-                    format!("lowering type {}", ty.name()),
-                    Some(function.span),
-                )]);
-            }
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Lower,
+                format!("lowering type {}", ty.name()),
+                Some(function.span),
+            )]);
         }
     }
-    Ok((
-        LirView {
-            resources: &module.resources,
-            schema_version: SCHEMA_VERSION,
-            module_id: module.module_id,
-            verified_fingerprint: verified.fingerprint(),
-            target,
-            functions: &module.functions,
-            closures: &module.closures,
-            layouts: std::borrow::Cow::Owned(scalar_layouts_for_width(target.pointer_width)),
-        },
-        sum_budget,
-    ))
+    Ok(())
 }
 
-fn clone_function(
+fn charge_retained_function(
     function: &TypedFunction,
     budget: &mut owned_sums::Budget<'_>,
-) -> CompileResult<TypedFunction> {
-    // Exhaustive destructuring makes new retained fields explicit consumers.
+) -> CompileResult<()> {
+    // Retaining the whole leaf must still acknowledge every schema field.
     let TypedFunction {
-        storage_life,
-        call_kind,
-        reference_return_bound,
-        callable_return_contract,
-        callable_contract,
-        protocol_contract,
-        id,
-        name,
-        foreign,
-        environment,
-        parameters,
-        return_type,
-        result_mode,
-        locals,
-        values,
+        storage_life: _,
+        call_kind: _,
+        reference_return_bound: _,
+        callable_return_contract: _,
+        callable_contract: _,
+        protocol_contract: _,
+        id: _,
+        name: _,
+        foreign: _,
+        environment: _,
+        parameters: _,
+        return_type: _,
+        result_mode: _,
+        locals: _,
+        values: _,
         blocks,
-        entry,
-        span,
+        entry: _,
+        span: _,
     } = function;
-    // Replay the same current budget before retaining shared raw CFG arrays.
-    // Sharing is allocation ownership only; lower_view already checks the
-    // current sealed verifier and no cached capability is introduced.
     for block in blocks {
         for instruction in &block.instructions {
             if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
@@ -417,26 +443,7 @@ fn clone_function(
             }
         }
     }
-    Ok(TypedFunction {
-        storage_life: storage_life.clone(),
-        call_kind: *call_kind,
-        reference_return_bound: reference_return_bound.clone(),
-        callable_return_contract: callable_return_contract.clone(),
-        callable_contract: callable_contract.clone(),
-        protocol_contract: protocol_contract.clone(),
-        id: *id,
-        name: name.clone(),
-        foreign: foreign.clone(),
-        environment: *environment,
-        parameters: parameters.clone(),
-        return_type: return_type.clone(),
-        result_mode: *result_mode,
-        locals: locals.clone(),
-        values: values.clone(),
-        blocks: blocks.clone(),
-        entry: *entry,
-        span: *span,
-    })
+    Ok(())
 }
 
 fn resource_head_address(ty: &Type) -> bool {
@@ -788,7 +795,7 @@ mod tests {
     };
     use zil_verify::verify_module;
 
-    fn checked(target: TargetProfile) -> VerifiedModule {
+    pub(super) fn checked(target: TargetProfile) -> VerifiedModule {
         let module = TypedModule {
             dyn_declarations: Vec::new(),
             dyn_interfaces: Vec::new(),
@@ -828,7 +835,8 @@ mod tests {
                 .into(),
                 entry: BlockId(0),
                 span: Span::default(),
-            }],
+            }]
+            .into(),
             closures: vec![],
             unsupported: vec![],
         };
@@ -852,7 +860,7 @@ mod tests {
     }
 
     #[test]
-    fn owned_static_utf8_clone_prepays_exact_bytes_without_charging_old_clones() {
+    fn owned_static_utf8_retention_preserves_exact_logical_byte_charges() {
         // Component-level retained-IR copy check; source/native acceptance is
         // covered in the existing driver target by the parent implementation.
         let original = checked(TargetProfile::host_llvm());
@@ -861,10 +869,7 @@ mod tests {
             max_analysis_steps: 0,
             ..zil_base::Limits::default()
         };
-        assert_eq!(
-            clone_function(scalar, &mut owned_sums::Budget::new(&zero)).unwrap(),
-            *scalar
-        );
+        charge_retained_function(scalar, &mut owned_sums::Budget::new(&zero)).unwrap();
         for bytes in [b"".as_slice(), b"A\0Z".as_slice(), "é中😀".as_bytes()] {
             let mut function = scalar.clone();
             function.values[0] = Type::Address {
@@ -883,16 +888,14 @@ mod tests {
                     max_analysis_steps: needed,
                     ..zil_base::Limits::default()
                 };
-                assert_eq!(
-                    clone_function(&function, &mut owned_sums::Budget::new(&exact)).unwrap(),
-                    function
-                );
+                charge_retained_function(&function, &mut owned_sums::Budget::new(&exact)).unwrap();
                 let short = zil_base::Limits {
                     max_analysis_steps: needed - 1,
                     ..zil_base::Limits::default()
                 };
                 let errors =
-                    clone_function(&function, &mut owned_sums::Budget::new(&short)).unwrap_err();
+                    charge_retained_function(&function, &mut owned_sums::Budget::new(&short))
+                        .unwrap_err();
                 assert!(errors.iter().all(|error| error.phase == Phase::Lower
                     && error.category == zil_base::ResultCategory::ResourceLimit));
             }
@@ -904,6 +907,7 @@ mod tests {
         let verified = checked(TargetProfile::host_llvm());
         let lowered = lower(&verified).unwrap();
         assert_eq!(lowered.functions, verified.module().functions);
+        assert!(lowered.functions.ptr_eq(&verified.module().functions));
         assert_eq!(lowered.closures, verified.module().closures);
         assert_eq!(lowered.target, verified.module().target);
         assert_eq!(lowered.verified_fingerprint, verified.fingerprint());
