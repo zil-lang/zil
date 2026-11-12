@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "status": "bounded_static_accepted_runtime_evidence_separate",
+  "components": [
+    {
+      "commit": "800aeb7270a2e3dc2de44ee16e61e849a677a917",
+      "tree": "10eae2b45fedc16dd02aaebd635e7283c51c5c49",
+      "file_sha256": {
+        "crates/zil-backend-llvm/src/link_cache.rs": "52c57a9990d943c3df05bc7dc6576a228599c1a6f672a877b2d86d3b463a69b0",
+        "crates/zil-backend-llvm/src/incremental.rs": "be32bedcacac060338eebcea05a32c6e41d7e6ff6224c520e1c3295db858a0c0"
+      }
+    },
+    {
+      "commit": "c71312620e4302c3fb42a4f86a019b078f261241",
+      "tree": "cceec61b0538917c0e6300a85224c6d7ffea52f4",
+      "file_sha256": {
+        "crates/zil-llvm-api/native/machine_products.cpp": "fb2a606e1a00361585e61c586469d142bbe42ad6a55b569169908004a113240f"
+      }
+    }
+  ],
+  "integrated_commit": "fce22208d57f4d8d368c861c0ce9d385b9afd4b8",
+  "all_three_integrated_file_hashes_equal_author_freezes": true,
+  "prior_incomplete_receipt": {
+    "path": "/tmp/full-push-native-sharing-link-review.json",
+    "sha256": "f1fc6627568533cfcd118b2c1700636284f63b68a2e092dfb0db6b23721765f5",
+    "preserved": true,
+    "scope": "Initial identity-only receipt explicitly withheld source acceptance. This addendum follows actual full diff and key consumer reads."
+  },
+  "method": "Read both entire author commit diffs, including strict counterexamples, and key surrounding current AU lookup/matching/pipeline/trace/provider/reservation/discard/finish consumers; Rust dependency discovery/Input/current-key guards and DiagnosticText complete byte/error paths. Re-read fixed LLVM canonical AU cache619-649 and required/used1057/init1076, with previous reviewed preservation consumers869/889/903 and intern four-column profile. No compiler, Cargo, new tests, benchmark or production edits.",
+  "official_pins": [
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/LegacyPassManager.cpp",
+      "local": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/IR/LegacyPassManager.cpp",
+      "sha256": "0063f62e4c7cce497e03231167c72f41a7cab719af50b1638d7b9ecb4155bc6d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/LegacyPassManagers.h",
+      "local": "/tmp/industry-incremental-official/llvm23-runtime/llvm/include/llvm/IR/LegacyPassManagers.h",
+      "sha256": "912633318f08bd0f04abe192ebf3bcfe3a5dd8e78856246fdf25bf43fbfd7796"
+    }
+  ],
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "actual four-column authority before sharing",
+      "conclusion": "bindPipeline scans current FPPM slots, locates exact first Pass instance and checks every candidate row through currentUsage/matchesUsage: PassID, machine=false, preservesAll, separate Required/Transitive/Used sizes, full Preserved remainder and each ordered ID. Only after all rows equal is a const shared_ptr reused; otherwise a fresh full value table is constructed. No PM/Pass/AU pointer escapes; current canonical exact-P TPM lookup remains actual scheduler authority, with original fallback for missing resolver/TPM."
+    },
+    {
+      "topic": "slot and trace completeness",
+      "conclusion": "Eight-byte trace ordinal/machine does not independently authorize callbacks. recordOccurrence checks exact current FPPM membership pointer at ordinal and all AU values; matchesOccurrence additionally validates stored expected position/machine. Bound checks short-circuit before table indexing. completeSequence requires exact nonempty contiguous suffix through end of pipeline and false machine markers in stored canonical table. Current Machine-vs-nonMachine classification remains observed by pendingMachine lifecycle. Cold incomplete/unknown trace discards the optional product; warm mismatch retains full existing failed-attempt/fresh-context protocol. Original MIR reconstruction, domain, typed Eq, MachineVerifier, full MIR Eq and actual AsmPrinter remain unchanged."
+    },
+    {
+      "topic": "provider closure",
+      "conclusion": "Provider discovery reads only validated suffix rows. Observed nonMachine passes and actual AsmPrinter seed Required/Transitive/Used inputs, excluding Preserved. Recursive required machine providers must preserveAll as before. No registry analysis-tag or shared owner pointer grants permission to skip a provider."
+    },
+    {
+      "topic": "retention and capacity",
+      "conclusion": "Per-function snapshotReservation conservatively includes full shared pipeline payload. Recording reserves maximum suffix8B trace and potential input dependency closure before growth; actual request64MiB/slot caps remain. discard releases recording and sequence; request candidate is weak_ptr, so it does not retain an unbudgeted discarded table. Finish counts each shared immutable pipeline owner once, while strong snapshots remain installed in Next, avoiding address reuse ambiguity. Unique final accounting is never looser than conservative per-function admission; logical bounds are not RSS/checkpoint limits."
+    },
+    {
+      "topic": "paired ldd parsing and fallback",
+      "conclusion": "Exactly two input-spelled headers in original order are required, including duplicate paths as separate sections. Missing/extra/reordered/indented/empty/unrecognized/nonUTF8/failed pair output causes complete original single probes. No partial pair paths enter Inputs hash/seen set. Closed rows require absolute dependency paths; unknown missing/static forms decline. Unusual filenames can fall back, and unrepresentable original single outputs still disable reuse."
+    },
+    {
+      "topic": "current link authority",
+      "conclusion": "v2 key prevents old-key mixing after field order change. Current clang/linker/ldd tool binding, full environment, actual ordered object contents, library/script bytes, all candidate libraries and absent-directory inventories remain current. Paired dependency observations still pass through original Inputs.file ownership/content/tool role rules. Build before/after-current-key guard placement and ordinary failure fallback are unchanged. This saves one supported ldd process, not all external discovery or byte reads."
+    },
+    {
+      "topic": "writer",
+      "conclusion": "OneMiB request-local BufWriter writes the same current prefix/fingerprint/tail and all fragments with write_all and explicit flush propagation. No full-module aggregate String or filesystem receipt is introduced; write/flush errors still escape. Strict test compares more than1MiB against old complete to_text and covers write and flush failures. It does not eliminate425-function scans or imply measured speedup."
+    },
+    {
+      "topic": "actual negative fixtures",
+      "conclusion": "CPP source retains same-ID different current instance, four-column classification/preserved/order, cached dynamic AU, unlisted-slot, ordinal/machine/partial suffix and accounting counterexamples. Rust source covers same-path duplicate sections, missing/reorder/nonUTF8/status/absent pair fallback and complete byte/error writer cases. Reviewer inspected these assertions but did not execute them."
+    }
+  ],
+  "runtime_scope": {
+    "root_reported": "First integrated fce native72/backend242 passed; driver208/1 failed independent CT effective allowance case. Root reports later fixed batch CT74/Types103/driver210 passed, with these three production file blobs unchanged.",
+    "independently_read_raw_logs_here": false,
+    "reason": "Task requests source-only bounded review and no expanded test window; runtime gates remain root separate exact receipts.",
+    "not_claimed": [
+      "first integrated batch all passed",
+      "new reviewer test execution",
+      "Clippy/fmt/release complete unless separately recorded",
+      "complete full workspace or whole-pipeline proof",
+      "formal1e260 timing results include this newer implementation",
+      "net performance or all425/global scans removed"
+    ]
+  }
+}

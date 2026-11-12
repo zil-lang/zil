@@ -1,0 +1,843 @@
+{
+  "schema": "full-push-checkpoint-328-v1",
+  "compiler_source": "328eb392d8d88148a75a743d899b43aebae73587",
+  "build": {
+    "source": "328eb392d8d88148a75a743d899b43aebae73587",
+    "tree": "f8cf388608f0afe700ab76a0abb156239d68ae8d",
+    "source_after": "328eb392d8d88148a75a743d899b43aebae73587",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--features",
+      "native-products"
+    ],
+    "exit_code": 0,
+    "elapsed_ns": 141078060678,
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+      "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+      "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+      "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+    },
+    "log_sha256": "c23f67f47d0631fb76b1a38364c0a6e401259f93367cc750823f7dc8ba307aaf",
+    "binary": "/workspace/zil-push-main/out/binaries/328eb392d8d88148a75a743d899b43aebae73587/zil",
+    "sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "llvm_library": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+      "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+    }
+  },
+  "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "status": "active_not_globally_minimal_not_complete_no_substantial_Rust_lead_claim",
+  "profiles": [
+    {
+      "id": "10",
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "timing_continuity_verified": true,
+      "raw": "out/runs/full-push-native-profile-10",
+      "raw_manifest": {
+        "path": "out/runs/full-push-native-profile-10/manifest.json",
+        "bytes": 6594,
+        "sha256": "e9a0c7370ad56692c61b1d09b28e69940f6809ed461e0527456d18707667c2b4"
+      },
+      "raw_rows": {
+        "path": "out/runs/full-push-native-profile-10/rows.jsonl",
+        "bytes": 1580085,
+        "sha256": "b209ff22dc73ee12c3e7ac8d104a4c9c3cd855caa7a1be3ffd04bf5f9dfa2350"
+      },
+      "qualification": {
+        "path": "tools/research/incremental-demand/full-push-profile10-qualification.json",
+        "bytes": 3272,
+        "sha256": "6b440943484b400e10e083731ce7d749f034f7f35b6e363c84f32e3fddbc6f81"
+      },
+      "measured_observations": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "wall_ms": 5729.063309,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "wall_ms": 7577.030424,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "wall_ms": 89.971644,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "wall_ms": 466.76628,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "private",
+          "wall_ms": 1707.075557,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "private",
+          "wall_ms": 470.538164,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "multi",
+          "wall_ms": 737.93978,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "multi",
+          "wall_ms": 1691.835769,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "broad",
+          "wall_ms": 5057.593735,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "broad",
+          "wall_ms": 6392.686904,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "positions",
+          "wall_ms": 773.44493,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "positions",
+          "wall_ms": 1521.842928,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "error",
+          "wall_ms": 354.186303,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "error",
+          "wall_ms": 52.655116,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "recovery",
+          "wall_ms": 509.700464,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "recovery",
+          "wall_ms": 1548.446003,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "wall_ms": 497.961818,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "wall_ms": 193.391634,
+          "status": "Success"
+        }
+      ],
+      "limits": "One candidate-profiled main/candidate block; no Rust or prior-candidate speed comparison. Profile11 controller missing after reconnect; no timing attribution."
+    },
+    {
+      "id": "11",
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "timing_continuity_verified": false,
+      "raw": "out/runs/full-push-native-profile-11",
+      "raw_manifest": {
+        "path": "out/runs/full-push-native-profile-11/manifest.json",
+        "bytes": 6599,
+        "sha256": "85e97dc9d70ba9ec3b48330b21bb88483a8027f2bc2722e4d16801ffdf4ac4af"
+      },
+      "raw_rows": {
+        "path": "out/runs/full-push-native-profile-11/rows.jsonl",
+        "bytes": 1580228,
+        "sha256": "7e9b1a4d888e086662a1eae2c62b1c2d660d89e1c470201d6a3a3d46e1785ffa"
+      },
+      "qualification": {
+        "path": "tools/research/incremental-demand/full-push-profile11-qualification.json",
+        "bytes": 3545,
+        "sha256": "41352746eb3391cd19f31123690505cf8411939092a93422b53ce098e2272375"
+      },
+      "measured_observations": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "wall_ms": 6106.168588,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "wall_ms": 7725.464295,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "wall_ms": 55.680792,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "wall_ms": 521.744832,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "private",
+          "wall_ms": 1582.916671,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "private",
+          "wall_ms": 525.494681,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "multi",
+          "wall_ms": 736.415063,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "multi",
+          "wall_ms": 1714.086448,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "broad",
+          "wall_ms": 5172.363366,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "broad",
+          "wall_ms": 7022.377059,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "positions",
+          "wall_ms": 825.326906,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "positions",
+          "wall_ms": 1416.152009,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "error",
+          "wall_ms": 588.973002,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "error",
+          "wall_ms": 117.287389,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "recovery",
+          "wall_ms": 600.041446,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "recovery",
+          "wall_ms": 1906.425253,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "wall_ms": 499.26743,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "wall_ms": 173.688857,
+          "status": "Success"
+        }
+      ],
+      "limits": "One candidate-profiled main/candidate block; no Rust or prior-candidate speed comparison. Profile11 controller missing after reconnect; no timing attribution."
+    },
+    {
+      "id": "12",
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "timing_continuity_verified": true,
+      "raw": "out/runs/full-push-native-profile-12",
+      "raw_manifest": {
+        "path": "out/runs/full-push-native-profile-12/manifest.json",
+        "bytes": 6601,
+        "sha256": "9a28e5d94b69eb88ecdd9b29abe99622cffcca7794778e84061aa31de7212487"
+      },
+      "raw_rows": {
+        "path": "out/runs/full-push-native-profile-12/rows.jsonl",
+        "bytes": 1580013,
+        "sha256": "01a6b00c2e9d12370217c47eae833e77936785d8a3e09a2831457579fbe14284"
+      },
+      "qualification": {
+        "path": "tools/research/incremental-demand/full-push-profile12-qualification.json",
+        "bytes": 3368,
+        "sha256": "6572866990e1f82e728a163c3d7c46c1a0bd4b1590d7fc0680ace94e1f0dd056"
+      },
+      "measured_observations": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "wall_ms": 5725.460234,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "wall_ms": 6944.965608,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "wall_ms": 75.740711,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "wall_ms": 487.284596,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "private",
+          "wall_ms": 1453.000596,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "private",
+          "wall_ms": 461.151631,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "multi",
+          "wall_ms": 698.798696,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "multi",
+          "wall_ms": 1675.550992,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "broad",
+          "wall_ms": 5816.820529,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "broad",
+          "wall_ms": 6628.489823,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "positions",
+          "wall_ms": 838.315828,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "positions",
+          "wall_ms": 1455.648921,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "error",
+          "wall_ms": 374.026485,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "error",
+          "wall_ms": 57.391571,
+          "status": "SafeReject"
+        },
+        {
+          "arm": "candidate",
+          "request": "recovery",
+          "wall_ms": 568.293471,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "recovery",
+          "wall_ms": 1815.598026,
+          "status": "Success"
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "wall_ms": 535.013069,
+          "status": "Success"
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "wall_ms": 176.11371,
+          "status": "Success"
+        }
+      ],
+      "limits": "One candidate-profiled main/candidate block; no Rust or prior-candidate speed comparison. Profile11 controller missing after reconnect; no timing attribution."
+    }
+  ],
+  "gates": [
+    {
+      "id": "push-ct-library-tests-05",
+      "receipt": {
+        "path": "out/runs/push-ct-library-tests-05.json",
+        "bytes": 808,
+        "sha256": "9b54b36243ea8fbeeb99727a52e680f7ebbeda828c38807d71c6fb8f421d13c4"
+      },
+      "log": {
+        "path": "out/runs/push-ct-library-tests-05.log",
+        "bytes": 7073,
+        "sha256": "fc48a8a03db7ff5ca5676c94ef677a0e9eb5b2509a070490ebed782489cbb34a"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-ct",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s"
+      ]
+    },
+    {
+      "id": "push-expand-library-tests-06",
+      "receipt": {
+        "path": "out/runs/push-expand-library-tests-06.json",
+        "bytes": 813,
+        "sha256": "042e69eeda39f830cddc3acd01813672dd37725bd5bd4d3a545dc73faa5d539b"
+      },
+      "log": {
+        "path": "out/runs/push-expand-library-tests-06.log",
+        "bytes": 11148,
+        "sha256": "4f486e91ec83c89af61c81efe7af1b0928d49db32fc58207f6851a4d66ba816b"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 102 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s"
+      ]
+    },
+    {
+      "id": "push-types-library-tests-04",
+      "receipt": {
+        "path": "out/runs/push-types-library-tests-04.json",
+        "bytes": 812,
+        "sha256": "800971679620914322d3fcbe425e25ca45c495a2d15b010251815e5870d12181"
+      },
+      "log": {
+        "path": "out/runs/push-types-library-tests-04.log",
+        "bytes": 10746,
+        "sha256": "1878fdeec04872d98fd6f13c6c98223aeb3ea24212f1baa997e6a508469f71af"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-types",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 103 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.65s"
+      ]
+    },
+    {
+      "id": "push-driver-library-tests-15",
+      "receipt": {
+        "path": "out/runs/push-driver-library-tests-15.json",
+        "bytes": 855,
+        "sha256": "211c09f8bdd0abaa967b99b7ccd873f356599fd75628417845b380a52c8af2e5"
+      },
+      "log": {
+        "path": "out/runs/push-driver-library-tests-15.log",
+        "bytes": 24608,
+        "sha256": "a34c05de1bbcd5b13dae44bb7bf04abf02e575a266d434074eb19fec6dfdde87"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 210 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 180.43s"
+      ]
+    },
+    {
+      "id": "native-products-full-tests-25",
+      "receipt": {
+        "path": "out/runs/native-products-full-tests-25.json",
+        "bytes": 890,
+        "sha256": "4ecd95b6715fa057168a59f970634b11739b63f1e62a38a71cd7068f9eeda6fb"
+      },
+      "log": {
+        "path": "out/runs/native-products-full-tests-25.log",
+        "bytes": 77334,
+        "sha256": "996b3dfe2362ef559acd75a325b279d7e8e38019f66a9e6cf6fe0f41e06dc89d"
+      },
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.61s"
+      ]
+    },
+    {
+      "id": "push-backend-library-tests-12",
+      "receipt": {
+        "path": "out/runs/push-backend-library-tests-12.json",
+        "bytes": 860,
+        "sha256": "12c86728f2716afdd69f5dad4f1c81589ebb3aa34670199d005fa899adea0fe2"
+      },
+      "log": {
+        "path": "out/runs/push-backend-library-tests-12.log",
+        "bytes": 25106,
+        "sha256": "82f982cefefd5782e2e339c79d348e16a1df66044ff783c2eb8e94b02fe35810"
+      },
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 242 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 61.31s"
+      ]
+    },
+    {
+      "id": "push-driver-mixed-native-tests-03",
+      "receipt": {
+        "path": "out/runs/push-driver-mixed-native-tests-03.json",
+        "bytes": 887,
+        "sha256": "38f4dad74cccabf5d73f169be0eae6c01ace7f1203973e3a39e6b27670741ea2"
+      },
+      "log": {
+        "path": "out/runs/push-driver-mixed-native-tests-03.log",
+        "bytes": 846,
+        "sha256": "79931ddafb0a32be6bbfd4fdaa523f161077daa889046c21c2420465ebebd733"
+      },
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "mixed_machine_reuse_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "test_results": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 54.39s"
+      ]
+    },
+    {
+      "id": "full-push-native-clippy-12",
+      "receipt": {
+        "path": "out/runs/full-push-native-clippy-12.json",
+        "bytes": 857,
+        "sha256": "40d850de22be12cd1d3a62edf0192540c6b6252a660b0e4a34fe1fe2667da408"
+      },
+      "log": {
+        "path": "out/runs/full-push-native-clippy-12.log",
+        "bytes": 1531,
+        "sha256": "6387a550a581abd44e06f8223a33ef4f40440579f7cd5dd96021a55cfa85be07"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "test_results": []
+    },
+    {
+      "id": "full-push-fmt-12",
+      "receipt": {
+        "path": "out/runs/full-push-fmt-12.json",
+        "bytes": 759,
+        "sha256": "d74abedd2b2eb6e2daec0fc2e908383c435fbdeb81db53a77cfcbea592e17b6e"
+      },
+      "log": {
+        "path": "out/runs/full-push-fmt-12.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "test_results": []
+    },
+    {
+      "id": "full-push-release-12",
+      "receipt": {
+        "path": "out/runs/full-push-release-12.json",
+        "bytes": 1423,
+        "sha256": "1e314410651512b93758d015b68577449daca312a54331ecf47c4748bb136b7b"
+      },
+      "log": {
+        "path": "out/runs/full-push-release-12.log",
+        "bytes": 595,
+        "sha256": "c47e63a975a118fc242d122da1a6315b31f2407a737d55a92115317314fb4cd0"
+      },
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "test_results": []
+    },
+    {
+      "id": "full-push-native-clippy-13",
+      "receipt": {
+        "path": "out/runs/full-push-native-clippy-13.json",
+        "bytes": 857,
+        "sha256": "402a451b77952f8b39aeb7d16d6c3214744c938d60fcd51e956fffc459567bf1"
+      },
+      "log": {
+        "path": "out/runs/full-push-native-clippy-13.log",
+        "bytes": 445,
+        "sha256": "2a6822a9f236df2f7522abcf2b2eda74769768f2d893c6365580f3b52e1aa63e"
+      },
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "test_results": []
+    },
+    {
+      "id": "full-push-release-13",
+      "receipt": {
+        "path": "out/runs/full-push-release-13.json",
+        "bytes": 1423,
+        "sha256": "9943ee8c48e570845335cf0b406eb3443ef09d8437d5a75287f726ce81283041"
+      },
+      "log": {
+        "path": "out/runs/full-push-release-13.log",
+        "bytes": 377,
+        "sha256": "c23f67f47d0631fb76b1a38364c0a6e401259f93367cc750823f7dc8ba307aaf"
+      },
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "test_results": []
+    }
+  ],
+  "retained_failures": [
+    {
+      "id": "original-driver14",
+      "receipt": {
+        "path": "out/runs/push-driver-library-tests-14.json",
+        "bytes": 857,
+        "sha256": "e3cd3ab05144568b70faac31809c03f20925bdcbf61df411e09ba17786c9a503"
+      },
+      "log": {
+        "path": "out/runs/push-driver-library-tests-14.log",
+        "bytes": 25506,
+        "sha256": "e85d29137244aee326329a9201ad4523e798d939bab511b448e00ee7f5fded4c"
+      },
+      "scope": "208 pass/1 fail: alias CT remaining node budget differs by5. Corrected byc6, strict originalassertion retained."
+    },
+    {
+      "id": "ct-context-diagnostic01",
+      "log": {
+        "path": "out/runs/ct-alias-context-diagnostic-01.log",
+        "bytes": 96,
+        "sha256": "ca412ec8927129c9871ad99f64268e59daabc8e03afd0e7c265afe1fd871859e"
+      },
+      "exit": 66,
+      "scope": "sharedlock path absent; no compiler/test executed."
+    },
+    {
+      "id": "ct-context-diagnostic02",
+      "log": {
+        "path": "out/runs/ct-alias-context-diagnostic-02.log",
+        "bytes": 1809,
+        "sha256": "2a6d61f8115bbf45d01d668187e520280245d0616324905d4b2fc27aaa58bbfb"
+      },
+      "patch": {
+        "path": "out/runs/ct-alias-context-diagnostic-01.patch",
+        "bytes": 1304,
+        "sha256": "f9dd87c18d876abe8758b85e5b05c968a17678bc2bcd31628b5054fadef809c2"
+      },
+      "source_context": {
+        "path": "out/runs/ct-alias-context-diagnostic-02-source.json",
+        "bytes": 524,
+        "sha256": "22c1f015eba054107e86f74d5b0fc4723cd9d8a310c5f97186f16d09dd2f112e"
+      },
+      "exit": 101,
+      "scope": "Temporary diagnostic8lines atfce, not a frozen-source acceptance; restoredbeforec6. Actualold/currenttarget+environment equal, effective nodes822486/822481."
+    },
+    {
+      "id": "historical-validator-mismatch",
+      "receipt": {
+        "path": "out/runs/full-push-native-profile-10-historical-validator-failure.json",
+        "bytes": 504,
+        "sha256": "a43895fd8edd23d6c6cdbeecf74416bc470175594b1fa80abdbdf360d7305212"
+      },
+      "scope": "Historical990/producer-onlyvalidator declinednew3ec/push atpincheck; historicalvalidator unchanged; currenttool and strictactualsourcequalification separate."
+    }
+  ],
+  "earlier_unchanged_scope": "Native72/backend242 exact328 latest; complete CT74/Expand102/Types103/driver210 and fmt12 at25c, subsequentproductionchangeonlywork_products.cpp. No new fullworkspace claim; overlapping scopes notsummed.",
+  "prior_formal": "full-push-matched-1e260.json",
+  "raw_custody": {
+    "formal_check": "fixedv14/8d10022 completefreshrestore+capturedvalidator passed",
+    "formal_o2": "fixedv15/data19@099153 andsmallindex20@0070154, full21669-file originalunion verified; nowholeassembledfreshvalidator claim",
+    "current_profiles_and_gates": "v16 actual shardedpush/freshrestore inprogress; not yet all durable, no retirement beforefullmaster+currentqualifiers+verifiedpiece"
+  },
+  "remaining": [
+    "wholeprojectphaseentry andglobalinventories/fingerprints",
+    "current link discovery, library bytes, object/diagnostic IO",
+    "MIR key/capture andwarmrestore/validation; fullLLVM global/affectedCGU work",
+    "Expand laterCore leaf rebuilds andgap fullcurrentfunctiontable scan",
+    "CentralReactiveGraph is not whole-pipeline scheduler; no unused signal-read pull removal gain claimed"
+  ]
+}

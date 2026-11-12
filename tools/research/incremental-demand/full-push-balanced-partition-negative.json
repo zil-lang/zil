@@ -1,0 +1,16 @@
+{
+  "schema": "balanced-partition-negative-v1",
+  "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+  "scope": "Read-only source feasibility review; no partition change implemented.",
+  "source_grouping": "crates/zil-backend-llvm/src/machine_cgu.rs:404-421 selects FileId and optional 256-function chunk; :457-462 unions every source group.",
+  "mandatory_linkage": "crates/zil-backend-llvm/src/machine_cgu.rs:435-444 unions local-linkage definitions with their users.",
+  "owner_assignment": "crates/zil-backend-llvm/src/machine_cgu.rs:472-483 assigns source roots by (file % count + chunk % count) % count.",
+  "default_policy": "crates/zil-backend-llvm/src/build.rs:543-558 passes split_large_files=(O0 || incremental_o2); machine_cgu.rs:24-33 disables call imports outside incremental_o2.",
+  "actual_request_context": "The parent supplied the representative 42-definition CGU membership; this review did not independently revalidate archived object membership.",
+  "nearest_counterexample": "A same-source External caller value() returns h()+1, where h() returns constant 7. Splitting caller and callee can replace a visible body with a declaration, removing ordinary O2 inlining/constant-folding opportunities; this is a static counterexample, not a newly compiled observation.",
+  "imports_do_not_close_proof": "crates/zil-backend-llvm/src/machine_cgu.rs:513-579 imports complete direct-call closures under copy/local-state guards; machine_cgu/layout.rs:84-109 creates Internal renamed clones and rewrites direct calls, changing the optimization/linkage/emission problem.",
+  "existing_recipe": "crates/zil-backend-llvm/src/machine_cgu/recipe.rs:15-25 rejects import-bearing layouts; :35-109 patches changed definitions into the existing layout, not a balanced replacement.",
+  "conclusion": "No existing proof establishes unchanged machine bodies and symbolic relocations for item-balanced repartitioning. Keep the current partition and all quality oracles.",
+  "validation_limits": "No dual compilation, execution, LLVM/object comparison, performance measurement, archive recovery or build was performed. This is not a code-quality validation result.",
+  "implemented": false
+}

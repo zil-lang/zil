@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent /root/astra_architecture",
+  "status": "design_only_not_implemented_not_accepted",
+  "source_commit": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "method": "read-only source and parent-reported existing measurements; no build/execution/new timing",
+  "report": "/tmp/full-push-astra-emission-transaction-review.md",
+  "report_sha256": "c8fa0bfedb019f53024a4e39a6c204bdbeca808a6c6eaaa3fe679201f296ba48",
+  "decision": "LLVM-owned immutable function emission operations and explicit current emission-state bindings; not external MIR snapshot or partial streamer trace",
+  "private_gross_reconstruction_validation_ceiling_ms": 40.5,
+  "private_cost_source": "parent-reported formal1e260:17.6ms MIR reconstruction+22.9ms validation; no independent measurement here",
+  "not_claimed": [
+    "complete MC effect closure already implemented/proved",
+    "all82ms emission eliminated",
+    "fullO2 function/region cache",
+    "global/substantial Rust win",
+    "current complete MF MachineVerifier on a path that constructs no MF"
+  ],
+  "blocking_closures": [
+    "actual machine-region non-emission side effects/providers",
+    "AsmPrinter/MCContext/CFI handler per-function and module state effects"
+  ],
+  "external_oracle": "current independent Verify/default budgets/original O2/same partition plus whole object/ELF equality against ordinary compiler",
+  "downloaded_fixed_llvm_sources": [
+    {
+      "path": "llvm/include/llvm/MC/MCContext.h",
+      "bytes": 36497,
+      "sha256": "fc02a24be107e758c63b4f078bda637744c737aafee7b696c8db4d763d78f6fa"
+    },
+    {
+      "path": "llvm/include/llvm/MC/MCObjectStreamer.h",
+      "bytes": 9333,
+      "sha256": "6758c93dd7dce700251aad515a49b407c8e332ed693d46cee3a24a6e09a1bed5"
+    },
+    {
+      "path": "llvm/include/llvm/MC/MCStreamer.h",
+      "bytes": 50055,
+      "sha256": "69b5ffdae681e61d7753fa5a86883ef1e8a7ef658748812adea3559229c48903"
+    },
+    {
+      "path": "llvm/include/llvm/MC/MCSymbol.h",
+      "bytes": 12403,
+      "sha256": "f1ba722c3a4ac2fc6deb9d8040f19bf61246121d47ccd1c3c79b8a83bda982c7"
+    },
+    {
+      "path": "llvm/lib/CodeGen/AsmPrinter/DwarfCFIException.cpp",
+      "bytes": 5610,
+      "sha256": "4a1a5c99c4a7221e5505cac6739b1122bd3771663f9c2ca053f8c48cf0eaf107"
+    },
+    {
+      "path": "llvm/lib/MC/MCContext.cpp",
+      "bytes": 43362,
+      "sha256": "2a90bcde10553ad4947f9baed9969e3c58fedb94ebb831d58ac9d12c2b50198f"
+    },
+    {
+      "path": "llvm/lib/MC/MCELFStreamer.cpp",
+      "bytes": 20159,
+      "sha256": "973e946c1ca2eb2fc783a855c960f2361bed9a7b0f9647ce059fdffe688069b5"
+    },
+    {
+      "path": "llvm/lib/MC/MCObjectStreamer.cpp",
+      "bytes": 29134,
+      "sha256": "7bc92d35da705efcdb7c2e228b65a69ba248fbc663dc69f1187bfef7edcc343b"
+    },
+    {
+      "path": "llvm/lib/MC/MCStreamer.cpp",
+      "bytes": 63979,
+      "sha256": "01696bd0833b78a72f2029e573f3b242e2631ab07b41d3a128555086660014a0"
+    },
+    {
+      "path": "llvm/lib/Target/X86/X86MCInstLower.cpp",
+      "bytes": 105719,
+      "sha256": "792ee48b7589c0777a1201a6f144c41a44e70f82daf61b8994cfab6e681864ad"
+    }
+  ]
+}

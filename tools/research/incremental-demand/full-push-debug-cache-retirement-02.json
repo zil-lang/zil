@@ -1,0 +1,28 @@
+{
+  "schema": "reproducible-own-build-cache-retirement-v1",
+  "head": "7ec66697cb307bc46cecc60d682dfa07af139c2a",
+  "cache": "/workspace/zil-push-main/target/debug",
+  "files": 2955,
+  "logical_bytes": 522809150,
+  "visible_active_own_debug_executables": [],
+  "unreadable_process_exe_links": 515,
+  "boundary": "All known root-owned functional/lint/build and diagnostic windows completed; dedicated branch target. This does not claim inspection of unreadable processes. Only reproducible debug cache retired; immutable release binaries, release target, all raw evidence, SDKs, Git and source preserved.",
+  "binaries_rechecked": [
+    {
+      "source": "25c8607ab77584e423605793bbcb553ff8099330",
+      "path": "/workspace/zil-push-main/out/binaries/25c8607ab77584e423605793bbcb553ff8099330/zil",
+      "sha256": "50c316a9de2a6f422147ee3543ca32fde15979df7042dd61f8e440bf38336801"
+    },
+    {
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "path": "/workspace/zil-push-main/out/binaries/328eb392d8d88148a75a743d899b43aebae73587/zil",
+      "sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a"
+    }
+  ],
+  "before_utc_ns": 1794511085125711342,
+  "free_before": 593072128,
+  "after_utc_ns": 1794511085249266122,
+  "free_after": 1123573760,
+  "cache_absent": true,
+  "source_unchanged": true
+}
