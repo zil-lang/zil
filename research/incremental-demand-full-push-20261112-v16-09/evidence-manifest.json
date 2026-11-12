@@ -1,0 +1,59 @@
+{
+  "archive": {
+    "bytes": 25728927,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "7920e7be4df56ec92a50c0dd8102a354ab2042d604556150f0175d64a61b52c3"
+      },
+      {
+        "bytes": 563103,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "17cc335c77119e008ffccdc7040768825c06b21b2dbf97f6286fdcd4624635ca"
+      }
+    ],
+    "sha256": "0b1af55c11b1dea64605bac8a8a9b771944d8792d77804a84ee96948e0477a8f",
+    "tar_bytes": 72417280
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 72392168,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+        "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+      },
+      {
+        "bytes": 7764,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/2015f92a615072eb21a5c85577dad97a8d5068d97affb760e98bff57389bae5f.maps",
+        "sha256": "2015f92a615072eb21a5c85577dad97a8d5068d97affb760e98bff57389bae5f"
+      },
+      {
+        "bytes": 7433,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/2bc482a4a41285dd57a3c63ae6d4f8568fccd5a4822a99c763ef0a36ee1f43f7.maps",
+        "sha256": "2bc482a4a41285dd57a3c63ae6d4f8568fccd5a4822a99c763ef0a36ee1f43f7"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "8ded1869db4edd6c90f00f6123a96d1b1c3188453cb558a83d48e0c2d2177c8d",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+    "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/2015f92a615072eb21a5c85577dad97a8d5068d97affb760e98bff57389bae5f.maps",
+    "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/2bc482a4a41285dd57a3c63ae6d4f8568fccd5a4822a99c763ef0a36ee1f43f7.maps"
+  ],
+  "source_root": "/workspace"
+}
