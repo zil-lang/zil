@@ -21,12 +21,11 @@ pub(super) fn needs_head(module: &TypedModule, f: &TypedFunction, b: &mut Budget
     Ok(matches!(
         d.kind,
         CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-    ) && (declared(d)
-        || d.captures
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { mutable: true, .. })
-                || d.kind == CallableKind::FnMut
-                    && matches!(ty, Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. }))))
+    ) && (declared(d) || d.captures.iter().any(|ty| {
+        matches!(ty, Type::Address { mutable: true, .. })
+            || d.kind == CallableKind::FnMut
+                && matches!(ty, Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. }))
+    })))
 }
 pub(super) fn call_site(module: &TypedModule, f: &TypedFunction, i: &Instruction) -> bool {
     stored_callables::called(module, f, &i.kind).is_some_and(|(d, _)| declared(d))
