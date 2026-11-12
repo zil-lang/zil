@@ -547,6 +547,7 @@ struct Summary {
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     dyn_ports: dyn_ports::Rows,
     external_after: Vec<(u32, Path, Vec<Source>)>,
+    external_stable: Vec<(u32, Path)>,
     capture_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
@@ -3861,7 +3862,27 @@ fn step(
                     return Err(err("external update has no grounded replacement source"));
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
-                let retained = retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?;
+                let summary = &summaries[function.0 as usize];
+                b.spend(summary.external_stable.len().saturating_mul(path.len().saturating_add(1)))?;
+                let stable = summary.external_stable.iter().any(|(p, row)| p == parameter && row == path);
+                let retained = if stable {
+                    let previous = if matches!(ty, Type::Address { .. }) {
+                        select(state, &actual.address, path, b)?
+                    } else {
+                        let row = leaf(actual, path, b)?
+                            .ok_or_else(|| err("stable environment after-row is absent"))?;
+                        permission_work(row, b)?;
+                        row.clone()
+                    };
+                    permission_work(&previous, b)?;
+                    permission_work(&permission, b)?;
+                    if previous != permission {
+                        return Err(err("stable external row changed its actual targets or loan identity"));
+                    }
+                    permission
+                } else {
+                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?
+                };
                 if let Some((capture, tail)) = captured {
                     let head = if matches!(ty, Type::Address { .. }) {
                         select(state, &actual.address, &[PlaceProjection::Field(capture)], b)?
@@ -5828,6 +5849,7 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         b.spend(path.len())?;
         source_work(row, b)?;
     }
+    for (_, path) in &s.external_stable { b.spend(path.len().saturating_add(2))?; }
     for (_, path, row) in &s.external_after {
         b.spend(path.len())?;
         source_work(row, b)?;
@@ -6040,6 +6062,28 @@ fn summarize(
                             summary.complete = false;
                         }
                     }
+                }
+            }
+        }
+    }
+    if b.closure_receiver_borrows {
+        for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            for (path, initial) in &payload.leaves {
+                let mut stable = true;
+                let mut returned = false;
+                for (bi, (block, live)) in f.blocks.iter().zip(&g.reachable).enumerate() {
+                    b.spend(1)?;
+                    if *live && matches!(block.terminator, Terminator::Return(_)) {
+                        returned = true;
+                        let terminal = leaf(&solution.outputs[bi].external[parameter], path, b)?;
+                        permission_work(initial, b)?;
+                        if let Some(terminal) = terminal { permission_work(terminal, b)?; }
+                        stable &= terminal == Some(initial);
+                    }
+                }
+                if returned && stable {
+                    b.spend(path.len().saturating_add(2))?;
+                    summary.external_stable.push((parameter as u32, path.clone()));
                 }
             }
         }
@@ -6709,6 +6753,23 @@ fn solve_check(
                 return Err(err(
                     "lending capture claim differs from independently recovered fields",
                 ));
+            }
+        }
+        if let Some(definition) = capture_result_definition {
+            let mut used = Vec::new();
+            for (_, sources) in &s.result {
+                for source in sources {
+                    b.spend(used.len().saturating_add(1))?;
+                    if let HoldRoot::Capture(index) = source.base {
+                        match used.binary_search(&index) {
+                            Ok(_) => {}, Err(at) => used.insert(at, index),
+                        }
+                    }
+                }
+            }
+            b.spend(used.len().saturating_add(definition.lending_captures.len()))?;
+            if used != definition.lending_captures {
+                return Err(err("captured result source set differs from actual returned permissions"));
             }
         }
         for (path, sources) in &s.result {
