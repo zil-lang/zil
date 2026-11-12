@@ -201,11 +201,20 @@ pub enum ContractProjection {
     RetainedPort(u32),
     /// Fixed class selection for binding only, never read/write/manage access.
     RetainedClass(u32),
+    /// Metadata selecting a nested closure capture; never a physical GEP.
+    Capture(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StoragePosition {
     pub base: StorageBase,
     pub path: Vec<ContractProjection>,
+}
+/// Untrusted physical result-leaf to actual input-source relation.
+/// Lifetimes alone never establish these roots or their parent loans.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StorageSourceBinding {
+    pub position: StoragePosition,
+    pub sources: Vec<StoragePosition>,
 }
 /// Existing Fixed classes cannot be narrowed or freshened by an invocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -396,7 +405,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V46\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -549,7 +558,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V46\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V48\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -1485,6 +1494,8 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// None is unknown. Some(empty) still requires proof of no external leaves.
+    pub capture_sources: Option<Vec<StorageSourceBinding>>,
     /// Untrusted result provenance; each reachable return must prove this relation.
     pub source: CallableReturnSource,
     pub closure: ClosureId,
@@ -2786,7 +2797,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V46\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V48\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -3006,6 +3017,10 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
             }
             ContractProjection::RetainedClass(i) => {
                 b.push(2);
+                encode_u32(b, *i)
+            }
+            ContractProjection::Capture(i) => {
+                b.push(3);
                 encode_u32(b, *i)
             }
         }
@@ -4523,7 +4538,7 @@ pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fi
 }
 /// Deterministic identity only; this hash never grants verification authority.
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-4\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -4568,6 +4583,18 @@ fn protocol_exit_tag(s: ProtocolExit) -> u8 {
     }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    b.push(u8::from(c.capture_sources.is_some()));
+    if let Some(bindings) = &c.capture_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_position(b, source);
+            }
+        }
+    }
+
     match c.source {
         CallableReturnSource::Fresh => b.push(0),
         CallableReturnSource::Parameter(parameter) => {

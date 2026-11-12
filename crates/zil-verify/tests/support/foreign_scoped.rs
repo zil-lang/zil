@@ -873,6 +873,7 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
         terminator: Terminator::Return(Some(ValueId(1))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind: CallableKind::FnOnce,
@@ -1191,6 +1192,7 @@ pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
         terminator: Terminator::Return(Some(ValueId(0))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(0),
         kind: CallableKind::FnMut,
@@ -1517,6 +1519,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
         terminator: Terminator::Return(Some(ValueId(1))),
     }];
     factory.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(2),
         kind: CallableKind::FnOnce,
@@ -1555,6 +1558,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
         terminator: Terminator::Return(Some(ValueId(0))),
     }];
     fresh.callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind: CallableKind::Fn,

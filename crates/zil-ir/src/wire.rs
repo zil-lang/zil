@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 47;
+pub const WIRE_VERSION: u32 = 48;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
@@ -511,6 +511,10 @@ impl<'a> Writer<'a> {
                 }
                 ContractProjection::RetainedClass(i) => {
                     self.u8(2)?;
+                    self.u32(*i)?;
+                }
+                ContractProjection::Capture(i) => {
+                    self.u8(3)?;
                     self.u32(*i)?;
                 }
             }
@@ -1111,6 +1115,18 @@ impl<'a> Writer<'a> {
         }
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
+            self.boolean(c.capture_sources.is_some())?;
+            if let Some(bindings) = &c.capture_sources {
+                self.count(bindings.len(), self.limits.max_nodes)?;
+                for binding in bindings {
+                    self.storage_position(&binding.position)?;
+                    self.count(binding.sources.len(), self.limits.max_nodes)?;
+                    for source in &binding.sources {
+                        self.storage_position(source)?;
+                    }
+                }
+            }
+
             match c.source {
                 CallableReturnSource::Fresh => self.u8(0)?,
                 CallableReturnSource::Parameter(parameter) => {
@@ -2624,6 +2640,7 @@ impl<'a> Reader<'a> {
                 0 => ContractProjection::Place(self.storage_step()?),
                 1 => ContractProjection::RetainedPort(self.u32()?),
                 2 => ContractProjection::RetainedClass(self.u32()?),
+                3 => ContractProjection::Capture(self.u32()?),
                 _ => return Err(malformed("E-WIRE-TAG", "unknown contract projection")),
             });
         }
@@ -3510,6 +3527,23 @@ impl<'a> Reader<'a> {
         };
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
+                capture_sources: if self.boolean()? {
+                    let count = self.count(self.limits.max_nodes, 9)?;
+                    let mut bindings = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        let position = self.storage_position()?;
+                        let count = self.count(self.limits.max_nodes, 9)?;
+                        let mut sources = Vec::with_capacity(count);
+                        for _ in 0..count {
+                            sources.push(self.storage_position()?);
+                        }
+                        bindings.push(StorageSourceBinding { position, sources });
+                    }
+                    Some(bindings)
+                } else {
+                    None
+                },
+
                 source: match self.u8()? {
                     0 => CallableReturnSource::Fresh,
                     1 => CallableReturnSource::Parameter(self.u32()?),

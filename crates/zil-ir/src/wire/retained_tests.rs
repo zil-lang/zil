@@ -265,6 +265,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         contract: contract_dyn,
     };
     let interface = DynInterface {
+        owning_cleanup: None,
         id: dyn_id,
         application,
         inherited: vec![],

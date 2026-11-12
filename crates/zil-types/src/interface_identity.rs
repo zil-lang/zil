@@ -591,6 +591,7 @@ mod tests {
                 actuals: Vec::new(),
             };
             let interface = DynInterface {
+                owning_cleanup: None,
                 id: DynInterfaceId {
                     module: zil_base::ModuleId(module),
                     index: 3,

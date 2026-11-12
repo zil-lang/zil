@@ -51,6 +51,35 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     if let Some(c) = &f.callable_return_contract {
+        let bindings = c
+            .capture_sources
+            .as_ref()
+            .ok_or_else(|| bad(f, "callable capture sources are unknown"))?;
+        if bindings.len() > limits.max_nodes {
+            return Err(limit("callable capture source count exceeds node bound"));
+        }
+        budget.spend(bindings.len().saturating_add(1))?;
+        for binding in bindings {
+            if binding.sources.len() > limits.max_nodes
+                || binding.position.path.len() > limits.max_call_depth
+            {
+                return Err(limit("callable capture source relation exceeds bounds"));
+            }
+            budget.spend(
+                binding
+                    .sources
+                    .len()
+                    .saturating_add(binding.position.path.len())
+                    .saturating_add(1),
+            )?;
+            for source in &binding.sources {
+                if source.path.len() > limits.max_call_depth {
+                    return Err(limit("callable source path exceeds depth bound"));
+                }
+                budget.spend(source.path.len().saturating_add(1))?;
+            }
+        }
+
         // This public source is read here and by module fingerprinting. A
         // Parameter source also carries its checked index in both walks.
         budget.spend(match c.source {
