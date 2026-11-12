@@ -6,6 +6,7 @@ executables dominate disk space, so build/run them in groups and remove only
 completed test executables reported by Cargo. Raw stdout/stderr/exits are kept.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--features', default='llvm-api')
     parser.add_argument('--batch-size', type=int, default=12)
+    parser.add_argument('--resume-from', type=Path, help='Reuse only exact-source successful groups with identical commands; preserve the failed parent.')
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error('batch-size must be positive')
@@ -57,9 +59,51 @@ def main():
                'features': args.features, 'profile': 'test', 'driver_integration_targets': tests,
                'driver_targets': driver['targets'],
                'group_count': len(groups), 'groups': [], 'policy': 'No test filters; all workspace packages and every driver integration target plus driver library/doc; examples compiled. Only test executables from successful completed groups removed; logs retained.'}
+    completed = {}
+    if args.resume_from is not None:
+        parent_dir = args.resume_from.resolve(strict=True)
+        parent_path = parent_dir / 'receipt.json'
+        parent_bytes = parent_path.read_bytes()
+        parent = json.loads(parent_bytes)
+        for key in ('source', 'features', 'profile', 'driver_integration_targets', 'driver_targets', 'group_count'):
+            if parent[key] != receipt[key]:
+                raise ValueError('resume parent differs in ' + key)
+        expected = {name: ['cargo', 'test', '--locked', *selection, '--features', args.features,
+                           '--no-fail-fast', '--message-format=json'] for name, selection in groups}
+        seen_names = set()
+        for record in parent['groups']:
+            name = record['name']
+            if name in seen_names or name not in expected or record['argv'] != expected[name]:
+                raise ValueError('resume parent group identity/command differs')
+            seen_names.add(name)
+            if record['exit_code'] != 0:
+                continue
+            directory = parent_dir / name
+            if (directory / 'exit').read_text().strip() != '0':
+                raise ValueError('resume parent exit file differs')
+            if json.loads((directory / 'command.json').read_text()) != expected[name]:
+                raise ValueError('resume command file differs')
+            files = {}
+            for filename in ('stdout.log', 'stderr.log', 'command.json', 'exit'):
+                path = directory / filename
+                if path.is_symlink() or not path.is_file():
+                    raise ValueError('unexpected resume evidence file')
+                data = path.read_bytes()
+                files[filename] = {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+            completed[name] = {**record, 'inherited_success': {'directory': str(directory), 'files': files}}
+        receipt['resume_parent'] = {'directory': str(parent_dir), 'receipt_sha256': hashlib.sha256(parent_bytes).hexdigest(),
+                                    'successful_groups': len(completed), 'failed_parent_unchanged': True}
+        receipt['policy'] += ' Resume inherits only zero-exit groups at the exact same HEAD, features, target inventory and command; failed/not-run groups execute again. Parent evidence is not overwritten.'
+    receipt['runner_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    (out/'workspace_tests.py').write_bytes(Path(__file__).read_bytes())
     (out/'plan.json').write_text(json.dumps(receipt, indent=2)+'\n')
     for index, (name, selection) in enumerate(groups):
         frozen_source(repo, receipt['source'])
+        if name in completed:
+            receipt['groups'].append(completed[name])
+            (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
+            print(json.dumps({'group': index+1, 'total': len(groups), 'name': name, 'inherited_success': True}), flush=True)
+            continue
         directory = out / name
         directory.mkdir()
         command = ['cargo', 'test', '--locked', *selection, '--features', args.features, '--no-fail-fast', '--message-format=json']
