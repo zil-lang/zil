@@ -261,8 +261,9 @@ pub(super) fn borrowed_signature(
         for ty in &definition.captures {
             budget.type_work(ty, false, "Task result actual capture class walk")?;
         }
-        super::signature_life::capture_relation(
+        super::signature_life::closure_relation(
             &module.closures,
+            definition.kind,
             &parameters,
             &definition.captures,
             &f.return_type,
