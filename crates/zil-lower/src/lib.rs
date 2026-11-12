@@ -147,7 +147,8 @@ fn lower_view_with_budget(
                     .iter()
                     .any(|row| row.position.base == zil_ir::StorageBase::Result)
             })
-            && matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee());
+            && (matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+                || qualified_capture_address(&closure.result));
         let captured_fixed_signature = verified_address_result
             || verified.uses_stored_borrows()
                 && closure
