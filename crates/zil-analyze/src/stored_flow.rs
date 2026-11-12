@@ -5856,6 +5856,7 @@ pub(super) fn infer(
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
         || b.owning_environment_captures && b.composition_stored.is_empty()
+            && !b.task_borrowed_results && !b.store_option_results
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
             && !b.task_borrowed_results
