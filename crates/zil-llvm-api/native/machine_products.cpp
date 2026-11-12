@@ -3,6 +3,7 @@
 #include "machine_frame_products.h"
 #include "X86MachineFunctionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -563,6 +564,16 @@ enum OperandFlags : unsigned {
   Debug = 32, Internal = 64, Renamable = 128
 };
 
+// Lookup-only scratch, with no hash iteration order in the product. Fixed7a
+// DenseMap tracks occupied buckets separately; its pointer hash/equality never
+// dereferences keys and has NO reserved empty/tombstone pointer values. Thus
+// foreign/sentinel pointers are ordinary misses, while null is explicit here.
+template<class Map>
+auto captureFind(Map &M, typename Map::key_type Key) {
+  if (!Key) return M.end();
+  return M.find(Key);
+}
+
 bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   if (!targetInfoAPI().readBlockProbabilities || !Out.blocks.empty() ||
       !Out.instructions.empty() || !Out.operands.empty() || !Out.memory.empty() ||
@@ -581,11 +592,12 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   Out.subRegLiveness = MRI.subRegLivenessEnabled();
   Out.usedRegisters = MRI.getUsedPhysRegsMask();
   if (Out.reservedFrozen) Out.reservedRegisters = MRI.getReservedRegs();
-  std::map<const llvm::BasicBlock *, unsigned> IRBlocks;
-  for (const auto &BB : MF.getFunction()) IRBlocks.emplace(&BB, IRBlocks.size());
-  std::map<const llvm::MachineBasicBlock *, unsigned> Blocks;
-  for (const auto &BB : MF) Blocks.emplace(&BB, Blocks.size());
-  std::map<const llvm::MachineOperand *, std::pair<unsigned, unsigned>> Operands;
+  // Ordinals remain original producer encounter order, NOT hash bucket order.
+  llvm::DenseMap<const llvm::BasicBlock *, unsigned> IRBlocks;
+  for (const auto &BB : MF.getFunction()) IRBlocks.try_emplace(&BB, IRBlocks.size());
+  llvm::DenseMap<const llvm::MachineBasicBlock *, unsigned> Blocks;
+  for (const auto &BB : MF) Blocks.try_emplace(&BB, Blocks.size());
+  llvm::DenseMap<const llvm::MachineOperand *, std::pair<unsigned, unsigned>> Operands;
   const auto *TII = MF.getSubtarget().getInstrInfo();
   unsigned InstructionIndex = 0;
   size_t Bytes = sizeof(BodyState);
@@ -595,7 +607,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
     BodyBlock B;
     B.instructions.first = Out.instructions.size();
     if (const auto *IR = BB.getBasicBlock()) {
-      auto It = IRBlocks.find(IR);
+      auto It = captureFind(IRBlocks, IR);
       if (It == IRBlocks.end()) return false;
       B.irBlock = It->second;
     }
@@ -608,7 +620,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
       return false;
     size_t SuccessorIndex = 0;
     for (auto SI = BB.succ_begin(); SI != BB.succ_end(); ++SI) {
-      auto It = Blocks.find(*SI);
+      auto It = captureFind(Blocks, *SI);
       if (It == Blocks.end() || !Charge(sizeof(B.successors.front()))) return false;
       B.successors.emplace_back(It->second, B.probabilities ? RawProbabilities[SuccessorIndex] : 0);
       ++SuccessorIndex;
@@ -658,7 +670,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
             Out.ties.emplace_back(MI.findTiedOperandIdx(I.operands.count), I.operands.count);
             ++I.ties.count;
           }
-          Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.count));
+          Operands.try_emplace(&MO, std::make_pair(InstructionIndex, I.operands.count));
           Out.registerUses.try_emplace(O.reg());
         } else if (MO.isImm()) {
           O.kind = BodyOperand::Imm; O.setImmediate(MO.getImm());
@@ -669,7 +681,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
           Out.integers.push_back(MO.getCImm()->getValue());
         } else if (MO.isMBB()) {
           O.kind = BodyOperand::Block;
-          auto It = Blocks.find(MO.getMBB());
+          auto It = captureFind(Blocks, MO.getMBB());
           if (It == Blocks.end()) return false;
           O.payload = It->second;
         } else if (MO.isFI()) {
@@ -694,7 +706,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   size_t UseCount = 0;
   for (auto &Entry : Out.registerUses) {
     for (const auto &MO : MRI.reg_operands(llvm::Register(Entry.first))) {
-      auto It = Operands.find(&MO);
+      auto It = captureFind(Operands, &MO);
       if (It == Operands.end() || !Charge(sizeof(Entry.second.front()))) return false;
       Entry.second.push_back(It->second);
       ++UseCount;
@@ -1055,6 +1067,17 @@ void testTypedBody(llvm::MachineFunction &Current) {
   auto *B = Source->CreateMachineBasicBlock();
   auto *C = Source->CreateMachineBasicBlock();
   Source->push_back(A); Source->push_back(B); Source->push_back(C);
+  // The scratch hash table cannot turn missing/sentinel owners into an assert
+  // or an ordinal, and duplicate insertion must retain encounter-order IDs.
+  llvm::DenseMap<const llvm::MachineBasicBlock *, unsigned> Lookup;
+  for (const auto &BB : *Source) Lookup.try_emplace(&BB, Lookup.size());
+  auto Foreign = Make(); auto *ForeignBB = Foreign->CreateMachineBasicBlock(); Foreign->push_back(ForeignBB);
+  const auto Sentinel = reinterpret_cast<const llvm::MachineBasicBlock *>(~uintptr_t(0));
+  const auto Tombstone = reinterpret_cast<const llvm::MachineBasicBlock *>(~uintptr_t(0) - 1);
+  if (captureFind(Lookup, nullptr) != Lookup.end() || captureFind(Lookup, ForeignBB) != Lookup.end() ||
+      captureFind(Lookup, Sentinel) != Lookup.end() || captureFind(Lookup, Tombstone) != Lookup.end() ||
+      Lookup.try_emplace(A, 99).second || captureFind(Lookup, A)->second != 0 ||
+      captureFind(Lookup, B)->second != 1 || captureFind(Lookup, C)->second != 2) return;
   // A single unknown edge queries as probability one. The product must still
   // preserve the raw unknown sentinel rather than that effective answer.
   A->addSuccessor(B, llvm::BranchProbability::getUnknown());
