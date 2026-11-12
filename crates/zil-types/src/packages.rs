@@ -486,6 +486,11 @@ impl Builder<'_, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", object.span, "unknown package local"))?;
+        // A captured Product names its referent, not this activation's
+        // Address local. Its fields must use the actual address planner.
+        if self.borrowed_captures.contains_key(&local) {
+            return Ok(None);
+        }
         self.member_owner_work(owner.as_ref(), target.span)?;
         member_owner::check_member_owner(
             &self.function.locals[local.0 as usize].ty,
@@ -518,6 +523,11 @@ impl Builder<'_, '_> {
         let local = self
             .lookup(name)
             .ok_or_else(|| error("E-UNKNOWN-NAME", object.span, "unknown package local"))?;
+        // A captured Product names its referent, not this activation's
+        // Address local. Its fields must use the actual address planner.
+        if self.borrowed_captures.contains_key(&local) {
+            return Ok(None);
+        }
         let (index, ty) = aggregates::field(
             &self.function.locals[local.0 as usize].ty,
             member,
@@ -607,10 +617,10 @@ impl Builder<'_, '_> {
         Ok(true)
     }
 
-    /// A Copy leaf observation never transfers its owning intermediate child.
+    /// A Copy read or Managed description never transfers its owning intermediate child.
     /// The real root and every field owner are checked before the borrow is
     /// emitted; no temporary Package is substituted for the original storage.
-    fn nested_product_copy_field(
+    fn nested_product_observed_field(
         &mut self,
         object: &CoreExpr,
         member: &str,
@@ -674,7 +684,7 @@ impl Builder<'_, '_> {
         }
         self.member_owner(&ty, owner, span)?;
         let (index, field) = aggregates::field(&ty, member, span)?;
-        if !field.is_copy_value() {
+        if !field.is_copy_value() && !matches!(field, Type::Managed(_)) {
             return Ok(None);
         }
         self.closures
@@ -692,13 +702,16 @@ impl Builder<'_, '_> {
             },
             span,
         )?;
+        let (instruction, observed) = match field {
+            Type::Managed(payload) => (
+                InstructionKind::DescribeAddress { address },
+                Type::Desc(payload),
+            ),
+            field => (InstructionKind::ReadAddress { address }, field),
+        };
         Ok(Some((
-            self.value(
-                InstructionKind::ReadAddress { address },
-                field.clone(),
-                span,
-            )?,
-            field,
+            self.value(instruction, observed.clone(), span)?,
+            observed,
         )))
     }
 
@@ -730,7 +743,7 @@ impl Builder<'_, '_> {
             )?;
             return Ok((value, ty));
         }
-        if let Some(value) = self.nested_product_copy_field(object, member, owner, span)? {
+        if let Some(value) = self.nested_product_observed_field(object, member, owner, span)? {
             return Ok(value);
         }
         // A local projection borrows the actual inline head. A temporary value
