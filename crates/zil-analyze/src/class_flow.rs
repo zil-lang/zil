@@ -862,6 +862,7 @@ fn check_with(
         locals.push(p);
     }
     let mut captures = Vec::new();
+    let mut exclusive_head = false;
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
@@ -869,6 +870,7 @@ fn check_with(
     {
         b.spend(d.captures.len(), "actual entry capture class ports")?;
         for ty in &d.captures {
+            exclusive_head |= super::stored_callables::exclusive_capture(ty);
             captures.push(e.ports(module, ty, b)?);
         }
     }
@@ -906,10 +908,7 @@ fn check_with(
     };
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
-    let receiver_region = if f.environment
-        .and_then(|id| module.closures.get(id.0 as usize))
-        .is_some_and(|d| d.captures.iter().any(super::stored_callables::exclusive_capture))
-    { Some(e.fresh(true, b)?) } else { None };
+    let receiver_region = if exclusive_head { Some(e.fresh(true, b)?) } else { None };
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
