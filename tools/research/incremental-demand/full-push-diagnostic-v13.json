@@ -1,0 +1,655 @@
+{
+  "schema": "full-push-native-diagnostic-v2",
+  "source": "afc1319acd6e4c2ecb14478a222cf72b027f7133",
+  "baseline_source": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "raw": "out/runs/full-push-native-profile-04",
+  "scope": "Single block candidate-only profiling diagnostic, NOT formal matched speed or Rust claim. Same real425 fixture CGU16/O2/jobs1; actual per-arm DSO maps bound. Old-v8 vs this-window timings are not controlled paired timing. Optimization and MIR reuse jointly operate, but private wall has no demonstrated new improvement; cold/broad negatives retained. Fourteen of eighteen scalar-function stage invocations remain fresh; module/CGSCC and current verification/emission remain. Subsequent root source includes a defensive ownership-admission guard; do not relabel this binary.",
+  "requests": 34,
+  "native_executions": 180,
+  "invalid": 0,
+  "equal_successful_executable_pairs": 15,
+  "rows": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "wall_ms": 5875.630379,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 128.070996,
+        "builder_ns": 173.666071,
+        "optimize_ns": 1200.642442,
+        "emit_ns": 1994.305152
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "wall_ms": 8565.004395,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": {
+        "optimizer_function_stage_executions": 3816,
+        "retained_bytes": 101005125,
+        "mir_parse_ns": 0,
+        "mir_snapshot_bytes": 11473146,
+        "machine_pass_skips": 0,
+        "analysis_reconstructions": 0,
+        "mir_key_ns": 150110652,
+        "optimizer_module_pass_executions": 528,
+        "optimizer_function_stage_reuses": 0,
+        "failed_replays": 0,
+        "machine_function_executions": 424,
+        "mir_restore_validate_ns": 0,
+        "mir_capture_ns": 190965150,
+        "fallback_ns": 0,
+        "available": 16,
+        "optimizer_cgscc_pass_executions": 3392,
+        "asm_printer_runs": 424,
+        "mir_key_bytes": 6123535,
+        "ir_key_bytes": 44754758,
+        "ir_snapshot_bytes": 19400066,
+        "ir_replay_bytes": 0,
+        "fresh_context_fallbacks": 0,
+        "machine_function_reuses": 0,
+        "mir_replay_bytes": 0
+      },
+      "native_phase_ms": {
+        "preflight_ns": 145.798829,
+        "builder_ns": 219.37639,
+        "optimize_ns": 2828.211124,
+        "emit_ns": 2729.167132
+      },
+      "codegen_ms": {
+        "machine_ns": 625.169478,
+        "partition_ns": 63.042113,
+        "diagnostic_ns": 144.904304,
+        "object_ns": 6045.327004,
+        "link_key_ns": 415.419844,
+        "link_execution_ns": 24.744666,
+        "other_ns": 0.357746,
+        "total_ns": 7318.965155
+      },
+      "raw_inference_work": {
+        "full_runs": 1,
+        "sparse_batches": 0,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 425,
+        "closure_bodies_reused": 0,
+        "name_functions_checked": 425,
+        "name_functions_reused": 0,
+        "dependency_bodies_checked": 425,
+        "dependency_bodies_reused": 0
+      },
+      "phase_ms": {
+        "parse": 0.034333,
+        "expand": 533.940368,
+        "types": 188.316406,
+        "analyze": 83.164404,
+        "verify": 49.006472,
+        "lower": 3.426679,
+        "codegen": 7319.015751,
+        "ct": 37.079443
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "wall_ms": 55.222845,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 0.016705,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {
+        "machine_ns": 4.603535,
+        "partition_ns": 0.122994,
+        "diagnostic_ns": 4.492789,
+        "object_ns": 3.644197,
+        "link_key_ns": 35.710152,
+        "link_execution_ns": 0.167161,
+        "other_ns": 0.320038,
+        "total_ns": 49.060866
+      },
+      "raw_inference_work": null,
+      "phase_ms": {
+        "analyze": 0.008703,
+        "verify": 0.004677,
+        "lower": 0.003505,
+        "codegen": 49.351522
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "wall_ms": 484.000588,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 89.599971,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "wall_ms": 1468.40864,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 85.084758,
+        "builder_ns": 16.738224,
+        "optimize_ns": 115.097769,
+        "emit_ns": 199.939021
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "wall_ms": 633.931381,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": {
+        "optimizer_function_stage_executions": 300,
+        "retained_bytes": 10256308,
+        "mir_parse_ns": 133684813,
+        "mir_snapshot_bytes": 27663,
+        "machine_pass_skips": 4875,
+        "analysis_reconstructions": 507,
+        "mir_key_ns": 14428418,
+        "optimizer_module_pass_executions": 33,
+        "optimizer_function_stage_reuses": 78,
+        "failed_replays": 0,
+        "machine_function_executions": 3,
+        "mir_restore_validate_ns": 9798599,
+        "mir_capture_ns": 457746,
+        "fallback_ns": 0,
+        "available": 1,
+        "optimizer_cgscc_pass_executions": 336,
+        "asm_printer_runs": 42,
+        "mir_key_bytes": 690879,
+        "ir_key_bytes": 4554232,
+        "ir_snapshot_bytes": 48322,
+        "ir_replay_bytes": 460040,
+        "fresh_context_fallbacks": 0,
+        "machine_function_reuses": 39,
+        "mir_replay_bytes": 1118536
+      },
+      "native_phase_ms": {
+        "preflight_ns": 15.25657,
+        "builder_ns": 21.423049,
+        "optimize_ns": 204.90575,
+        "emit_ns": 186.744733
+      },
+      "codegen_ms": {
+        "machine_ns": 12.724844,
+        "partition_ns": 0.210045,
+        "diagnostic_ns": 4.746629,
+        "object_ns": 441.665734,
+        "link_key_ns": 77.431358,
+        "link_execution_ns": 28.989458,
+        "other_ns": 0.407221,
+        "total_ns": 566.175289
+      },
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 1,
+        "closure_bodies_reused": 424,
+        "name_functions_checked": 1,
+        "name_functions_reused": 424,
+        "dependency_bodies_checked": 1,
+        "dependency_bodies_reused": 424
+      },
+      "phase_ms": {
+        "parse": 0.021263,
+        "expand": 20.191753,
+        "types": 0.717096,
+        "analyze": 0.62006,
+        "verify": 14.840628,
+        "lower": 0.148243,
+        "codegen": 566.428818,
+        "ct": 12.983732
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "wall_ms": 1106.896862,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": {
+        "optimizer_function_stage_executions": 451,
+        "retained_bytes": 15244332,
+        "mir_parse_ns": 224253846,
+        "mir_snapshot_bytes": 58302,
+        "machine_pass_skips": 7250,
+        "analysis_reconstructions": 754,
+        "mir_key_ns": 23538215,
+        "optimizer_module_pass_executions": 66,
+        "optimizer_function_stage_reuses": 116,
+        "failed_replays": 0,
+        "machine_function_executions": 5,
+        "mir_restore_validate_ns": 16765765,
+        "mir_capture_ns": 1410004,
+        "fallback_ns": 0,
+        "available": 2,
+        "optimizer_cgscc_pass_executions": 504,
+        "asm_printer_runs": 63,
+        "mir_key_bytes": 966402,
+        "ir_key_bytes": 6758536,
+        "ir_snapshot_bytes": 97281,
+        "ir_replay_bytes": 684128,
+        "fresh_context_fallbacks": 0,
+        "machine_function_reuses": 58,
+        "mir_replay_bytes": 1663011
+      },
+      "native_phase_ms": {
+        "preflight_ns": 31.983438,
+        "builder_ns": 34.403352,
+        "optimize_ns": 356.736081,
+        "emit_ns": 320.096736
+      },
+      "codegen_ms": {
+        "machine_ns": 21.397972,
+        "partition_ns": 0.320581,
+        "diagnostic_ns": 17.648979,
+        "object_ns": 770.100593,
+        "link_key_ns": 87.141131,
+        "link_execution_ns": 45.907762,
+        "other_ns": 0.356212,
+        "total_ns": 942.87323
+      },
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 3,
+        "closure_bodies_reused": 422,
+        "name_functions_checked": 3,
+        "name_functions_reused": 422,
+        "dependency_bodies_checked": 3,
+        "dependency_bodies_reused": 422
+      },
+      "phase_ms": {
+        "parse": 0.025908,
+        "expand": 67.786634,
+        "types": 9.239698,
+        "analyze": 3.004506,
+        "verify": 31.314464,
+        "lower": 1.220521,
+        "codegen": 943.116595,
+        "ct": 19.465443
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "wall_ms": 1683.242933,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 92.53524,
+        "builder_ns": 26.979704,
+        "optimize_ns": 183.654169,
+        "emit_ns": 318.890861
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "wall_ms": 5096.64295,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 137.14663,
+        "builder_ns": 183.642737,
+        "optimize_ns": 1152.933136,
+        "emit_ns": 2098.926726
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "wall_ms": 8892.76164,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": {
+        "optimizer_function_stage_executions": 3816,
+        "retained_bytes": 101092024,
+        "mir_parse_ns": 0,
+        "mir_snapshot_bytes": 11592181,
+        "machine_pass_skips": 0,
+        "analysis_reconstructions": 0,
+        "mir_key_ns": 176459089,
+        "optimizer_module_pass_executions": 528,
+        "optimizer_function_stage_reuses": 0,
+        "failed_replays": 0,
+        "machine_function_executions": 424,
+        "mir_restore_validate_ns": 0,
+        "mir_capture_ns": 213506172,
+        "fallback_ns": 0,
+        "available": 16,
+        "optimizer_cgscc_pass_executions": 3392,
+        "asm_printer_runs": 424,
+        "mir_key_bytes": 6056132,
+        "ir_key_bytes": 44756960,
+        "ir_snapshot_bytes": 19433019,
+        "ir_replay_bytes": 0,
+        "fresh_context_fallbacks": 0,
+        "machine_function_reuses": 0,
+        "mir_replay_bytes": 0
+      },
+      "native_phase_ms": {
+        "preflight_ns": 165.563993,
+        "builder_ns": 236.006294,
+        "optimize_ns": 2858.203761,
+        "emit_ns": 2947.861968
+      },
+      "codegen_ms": {
+        "machine_ns": 605.49522,
+        "partition_ns": 64.206755,
+        "diagnostic_ns": 116.187103,
+        "object_ns": 6370.377568,
+        "link_key_ns": 184.707305,
+        "link_execution_ns": 40.91419,
+        "other_ns": 2.676184,
+        "total_ns": 7384.564325
+      },
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 400,
+        "closure_bodies_reused": 25,
+        "name_functions_checked": 400,
+        "name_functions_reused": 25,
+        "dependency_bodies_checked": 400,
+        "dependency_bodies_reused": 25
+      },
+      "phase_ms": {
+        "parse": 0.851878,
+        "expand": 623.447769,
+        "types": 236.505262,
+        "analyze": 38.042014,
+        "verify": 51.610764,
+        "lower": 2.555402,
+        "codegen": 7395.620407,
+        "ct": 35.407813
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "wall_ms": 1172.207063,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 0.375543,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {
+        "machine_ns": 43.807416,
+        "partition_ns": 0.130696,
+        "diagnostic_ns": 25.859482,
+        "object_ns": 36.896216,
+        "link_key_ns": 95.699425,
+        "link_execution_ns": 1.866389,
+        "other_ns": 0.471767,
+        "total_ns": 204.731391
+      },
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 0,
+        "closure_bodies_reused": 425,
+        "name_functions_checked": 0,
+        "name_functions_reused": 425,
+        "dependency_bodies_checked": 0,
+        "dependency_bodies_reused": 425
+      },
+      "phase_ms": {
+        "parse": 0.082144,
+        "expand": 478.775417,
+        "types": 169.361754,
+        "analyze": 43.666649,
+        "verify": 52.885165,
+        "lower": 5.672437,
+        "codegen": 231.287168,
+        "ct": 17.340586
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "wall_ms": 1684.485602,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 80.424577,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "wall_ms": 364.626193,
+      "valid": true,
+      "paired_executable_equal": false,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 0.0,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "wall_ms": 57.94554,
+      "valid": true,
+      "paired_executable_equal": false,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 0.0,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {},
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 1,
+        "closure_bodies_reused": 424,
+        "name_functions_checked": 1,
+        "name_functions_reused": 424,
+        "dependency_bodies_checked": 1,
+        "dependency_bodies_reused": 424
+      },
+      "phase_ms": {
+        "parse": 0.031557,
+        "expand": 22.854306,
+        "types": 13.480307,
+        "ct": 14.22264
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "wall_ms": 973.381458,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": {
+        "optimizer_function_stage_executions": 378,
+        "retained_bytes": 10258380,
+        "mir_parse_ns": 0,
+        "mir_snapshot_bytes": 1147684,
+        "machine_pass_skips": 0,
+        "analysis_reconstructions": 0,
+        "mir_key_ns": 18323131,
+        "optimizer_module_pass_executions": 33,
+        "optimizer_function_stage_reuses": 0,
+        "failed_replays": 0,
+        "machine_function_executions": 42,
+        "mir_restore_validate_ns": 0,
+        "mir_capture_ns": 20298426,
+        "fallback_ns": 0,
+        "available": 1,
+        "optimizer_cgscc_pass_executions": 336,
+        "asm_printer_runs": 42,
+        "mir_key_bytes": 691295,
+        "ir_key_bytes": 4554191,
+        "ir_snapshot_bytes": 1940100,
+        "ir_replay_bytes": 0,
+        "fresh_context_fallbacks": 0,
+        "machine_function_reuses": 0,
+        "mir_replay_bytes": 0
+      },
+      "native_phase_ms": {
+        "preflight_ns": 19.644463,
+        "builder_ns": 25.861376,
+        "optimize_ns": 303.71856,
+        "emit_ns": 284.529031
+      },
+      "codegen_ms": {
+        "machine_ns": 23.44366,
+        "partition_ns": 0.254563,
+        "diagnostic_ns": 4.712487,
+        "object_ns": 657.060884,
+        "link_key_ns": 79.745704,
+        "link_execution_ns": 29.222273,
+        "other_ns": 0.422341,
+        "total_ns": 794.861912
+      },
+      "raw_inference_work": {
+        "full_runs": 0,
+        "sparse_batches": 1,
+        "replay_fallbacks": 0,
+        "closure_bodies_checked": 1,
+        "closure_bodies_reused": 424,
+        "name_functions_checked": 1,
+        "name_functions_reused": 424,
+        "dependency_bodies_checked": 1,
+        "dependency_bodies_reused": 424
+      },
+      "phase_ms": {
+        "parse": 0.031359,
+        "expand": 20.894006,
+        "types": 67.489258,
+        "analyze": 15.703041,
+        "verify": 32.249422,
+        "lower": 3.230585,
+        "codegen": 795.16725,
+        "ct": 12.976151
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "wall_ms": 1729.220967,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 94.179677,
+        "builder_ns": 18.880215,
+        "optimize_ns": 112.858941,
+        "emit_ns": 188.954628
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "wall_ms": 498.152589,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 89.565449,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {},
+      "raw_inference_work": null,
+      "phase_ms": {}
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "wall_ms": 163.901007,
+      "valid": true,
+      "paired_executable_equal": true,
+      "native_first_attempt": null,
+      "native_phase_ms": {
+        "preflight_ns": 13.030122,
+        "builder_ns": 0.0,
+        "optimize_ns": 0.0,
+        "emit_ns": 0.0
+      },
+      "codegen_ms": {
+        "machine_ns": 14.355791,
+        "partition_ns": 0.157957,
+        "diagnostic_ns": 5.099789,
+        "object_ns": 22.121987,
+        "link_key_ns": 69.485793,
+        "link_execution_ns": 25.814075,
+        "other_ns": 0.457264,
+        "total_ns": 137.492656
+      },
+      "raw_inference_work": null,
+      "phase_ms": {
+        "analyze": 0.011146,
+        "verify": 14.631965,
+        "lower": 0.121151,
+        "codegen": 137.739987
+      }
+    }
+  ]
+}

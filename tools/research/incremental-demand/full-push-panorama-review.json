@@ -1,0 +1,419 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-12T11:51:49.666033+00:00",
+  "reviewer": "/root/audit; non-author of LLVM hook, optimizer/MIR consumers, frontend/backend production slices",
+  "source": {
+    "repository": "/workspace/zil-push-main",
+    "commit": "afc1319acd6e4c2ecb14478a222cf72b027f7133",
+    "tree": "bb1363d5031ac865e727caf7e3b0b63fc9f1df18",
+    "branch_at_review": "research/full-push-native",
+    "tracked_and_untracked_status_at_review": "",
+    "files": [
+      {
+        "path": "crates/zil-llvm-api/native/work_products.cpp",
+        "sha256": "ed5e5418f4cb3e30c5cfcfa714dc3092c555be214aa8db38d730c3504560dad7",
+        "bytes": 33846
+      },
+      {
+        "path": "crates/zil-llvm-api/native/work_products.h",
+        "sha256": "b6e754eeefe98d947e8617dd24e16af1cfea69750d9a569489c575f762f9888d",
+        "bytes": 2165
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.cpp",
+        "sha256": "38b59b2b3a4c8a3e4c2167c1f388f870d8aab211abf41f37e5e24c73e4e1d392",
+        "bytes": 9751
+      },
+      {
+        "path": "crates/zil-llvm-api/native/analysis_facts.h",
+        "sha256": "8e0cfb68c7e26e311f17bebd41ab6f7347ce5534fd8c0030566d2e06f868d338",
+        "bytes": 811
+      },
+      {
+        "path": "crates/zil-llvm-api/native/machine_products.cpp",
+        "sha256": "d755fc785b393cae0253578a6e84a5576f84447b4bdcbea174e19afd452067ba",
+        "bytes": 36330
+      },
+      {
+        "path": "crates/zil-llvm-api/native/machine_products.h",
+        "sha256": "01e4973565fc8800b366ac5446bc312bc05504600f775db55db1aa0db641a79b",
+        "bytes": 1962
+      },
+      {
+        "path": "crates/zil-llvm-api/native/zil_llvm_work_products_hooks.h",
+        "sha256": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9",
+        "bytes": 2201
+      },
+      {
+        "path": "crates/zil-llvm-api/native/llvm-function-products.patch",
+        "sha256": "4bbad606143ae2caf3da5e3ba91d6b605f82c57e1ea5ad433ce6d95993088ee0",
+        "bytes": 28210
+      },
+      {
+        "path": "crates/zil-llvm-api/native/llvm-function-products.json",
+        "sha256": "89fb6ae691c595df74f656fac490faf878fdd5966dc4f8ebde8ef8c89df7fcd7",
+        "bytes": 5793
+      },
+      {
+        "path": "tools/llvm/build_function_products.py",
+        "sha256": "42ba2d4dbb999893915169136045988b879e695ef5e13b69be11b36003e275dc",
+        "bytes": 10766
+      },
+      {
+        "path": "crates/zil-llvm-api/src/native.rs",
+        "sha256": "651d5f9c9c55cfa6ef4867f83b20cac312e6a61f1b9027454b646f26067439dc",
+        "bytes": 47448
+      },
+      {
+        "path": "crates/zil-llvm-api/src/native/products.rs",
+        "sha256": "e288694b25298c925f00e89e2ddd469d93004f7b706d2f2c3db1797dcc67da0e",
+        "bytes": 17084
+      },
+      {
+        "path": "crates/zil-driver/src/session.rs",
+        "sha256": "5c405db13c8f58b34d1fb7a4a3cbc9e47259eca54beb15ca9e8f05063a7f041c",
+        "bytes": 76444
+      },
+      {
+        "path": "crates/zil-driver/src/project.rs",
+        "sha256": "f948d8d9d79f64946db8ad8e5a38edfe6e1ab124df532aafc0f5c3554731a47f",
+        "bytes": 154860
+      },
+      {
+        "path": "crates/zil-types/src/push.rs",
+        "sha256": "5df1a5795b10e36391653d6721e889a54b1d38b5373b2c0e5c2720a7757d332b",
+        "bytes": 66502
+      },
+      {
+        "path": "crates/zil-expand/src/incremental.rs",
+        "sha256": "f0e92d6a2bbbfbce55fb4444f19a5b331db38568223d23538378425fa6393694",
+        "bytes": 62764
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/build.rs",
+        "sha256": "49fe73197d087b7deb5781b2ea9f74506bd45dcfb9c267dc5ea8eccfe1c635a8",
+        "bytes": 69367
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/incremental.rs",
+        "sha256": "6fc8134f118e73f239799774416d6f051a0b9e6d1ff3a6c104484dcbea40aca1",
+        "bytes": 19926
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/incremental.rs",
+        "sha256": "e315509561c8c3ce625bb9b6e6844cdfe4f38fb8768dd0189495b135e142e381",
+        "bytes": 28106
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/recipe.rs",
+        "sha256": "5f9892acc079686e482e295f6145cc3caa06fa38040c90857426d2f322241653",
+        "bytes": 12731
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/link_cache.rs",
+        "sha256": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79",
+        "bytes": 38623
+      }
+    ]
+  },
+  "method": {
+    "executed_by_reviewer": [
+      "read exact frozen Git source and original fixed LLVM headers/sources",
+      "read existing root raw logs and small build receipt",
+      "hash explicit small source/log/receipt files"
+    ],
+    "not_executed": [
+      "Cargo or C++ compilation",
+      "DSO relinking",
+      "compiler workloads, benchmarks or native tests",
+      "large DSO/archive hashing",
+      "production modifications"
+    ],
+    "authority": "AGENTS.md and goal/workflow fixed object ee7fcd1a229799f1146c4dbdee822d6c9f8ff269 read; root authorizes only read-only review and /tmp receipt. Named goal ref absent is not a read blocker."
+  },
+  "verdict": {
+    "bounded_source_review": "accept with stated domain and remaining checks",
+    "new_confirmed_correctness_blockers": [],
+    "complete_push_task": "NOT ACCEPTED AS COMPLETE",
+    "performance": "No new speedup claim. Latest 425-project/profile and balanced main/candidate/Rust matrix not available at this review.",
+    "reason": "There is actual reuse of optimizer and native function consumers inside the original fixed default O2 pipeline, plus real upstream incremental products. Complete propagation without avoidable whole-project rediscovery/reaggregation, broader language/pipeline coverage and demonstrated net end-to-end benefit remain open."
+  },
+  "native_exact_binding": {
+    "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "llvm_version": "23.1.4",
+    "sdk_receipt": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v13/build-receipt.json",
+      "sha256": "7e61c6801a8ca9812508981e849447187cb4ec9c3a69fbf86fbc8c683a08043e",
+      "status": "Pass",
+      "library_as_reported_not_rehashed": {
+        "path": "/workspace/.zil-environment/llvm-function-products-v13/lib/libLLVM.so.23.1",
+        "sha256": "8485131bdcefac6b4ee7596bcc9c4dcafd07bf353e1c0ff5c9e21a43e35e8e44"
+      },
+      "patch_sha256": "4bbad606143ae2caf3da5e3ba91d6b605f82c57e1ea5ad433ce6d95993088ee0",
+      "header_sha256": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9"
+    },
+    "value_symbol_table": {
+      "status": "closed for the admitted function-local naming state",
+      "proof": [
+        "Getter is const and walks every current named argument, basic block and instruction. Each lookup must point to that exact current Value; the count must equal the entire table size. Together these reject missing, stale and extra foreign map entries, not just a count collision.",
+        "Function text keys include table presence, maximum name length and actual uint32 LastUnique, in addition to current IR and complete block numbering. Incoming caller projections use this same functionText.",
+        "Cold output records the successful actual NameState. Replay reconstructs named current Values, checks identical table presence/MaxNameSize and complete current name-map closure, and only assigns LastUnique. It transports no Value/name-map owner.",
+        "The counter is restored before exact complete output comparison and before analysis factories and subsequent optimizer stages. SSA names are retained; no normalization weakens the equality. Invalid presence/map/max or missing helper is a failed replay and follows whole-invocation fallback."
+      ],
+      "limit": "This is not a general serialization of all LLVM module state or arbitrary user/plugin pipelines. The admitted body/header/global projection and fixed default factory premises remain essential."
+    },
+    "abi2": {
+      "status": "reviewed fail-closed for supported default pipeline paths",
+      "checks": [
+        "Only abi_version==2 is accepted before callback-prefix reads. ABI1 of any earlier size is rejected; request_failed tail is only read at version2. Null/unsupported hooks retain original LLVM behavior.",
+        "Generic Function/Module PM and CGSCC PM check the request-owned failure flag immediately after child return, before invalidation/instrumentation-after and before using a potentially invalidated SCC.",
+        "Module-to-Function, Module-to-postorder-CGSCC, CGSCC-to-Function, devirtualization repeater and function-to-loop canonicalization check failure at their actual child-return boundaries. Legacy function PM does not verify or register skipped/unexecuted analyses.",
+        "Failure callbacks inspect Request.Failed only. Pending tokens are owned by the request; no deferred callback must dereference a deleted SCC/function to clean up.",
+        "Rust rejects late Finish status/counter failures, destroys the first complete LLVM invocation before fresh ordinary retry, and isolates reentrant compilations with lexical TLS suspension. Failed/cancelled builds do not publish products."
+      ],
+      "limit": "Not an assertion that arbitrary additional plugin/custom pass managers have equivalent abort guards; only fixed admitted native pipeline is supported."
+    },
+    "analysis_state": {
+      "status": "explicit reviewed domains; unknown state fresh",
+      "facts": [
+        "Current registered analysis order and actual supported values, not names/IDs alone, bind entry and exit. The current FAM is cleared before replacing a function and current factories rebuild exit results. Exact resulting availability/order and full facts must match.",
+        "DT/PDT output includes ordered children/idoms/levels/root and DFS state. Public updateDFSNumbers reconstructs captured valid state on the current tree; equality is not dropped. Function BB numbers/Next/Epoch are restored separately before rebuilding analyses.",
+        "Assumption-cache empty projection is truly const, checks current Function/TTI owner and genuinely empty containers, and restores only the sealed lazy Scanned bit. LastRunTracking allows only empty/default InstCombine no-option state.",
+        "TLI includes actual per-function unavailable override bits as well as every library availability/name and ABI extension flags. TTI depends on the fixed current target/config/function factory; no old result is transported.",
+        "Local AA accepts exactly the known current default registration recipe and ordered three current dependencies (BasicAA/Scoped/TBAA); absent GlobalsAA aggregation is proven. BasicAA verifies current references and empty scratch state. The module proxy requires actual current FAM, no deferred invalidations, and only allowed cached outer analyses with genuinely empty profile summary.",
+        "LoopInfo only empty/acyclic; LoopAMProxy, global AA and other unrepresented mutable analyses stay fresh. ORE requires current function, no BFI/remarks/hotness."
+      ],
+      "remaining": "Broader result domains and transitive SCC/global analysis reuse need their own actual field/dependency proof; the explicit analysis allowlist does not cover all LLVM analyses. The complex warm test still executes 14 function-stage groups, all 33 Module pass executions and all 16 CGSCC pass executions."
+    },
+    "intrinsic_transport": "Actual original intrinsic declaration text/complete attributes are independently bound to CURRENT declarations. Bitcode-upgraded declaration attributes are rebound to that exact original/current state before current clone, and final output equality stays mandatory.",
+    "mir": "Current MMI/FunctionNumber is retained; parse binds current IR owners, original sparse MBB/analysis numbering and epochs are restored with validation, hidden alignment/force-label/predecessor order and closed-domain MFI value state are preserved. Every real MI (including bundle members) is checked. Stack/GC/EH/other owner-bearing states outside the explicit domain are rejected. Actual emission-required provider closure stays fresh, and original AsmPrinter/MC still emits the complete affected unit.",
+    "capacities": "Optional encoded products are bounded (stage and machine quotas/slot caps, backend active plus three LRU native epochs with aggregate logical payload cap). These are not RSS bounds: current reconstruction, old+new overlap, allocator/container/owner overhead and raw model storage remain. They do not replace language work/source budgets."
+  },
+  "observed_validation": {
+    "logs": [
+      {
+        "name": "native-products-full-tests-05",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-products-full-tests-05.log",
+          "sha256": "f490b7ae3f57b6d6b91734c297a06287339a027908fdd883de7b78ec2196d97a",
+          "bytes": 34130
+        },
+        "test_summaries": [
+          "test result: FAILED. 47 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-05.exit",
+          "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+          "bytes": 4
+        },
+        "exit_code": 101
+      },
+      {
+        "name": "native-products-full-tests-06",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-products-full-tests-06.log",
+          "sha256": "be7e4f2161188a9c1ba1504c76dabc17771aa061fddfbad7491a3ddbe4243097",
+          "bytes": 66577
+        },
+        "test_summaries": [
+          "test result: FAILED. 51 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-06.exit",
+          "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+          "bytes": 4
+        },
+        "exit_code": 101
+      },
+      {
+        "name": "native-products-full-tests-07",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/native-products-full-tests-07.log",
+          "sha256": "2d6e08de984485a5dcb9da696c8de4b38af37f88abb8604bbd8c40957484827a",
+          "bytes": 66267
+        },
+        "test_summaries": [
+          "test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s"
+        ],
+        "exit": {
+          "path": "out/runs/native-products-full-tests-07.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "full-push-clippy-07",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/full-push-clippy-07.log",
+          "sha256": "a2e477285458dbfd959b9559e8b3d3f0bd2084c9a4a5695bcdb01afb8fcabedf",
+          "bytes": 561
+        },
+        "test_summaries": [],
+        "exit": {
+          "path": "out/runs/full-push-clippy-07.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "default-worker-stack-fix-02-full",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/default-worker-stack-fix-02-full.log",
+          "sha256": "c845252779c2f93cbf5ab35c032adda7ec587674dbddce25d5894232f2139b85",
+          "bytes": 18657
+        },
+        "test_summaries": [
+          "test result: ok. 214 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.19s"
+        ],
+        "exit": {
+          "path": "out/runs/default-worker-stack-fix-02-full.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      },
+      {
+        "name": "types-stack-dispatch-tests-01",
+        "execution": "root; reviewer read existing logs only",
+        "log": {
+          "path": "out/runs/types-stack-dispatch-tests-01.log",
+          "sha256": "dead93f690214d06d3730387d460de89b9a36c380cd43268463b408afbcde406",
+          "bytes": 9891
+        },
+        "test_summaries": [
+          "test result: ok. 95 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.57s"
+        ],
+        "exit": {
+          "path": "out/runs/types-stack-dispatch-tests-01.exit",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "bytes": 2
+        },
+        "exit_code": 0
+      }
+    ],
+    "latest_native": {
+      "executed_by": "root",
+      "independently_read": "native-products-full-tests-07.log and .exit",
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0,
+      "complex_scalar_warm": {
+        "optimizer_function_stage_reuses": 4,
+        "optimizer_function_stage_executions": 14,
+        "analysis_reconstructions": 26,
+        "machine_function_reuses": 2,
+        "machine_function_executions": 0,
+        "machine_pass_skips": 250,
+        "asm_printer_runs": 2,
+        "optimizer_module_pass_executions": 33,
+        "optimizer_cgscc_pass_executions": 16,
+        "failed_replays": 0,
+        "fresh_context_fallbacks": 0
+      },
+      "oracle": "The current test source retains cold == warm == ordinary object byte assertions and mandatory nonzero reuse counts. Ordinary here uses the same patched DSO with hooks disabled, not a separately built original SDK oracle.",
+      "timing_limit": "No fixture timing is a compiler performance conclusion; the full07 complex fixture includes MIR parse/reconstruction cost."
+    },
+    "negative_history": "Native full05/full06 failed gates are retained, not rewritten. Original 33-group default workspace had 32 passing groups and one worker-stack overflow. Targeted original generic214 and Types95 later pass and strict all-target clippy07 passes, but these do not assert a fresh afc whole-workspace pass."
+  },
+  "one_private_edit_actual_consumer_path": [
+    {
+      "stage": "Source/Expand",
+      "path": "zil-driver project_pipeline -> ProducerSession.expand_parsed -> sealed FunctionChangeBatch",
+      "binding": "current bytes/IDs/spans/parser context and successful immutable producer history",
+      "work": "Shared AST item/Core owner reuse and real successful inference fee replay; rich rewrites, incompatible environments and unrepresented state are fresh."
+    },
+    {
+      "stage": "Types",
+      "path": "project.rs push_types.apply -> zil-types push.rs try_sparse",
+      "binding": "current prepared producer epoch, complete type/target/Limits context, current signature store and observed readers",
+      "work": "Change the actual body/signature consumer; propagate signature changes to recorded readers. Full aggregates and budget replay still occur where not separately represented; failed replay uses original current order."
+    },
+    {
+      "stage": "Analyze and Verify",
+      "path": "session.rs finish_typed -> analyze_product -> typed.verify/verify_product_program_module",
+      "binding": "current raw Typed/Candidate owners plus actual effect/callee dependencies; Verify independently binds its own current raw/plan/closure/context and Limits",
+      "work": "Reuse admitted per-function effects/checker-local obligations; all required global obligations remain. A cached Analyze result never supplies verification authority."
+    },
+    {
+      "stage": "Lower/model/CGU",
+      "path": "session.rs lower_view -> Backend build_view_with_cancellation_and_session -> emit incremental -> machine_cgu recipe",
+      "binding": "current Verified input, exact immutable function leaves, all current global/layout/ABI/config/limits prerequisites",
+      "work": "Lower real changed model functions; keep shared function bodies and unchanged partition units. Unsupported mixed/parallel/global contexts use original paths; preserve original consumer fees/first errors."
+    },
+    {
+      "stage": "native object",
+      "path": "build.rs current native/preflight -> compile_module_with_native_products -> original PM Function-stage replay -> MFP/MIR restore -> original AsmPrinter",
+      "binding": "complete current policy, current input/world/analysis state and actual output/hidden-state equality",
+      "work": "Unchanged admitted stage/MF products stop those consumers, not whole Module/CGSCC or assembly. Affected CGU remains object granularity; all-hit disk objects still receive current preflight."
+    },
+    {
+      "stage": "link/executable",
+      "path": "build.rs -> link_cache current dependency discovery/key -> final link or byte-equal key reuse",
+      "binding": "actual object payload bytes plus complete current tool/runtime/library/script and candidate existence closure",
+      "work": "Actual equal object results can stop link propagation. A changed complete key invokes the original linker; current library contents and search observations cannot be replaced by an old tool stamp."
+    }
+  ],
+  "remaining_work": [
+    {
+      "priority": 1,
+      "scope": "Complete current real workload/native gate before claiming endpoint",
+      "evidence": "full07 complex fixture passes both optimization and emission consumer reuse; final afc real425 profile and fresh full gates are pending. Historical v8 real425 had zero optimizer reuse and cold/broad regressions.",
+      "safe_next": "Use the frozen afc binary/SDK receipts and original-SDK quality pairs to run the current 425 histories, inspect exact remaining fresh-stage/MF reasons and four MIR scopes, then balanced unprofiled end-to-end trials. Do not infer speed from skipped passes."
+    },
+    {
+      "priority": 2,
+      "scope": "Repeated native dependency projection and transport",
+      "source": "work_products.cpp worldText/functionText/beforeStage/afterStage; analysis_facts.cpp TLI enumeration; machine_products.cpp parser/restore/capture",
+      "avoidable": "Cloning/printing all module headers and caller bodies at each stage; re-enumerating identical fixed-factory TLI facts; bitcode/MIR transport and repeated current validation. With many functions/stages, world construction can scale as functions times stage occurrences times module-header size.",
+      "necessary": "Current stage inputs/actual analysis facts and global/SCC effects must be represented; current Module/CGSCC passes cannot be dropped because a function body is unchanged.",
+      "safe_next": "Seal/share current module-global/header projections and fixed-factory TLI base facts once per completed invocation; bind exact versioned actual changes and actual caller dependencies. Measure key bytes and phase time before replacing current exact keys. Add richer analysis domains only after complete fields/dependencies are represented."
+    },
+    {
+      "priority": 3,
+      "scope": "Position-only and retained-parent frontend/model costs",
+      "evidence": "Historical v8 positions wall866.294ms included Expand446.652ms; native history can restore products while backend machine-model still rebuilds substantial old-parent work. These timings are that older source only.",
+      "avoidable": "Repeated absolute-span/source-map rebinding and full inventories for semantically equal positions, plus lost raw backend accelerator epochs on a retained parent.",
+      "necessary": "Current diagnostics/source locations/IDs, parser configuration, global budgets and exact current semantic context must remain valid.",
+      "safe_next": "Use privately sealed semantic-vs-position views and owner-bound raw backend checkpoints at existing retained owners. Keep current source/Typed equality and independent Verify requirements explicit; do not use old Verified capabilities or weaken source binding."
+    },
+    {
+      "priority": 4,
+      "scope": "Whole-project inventories/fingerprints/scheduling and sidecar writes",
+      "avoidable": "Repeated equality/header/name inventories and aggregation of unchanged structural trees; output-sidecar full writes when consumer can use shared exact fragments; eager work for no downstream consumer.",
+      "necessary": "Global name uniqueness, complete current inventories, global resource/closure/task/ABI constraints and error/budget order. Dense edits genuinely affect many leaves.",
+      "safe_next": "Make actual aggregate nodes persistent/differential and propagate result equality to their real consumers, with collision-safe exact owner/value proof. A centralized graph is optional; completed epoch consistency and recorded consumer delivery are required. Preserve actual checker obligations and original failure ordering.",
+      "copy_clarification": "PersistentVec/SharedVec/Arc owners already share immutable AST/CFG/hold/initialization bodies. Do not report their cheap owner clones as full-body deep copies; remaining costs are actual traversals, newly changed COW paths, wrapper/header inventories and output materialization."
+    },
+    {
+      "priority": 5,
+      "scope": "Link discovery and global object packaging",
+      "evidence": "Historical v8 private625.635ms includes object416.676ms, optimization~150.84ms, emission211.99ms, link discovery76.542ms, link25.993ms; one profiled candidate, not a balanced ratio or current-afc prediction.",
+      "necessary": "Current external dependency/negative search-candidate closure, relocation/layout and final canonical ELF correctness. Current affected-CGU Builder/preflight/LLVMVerify and original MC/AsmPrinter still run.",
+      "safe_next": "Cache discovery only with all observed argv/env/cwd/tool and positive/negative filesystem dependencies, including newly appearing search candidates. Investigate actual fragment/symbol/relocation output consumers separately; ThinLTO whole-module caches, ORC JIT or Zig incremental linker APIs are not a replacement proof for byte-identical final AOT executable semantics."
+    }
+  ],
+  "industry_basis": {
+    "references": "tools/research/incremental-demand/industry/references.json",
+    "pin": "LLVM23 runtime fixed commit above; older official LLVM, fixed Zig and Souper sources are explicitly separate evidence",
+    "reuse": "Demand/red-green consumers, actual ThinLTO summary/import/export dependencies, function-stage PM analysis invalidation, resident MIR/native metadata and incremental-link atom dependency concepts",
+    "limits": "Module backend caches are not function optimization reuse; ORC/Clang JIT lifetime is not complete final AOT linking; MIR print/parse does not alone preserve native state. LLVM-derived files use Apache-2.0 WITH LLVM-exception; upstream source licenses remain attached in the reference inventory."
+  },
+  "not_claimed": [
+    "Full language/general recursion/loop/memory/task/FFI/resource native-stage cache coverage",
+    "All LLVM default or custom analysis domains cacheable",
+    "Whole Module/CGSCC/link/MC incrementalization complete",
+    "Fresh whole-workspace afc gate complete",
+    "Actual afc425 workload or original-SDK quality profile completed at this review",
+    "Cold/broad wins, speedup or Rust superiority",
+    "Logical cache quota is a process memory/RSS bound",
+    "This checkpoint completes the user task"
+  ],
+  "continuation": "Proceed with the already-authorized implementation and full current-source baseline. This receipt supports construction and records bounds; it is not a stopping point."
+}

@@ -101,3 +101,31 @@ Raw v7 was remotely pushed and freshly HTTPS recovered: archive/source-history a
 c04b7a9adc7d2c53d1c64f18145c6eb371dc8638,935 files/495641306 raw bytes,6 parts,
 134445243 compressed bytes. Read full-push-recovery-v7.json for scope and SHA256.
 Later scalar04/05, stacktrace and successful stack repair are outside this snapshot.
+
+## Joint-chain evidence and measured negative cost
+
+SDKv13 and sourceafc1319 pass all53 native tests, with original complete object equality,
+numbering/alignment/reentrant/failure/abort tests retained. A subsequent defensive name-map
+admission check at bf45ea905 also passes53 native tests and strict native-products workspace
+Clippy; the strengthened bundle-owner cold/warm scratch passes separately. These overlapping
+53-test runs are not added together. Original default-feature strict Clippy07 passed.
+
+The real425 diagnostic04 at afc1319 completed34 valid requests,180 native executions and15
+same-request whole-ELF-equal pairs with original-SDK main42. Private edit:78 optimization
+stage reuses/300 executions,507 current analysis reconstructions,39 machine function reuses/
+3 executions,4875 machine pass skips,0 fallback. Pre-CT each visitor checks1/reuses424.
+
+There is no demonstrated new wall-time gain: private633.931ms; cold8565.004ms,
+broad8892.762ms are retained negatives. This candidate-only-profiled, single-block window
+is not a formal comparison to oldv8 or Rust. Object441.666ms includes optimization204.91ms
+and emission186.74ms; actual MIR parsing133.685ms, restoration/check9.799ms, key14.428ms,
+capture0.458ms. Link discovery77.431ms and actual linking28.989ms remain. More pass reuse
+without deleting serialization/reconstruction is insufficient.
+
+Consequently the next construction is driven by cost: retain the original small MIR header
+parser for complex current state but reconstruct the MI/MBB body directly; share or directly
+render complete current world/header/TLI projections instead of repeatedly cloning/serializing
+unchanged dependencies. Neither slice may weaken complete input/analysis binding or output
+oracles. A separate raw-machine owner-history slice must restore identities atomically with
+values, since restoring only the old module with the new epoch's scalar identity is unsound.
+See full-push-diagnostic-v13.json and full-push-panorama-review.json.
