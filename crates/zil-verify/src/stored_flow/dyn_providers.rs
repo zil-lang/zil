@@ -505,7 +505,12 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                     }
                     for source in &actual.2 {
                         if source.base == HoldRoot::Static {
-                            continue;
+                            // The complete target upper applies to static
+                            // targets too. The old Exact-only after route has
+                            // no independent static/parent operation consumer.
+                            return Err(bad(
+                                "actual static receiver-after target requires an explicit independently checked Static source",
+                            ));
                         }
                         let source = selected(table, source, b)?.ok_or_else(|| {
                             bad("provider after-state retains activation-local storage")
