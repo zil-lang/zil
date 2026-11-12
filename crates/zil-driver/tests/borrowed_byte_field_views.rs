@@ -139,3 +139,118 @@ fn removing_the_actual_parent_cannot_leave_its_payload_view_live() {
         zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
     assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
 }
+
+#[test]
+fn actual_byte_head_and_loan_proof_is_bounded_in_both_kernels() {
+    let module = typed(SOURCE);
+    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for verify in [false, true] {
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let middle = low + (high - low) / 2;
+            let limits = Limits {
+                max_analysis_steps: middle,
+                ..Limits::default()
+            };
+            let result = if verify {
+                zil_verify::verify_module(
+                    module.clone(),
+                    candidate.clone(),
+                    &module.target,
+                    &limits,
+                )
+                .map(|_| ())
+            } else {
+                zil_analyze::analyze(&module, &limits).map(|_| ())
+            };
+            match result {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .any(|error| error.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle + 1;
+                }
+            }
+        }
+        assert!(low > 0);
+        for (steps, success) in [(low, true), (low - 1, false)] {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            let result = if verify {
+                zil_verify::verify_module(
+                    module.clone(),
+                    candidate.clone(),
+                    &module.target,
+                    &limits,
+                )
+                .map(|_| ())
+            } else {
+                zil_analyze::analyze(&module, &limits).map(|_| ())
+            };
+            assert_eq!(
+                result.is_ok(),
+                success,
+                "verify={verify}, steps={steps}: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_managed_observation_has_no_hidden_owner_transfer() {
+    let source = r#"
+package Value{manages bytes:ByteBuffer;id:i32}
+package Entry{value:Value;key:i32}
+fn relay(entry:Entry)->Entry{return entry}
+fn main()->i32{
+ let bytes=bytes_new();if !bytes_reserve(bytes,1)||!bytes_push(bytes,66u8){return 1}
+ var original=Entry{value:Value{bytes:give bytes,id:7},key:9}
+ let description=original.value.bytes
+ let view=bytes_view(description)
+ let old=i32(view[0])
+ let retried=relay(original)
+ return old+retried.value.id+retried.key-82
+}
+"#;
+    let module = typed(source);
+    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        candidate.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+    let bad = source
+        .replace("let old=i32(view[0])", "let old=66")
+        .replace(
+            "return old+retried.value.id+retried.key-82",
+            "return i32(view[0])+retried.value.id+retried.key-82",
+        );
+    let module = typed(&bad);
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    let mut dishonest = candidate;
+    dishonest.module_fingerprint = module.fingerprint();
+    assert!(
+        zil_verify::verify_module(
+            module.clone(),
+            dishonest.clone(),
+            &module.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    let wire =
+        zil_ir::wire::encode_module_candidate(&module, &dishonest, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+}
