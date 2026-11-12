@@ -20,6 +20,7 @@ pub struct BackendSession {
     pub(crate) link_tools: crate::object_cache::InstalledToolIdentities,
     diagnostic_items: zil_ir::PersistentVec<DiagnosticItem>,
     diagnostic_fragments: zil_ir::PersistentVec<Arc<String>>,
+    diagnostic_output: Option<crate::machine_output::MachineOutput>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendSessionSummary {
@@ -51,6 +52,7 @@ impl BackendSession {
         &self.summary
     }
     pub(crate) fn render(&mut self, module: &Module) -> DiagnosticText {
+        self.diagnostic_output = None;
         let header = Module {
             triple: module.triple.clone(),
             fingerprint: module.fingerprint.clone(),
@@ -119,6 +121,51 @@ impl BackendSession {
             fingerprint: None,
         }
     }
+    pub(crate) fn render_output(
+        &mut self,
+        output: &crate::machine_output::MachineOutput,
+    ) -> DiagnosticText {
+        let changed = self
+            .diagnostic_output
+            .as_ref()
+            .and_then(|old| output.changed_items(old))
+            .filter(|_| self.diagnostic_fragments.len() == output.len());
+        let Some(changed) = changed else {
+            let diagnostic = self.render(&output.to_module());
+            self.diagnostic_output = Some(output.clone());
+            return diagnostic;
+        };
+        let mut fragments = self.diagnostic_fragments.clone();
+        let mut items = self.diagnostic_items.clone();
+        for &index in &changed {
+            let item = output
+                .item(index)
+                .expect("complete actual changed output index");
+            let product = Arc::new(DiagnosticItem {
+                item: item.clone(),
+                text: Arc::new(zil_llvm_api::model::item_to_text(item)),
+            });
+            fragments.replace(index, product.text.clone());
+            items.set_owner(index, product);
+        }
+        self.summary.rendered_diagnostic_items += changed.len();
+        self.summary.reused_diagnostic_items += output.len() - changed.len();
+        self.diagnostic_items = items;
+        self.diagnostic_fragments = fragments.clone();
+        self.diagnostic_output = Some(output.clone());
+        DiagnosticText {
+            text: Arc::new(
+                Module {
+                    triple: output.triple.clone(),
+                    fingerprint: output.fingerprint.clone(),
+                    items: Vec::new().into(),
+                }
+                .to_text(),
+            ),
+            fragments,
+            fingerprint: None,
+        }
+    }
     pub(crate) fn begin(&mut self) {
         self.summary = BackendSessionSummary {
             native_history_retained_epochs: self.native_products.retained_epochs(),
@@ -165,7 +212,7 @@ fn same_products(left: &ScalarProducts, right: &ScalarProducts) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TransformProduct {
     pub(crate) input: ScalarIdentity,
-    pub(crate) machine: Module,
+    pub(crate) machine: crate::machine_output::MachineOutput,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct PartitionInput {
@@ -185,6 +232,7 @@ struct RawInput {
     layouts: Vec<zil_ir::ScalarLayout>,
 }
 impl PartitionInput {
+    #[cfg(test)]
     pub(crate) fn new(
         options: &BuildOptions,
         names: Option<&[(FunctionId, String)]>,
@@ -193,10 +241,27 @@ impl PartitionInput {
         machine: &Module,
         scalar: Option<ScalarIdentity>,
     ) -> Self {
+        Self::new_output(
+            options,
+            names,
+            collected,
+            lir,
+            &machine.clone().into(),
+            scalar,
+        )
+    }
+    pub(crate) fn new_output(
+        options: &BuildOptions,
+        names: Option<&[(FunctionId, String)]>,
+        collected: bool,
+        lir: &LirView<'_>,
+        machine: &crate::machine_output::MachineOutput,
+        scalar: Option<ScalarIdentity>,
+    ) -> Self {
         let mut options = options.clone();
         options.output.clear();
         let machine = scalar.is_none().then(|| {
-            let mut machine = machine.clone();
+            let mut machine = machine.to_module();
             machine.fingerprint.clear(); // diagnostic only, never native Builder input
             machine
         });

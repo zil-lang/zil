@@ -22,6 +22,7 @@ pub(crate) struct Session {
     context_identity: Arc<()>,
     pub(crate) products: crate::incremental::ScalarProducts,
     product_count: usize,
+    pub(super) output_bodies: zil_ir::PersistentVec<m::SharedVec<m::Item>>,
     pub(crate) eligible: bool,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
     machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
@@ -352,6 +353,7 @@ impl Session {
         };
         if self.context.as_deref() != Some(&context) {
             self.products.clear();
+            self.output_bodies.clear();
             self.entries = EntryTable::for_functions(lir.functions);
             self.context = Some(Arc::new(context));
             self.context_identity = Arc::new(());
@@ -424,10 +426,18 @@ impl Session {
     pub(crate) fn identity(&self) -> Option<crate::incremental::ScalarIdentity> {
         (self.eligible
             && self.product_count == self.products.len()
+            && self.product_count == self.output_bodies.len()
             && self.product_count == self.admitted.len())
         .then(|| (self.context_identity.clone(), self.products.clone()))
     }
-    fn publish_product(&mut self, machine: Arc<()>, source: Arc<()>) {
+    fn publish_product(&mut self, machine: Arc<()>, source: Arc<()>, body: &m::SharedVec<m::Item>) {
+        if let Some(old) = self.output_bodies.get(self.product_count) {
+            if !old.ptr_eq(body) {
+                self.output_bodies.replace(self.product_count, body.clone());
+            }
+        } else {
+            self.output_bodies.push(body.clone());
+        }
         let value = crate::incremental::FunctionProductIdentity(machine, source);
         if let Some(previous) = self.products.get(self.product_count) {
             if previous != &value {
@@ -522,7 +532,11 @@ impl Session {
             reserve_current()?;
             self.hits += 1;
             let output = entry.output.as_ref().clone();
-            self.publish_product(entry.output_identity.clone(), entry.source_identity.clone());
+            self.publish_product(
+                entry.output_identity.clone(),
+                entry.source_identity.clone(),
+                &output.body,
+            );
             return Ok(output);
         }
         let output = lower()?;
@@ -543,7 +557,11 @@ impl Session {
                 _ => false,
             })
             .map_or_else(|| Arc::new(()), |old| old.source_identity.clone());
-        self.publish_product(output_identity.clone(), source_identity.clone());
+        self.publish_product(
+            output_identity.clone(),
+            source_identity.clone(),
+            &output.body,
+        );
         self.entries.insert(
             function.id,
             Arc::new(Entry {

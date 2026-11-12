@@ -7,7 +7,7 @@ use zil_llvm_api::model::{Function, Item, Module};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Recipe {
-    source: Module,
+    source: crate::machine_output::MachineOutput,
     layout: Arc<layout::Layout>,
     consumers: Arc<Vec<Vec<(usize, usize)>>>,
 }
@@ -29,7 +29,7 @@ impl Recipe {
             }
         }
         Some(Self {
-            source,
+            source: source.into(),
             layout: Arc::new(layout),
             consumers: Arc::new(consumers),
         })
@@ -37,19 +37,41 @@ impl Recipe {
     /// Caller additionally binds the current independently admitted source
     /// inventory, ABI/limits/target/options and absence of post-partition edits.
     /// This method checks every changed native input's complete relevant graph.
+    #[cfg(test)]
     pub(crate) fn replay(
         &self,
         module: &Module,
         previous: &[Module],
     ) -> Option<(Plan, Self, usize)> {
+        self.replay_output(&module.clone().into(), previous)
+    }
+    /// Bind only the actual complete cold planner input. This one-time full Eq
+    /// prevents a foreign output tree from acquiring this recipe's layout.
+    pub(crate) fn bind_output(&mut self, output: &crate::machine_output::MachineOutput) -> bool {
+        if self.source.to_module() != output.to_module() {
+            return false;
+        }
+        self.source = output.clone();
+        true
+    }
+    pub(crate) fn replay_output(
+        &self,
+        module: &crate::machine_output::MachineOutput,
+        previous: &[Module],
+    ) -> Option<(Plan, Self, usize)> {
         if self.source.triple != module.triple
-            || self.source.items.len() != module.items.len()
+            || self.source.len() != module.len()
             || previous.len() != self.layout.units.len()
         {
             return None;
         }
+        let candidates = module
+            .changed_items(&self.source)
+            .unwrap_or_else(|| (0..module.len()).collect());
         let mut changed = BTreeSet::new();
-        for (index, (old, current)) in self.source.items.iter().zip(&module.items).enumerate() {
+        for index in candidates {
+            let old = self.source.item(index)?;
+            let current = module.item(index)?;
             if old == current {
                 continue;
             }
@@ -86,7 +108,7 @@ impl Recipe {
                 return None;
             }
             for &(unit, slot) in consumers {
-                *units.get_mut(unit)?.items.get_mut(slot)? = module.items.get(index)?.clone();
+                *units.get_mut(unit)?.items.get_mut(slot)? = module.item(index)?.clone();
                 updated.insert(unit);
             }
         }
@@ -385,7 +407,8 @@ mod tests {
         assert_eq!(updated.units, layout.replay(current.clone()));
         assert!(Arc::ptr_eq(&recipe.consumers, &next.consumers));
         assert_eq!(
-            recipe.source, module,
+            recipe.source.to_module(),
+            module,
             "old successful parent stays immutable"
         );
         let mut imported = layout.clone();
