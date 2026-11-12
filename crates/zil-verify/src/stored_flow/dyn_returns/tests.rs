@@ -1187,6 +1187,162 @@ fn reborrow_call_retains_distinct_head_and_data_children_without_publishing_head
 }
 
 #[test]
+fn head_role_survives_a_summary_even_when_the_forwarder_upper_is_exact() {
+    let (module, callee, actual) = borrowed_owner_boundary();
+    let mut wrapper = callee.clone();
+    wrapper.values = vec![callee.locals[0].ty.clone(), callee.return_type.clone()];
+    let head = Source {
+        base: HoldRoot::Parameter(0),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    };
+    let mut data = head.clone();
+    data.retained_port = Some(PortOrigin::Dyn {
+        carrier: vec![],
+        port: 0,
+    });
+    let frame = || {
+        let mut state = Frame {
+            external: vec![Payload::default(); 2],
+            ..Frame::default()
+        };
+        state.external[0].dyn_ports = dyn_ports::Rows(vec![(
+            vec![ContractProjection::RetainedPort(0)],
+            dyn_ports::Port {
+                permission: Permission {
+                    sources: vec![data.clone()],
+                    loans: vec![0],
+                },
+                parent_sources: vec![],
+                head_sources: vec![],
+                known: true,
+            },
+        )]);
+        state
+    };
+    let values = vec![
+        Payload {
+            address: Permission {
+                sources: vec![head.clone()],
+                loans: vec![1],
+            },
+            ..Payload::default()
+        },
+        Payload::default(),
+    ];
+    let initial_loans = vec![
+        Loan {
+            sources: vec![data.clone()],
+            ..Loan::default()
+        },
+        Loan {
+            sources: vec![head.clone()],
+            exclusive: true,
+            ..Loan::default()
+        },
+    ];
+    let i = Instruction {
+        result: Some(ValueId(1)),
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    b.dyn_reborrow_sources = true;
+    let mut loans = initial_loans.clone();
+    let mut sites = dyn_leases::Sites::default();
+    let mut out = Payload::default();
+    dyn_ports::call(
+        &module,
+        &wrapper,
+        &callee,
+        &i,
+        &Summary {
+            complete: true,
+            dyn_ports: actual,
+            ..Summary::default()
+        },
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &frame(),
+        &mut out,
+        &mut sites,
+        &mut loans,
+        &mut b,
+    )
+    .unwrap();
+    // Only the actual function-local arena establishes this role; neither the
+    // public upper nor a generic parent source is accepted as a head proof.
+    let mut summary = Summary {
+        complete: true,
+        ..Summary::default()
+    };
+    summarize(
+        &module,
+        &wrapper,
+        &out,
+        &mut summary,
+        &loans,
+        &sites,
+        &mut b,
+    )
+    .unwrap();
+    assert_eq!(summary.dyn_ports.0[0].1.head_sources, [head.clone()]);
+    assert_eq!(summary.dyn_ports.0[0].1.permission.sources, [data.clone()]);
+    assert!(summary.dyn_ports.0[0].1.permission.loans.is_empty());
+    wrapper.retained_return_sources.as_mut().unwrap()[0].sources =
+        vec![StorageSource::Exact(StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(0)],
+        })];
+    // A separate caller has a new loan arena. It must establish a new head
+    // child even though its immediate callee advertises an Exact data upper.
+    let mut loans = initial_loans;
+    let mut sites = dyn_leases::Sites::default();
+    let mut out = Payload::default();
+    dyn_ports::call(
+        &module,
+        &wrapper,
+        &wrapper,
+        &i,
+        &summary,
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &frame(),
+        &mut out,
+        &mut sites,
+        &mut loans,
+        &mut b,
+    )
+    .unwrap();
+    let permission = &out.dyn_ports.0[0].1.permission;
+    assert_eq!(permission.sources, [data]);
+    assert_eq!(
+        sites.head_sources(permission, &loans, &mut b).unwrap(),
+        [head]
+    );
+    let active = ancestry(&permission.loans, &loans, &mut b).unwrap();
+    assert!(
+        access(
+            &values[0].address,
+            true,
+            &active,
+            &loans,
+            &mut vec![],
+            &mut b
+        )
+        .is_err()
+    );
+    assert!(access(&values[0].address, true, &[], &loans, &mut vec![], &mut b).is_ok());
+}
+
+#[test]
 fn actual_static_target_or_empty_data_does_not_discharge_a_retained_activation_head() {
     let (module, mut f, mut actual) = boundary();
     // The output class is not supplied by either input scope. Static data
