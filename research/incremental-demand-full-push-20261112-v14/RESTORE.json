@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "bf77b4a40dd0468bd1985958d7ff33c6a41fc0ba39a20a6160483e7837d467d1",
+  "limits": "Full fixedHTTPS byte/mode recovery; then archived actualmatched_validate with archivedhelpers reruns270. No new benchmark or compile/native execution. Firstfailures preserved; currentO2 excluded.",
+  "manifest": {
+    "bytes": 867128,
+    "sha256": "1f3bda3bdfd9f797cc0acfd5714b7d04aadd117053f59dba4f9f0645d32af0c8"
+  },
+  "schema": 1,
+  "scope": "V14 complete formalcheck02 at source1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/release11binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393 and baseline3ec7: sixbalancedblocks/all270requests/144measured126namedparents/117blobs, no profiling/no new archive-time compiler or native execution. Preserve firstTypes01/fmt09 failures, fixesTypes02/driver13/fmt10/release10; final native23/backend10/mixed02/strictClippy11/fmt11/release11; flatMIR/canonicalAU audit; full check raw/cache/runtimeDSOs/sources/tools/receipts/validation and prior recovery/cleanup06 metadata. Current O2 has not run. No crosslanguage check-guarantee parity, partition parity or full compiler minimality claim. Rust remains pinned1.99.1/58cf8 with newCargo processes versus residentZil, distinctLLVM and check guarantees. All CPU/RSS scope boundaries and individual observations remain raw.",
+  "source_commits": {
+    "formal_check": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+    "release10": "068cb0267a7e7f3a7683cb5033806696dc38e7f5"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
