@@ -303,6 +303,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         slots: vec![slot],
     };
     let dyn_declaration = DynDeclaration {
+        implicit_lifetimes: None,
         direct_supertraits: None,
         requirements: None,
         associated_definitions: None,
