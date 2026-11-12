@@ -714,7 +714,13 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         },
         slots: copy_permission_rows(&value.slots, b)?,
         held: copy_permission(&value.held, b)?,
-        environment: copy_permission_rows(&value.environment, b)?,
+        // This optional namespace is absent on legacy paths. Test the actual
+        // private map, so no nonempty environment can be discarded by a flag.
+        environment: if value.environment.is_empty() {
+            BTreeMap::new()
+        } else {
+            copy_permission_rows(&value.environment, b)?
+        },
         creation_complete: value.creation_complete,
     })
 }
