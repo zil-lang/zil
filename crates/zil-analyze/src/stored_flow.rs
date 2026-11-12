@@ -3871,7 +3871,24 @@ fn transfer(
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
-                return Err(failure("anonymous input Tuple must be moved from its actual parent field"));
+                // A Task input view is ordinarily projected from its parent.
+                // A separate ordinary Tuple producer must instead prove its
+                // complete actual structure and mode, regardless of unrelated
+                // Task declarations. It still reconstructs every source below.
+                let result=i.result.ok_or_else(||failure("anonymous constructor result absent"))?;
+                let ty=value_type(f,result)?;
+                let shared=shared_compound(module,ty,b)?;
+                let affine=affine_compound(module,ty,b)?;
+                if !(shared && matches!(i.kind,InstructionKind::MakeAggregate{..})
+                    || affine && matches!(i.kind,InstructionKind::MakeOwnedTuple{..})){
+                    return Err(failure("anonymous input Tuple requires its actual parent projection or independently checked constructor"));
+                }
+                let Some((Type::Tuple(types),_))=carrier(ty) else{return Err(failure("anonymous constructor has no actual Tuple storage"))};
+                if types.len()!=fields.len(){return Err(failure("anonymous constructor omits actual fields"))}
+                for (field,expected) in fields.iter().zip(types){
+                    b.type_work(expected,false,"anonymous constructor complete field type")?;
+                    if value_type(f,*field)?!=expected{return Err(failure("anonymous constructor changes complete field Type"))}
+                }
             }
             let ty = value_type(
                 f,
