@@ -4898,3 +4898,7 @@ mod retained_tests;
 #[cfg(test)]
 #[path = "wire/storage_source_tests.rs"]
 mod storage_source_tests;
+
+#[cfg(test)]
+#[path = "wire/static_borrow_tests.rs"]
+mod static_borrow_tests;
