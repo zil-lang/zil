@@ -170,6 +170,16 @@ pub(crate) fn lower_view_with_session(
     jobs: usize,
     session: Option<&mut incremental::Session>,
 ) -> CompileResult<(m::Module, bool, usize)> {
+    let mut session = session;
+    if let Some(session) = session.as_deref_mut() {
+        session.begin_machine_request();
+    }
+    let whole_options = incremental::WholeOptions {
+        emit: *options,
+        scalar_policy: incremental_scalar_policy,
+        closed_collection: closed_scalar_collection,
+        requested_jobs: jobs,
+    };
     let mut remaining_work = verified.limits().max_analysis_steps;
     stored_borrows::reserve_callable_metadata(
         verified.module(),
@@ -180,6 +190,15 @@ pub(crate) fn lower_view_with_session(
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
     let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
+    let machine_prefix_work = remaining_work;
+    if let Some(session) = session.as_deref_mut() {
+        if let Some(output) = session.reuse_machine(verified, lir, whole_options, remaining_work) {
+            return Ok(output);
+        }
+        // A miss never retains a historical whole-module/helper product. A
+        // failed request cannot publish its partially constructed replacement.
+        session.discard_machine();
+    }
     dyn_dispatch::reserve(verified.module(), verified.limits(), &mut remaining_work)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
@@ -277,7 +296,7 @@ pub(crate) fn lower_view_with_session(
     } else {
         (jobs, None)
     };
-    let session = session.and_then(|session| {
+    let mut session = session.and_then(|session| {
         let prepared = session.prepare(
             lir,
             verified,
@@ -290,7 +309,7 @@ pub(crate) fn lower_view_with_session(
         // partial parallel cache consumption needs its own scheduling proof.
         (prepared && (jobs == 1 || session.eligible)).then_some(session)
     });
-    let batches = if let Some(session) = session {
+    let batches = if let Some(session) = session.as_deref_mut() {
         let mut batches = Vec::with_capacity(lir.functions.len().max(1));
         for function in lir.functions {
             batches.push(session.lower(
@@ -619,7 +638,7 @@ pub(crate) fn lower_view_with_session(
         ]));
     }
     items.extend(text.into_items().map_err(machine_error)?);
-    Ok((
+    let output = (
         m::Module {
             triple: lir.target.triple.clone(),
             fingerprint: verified.fingerprint().to_hex(),
@@ -627,7 +646,11 @@ pub(crate) fn lower_view_with_session(
         },
         collected.is_some(),
         task_meter.remaining(),
-    ))
+    );
+    if let Some(session) = session {
+        session.remember_machine(verified, lir, whole_options, machine_prefix_work, &output);
+    }
+    Ok(output)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

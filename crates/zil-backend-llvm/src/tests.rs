@@ -2068,7 +2068,9 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
     )
     .unwrap();
     warm.commit_object_cache();
-    assert_eq!(session.summary().reused_functions, 1);
+    assert!(session.summary().reused_machine_module);
+    assert_eq!(session.summary().whole_machine_input_functions_compared, 1);
+    assert_eq!(session.summary().reused_functions, 0);
     assert!(session.summary().reused_partition);
     assert!(session.summary().reused_machine_transforms);
     assert_eq!(
@@ -2532,7 +2534,9 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
     .unwrap();
     assert_eq!(policy.source_projection_traversals, 0);
     assert_eq!(policy.source_projection_instruction_visits, 0);
-    assert_eq!(policy.source_projection_reuses, 2);
+    assert_eq!(policy.source_projection_reuses, 0);
+    assert!(policy.reused_machine_module);
+    assert_eq!(policy.whole_machine_input_functions_compared, 2);
     let mut known = returning(Constant::I64(1));
     known.id = FunctionId(1);
     known.name = "known".into();
