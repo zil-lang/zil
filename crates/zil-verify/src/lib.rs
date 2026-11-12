@@ -94,6 +94,7 @@ pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
 mod class_flow;
+mod ordinary_heads;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
@@ -883,7 +884,9 @@ fn check_module(
                     Some(function.span),
                     false,
                 )?;
-            } else if !tasks::borrowed_signature(module, function, &mut budget)? {
+            } else if !ordinary_heads::check(module, function, &mut budget)?
+                && !tasks::borrowed_signature(module, function, &mut budget)?
+            {
                 stored_flow::header(module, function, &mut budget)?;
                 budget.stored_borrows = true;
             }
@@ -1018,7 +1021,8 @@ fn check_module(
                 if budget.stored_exclusive_shapes
                     && matches!(
                         instruction.kind,
-                        InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                        InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::MakePackage { .. }
                             | InstructionKind::MakeOwnedTuple { .. }
                     )
                     && let Some(result) = instruction.result
@@ -1201,7 +1205,7 @@ fn check_module(
             module
                 .functions
                 .iter()
-                .map(|function| stored_flow::qualified_function(function, &mut budget))
+                .map(|function| ordinary_heads::requires_stored(module, function, &mut budget))
                 .collect::<Check<Vec<_>>>()?,
         )
     } else {
