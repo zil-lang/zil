@@ -103,7 +103,36 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
             // own Fixed/Invocation domains. No Context ordinal is compared here.
             dynamic_metadata::recipe(original, b)?;
             dynamic_metadata::recipe(instance, b)?;
-            super::scopes::function(module,actual,original,b)?;
+            super::scopes::function(module, actual, original, b)?;
+            if owner.kind == DynDeclarationKind::Impl {
+                let pattern = owner
+                    .self_pattern
+                    .as_ref()
+                    .ok_or_else(|| bad("original implementation Self recipe is Unknown"))?;
+                let mut arguments = matching::Arguments {
+                    declaration: &original.declaration_actuals,
+                    method: &original.method_actuals,
+                    invocation: &original.header_embedding,
+                    implicit: vec![
+                        None;
+                        owner
+                            .implicit_lifetimes
+                            .as_ref()
+                            .ok_or_else(|| bad(
+                                "original implicit occurrence directory is Unknown"
+                            ))?
+                            .len()
+                    ],
+                };
+                matching::ty(
+                    module,
+                    pattern,
+                    &original.receiver,
+                    &original.receiver,
+                    &mut arguments,
+                    b,
+                )?;
+            }
             if original.definition != definition.id
                 || original.receiver != instance.receiver
                 || original.declaration_actuals != instance.declaration_actuals

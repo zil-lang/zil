@@ -495,6 +495,13 @@ pub(super) fn check(
     }
     .value(value, scope, b)
 }
+pub(super) fn intrinsic(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Domain> {
+    Inventory {
+        module,
+        active: vec![],
+    }
+    .domain(ty, b)
+}
 pub(super) fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<()> {
     Inventory {
         module,
