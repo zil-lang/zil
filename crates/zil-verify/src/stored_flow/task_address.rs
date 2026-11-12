@@ -227,6 +227,43 @@ pub(super) fn create_environment(
     }
     Ok(())
 }
+pub(super) fn compatible_capture_port(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    position: &zil_ir::StoragePosition,
+    source: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some((ContractProjection::RetainedPort(port), carrier)) = position.path.split_last() else {
+        return Ok(false);
+    };
+    let StorageBase::Capture(capture) = position.base else {
+        return Err(err("Task capture endpoint has no actual capture"));
+    };
+    b.spend(carrier.len().saturating_add(1))?;
+    let mut selected = vec![ContractProjection::Capture(capture)];
+    selected.extend_from_slice(carrier);
+    let root = Type::Closure(id);
+    let actual = carriers::endpoint(module, &root, &selected, b)?;
+    let Type::Task { retained_life, .. } = actual else {
+        return Err(err("returned opaque Task leaf has non-Task endpoint"));
+    };
+    let leaf = &retained_life
+        .ports
+        .get(*port as usize)
+        .ok_or_else(|| err("returned Task port absent"))?
+        .leaf;
+    type_work(leaf, &b.limits.clone(), b)?;
+    type_work(source, &b.limits.clone(), b)?;
+    let compatible = leaf == source
+        || matches!((source,leaf),(Type::Address{mutable:from,inner:a},Type::Address{mutable:to,inner:z})if (!*to||*from)&&a==z);
+    if !compatible {
+        return Err(err(
+            "returned Task data port differs from actual source leaf",
+        ));
+    }
+    Ok(true)
+}
 pub(super) fn environment_task_leaf(
     module: &TypedModule,
     id: zil_ir::ClosureId,

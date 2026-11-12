@@ -598,6 +598,15 @@ fn amount(a: usize, b: usize) -> Check<usize> {
     a.checked_mul(b)
         .ok_or_else(|| limit("stored comparison work overflow"))
 }
+pub(crate) fn task_capture_port(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    position: &StoragePosition,
+    source: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    task_address::compatible_capture_port(module, id, position, source, b)
+}
 pub(crate) fn task_port_relation(
     module: &TypedModule,
     f: &TypedFunction,

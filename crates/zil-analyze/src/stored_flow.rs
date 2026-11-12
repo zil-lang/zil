@@ -4451,6 +4451,12 @@ fn transfer(
         {
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
         }
+        InstructionKind::DescribeCapture {index}
+            if b.task_sources() && task_address::capture_instruction(module,f,i,b)? => {
+            // Opaque Task descriptions retain their actual stable head. This
+            // does not copy any retained data-port permission into the head.
+            owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
+        }
         InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
         }
@@ -4461,7 +4467,8 @@ fn transfer(
             owned::instruction(module,f,i,b)?;
             owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
         }
-        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values => {
+        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values
+            || owned::task_neighbour(module,&f.locals[local.0 as usize].ty,b)? => {
             state.locals.remove(local);
         }
         InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
@@ -7008,6 +7015,7 @@ pub(super) fn infer(
                 || shared_array_shape(ty, b)?
                 || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || b.stored_owned_fixed && owned::data(ty, b)?
+                || owned::task_neighbour(module, ty, b)?
                 || b.masked_stored_tasks()
                     && matches!(
                         ty,
@@ -7422,7 +7430,8 @@ fn actual_instructions(
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let task_capture_operation =
                 b.task_sources() && task_address::capture_instruction(module, f, i, b)?;
-            let owned_operation = !task_capture_operation && (b.stored_owned_fixed
+            let owned_operation = owned::task_neighbour_instruction(module,f,i,b)?
+                || !task_capture_operation && (b.stored_owned_fixed
                 || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })

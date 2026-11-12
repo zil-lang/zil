@@ -620,3 +620,105 @@ fn require_workers(
     }
     Ok(())
 }
+
+/// A consuming call cleans only captures remaining after its actual entry.
+/// This forward may-live solve is not a SyncDrop capability for the callable.
+pub(crate) fn once_cleanup_has_no_task(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_origin_roots {
+        return Ok(true);
+    }
+    let Some(d) = module.closures.get(id.0 as usize) else {
+        return Ok(false);
+    };
+    if d.kind != zil_ir::CallableKind::FnOnce {
+        return Ok(false);
+    }
+    let Some(f) = module.functions.get(d.function.0 as usize) else {
+        return Ok(false);
+    };
+    if f.environment != Some(id) || f.foreign.is_some() {
+        return Ok(false);
+    }
+    let mut initial = BTreeSet::new();
+    for (index, ty) in d.captures.iter().enumerate() {
+        if needs_proof(module, ty, b)? {
+            initial.insert(index as u32);
+        }
+    }
+    if initial.is_empty() {
+        return Ok(true);
+    }
+    b.spend(
+        f.blocks.len().saturating_mul(3),
+        "actual Once remaining Task responsibility",
+    )?;
+    let mut inputs = vec![BTreeSet::new(); f.blocks.len()];
+    let mut outputs = inputs.clone();
+    let mut reached = vec![false; f.blocks.len()];
+    reached[f.entry.0 as usize] = true;
+    inputs[f.entry.0 as usize] = initial;
+    loop {
+        let mut changed = false;
+        for (index, block) in f.blocks.iter().enumerate() {
+            b.spend(1, "actual Once cleanup CFG")?;
+            if !reached[index] {
+                continue;
+            }
+            b.spend(inputs[index].len(), "actual Once cleanup state copy")?;
+            let mut state = inputs[index].clone();
+            for instruction in &block.instructions {
+                b.spend(1, "actual Once Task capture move")?;
+                if let InstructionKind::TakeCapture { index } = instruction.kind {
+                    state.remove(&index);
+                }
+            }
+            if outputs[index] != state {
+                outputs[index] = state;
+                changed = true;
+            }
+            let targets = match block.terminator {
+                Terminator::Jump(to) => [Some(to), None],
+                Terminator::Branch {
+                    then_block,
+                    else_block,
+                    ..
+                } => [Some(then_block), Some(else_block)],
+                _ => [None, None],
+            };
+            for target in targets.into_iter().flatten() {
+                let target = target.0 as usize;
+                if target >= f.blocks.len() {
+                    return Err(bad("Once cleanup CFG target absent"));
+                }
+                b.spend(
+                    outputs[index]
+                        .len()
+                        .saturating_add(inputs[target].len())
+                        .saturating_add(1),
+                    "actual Once remaining capture join",
+                )?;
+                let before = inputs[target].len();
+                inputs[target].extend(&outputs[index]);
+                changed |= before != inputs[target].len() || !reached[target];
+                reached[target] = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (index, block) in f.blocks.iter().enumerate() {
+        b.spend(1, "actual Once cleanup return frontier")?;
+        if reached[index]
+            && matches!(block.terminator, Terminator::Return(_))
+            && !outputs[index].is_empty()
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}

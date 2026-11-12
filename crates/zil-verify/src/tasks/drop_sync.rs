@@ -295,6 +295,25 @@ fn returned_value(
         Some(InstructionKind::TakeVariantField { local, .. }) => returned_local(
             module, f, reachable, *local, functions, values, locals, budget,
         )?,
+        Some(InstructionKind::MakeClosure {
+            captures: fields, ..
+        }) => {
+            let mut result = Origins::default();
+            for field in fields {
+                let ty = f.values.get(field.0 as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK", None, "returned closure Task input absent")
+                })?;
+                if contains_kind(module, ty, budget, false)? {
+                    result.add(
+                        &returned_value(
+                            module, f, reachable, *field, functions, values, locals, budget,
+                        )?,
+                        budget,
+                    )?;
+                }
+            }
+            result
+        }
         Some(InstructionKind::Call {
             function,
             arguments,
@@ -699,4 +718,116 @@ fn require_workers(
         }
     }
     Ok(())
+}
+
+/// Verify independently searches each normal return backwards. An actual
+/// capture move cuts that path; declaration flags never discharge a Task.
+pub(crate) fn once_cleanup_has_no_task(
+    module: &TypedModule,
+    id: zil_ir::ClosureId,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.task_origin_roots {
+        return Ok(true);
+    }
+    let Some(d) = module.closures.get(id.0 as usize) else {
+        return Ok(false);
+    };
+    if d.kind != CallableKind::FnOnce {
+        return Ok(false);
+    }
+    let Some(entry) = module.functions.get(d.function.0 as usize) else {
+        return Ok(false);
+    };
+    if entry.environment != Some(id) || entry.foreign.is_some() {
+        return Ok(false);
+    }
+    let mut selected = Vec::new();
+    for (index, ty) in d.captures.iter().enumerate() {
+        if needs_proof(module, ty, b)? {
+            selected.push(index as u32);
+        }
+    }
+    if selected.is_empty() {
+        return Ok(true);
+    }
+    b.spend(entry.blocks.len().saturating_mul(3))?;
+    let mut predecessors = vec![Vec::new(); entry.blocks.len()];
+    let mut reachable = vec![false; entry.blocks.len()];
+    let mut frontier = vec![entry.entry.0 as usize];
+    while let Some(block) = frontier.pop() {
+        b.spend(1)?;
+        let seen = reachable.get_mut(block).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                Some(entry.span),
+                "Once cleanup entry outside CFG",
+            )
+        })?;
+        if *seen {
+            continue;
+        }
+        *seen = true;
+        let targets = match entry.blocks[block].terminator {
+            Terminator::Jump(to) => [Some(to), None],
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => [Some(then_block), Some(else_block)],
+            _ => [None, None],
+        };
+        for target in targets.into_iter().flatten() {
+            b.spend(1)?;
+            let target = target.0 as usize;
+            predecessors
+                .get_mut(target)
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-TASK",
+                        Some(entry.span),
+                        "Once cleanup successor outside CFG",
+                    )
+                })?
+                .push(block);
+            frontier.push(target);
+        }
+    }
+    for capture in selected {
+        b.spend(entry.blocks.len())?;
+        let mut pending = entry
+            .blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, block)| {
+                (reachable[index] && matches!(block.terminator, Terminator::Return(_)))
+                    .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        while let Some(block) = pending.pop() {
+            b.spend(seen.len().saturating_add(1))?;
+            if !seen.insert(block) {
+                continue;
+            }
+            let mut moved = false;
+            for instruction in entry.blocks[block].instructions.iter().rev() {
+                b.spend(1)?;
+                if matches!(instruction.kind,InstructionKind::TakeCapture{index} if index==capture)
+                {
+                    moved = true;
+                    break;
+                }
+            }
+            if moved {
+                continue;
+            }
+            if block == entry.entry.0 as usize {
+                return Ok(false);
+            }
+            b.spend(predecessors[block].len())?;
+            pending.extend_from_slice(&predecessors[block]);
+        }
+    }
+    Ok(true)
 }

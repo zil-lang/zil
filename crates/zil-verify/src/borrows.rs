@@ -1882,7 +1882,10 @@ fn check_module_mask(
                 }
                 if let Some(value) = instruction.result
                     && (matches!(function.values[value.0 as usize], Type::Address { .. })
-                        || tracked_desc(&function.values[value.0 as usize], descriptor_origins))
+                        || tracked_desc(
+                            &function.values[value.0 as usize],
+                            descriptor_origins && !budget.task_retained_environments,
+                        ))
                     && facts.values[value.0 as usize].is_empty()
                 {
                     return Err(reject(

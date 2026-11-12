@@ -15,6 +15,48 @@ pub(super) fn data(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
 }
 
+// A Task-bearing environment does not enable the whole Fixed-owner profile.
+// Its ordinary resource neighbours still use their actual nominal definition
+// and the existing resource ledger, independently of opaque Task ports.
+pub(super) fn task_neighbour(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_retained_environments || !data(ty, b)? {
+        return Ok(false);
+    }
+    let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
+        unreachable!()
+    };
+    registered(module, payload, b)?;
+    Ok(true)
+}
+
+pub(super) fn task_neighbour_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.task_retained_environments {
+        return Ok(false);
+    }
+    let ty = match &i.kind {
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::DescribeLocal { local }
+        | InstructionKind::DropManaged { local } => &f.locals[local.0 as usize].ty,
+        InstructionKind::TakeCapture { index } | InstructionKind::DescribeCapture { index } => {
+            capture(module, f, *index)?.1
+        }
+        _ => return Ok(false),
+    };
+    if !task_neighbour(module, ty, b)? {
+        return Ok(false);
+    }
+    instruction(module, f, i, b)
+}
+
 // Nominal identity checks an actual definition; it grants no target or loan.
 fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileResult<()> {
     let Type::Record { name, .. } = payload else {

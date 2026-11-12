@@ -2648,7 +2648,10 @@ impl Transfer<'_> {
                         }
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
-                        if validate {
+                        let Type::Closure(id) = f.values[callee.0 as usize] else {
+                            unreachable!()
+                        };
+                        if validate && !tasks::once_cleanup_has_no_task(self.module, id, budget)? {
                             tasks::require_synchronous_value(
                                 self.module,
                                 f,
