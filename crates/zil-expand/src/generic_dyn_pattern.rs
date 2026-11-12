@@ -244,6 +244,16 @@ pub(super) fn collect(
         let Some(application) = &implementation.trait_type else {
             continue;
         };
+        // Intrinsic trait implementations are checked by their own semantic
+        // consumers and have no source DynDeclaration to instantiate. Leaving
+        // their dyn recipe absent is Unknown, never a usable provider witness.
+        if let Some(name) = trait_instances::head(application)
+            && !traits.contains_key(name)
+            && crate::static_traits::reserved_trait(name)
+        {
+            budget.text(name, application.span)?;
+            continue;
+        }
         let origin = origins.get(ordinal, item.span)?.declaration;
         let mut recipe = Recipe {
             nominal: &nominals,
