@@ -347,6 +347,9 @@ void testMachineNumbering(llvm::MachineFunction &Current,
   MachineNumberingTestsRan = true;
   llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
                            Current.getSubtarget(), Current.getContext(), 37);
+  // Match MachineModuleInfo's construction contract: the constructor creates
+  // generic state only; target MIR printing requires initialized target info.
+  MF.initTargetMachineFunctionInfo(Current.getSubtarget());
   auto *A = MF.CreateMachineBasicBlock();
   auto *B = MF.CreateMachineBasicBlock();
   auto *C = MF.CreateMachineBasicBlock();
