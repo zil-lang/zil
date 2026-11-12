@@ -815,6 +815,26 @@
       "distinction": "Rust query是需求驱动pull；Zit是具体变化点逐层push；响应式read一致性pull是另一问题",
       "requirements": "保留有意义的安全与代码质量；语义/构建合同变化显式说明；不降低优化/预算、不换简单样例、不合main或默认启用研究开关；保留失败负例与远端证据",
       "numeric_target_status": "至少2倍领先是助手提出的初始工程目标，非用户指定数值、已有结果或预测"
+    },
+    "feasibility_followup": {
+      "read_goal": "81f7b43c981270a1572f490d5540a150358ba78e",
+      "delivery": "b7703b95a59cc87dd1ac13ce6f652386ea4dfd0d",
+      "plan": "https://github.com/zil-lang/zil/blob/b7703b95a59cc87dd1ac13ce6f652386ea4dfd0d/tools/research/incremental-demand/push-implementation-plan.md",
+      "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+      "measured_candidate": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "measured_main": "99035931d358add0eaed6d4535035c38413701dd",
+      "activity": "源码级功能/写集/验收拆解及原ELF只读比较，无生产源码修改、新构建或新性能测量",
+      "native_output_opportunity": {
+        "defined_nonzero_func_symbols": 42,
+        "equal_code_selected_metadata_relative_symbolic_relocations": 41,
+        "changed": "zil.fn.5",
+        "unchanged_cold_code_bytes": 48315,
+        "total_cold_code_bytes": 49504,
+        "independent_review": "native-function-reuse-900-review.json",
+        "limits": "单CGU发射FUNC符号，不等同源函数数；完整上下文及安全跳过LLVM发射尚未证明。输入.o已在v4远端保全，工具及派生结果随源码提交。"
+      },
+      "next_baseline_requirement": "独立分支对齐新main数值/FFI Type/Constant/ABI，保留旧冻结证据，重建新main对照，不跨施工方比较",
+      "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
     }
   }
 }
