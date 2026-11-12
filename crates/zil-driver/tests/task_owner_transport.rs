@@ -13,6 +13,38 @@ fn source(text: &str) -> SourceUnit {
 }
 
 #[test]
+fn asynchronous_child_input_does_not_acquire_synchronous_parent_cleanup() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/child-frame-cleanup.zil"
+    );
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let safe = compile_source(&source(text), &options);
+    assert_eq!(safe.status, ResultCategory::Success, "{}", safe.to_json());
+    let asynchronous = text.replace(
+        "let child=make_safe_child()",
+        "let child=make_async_child()",
+    );
+    let rejected = compile_source(&source(&asynchronous), &options);
+    assert_ne!(
+        rejected.status,
+        ResultCategory::Success,
+        "{}",
+        rejected.to_json()
+    );
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("Task") && d.message.contains("Drop")),
+        "{}",
+        rejected.to_json()
+    );
+}
+
+#[test]
 fn mutable_callable_keeps_the_same_task_through_pending_ready_and_cleanup() {
     let text = include_str!(
         "../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil"

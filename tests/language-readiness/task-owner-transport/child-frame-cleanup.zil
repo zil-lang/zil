@@ -1,0 +1,35 @@
+extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),async_callback_register());effects(ffi);};
+extern "C" fn request(token:c_handle) contract{provides(static_callbacks(),async_callback_request_close());effects(ffi);};
+extern "C" fn drain(token:c_handle)->i32 contract{provides(static_callbacks(),async_callback_poll_drain());effects(ffi);};
+fn safe_worker()->i32 {task_yield();return 0;}
+fn async_worker<F:FnMut(i32)->i32 + ClosedEnvironment>(give owner:AsyncRegistration<F>)->i32 contract{requires(state(owner,Open,Closing,Closed));provides(retired(owner));} {
+ var remaining=give owner;task_yield();async_registration_request_close(&mut remaining);
+ loop{match async_registration_poll_close(&mut remaining){Poll.Pending()=>{task_yield();continue;},Poll.Ready(_)=>{break;}}}
+ async_registration_finish_destroy_checked(give remaining);return 0;
+}
+fn make_safe_child()->TaskCreateError!Managed<Task<i32>> {return task_create(safe_worker);}
+fn make_async_child()->TaskCreateError!Managed<Task<i32>> {unsafe{
+ let callback=move(value:i32)->i32=>value;
+ let owner=c_register_async(reg,request,drain,callback);
+ match task_create_owned(async_worker,give owner){
+  .err(failure)=>{let reason=failure.reason;let (input,)=failure.inputs;var remaining=give input;
+   async_registration_request_close(&mut remaining);
+   loop{match async_registration_poll_close(&mut remaining){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+   async_registration_finish_destroy_checked(give remaining);return .err(reason);
+  },
+  .ok(input)=>{return .ok(give input);}
+ }
+}}
+fn close(give original:Task<i32>)->i32 {
+ var task=give original;task_request_cancel(&mut task);
+ loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+ task_finish_destroy(give task);return 0;
+}
+fn parent(give child:Task<i32>)->i32 {task_yield();return close(give child);}
+fn main()->TaskCreateError!i32 {
+ let child=make_safe_child()?;
+ match task_create_owned(parent,give child){
+  .err(failure)=>{let (original,)=failure.inputs;return close(give original);},
+  .ok(original)=>{return 0;}
+ }
+}
