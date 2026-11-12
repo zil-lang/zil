@@ -11,6 +11,16 @@ pub(super) struct State {
     tags: BTreeSet<Proof>,
 }
 impl State {
+    pub(super) fn constructed(
+        &mut self,
+        local: LocalId,
+        is_error: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        search_fee(b, 0, self.tags.len())?;
+        self.tags.insert((local, Vec::new(), u32::from(is_error)));
+        Ok(())
+    }
     pub(super) fn cost(&self, b: &mut Budget) -> CompileResult<()> {
         pay(b, self.reads.len().saturating_add(self.tags.len()))?;
         for (_, p, _) in &self.tags {

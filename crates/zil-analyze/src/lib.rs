@@ -120,6 +120,7 @@ fn analyze_budgeted(
             predecessors,
             reachable,
         } = initialization;
+        resources::sums::dyn_tags::check(f, &predecessors, &reachable, budget)?;
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
