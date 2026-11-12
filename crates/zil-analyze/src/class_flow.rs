@@ -948,41 +948,32 @@ fn check_with(
                     if let Some(out) = out {
                         if matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
                             && b.task_failure_carriers
-                        {
-                            if let Some(Type::ErrorUnion { error, .. }) =
+                            && let Some(Type::ErrorUnion { error, .. }) =
                                 i.result.and_then(|id| f.values.get(id.0 as usize))
-                            {
-                                if let Some(error_shape) = shape(error) {
-                                    for slot in &error_shape.slots {
-                                        let [
-                                            PlaceProjection::Field(1),
-                                            PlaceProjection::Field(argument),
-                                        ] = slot.path.as_slice()
-                                        else {
-                                            return Err(bad(
-                                                "failure class source has no actual input position",
-                                            ));
-                                        };
-                                        let path = [LifeTypeProjection::Place(
-                                            PlaceProjection::ErrorArm(true),
-                                        )];
-                                        let class = out
-                                            .keys
-                                            .iter()
-                                            .position(|(p, c)| {
-                                                p.as_slice() == path && *c == slot.binder
-                                            })
-                                            .ok_or_else(|| bad("failure actual class is absent"))?;
-                                        let input = *arguments
-                                            .get(*argument as usize)
-                                            .ok_or_else(|| bad("failure actual input is absent"))?;
-                                        let source =
-                                            values[input.0 as usize].outer.ok_or_else(|| {
-                                                bad("failure actual input Address class is absent")
-                                            })?;
-                                        e.equal(out.classes[class], source, b)?;
-                                    }
-                                }
+                            && let Some(error_shape) = shape(error)
+                        {
+                            for slot in &error_shape.slots {
+                                let [PlaceProjection::Field(1), PlaceProjection::Field(argument)] =
+                                    slot.path.as_slice()
+                                else {
+                                    return Err(bad(
+                                        "failure class source has no actual input position",
+                                    ));
+                                };
+                                let path =
+                                    [LifeTypeProjection::Place(PlaceProjection::ErrorArm(true))];
+                                let class = out
+                                    .keys
+                                    .iter()
+                                    .position(|(p, c)| p.as_slice() == path && *c == slot.binder)
+                                    .ok_or_else(|| bad("failure actual class is absent"))?;
+                                let input = *arguments
+                                    .get(*argument as usize)
+                                    .ok_or_else(|| bad("failure actual input is absent"))?;
+                                let source = values[input.0 as usize].outer.ok_or_else(|| {
+                                    bad("failure actual input Address class is absent")
+                                })?;
+                                e.equal(out.classes[class], source, b)?;
                             }
                         }
                         for row in port_bindings {

@@ -315,7 +315,7 @@ pub(super) fn call_create_type(
     if let Some(failure) = failure
         && let Type::ErrorUnion { error, .. } = &mut ty
     {
-        *error = Box::new(failure);
+        **error = failure;
     }
     ty
 }

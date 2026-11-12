@@ -498,7 +498,7 @@ fn owned_create_type(
     };
     let mut expected = task_create_type(result, retained);
     if let Type::ErrorUnion { error: slot, .. } = &mut expected {
-        *slot = Box::new(error);
+        **slot = error;
     }
     Ok(expected)
 }
