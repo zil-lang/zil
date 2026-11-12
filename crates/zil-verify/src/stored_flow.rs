@@ -140,9 +140,9 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
     Ok(false)
 }
 
+mod anonymous_tuple;
 pub(super) mod enum_address;
 mod nominal;
-mod anonymous_tuple;
 pub(super) mod option_address;
 mod retained;
 mod task_address;
@@ -150,7 +150,11 @@ mod task_failure;
 pub(super) fn anonymous_tuple(ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(anonymous_tuple::layout(ty, b)?.is_some())
 }
-pub(super) fn anonymous_operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+pub(super) fn anonymous_operation(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
     anonymous_tuple::operation(f, i, b)
 }
 pub(super) fn borrowed_product_child(ty: &Type, b: &mut Budget) -> Check<bool> {
@@ -1140,7 +1144,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
-    if anonymous_tuple::layout(ty, b)?.is_some() { return Ok(true); }
+    if anonymous_tuple::layout(ty, b)?.is_some() {
+        return Ok(true);
+    }
     if b.task_failure_carriers && task_failure::shape(ty, limits, b)? {
         return Ok(true);
     }
@@ -1936,6 +1942,9 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    if super::ordinary_heads::check(module, f, b)? {
+        return Ok(());
+    }
     fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
         if depth > b.limits.max_call_depth {
             return Err(limit("stored signature class depth exceeds limit"));
@@ -2890,7 +2899,8 @@ fn write_sites(
                     Ok(())
                 };
             match &i.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakePackage { .. }
                 | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = qualified(vt(
                         f,
@@ -7959,7 +7969,7 @@ mod tests {
         }
         let mut forged = c;
         assert!(forged.functions[0].holds[8].roots.is_empty());
-        forged.functions[0].holds[8].roots=vec![HoldRoot::Local(LocalId(1))];
+        forged.functions[0].holds[8].roots = vec![HoldRoot::Local(LocalId(1))];
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),

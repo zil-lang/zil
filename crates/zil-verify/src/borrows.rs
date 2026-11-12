@@ -76,7 +76,9 @@ fn function_has_sources(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<bool> {
-    if budget.masked_stored_tasks() && super::stored_flow::qualified_function(function, budget)? {
+    if budget.masked_stored_tasks()
+        && super::ordinary_heads::requires_stored(module, function, budget)?
+    {
         return Ok(true);
     }
     if descriptor_origins {
