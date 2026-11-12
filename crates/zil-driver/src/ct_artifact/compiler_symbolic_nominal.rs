@@ -162,8 +162,20 @@ impl<'a> Compiler<'a> {
                         Constant::U16(value) => {
                             s::ExprKind::Literal(s::Literal::Integer(format!("{value}u16")))
                         }
+                        Constant::U32(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}u32")))
+                        }
                         Constant::I32(value) => {
                             s::ExprKind::Literal(s::Literal::Integer(format!("{value}i32")))
+                        }
+                        Constant::I8(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}i8")))
+                        }
+                        Constant::I16(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}i16")))
+                        }
+                        Constant::Isize(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}isize")))
                         }
                         Constant::I64(value) => {
                             s::ExprKind::Literal(s::Literal::Integer(format!("{value}i64")))

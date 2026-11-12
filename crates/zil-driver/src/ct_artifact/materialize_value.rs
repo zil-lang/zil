@@ -249,7 +249,19 @@ impl Materializer<'_, '_> {
                     zil_ir::Constant::U16(v) => {
                         s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
                     }
+                    zil_ir::Constant::U32(v) => {
+                        s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
+                    }
                     zil_ir::Constant::I32(v) => {
+                        s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
+                    }
+                    zil_ir::Constant::I8(v) => {
+                        s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
+                    }
+                    zil_ir::Constant::I16(v) => {
+                        s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
+                    }
+                    zil_ir::Constant::Isize(v) => {
                         s::ExprKind::Literal(s::Literal::Integer(v.to_string()))
                     }
                     zil_ir::Constant::I64(v) => {

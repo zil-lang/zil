@@ -71,9 +71,13 @@ impl Compiler<'_> {
                 s @ (CtScalarTy::Bool
                 | CtScalarTy::U8
                 | CtScalarTy::U16
+                | CtScalarTy::U32
                 | CtScalarTy::U64
                 | CtScalarTy::Usize
                 | CtScalarTy::I32
+                | CtScalarTy::I8
+                | CtScalarTy::I16
+                | CtScalarTy::Isize
                 | CtScalarTy::I64),
             ) => Ok(s),
             _ => Err(error(
@@ -129,7 +133,11 @@ impl Compiler<'_> {
                         let runtime = match target {
                             CtScalarTy::U8 => zil_ir::Type::U8,
                             CtScalarTy::U16 => zil_ir::Type::U16,
+                            CtScalarTy::U32 => zil_ir::Type::U32,
                             CtScalarTy::I32 => zil_ir::Type::I32,
+                            CtScalarTy::I8 => zil_ir::Type::I8,
+                            CtScalarTy::I16 => zil_ir::Type::I16,
+                            CtScalarTy::Isize => zil_ir::Type::Isize,
                             CtScalarTy::I64 => zil_ir::Type::I64,
                             CtScalarTy::U64 => zil_ir::Type::U64,
                             CtScalarTy::Usize => zil_ir::Type::Usize,

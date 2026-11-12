@@ -2,7 +2,10 @@
 use super::*;
 
 pub(super) fn callback_scalar(ty: &Type) -> bool {
-    matches!(ty, Type::I32 | Type::I64 | Type::ForeignHandle)
+    matches!(
+        ty,
+        Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64 | Type::ForeignHandle
+    )
 }
 
 pub(super) fn callback_signature(parameters: &[Type], result: &Type) -> bool {
@@ -106,7 +109,11 @@ pub(super) fn check_declaration(
         Type::Unit
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -169,7 +176,11 @@ pub(super) fn check_declaration(
         match &parameter.ty {
             Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -187,7 +198,11 @@ pub(super) fn check_declaration(
                     match target {
                         Type::U8
                         | Type::U16
+                        | Type::U32
                         | Type::I32
+                        | Type::I8
+                        | Type::I16
+                        | Type::Isize
                         | Type::I64
                         | Type::F32
                         | Type::F64

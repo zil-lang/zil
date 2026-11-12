@@ -192,6 +192,12 @@ impl Lexer<'_> {
             let digits = spelling
                 .strip_suffix("u8")
                 .or_else(|| spelling.strip_suffix("u16"))
+                .or_else(|| spelling.strip_suffix("u32"))
+                .or_else(|| spelling.strip_suffix("i8"))
+                .or_else(|| spelling.strip_suffix("i16"))
+                .or_else(|| spelling.strip_suffix("i32"))
+                .or_else(|| spelling.strip_suffix("i64"))
+                .or_else(|| spelling.strip_suffix("isize"))
                 .or_else(|| spelling.strip_suffix("u64"))
                 .or_else(|| spelling.strip_suffix("usize"))
                 .unwrap_or(spelling);
@@ -235,13 +241,24 @@ impl Lexer<'_> {
         if self.peek().is_some_and(is_xid_continue) {
             let suffix = self.offset;
             self.consume_while(is_xid_continue);
-            // u8/u16 are the admitted source suffixes. The i32/i64
-            // spellings used by later normalization remain internal forms.
+            // Explicit suffixes select an exact integer domain.
             let suffix = &self.source.text[suffix..self.offset];
             if matches!(suffix, "f32" | "f64") {
                 floating = true;
             } else {
-                valid &= !floating && matches!(suffix, "u8" | "u16" | "u64" | "usize");
+                valid &= !floating
+                    && matches!(
+                        suffix,
+                        "u8" | "u16"
+                            | "u32"
+                            | "i8"
+                            | "i16"
+                            | "i32"
+                            | "i64"
+                            | "isize"
+                            | "u64"
+                            | "usize"
+                    );
             }
         }
         if !valid {

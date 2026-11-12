@@ -604,7 +604,11 @@ impl Materializer<'_, '_> {
                     CtScalarTy::Bool => "bool",
                     CtScalarTy::U8 => "u8",
                     CtScalarTy::U16 => "u16",
+                    CtScalarTy::U32 => "u32",
                     CtScalarTy::I32 => "i32",
+                    CtScalarTy::I8 => "i8",
+                    CtScalarTy::I16 => "i16",
+                    CtScalarTy::Isize => "isize",
                     CtScalarTy::I64 => "i64",
                     CtScalarTy::F32 => "f32",
                     CtScalarTy::F64 => "f64",
@@ -726,7 +730,19 @@ impl Materializer<'_, '_> {
                                 zil_ir::Constant::U16(value) => {
                                     s::Literal::Integer(value.to_string())
                                 }
+                                zil_ir::Constant::U32(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
                                 zil_ir::Constant::I32(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::I8(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::I16(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::Isize(value) => {
                                     s::Literal::Integer(value.to_string())
                                 }
                                 zil_ir::Constant::U64(value) => {
@@ -2212,7 +2228,19 @@ impl Materializer<'_, '_> {
                     zil_ir::Constant::U16(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
+                    zil_ir::Constant::U32(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
                     zil_ir::Constant::I32(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::I8(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::I16(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::Isize(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
                     zil_ir::Constant::U64(value) => {

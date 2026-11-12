@@ -50,7 +50,20 @@ pub(super) fn receiver_type(ty: &s::TypeRef) -> bool {
 pub(super) fn scalar_self(name: &str) -> bool {
     matches!(
         name,
-        "void" | "bool" | "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+        "void"
+            | "bool"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "i8"
+            | "i16"
+            | "isize"
+            | "u64"
+            | "usize"
+            | "i32"
+            | "i64"
+            | "f32"
+            | "f64"
     )
 }
 

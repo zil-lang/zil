@@ -445,9 +445,13 @@ pub(super) fn pay_type(
         | Type::Bool
         | Type::U8
         | Type::U16
+        | Type::U32
         | Type::U64
         | Type::Usize
         | Type::I32
+        | Type::I8
+        | Type::I16
+        | Type::Isize
         | Type::I64
         | Type::F32
         | Type::F64 => Ok(()),

@@ -84,7 +84,11 @@ pub(crate) fn convert_integer_target(
     let value = match value {
         Constant::U8(v) => i128::from(*v),
         Constant::U16(v) => i128::from(*v),
+        Constant::U32(v) => i128::from(*v),
         Constant::I32(v) => i128::from(*v),
+        Constant::I8(v) => i128::from(*v),
+        Constant::I16(v) => i128::from(*v),
+        Constant::Isize(v) => i128::from(*v),
         Constant::I64(v) => i128::from(*v),
         Constant::U64(v) | Constant::Usize(v) => i128::from(*v),
         _ => return Err(fail()),
@@ -92,7 +96,16 @@ pub(crate) fn convert_integer_target(
     match target {
         Type::U8 => u8::try_from(value).map(Constant::U8).map_err(|_| fail()),
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| fail()),
+        Type::U32 => u32::try_from(value).map(Constant::U32).map_err(|_| fail()),
         Type::I32 => i32::try_from(value).map(Constant::I32).map_err(|_| fail()),
+        Type::I8 => i8::try_from(value).map(Constant::I8).map_err(|_| fail()),
+        Type::I16 => i16::try_from(value).map(Constant::I16).map_err(|_| fail()),
+        Type::Isize if width == 32 => i32::try_from(value)
+            .map(|n| Constant::Isize(i64::from(n)))
+            .map_err(|_| fail()),
+        Type::Isize if width == 64 => i64::try_from(value)
+            .map(Constant::Isize)
+            .map_err(|_| fail()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| fail()),
         Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| fail()),
         Type::Usize if width == 32 => u32::try_from(value)
@@ -149,6 +162,7 @@ pub(crate) fn convert_number(
         let value = match value {
             Constant::U8(n) => IntegerValue::Unsigned((*n).into()),
             Constant::U16(n) => IntegerValue::Unsigned((*n).into()),
+            Constant::U32(n) => IntegerValue::Unsigned((*n).into()),
             Constant::U64(n) => IntegerValue::Unsigned((*n).into()),
             Constant::Usize(n)
                 if pointer_width == 64 || (pointer_width == 32 && *n <= u64::from(u32::MAX)) =>
@@ -156,6 +170,9 @@ pub(crate) fn convert_number(
                 IntegerValue::Unsigned((*n).into())
             }
             Constant::I32(n) => IntegerValue::Signed((*n).into()),
+            Constant::I8(n) => IntegerValue::Signed((*n).into()),
+            Constant::I16(n) => IntegerValue::Signed((*n).into()),
+            Constant::Isize(n) => IntegerValue::Signed((*n).into()),
             Constant::I64(n) => IntegerValue::Signed((*n).into()),
             _ => return Err(invalid()),
         };
@@ -165,17 +182,25 @@ pub(crate) fn convert_number(
     let (signed, width) = match target {
         Type::U8 => (false, 8),
         Type::U16 => (false, 16),
+        Type::U32 => (false, 32),
         Type::U64 => (false, 64),
         Type::Usize if matches!(pointer_width, 32 | 64) => (false, usize::from(pointer_width)),
         Type::I32 => (true, 32),
+        Type::I8 => (true, 8),
+        Type::I16 => (true, 16),
+        Type::Isize if matches!(pointer_width, 32 | 64) => (true, usize::from(pointer_width)),
         Type::I64 => (true, 64),
         _ => return Err(invalid()),
     };
     match value.to_integer(signed, width).map_err(|_| invalid())? {
         IntegerValue::Unsigned(n) if *target == Type::U8 => Ok(Constant::U8(n as u8)),
         IntegerValue::Unsigned(n) if *target == Type::U16 => Ok(Constant::U16(n as u16)),
+        IntegerValue::Unsigned(n) if *target == Type::U32 => Ok(Constant::U32(n as u32)),
         IntegerValue::Unsigned(n) if *target == Type::U64 => Ok(Constant::U64(n as u64)),
         IntegerValue::Unsigned(n) => Ok(Constant::Usize(n as u64)),
+        IntegerValue::Signed(n) if *target == Type::I8 => Ok(Constant::I8(n as i8)),
+        IntegerValue::Signed(n) if *target == Type::I16 => Ok(Constant::I16(n as i16)),
+        IntegerValue::Signed(n) if *target == Type::Isize => Ok(Constant::Isize(n as i64)),
         IntegerValue::Signed(n) if *target == Type::I32 => Ok(Constant::I32(n as i32)),
         IntegerValue::Signed(n) => Ok(Constant::I64(n as i64)),
     }
@@ -224,7 +249,28 @@ pub(crate) fn unary_target(op: UnaryOp, value: &Constant, width: u16) -> Compile
             0u16.checked_sub(*v).map(Constant::U16).ok_or_else(fail)
         }
         (UnaryOp::BitNot, Constant::U16(v)) => Ok(Constant::U16(!v)),
+        (UnaryOp::Negate, Constant::U32(v)) => {
+            0u32.checked_sub(*v).map(Constant::U32).ok_or_else(fail)
+        }
+        (UnaryOp::BitNot, Constant::U32(v)) => Ok(Constant::U32(!v)),
+        (UnaryOp::Negate, Constant::I8(v)) => v.checked_neg().map(Constant::I8).ok_or_else(fail),
+        (UnaryOp::BitNot, Constant::I8(v)) => Ok(Constant::I8(!v)),
+        (UnaryOp::Negate, Constant::I16(v)) => v.checked_neg().map(Constant::I16).ok_or_else(fail),
+        (UnaryOp::BitNot, Constant::I16(v)) => Ok(Constant::I16(!v)),
+
         (UnaryOp::Negate, Constant::I32(v)) => v.checked_neg().map(Constant::I32).ok_or_else(fail),
+        (UnaryOp::Negate, Constant::Isize(v)) if width == 32 => i32::try_from(*v)
+            .ok()
+            .and_then(i32::checked_neg)
+            .map(|n| Constant::Isize(i64::from(n)))
+            .ok_or_else(fail),
+        (UnaryOp::BitNot, Constant::Isize(v)) if width == 32 => i32::try_from(*v)
+            .map(|n| Constant::Isize(i64::from(!n)))
+            .map_err(|_| fail()),
+        (UnaryOp::Negate, Constant::Isize(v)) if width == 64 => {
+            v.checked_neg().map(Constant::Isize).ok_or_else(fail)
+        }
+        (UnaryOp::BitNot, Constant::Isize(v)) if width == 64 => Ok(Constant::Isize(!v)),
         (UnaryOp::Negate, Constant::I64(v)) => v.checked_neg().map(Constant::I64).ok_or_else(fail),
         (UnaryOp::BitNot, Constant::I32(v)) => Ok(Constant::I32(!v)),
         (UnaryOp::BitNot, Constant::I64(v)) => Ok(Constant::I64(!v)),
@@ -301,6 +347,17 @@ pub(crate) fn binary_target(
         }
         (Constant::U8(a), Constant::U8(b)) => integer_binary!(op, a, b, Constant::U8, 8),
         (Constant::U16(a), Constant::U16(b)) => integer_binary!(op, a, b, Constant::U16, 16),
+        (Constant::U32(a), Constant::U32(b)) => integer_binary!(op, a, b, Constant::U32, 32),
+        (Constant::I8(a), Constant::I8(b)) => integer_binary!(op, a, b, Constant::I8, 8),
+        (Constant::I16(a), Constant::I16(b)) => integer_binary!(op, a, b, Constant::I16, 16),
+        (Constant::Isize(a), Constant::Isize(b)) if width == 64 => {
+            integer_binary!(op, a, b, Constant::Isize, 64)
+        }
+        (Constant::Isize(a), Constant::Isize(b)) if width == 32 => {
+            let a = i32::try_from(*a).map_err(|_| fail())?;
+            let b = i32::try_from(*b).map_err(|_| fail())?;
+            integer_binary!(op, &a, &b, |n| Constant::Isize(i64::from(n)), 32)
+        }
         (Constant::I32(a), Constant::I32(b)) => integer_binary!(op, a, b, Constant::I32, 32),
         (Constant::I64(a), Constant::I64(b)) => integer_binary!(op, a, b, Constant::I64, 64),
         (Constant::U64(a), Constant::U64(b)) => integer_binary!(op, a, b, Constant::U64, 64),

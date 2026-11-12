@@ -1581,6 +1581,9 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             Type::Unit
             | Type::Bool
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::F32
             | Type::F64
@@ -1588,6 +1591,7 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Usize
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::ForeignHandle
             | Type::CWideString => {}
             Type::Array { element, .. } => pending.push(element),
@@ -3844,7 +3848,16 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
         if matches!(
             left,
-            Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64
+            Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+                | Type::I32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
         ) && left == right
         {
             return Ok(left.clone());
@@ -3885,11 +3898,15 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 left,
                 Type::Bool
                     | Type::I32
+                    | Type::I8
+                    | Type::I16
+                    | Type::Isize
                     | Type::I64
                     | Type::U64
                     | Type::Usize
                     | Type::U8
                     | Type::U16
+                    | Type::U32
                     | Type::Unit
                     | Type::ForeignHandle
             ) =>

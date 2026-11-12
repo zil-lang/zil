@@ -725,7 +725,16 @@ impl Coverage<'_> {
             Type::Enum { variants, .. } => (0..variants.len())
                 .map(|i| Constructor::Variant(i as u32))
                 .collect(),
-            Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64 => {
+            Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64 => {
                 let defaults = rows
                     .iter()
                     .filter(|row| matches!(row[0], Pattern::Any))

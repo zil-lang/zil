@@ -12,14 +12,18 @@ fn scalar(ty: &Type) -> bool {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
     )
 }
 fn cas_pair(t: &Type) -> bool {
-    matches!(t,Type::Tuple(fields) if matches!(fields.as_slice(), [Type::I32 | Type::I64 | Type::U64 | Type::Usize, Type::Bool]))
+    matches!(t,Type::Tuple(fields) if matches!(fields.as_slice(), [Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64 | Type::U64 | Type::Usize, Type::Bool]))
 }
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
@@ -50,7 +54,11 @@ fn transferable(ty: &Type, budget: &mut Budget) -> Check<bool> {
             | Type::Bool
             | Type::U8
             | Type::U16
+            | Type::U32
             | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
@@ -352,7 +360,11 @@ fn worker_graph(
                         | Constant::Bool(_)
                         | Constant::U8(_)
                         | Constant::U16(_)
+                        | Constant::U32(_)
                         | Constant::I32(_)
+                        | Constant::I8(_)
+                        | Constant::I16(_)
+                        | Constant::Isize(_)
                         | Constant::I64(_)
                         | Constant::U64(_)
                         | Constant::Usize(_),

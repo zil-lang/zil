@@ -196,7 +196,7 @@ pub(super) fn plan(
         if function.name == "main"
             && let Some(slot) = &abi.result
             && matches!(&function.return_type, Type::ErrorUnion { result, .. }
-                if matches!(result.as_ref(), Type::I32 | Type::Unit))
+                if matches!(result.as_ref(), Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::Unit))
         {
             // A native main wrapper must call this same physical signature.
             // Reserve its complete type clones and fixed tag/success events

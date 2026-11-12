@@ -844,7 +844,7 @@ fn checked_float(
     Ok(ty)
 }
 pub(super) fn integer(ty: &TypeRef) -> bool {
-    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u64" | "usize" | "i32" | "i64")))
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u32" | "i8" | "i16" | "isize" | "u64" | "usize" | "i32" | "i64")))
 }
 // An unused template cannot erase an out-of-range literal or an explicit
 // suffix mismatch. Concrete instances still enter ordinary Types and Verify.
@@ -856,9 +856,11 @@ fn checked_integer(
     pointer_width: u16,
 ) -> R<(TypeRef, i128)> {
     let clean = text.replace('_', "");
-    let suffix = ["u8", "u16", "u64", "usize", "i32", "i64"]
-        .into_iter()
-        .find(|name| clean.ends_with(name));
+    let suffix = [
+        "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+    ]
+    .into_iter()
+    .find(|name| clean.ends_with(name));
     let expected_name = expected.and_then(|ty| match &group(ty).kind {
         TypeKind::Named { path, args } if args.is_empty() && path.len() == 1 => {
             Some(path[0].as_str())
@@ -868,6 +870,11 @@ fn checked_integer(
     let name = suffix.unwrap_or(match expected_name {
         Some("u8") => "u8",
         Some("u16") => "u16",
+        Some("u32") => "u32",
+        Some("i8") => "i8",
+        Some("i16") => "i16",
+        Some("isize") => "isize",
+
         Some("u64") => "u64",
         Some("usize") => "usize",
         Some("i64") => "i64",
@@ -889,6 +896,14 @@ fn checked_integer(
     let fits = match name {
         "u8" => u8::try_from(value).is_ok(),
         "u16" => u16::try_from(value).is_ok(),
+        "u32" => u32::try_from(value).is_ok(),
+        "i8" => i8::try_from(value).is_ok(),
+        "i16" => i16::try_from(value).is_ok(),
+        "isize" => match pointer_width {
+            32 => i32::try_from(value).is_ok(),
+            64 => i64::try_from(value).is_ok(),
+            _ => return Err(unsupported(span, "generic isize target width")),
+        },
         "u64" => u64::try_from(value).is_ok(),
         "usize" => match pointer_width {
             32 => u32::try_from(value).is_ok(),
@@ -2652,11 +2667,13 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, span)?;
-                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
-                    .into_iter()
-                    .find(|suffix| text.ends_with(suffix))
-                    .or(default_integer.then_some("i32"))
-                    .map(|suffix| named(suffix, span)))
+                Ok([
+                    "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize",
+                ]
+                .into_iter()
+                .find(|suffix| text.ends_with(suffix))
+                .or(default_integer.then_some("i32"))
+                .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Float(text)) => {
                 self.budget.text(text, span)?;
