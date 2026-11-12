@@ -2673,6 +2673,14 @@ impl CtDynamicMetadata for StorageLifeContract {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
         visitor.rows(
+            (self.static_bindings).len(),
+            std::mem::size_of::<StoragePosition>(),
+            depth + 1,
+        )?;
+        for item in &self.static_bindings {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.rows(
             (self.classes).len(),
             std::mem::size_of::<SignatureLifeClassBinding>(),
             depth + 1,

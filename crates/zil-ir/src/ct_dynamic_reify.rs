@@ -3055,6 +3055,18 @@ pub fn reify_storage_life_contract<R: CtDynamicReifier>(
             }
             output
         },
+        static_bindings: {
+            reifier.rows(
+                (value.static_bindings).len(),
+                std::mem::size_of::<StoragePosition>(),
+                depth + 1,
+            )?;
+            let mut output = Vec::with_capacity((value.static_bindings).len());
+            for item in &value.static_bindings {
+                output.push(reify_storage_position(item, reifier, depth + 1)?);
+            }
+            output
+        },
         classes: {
             reifier.rows(
                 (value.classes).len(),
