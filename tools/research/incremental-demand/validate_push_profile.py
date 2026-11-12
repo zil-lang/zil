@@ -23,7 +23,9 @@ BASELINE_BINARY = '1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73
 CANDIDATE_BINARY = '50c316a9de2a6f422147ee3543ca32fde15979df7042dd61f8e440bf38336801'
 CANDIDATES = {SOURCE: CANDIDATE_BINARY,
               '328eb392d8d88148a75a743d899b43aebae73587':
-              'e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a'}
+              'e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a',
+              '03b078b5799fe44d98855f26279f0f09e1d25bf5':
+              'd0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c'}
 GENERATOR = 'tools/research/reactive-query-graph/native_workloads.py'
 RUNNER = 'tools/research/reactive-query-graph/native_measure.py'
 HELPER = 'tools/research/incremental-demand/push_counters.py'
