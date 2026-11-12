@@ -517,6 +517,7 @@ struct Payload {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
+    pending_external_update: bool,
     receiver: Option<usize>,
     locals: Vec<Payload>,
     external: Vec<Payload>,
@@ -864,6 +865,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
+    to.pending_external_update |= from.pending_external_update;
     if let Some(head) = from.receiver {
         b.spend(1)?;
         if to.receiver.is_some_and(|previous| previous != head) {
@@ -2541,6 +2543,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
     let count = captured_definition(module, f, b).map_or(0, |d| d.captures.len());
     b.spend(count)?;
     Ok(Frame {
+        pending_external_update: false,
         receiver: None,
         captures: vec![Payload::default(); count],
         locals: vec![Payload::default(); f.locals.len()],
@@ -3246,7 +3249,14 @@ fn step(
         }
         InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
             out = copy_payload(&state.captures[*index as usize], b)?;
-            state.captures[*index as usize] = Payload::default();
+            let pointee = i.result.is_some_and(|result|
+                matches!(&f.values[result.0 as usize], Type::Address { inner, .. }
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. })));
+            if pointee {
+                // These private rows model the caller's pointee memory, not
+                // an environment field that can be read a second time.
+                state.captures[*index as usize].address = Permission::default();
+            } else { state.captures[*index as usize] = Payload::default(); }
         }
         InstructionKind::WriteCapture { index, value } if b.returned_environment_sources => {
             state.captures[*index as usize] = copy_payload(val(*value)?, b)?;
@@ -3404,7 +3414,9 @@ fn step(
             });
         }
         kind if super::stored_callables::called(module, f, kind)
-            .is_some_and(|(definition, _)| receiver::declared(definition) && matches!(definition.result, Type::Address { .. })) =>
+            .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
+                signature_life::outer(life, StorageBase::Result).is_some())
+                && matches!(definition.result, Type::Address { .. })) =>
         {
             receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
         }
@@ -3859,7 +3871,10 @@ fn step(
                         &instantiate(module, f, source, arguments, values, state, b)?, b)?;
                 }
                 if permission.sources.is_empty() {
-                    return Err(err("external update has no grounded replacement source"));
+                    // Bottom during the interprocedural fixed point is not an
+                    // empty after-state. Preserve an explicit unproved debt.
+                    state.pending_external_update = true;
+                    continue;
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
                 let summary = &summaries[function.0 as usize];
@@ -5849,7 +5864,9 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         b.spend(path.len())?;
         source_work(row, b)?;
     }
-    for (_, path) in &s.external_stable { b.spend(path.len().saturating_add(2))?; }
+    for (_, path) in &s.external_stable {
+        b.spend(path.len().saturating_add(2))?;
+    }
     for (_, path, row) in &s.external_after {
         b.spend(path.len())?;
         source_work(row, b)?;
@@ -5873,7 +5890,8 @@ fn summarize(
     b: &mut Budget,
 ) -> Check<Summary> {
     let mut summary = Summary {
-        complete: true,
+        complete: !solution.outputs.iter().zip(&g.reachable)
+            .any(|(state, live)| *live && state.pending_external_update),
         ..Summary::default()
     };
     // This closure alone appends rows to this invocation's fresh Summary.
@@ -6077,13 +6095,17 @@ fn summarize(
                         returned = true;
                         let terminal = leaf(&solution.outputs[bi].external[parameter], path, b)?;
                         permission_work(initial, b)?;
-                        if let Some(terminal) = terminal { permission_work(terminal, b)?; }
+                        if let Some(terminal) = terminal {
+                            permission_work(terminal, b)?;
+                        }
                         stable &= terminal == Some(initial);
                     }
                 }
                 if returned && stable {
                     b.spend(path.len().saturating_add(2))?;
-                    summary.external_stable.push((parameter as u32, path.clone()));
+                    summary
+                        .external_stable
+                        .push((parameter as u32, path.clone()));
                 }
             }
         }
@@ -6762,14 +6784,17 @@ fn solve_check(
                     b.spend(used.len().saturating_add(1))?;
                     if let HoldRoot::Capture(index) = source.base {
                         match used.binary_search(&index) {
-                            Ok(_) => {}, Err(at) => used.insert(at, index),
+                            Ok(_) => {}
+                            Err(at) => used.insert(at, index),
                         }
                     }
                 }
             }
             b.spend(used.len().saturating_add(definition.lending_captures.len()))?;
             if used != definition.lending_captures {
-                return Err(err("captured result source set differs from actual returned permissions"));
+                return Err(err(
+                    "captured result source set differs from actual returned permissions",
+                ));
             }
         }
         for (path, sources) in &s.result {

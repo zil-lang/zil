@@ -244,10 +244,15 @@ pub(super) fn check_definitions(
         }
         budget.borrowed_function_pointers |= invocation;
         budget.invocation_callbacks |= invocation;
-        let explicit_result_relation = closure.storage_life.as_ref().is_some_and(|life|
-            signature_life::outer(life, StorageBase::Result).is_some());
-        if matches!(closure.result, Type::Address { .. }) && !invocation && !receiver_relation
-            && !explicit_result_relation {
+        let explicit_result_relation = closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| signature_life::outer(life, StorageBase::Result).is_some());
+        if matches!(closure.result, Type::Address { .. })
+            && !invocation
+            && !receiver_relation
+            && !explicit_result_relation
+        {
             if !lending_result(&closure.result)
                 || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 || closure.lending_captures.is_empty()
@@ -508,7 +513,7 @@ pub(super) fn check_definitions(
                     check_type(ty, None)?;
                 }
             }
-            if lending_result(&closure.result) || invocation {
+            if lending_result(&closure.result) || invocation || explicit_result_relation {
                 check_local_type(&closure.result, None, module, budget)?;
             } else {
                 check_type(&closure.result, None)?;
@@ -1005,7 +1010,9 @@ pub(super) fn check_resource_instruction(
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
                 if !matches!(
                     ty,
-                    Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+                    Type::Managed(_)
+                        | Type::Closure(_)
+                        | Type::OwnedDyn { .. }
                         | Type::Address { mutable: true, .. }
                 ) && !(budget.inline_store_root(ty)?
                     && dynamic_store::inline_sum_capture(ty, budget)?)

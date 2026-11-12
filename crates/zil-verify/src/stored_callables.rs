@@ -297,9 +297,10 @@ pub(super) fn captured_profile(
     }
     if !((d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
-        || d.storage_life.as_ref().is_some_and(|life| {
-            super::signature_life::outer(life, StorageBase::Result).is_some()
-        }) && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee()))
+        || d.storage_life
+            .as_ref()
+            .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())
+            && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee()))
     {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",

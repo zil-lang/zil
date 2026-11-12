@@ -751,9 +751,17 @@ fn relation_inner(
                         && outer(c, StorageBase::Capture(index as u32)) == upper);
             }
             possible |= c.classes.iter().any(|row| {
-                let StorageBase::Capture(index) = row.position.base else { return false };
-                Some(row.binder) == upper && captures.get(index as usize).is_some_and(|ty|
-                    !mutable || matches!(ty, Type::Address { mutable: true, .. } | Type::BorrowedStorage { .. }))
+                let StorageBase::Capture(index) = row.position.base else {
+                    return false;
+                };
+                Some(row.binder) == upper
+                    && captures.get(index as usize).is_some_and(|ty| {
+                        !mutable
+                            || matches!(
+                                ty,
+                                Type::Address { mutable: true, .. } | Type::BorrowedStorage { .. }
+                            )
+                    })
             });
         }
         if !possible && !array_result_input {

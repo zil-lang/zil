@@ -41,7 +41,7 @@ pub(super) fn add_site(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
-    if !call_site(module, f, i) {
+    if declared(d) && !call_site(module, f, i) {
         return Ok(());
     }
     b.spend(sites.len().saturating_add(2))?;
@@ -158,7 +158,9 @@ pub(super) fn receiver_result(
     let Some((d, arguments)) = stored_callables::called(module, f, &i.kind) else {
         return Ok(false);
     };
-    if !declared(d) || !matches!(d.result, Type::Address { .. }) {
+    if d.storage_life.as_ref().is_none_or(|life|
+        signature_life::outer(life, StorageBase::Result).is_none())
+        || !matches!(d.result, Type::Address { .. }) {
         return Ok(false);
     }
     if !call_site(module, f, i) {
@@ -171,23 +173,19 @@ pub(super) fn receiver_result(
     if !summary.complete {
         return Ok(true);
     }
-    let receiver = captured_owner::receiver(f, i, values, b)?;
+    let consumed = captured_owner::consuming_value(&i.kind);
+    let receiver = if consumed.is_some() { Permission::default() }
+        else { captured_owner::receiver(f, i, values, b)? };
     for (path, sources) in &summary.result {
         if !path.is_empty() {
             return Err(err("receiver result has unsupported nested leaf transport"));
         }
         for source in sources {
-            let actual = captured_owner::substitute(
-                module,
-                f,
-                source,
-                &d.captures,
-                &receiver,
-                arguments,
-                values,
-                state,
-                b,
-            )?;
+            let actual = if let Some(value) = consumed {
+                captured_owner::substitute_value(module, f, source, &d.captures,
+                    &values[value.0 as usize], arguments, values, state, b)?
+            } else { captured_owner::substitute(module, f, source, &d.captures,
+                &receiver, arguments, values, state, b)? };
             join_permission(&mut out.address, &actual, b)?;
         }
     }
@@ -195,7 +193,7 @@ pub(super) fn receiver_result(
         .storage_life
         .as_ref()
         .ok_or_else(|| err("receiver result relation absent"))?;
-    let result_is_head = signature_life::outer(life, StorageBase::Result)
+    let result_is_head = declared(d) && signature_life::outer(life, StorageBase::Result)
         == signature_life::outer(life, StorageBase::Receiver);
     if result_is_head || !summary.receiver_results.is_empty() {
         let retained = retain_written_slot(&receiver, i, HEAD_SITE, &Vec::new(), sites, loans, b)?;
