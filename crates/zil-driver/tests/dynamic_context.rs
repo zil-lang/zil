@@ -1019,3 +1019,42 @@ fn retained_field_child_conflicts_only_with_the_actual_projected_window() {
         }
     }
 }
+
+#[test]
+fn static_context_preserves_an_unused_phantom_class_without_a_target() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/static-slice-phantom.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "static-phantom");
+    let iface = module
+        .dyn_interfaces
+        .iter()
+        .find(|i| i.context.is_some())
+        .unwrap();
+    assert_eq!(iface.retained_life.binder_count, 2);
+    assert_eq!(iface.retained_life.ports.len(), 1);
+    assert_eq!(iface.retained_life.ports[0].binder, 0);
+    assert_eq!(iface.retained_life.nominal_arguments.len(), 2);
+    let factory = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    let life = factory.storage_life.as_ref().unwrap();
+    assert!(factory.parameters.is_empty());
+    assert_eq!(life.classes.len(), 2);
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 2)
+    );
+    assert_eq!(life.classes[0].binder, StorageBinder::Invocation(0));
+    assert_eq!(life.classes[1].binder, StorageBinder::Invocation(1));
+    assert_eq!(life.classes[0].position.class, 0);
+    assert_eq!(life.classes[1].position.class, 1);
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
