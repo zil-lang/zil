@@ -1,5 +1,38 @@
 //! Expressions select candidate uppers; only actual Return facts prove them.
 use super::*;
+mod owned;
+
+pub(super) enum Selection {
+    One(Source),
+    Region(Vec<Source>),
+}
+impl Selection {
+    pub(super) fn sources(&self) -> &[Source] {
+        match self {
+            Self::One(source) => std::slice::from_ref(source),
+            Self::Region(sources) => sources,
+        }
+    }
+    pub(super) fn into_sources(self) -> Sources {
+        match self {
+            Self::One(source) => Sources::One(std::iter::once(source)),
+            Self::Region(sources) => Sources::Region(sources.into_iter()),
+        }
+    }
+}
+pub(super) enum Sources {
+    One(std::iter::Once<Source>),
+    Region(std::vec::IntoIter<Source>),
+}
+impl Iterator for Sources {
+    type Item = Source;
+    fn next(&mut self) -> Option<Source> {
+        match self {
+            Self::One(source) => source.next(),
+            Self::Region(sources) => sources.next(),
+        }
+    }
+}
 
 pub(super) fn mode(leaf: &Type) -> Check<StoredBorrowMode> {
     match leaf {
@@ -32,13 +65,13 @@ pub(super) fn resolve(
     f: &TypedFunction,
     atom: &StorageSource,
     b: &mut Budget,
-) -> Check<(Type, Option<StorageBinder>, Source)> {
+) -> Check<(Type, Option<StorageBinder>, Selection)> {
     dynamic_metadata::source(atom, b)?;
     match atom {
         StorageSource::Exact(position) => {
             let (leaf, source) = input(module, f, position, b)?;
             let binder = binding(module, f, &source, b)?;
-            Ok((leaf, Some(binder), source))
+            Ok((leaf, Some(binder), Selection::One(source)))
         }
         StorageSource::PlaceAddress { place, mode } => {
             let StorageBase::Parameter(index) = place.base else {
@@ -68,14 +101,14 @@ pub(super) fn resolve(
                     inner: Box::new(endpoint.clone()),
                 },
                 Some(binder),
-                Source {
+                Selection::One(Source {
                     base: HoldRoot::Parameter(index),
                     retained_port: None,
                     leaf: Vec::new(),
                     inline: path,
                     heap_element: None,
                     heap_parents: Vec::new(),
-                },
+                }),
             ))
         }
         StorageSource::Static { leaf, mode: access } => {
@@ -88,17 +121,20 @@ pub(super) fn resolve(
             Ok((
                 leaf.clone(),
                 None,
-                Source {
+                Selection::One(Source {
                     base: HoldRoot::Static,
                     retained_port: None,
                     leaf: Vec::new(),
                     inline: Vec::new(),
                     heap_element: None,
                     heap_parents: Vec::new(),
-                },
+                }),
             ))
         }
-        StorageSource::OwnedView { .. } | StorageSource::ReborrowedLeaf { .. } => Err(unsupported(
+        StorageSource::OwnedView { head, leaf, mode } => {
+            owned::resolve(module, f, head, leaf, *mode, b)
+        }
+        StorageSource::ReborrowedLeaf { .. } => Err(unsupported(
             "source view requires independently reconstructed owned region and child scope",
             None,
         )),
