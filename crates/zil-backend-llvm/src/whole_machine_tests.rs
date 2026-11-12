@@ -406,14 +406,12 @@ fn whole_machine_exact_original_emitter_budget_n_and_n_minus_one_preserve_first_
         let result = crate::emit::incremental::with_initial_work(middle, || {
             lower(&current, &raw, EntryPoint::None, false, false, 1, None)
         });
-        if result.is_ok() {
-            high = middle;
-        } else {
-            assert_eq!(
-                result.unwrap_err()[0].category,
-                ResultCategory::ResourceLimit
-            );
-            low = middle;
+        match result {
+            Ok(_) => high = middle,
+            Err(errors) => {
+                assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+                low = middle;
+            }
         }
     }
     let n = high;
