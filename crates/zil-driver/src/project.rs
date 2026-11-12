@@ -85,6 +85,41 @@ pub(super) struct ExpandedProject {
     ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
     producer: Option<zil_expand::ProducedProgram>,
+    producer_epoch: Option<Arc<ProducerEpoch>>,
+}
+
+/// Raw acceleration is owned by the existing Expand snapshot/LRU entry. It
+/// carries sealed parser origins and budget receipts, never Verify authority.
+/// Keeping this metadata in the raw owner adds no independent epoch history.
+pub(super) struct ProducerEpoch {
+    core: Arc<CoreProgram>,
+    target: Fingerprint,
+    limits: Limits,
+    inputs: Vec<zil_syntax::ParsedSource>,
+    producer: Box<zil_expand::ExpandSession>,
+    materializer: super::ct_artifact::ScalarMaterializationSession,
+}
+impl std::fmt::Debug for ProducerEpoch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ProducerEpoch(..)")
+    }
+}
+#[inline(never)]
+fn capture_producer_epoch(
+    core: &zil_expand::ProducedProgram,
+    producer: &zil_expand::ExpandSession,
+    materializer: &super::ct_artifact::ScalarMaterializationSession,
+    inputs: &[zil_syntax::ParsedSource],
+    options: &CompileOptions,
+) -> Arc<ProducerEpoch> {
+    Arc::new(ProducerEpoch {
+        core: core.program().clone(),
+        target: options.target.fingerprint(),
+        limits: options.limits.clone(),
+        inputs: inputs.to_vec(),
+        producer: super::session::producer_checkpoint(producer),
+        materializer: materializer.checkpoint(),
+    })
 }
 
 /// Syntax belongs to an existing whole-project raw owner, not an independent
@@ -224,6 +259,59 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
 }
 
 impl CompilationSession {
+    /// A closed DB read has already validated this exact Expand owner. Check
+    /// its private output association and all current source bytes before using
+    /// its acceleration metadata; hashes alone cannot retarget parser seals.
+    pub(super) fn retained_producer_epoch(
+        &self,
+        key: &QueryKey,
+        sources: &[SourceUnit],
+        options: &CompileOptions,
+    ) -> Option<Arc<ProducerEpoch>> {
+        if !options.producer_reuse {
+            return None;
+        }
+        let RawSnapshot::Project(expanded) = self.raw.get(key)? else {
+            return None;
+        };
+        let epoch = expanded.producer_epoch.as_ref()?;
+        if !Arc::ptr_eq(&expanded.core, &epoch.core)
+            || !Arc::ptr_eq(expanded.producer.as_ref()?.program(), &epoch.core)
+            || epoch.target != options.target.fingerprint()
+            || epoch.limits != options.limits
+            || epoch.inputs.len() != sources.len()
+            || !epoch
+                .inputs
+                .iter()
+                .zip(sources)
+                .all(|(parsed, source)| parsed.source() == source)
+        {
+            return None;
+        }
+        Some(epoch.clone())
+    }
+    pub(super) fn activate_producer_epoch(
+        &mut self,
+        epoch: &ProducerEpoch,
+        options: &CompileOptions,
+    ) {
+        self.producer = super::session::producer_checkpoint(&epoch.producer);
+        self.producer
+            .set_cost_profiling(options.profile_compilation);
+        self.materializer = epoch.materializer.checkpoint();
+        let mut cache = self.producer_syntax.borrow_mut();
+        for parsed in &epoch.inputs {
+            let source = parsed.source();
+            cache.insert(
+                (source.module_id, source.file_id, source.path.clone()),
+                parsed.clone(),
+            );
+        }
+        while cache.len() > self.capacity {
+            cache.pop_first();
+        }
+    }
+
     /// This cache can only contain real parser constructions. A current read
     /// still compares all source bytes and the complete parsing envelope.
     /// Public ParseResult/Core values cannot be paired with these revisions.
@@ -606,6 +694,7 @@ impl CompilationSession {
                 && pair.0.module.module_id == project.root
                 && pair.0.module.target == options.target
             {
+                store.remember_packed_epoch(options, &mut self.semantic_publication);
                 let (typed, candidate) = *pair;
                 let before = Box::new(report.clone());
                 let imported = self.query_with_disposition(
@@ -614,7 +703,11 @@ impl CompilationSession {
                     options,
                     report,
                     observer,
-                    || Ok(RawSnapshot::ProjectTyped(Arc::new(typed))),
+                    || {
+                        Ok(RawSnapshot::ProjectTyped(
+                            super::session::ProjectTypedOwner::restored(typed),
+                        ))
+                    },
                     QueryDisposition::Reused,
                 );
                 let attempt = imported.and_then(|(raw, snapshot)| {
@@ -632,7 +725,7 @@ impl CompilationSession {
                         options,
                         report,
                         observer,
-                        TypedInput::CachedProgram(typed, Arc::new(candidate)),
+                        TypedInput::CachedProgram(typed.program().clone(), Arc::new(candidate)),
                         snapshot,
                         artifacts.clone(),
                         stable_source.as_ref(),
@@ -875,7 +968,8 @@ impl CompilationSession {
                                     entries: dependencies.iter().zip(&parsed)
                                         .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone())).collect(),
                                 }),
-                                producer: Some(produced),
+                                producer_epoch: Some(capture_producer_epoch(&produced,&producer,&materializer,sources,options)),
+                            producer: Some(produced),
                             })));
                         }
                     }
@@ -906,6 +1000,7 @@ impl CompilationSession {
                                 entries: dependencies.iter().zip(&parsed)
                                     .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone())).collect(),
                             }),
+                            producer_epoch: Some(capture_producer_epoch(&produced,&producer,&materializer,sources,options)),
                             producer: Some(produced),
                         })));
                     }
@@ -1078,6 +1173,8 @@ impl CompilationSession {
                             .map(|(snapshot, parsed)| (snapshot.key.clone(), parsed.clone()))
                             .collect(),
                     }),
+                    producer_epoch: produced.as_ref().zip(producer_sources.as_deref()).map(|(core,inputs)|
+                        capture_producer_epoch(core,&producer,&materializer,inputs,options)),
                     producer: produced,
                 })))
             },
@@ -1251,7 +1348,11 @@ impl CompilationSession {
         function_types.set_cost_profiling(options.profile_compilation);
         let function_restore_start = cost_start(options.profile_compilation);
         if let Some(store) = &function_store {
-            store.restore(&mut function_types, options);
+            store.restore(
+                &mut function_types,
+                options,
+                self.semantic_publication.function_packs(),
+            );
         }
         report.record_driver_cost("function_cache_read", function_restore_start);
         let checkpoint_start = cost_start(options.profile_compilation);
@@ -1303,7 +1404,14 @@ impl CompilationSession {
                     )
                 };
                 function_work = Some(super::session::function_work(&function_types));
-                checked.map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
+                checked.map(|typed| {
+                    RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::produced(
+                        typed,
+                        key(Phase::Types, true),
+                        &function_types,
+                        options.producer_reuse,
+                    ))
+                })
             },
         );
         report.function_type_work = function_work;
@@ -1319,6 +1427,9 @@ impl CompilationSession {
                 "project types query returned another snapshot kind",
             ));
         };
+        if report.function_type_work.is_none() {
+            self.activate_types_epoch(&typed, &typed_snapshot.key, options);
+        }
         report.phase = Phase::Types;
         report.scalar_interfaces = typed.interfaces.clone();
         artifacts.dump_lazy(report, options, "typed", |_| format!("{:#?}", typed.module))?;
@@ -1335,7 +1446,7 @@ impl CompilationSession {
             options,
             report,
             observer,
-            TypedInput::Program(typed.clone()),
+            TypedInput::Program(typed.program().clone()),
             typed_snapshot.clone(),
             artifacts.clone(),
             stable_source.as_ref(),
@@ -1348,7 +1459,7 @@ impl CompilationSession {
             self.semantic_publication
                 .bind_products(self.function_types.last_products());
             let publication = store.save(
-                &typed,
+                typed.program(),
                 &candidate,
                 options,
                 &artifacts,
@@ -1363,7 +1474,12 @@ impl CompilationSession {
         if result.is_ok()
             && let Some(store) = &function_store
         {
-            let publication = store.save(&self.function_types, options, &artifacts);
+            let publication = store.save(
+                &self.function_types,
+                options,
+                &artifacts,
+                self.semantic_publication.function_packs(),
+            );
             if options.profile_compilation
                 && let Some((encoding, stats)) = publication
             {
@@ -1372,6 +1488,12 @@ impl CompilationSession {
             }
         }
         report.record_driver_cost("function_cache_publication", persistence_start);
+        if result.is_ok() {
+            // Both stores may have filled shared fragment/pack placement hints.
+            // Attach only to the exact successful producer owner, never a cache
+            // restored value or the currently active but unrelated epoch.
+            typed.checkpoint_publication(&typed_snapshot.key, &self.semantic_publication);
+        }
         result
     }
 }
@@ -2709,7 +2831,7 @@ pub fn main()->i32=>0",
                 fs::write(path, b"corrupt optional manifest").unwrap();
             }
         }
-        fs::remove_dir_all(root.join("items")).unwrap();
+        fs::remove_dir_all(root.join("packs-v1")).unwrap();
         let mut project = ProjectSources {
             root: ModuleId(0),
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
@@ -2827,6 +2949,228 @@ pub fn main()->i32=>0",
             assert_eq!(actual.status, expected.status);
             assert_eq!(actual.diagnostics, expected.diagnostics);
         }
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+    #[test]
+    fn resident_parent_restores_types_and_publication_before_the_next_private_edit() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let cold_text = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}} pub fn main()->i32{let a=f(2);let b=g(a);let c=f(b);return c;}";
+        let options = CompileOptions {
+            producer_reuse: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut session = CompilationSession::with_capacity(64);
+        fs::write(&path, cold_text).unwrap();
+        let cold = session.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let (cold_key, epoch) = session
+            .raw
+            .iter()
+            .find_map(|(key, raw)| {
+                if let RawSnapshot::ProjectTyped(owner) = raw
+                    && owner.module.source_fingerprint == cold.input_fingerprint
+                {
+                    Some((key.clone(), owner.epoch_weak()))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let epoch = epoch.expect("successful Types producer retains a private raw epoch");
+        let broad_text = cold_text.replace("x+1", "x+11").replace("x+3", "x+13");
+        fs::write(&path, broad_text).unwrap();
+        let broad = session.compile_path(&path, &options);
+        assert_eq!(broad.status, ResultCategory::Success, "{}", broad.to_json());
+        fs::write(&path, cold_text).unwrap();
+        let parent = session.compile_path(&path, &options);
+        assert_eq!(
+            parent.status,
+            ResultCategory::Success,
+            "{}",
+            parent.to_json()
+        );
+        assert_eq!(parent.disk_cache, DiskCacheStatus::Resident);
+        assert!(parent.function_type_work.is_none());
+        assert_eq!(parent.verification_runs, 1);
+        // A new position-only revision must reuse cold canonical fragments,
+        // rather than serialize bodies from the unrelated broad epoch.
+        let shifted = format!("// current positions\n{cold_text}");
+        fs::write(&path, &shifted).unwrap();
+        let positions = session.compile_path(&path, &options);
+        assert_eq!(
+            positions.status,
+            ResultCategory::Success,
+            "{}",
+            positions.to_json()
+        );
+        let work = positions.function_type_work.as_ref().unwrap();
+        assert_eq!((work.executed_functions, work.reused_functions), (0, 3));
+        let publication = positions.semantic_cache_publication.as_ref().unwrap();
+        assert_eq!(
+            (
+                publication.serialized_functions,
+                publication.reused_functions
+            ),
+            (0, 3)
+        );
+        assert_eq!(positions.verification_runs, 1);
+        // Return to cold again, then change only one private function. The
+        // unchanged bodies retain their original producer revisions and CFGs.
+        fs::write(&path, cold_text).unwrap();
+        let parent = session.compile_path(&path, &options);
+        assert_eq!(
+            parent.status,
+            ResultCategory::Success,
+            "{}",
+            parent.to_json()
+        );
+        let private = cold_text.replace("x+1", "x+7");
+        fs::write(&path, &private).unwrap();
+        let edited = session.compile_path(&path, &options);
+        assert_eq!(
+            edited.status,
+            ResultCategory::Success,
+            "{}",
+            edited.to_json()
+        );
+        let work = edited.function_type_work.as_ref().unwrap();
+        assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 2));
+        assert_eq!((work.executed_functions, work.reused_functions), (1, 2));
+        let publication = edited.semantic_cache_publication.as_ref().unwrap();
+        assert_eq!(
+            (
+                publication.serialized_functions,
+                publication.reused_functions
+            ),
+            (1, 2)
+        );
+        assert_eq!(edited.verification_runs, 1);
+        let fresh = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(edited.status, fresh.status);
+        assert_eq!(edited.diagnostics, fresh.diagnostics);
+        session.clear();
+        assert!(!session.raw.contains_key(&cold_key));
+        assert!(
+            epoch.upgrade().is_none(),
+            "epoch lives only as long as its raw owner"
+        );
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn returning_to_resident_parent_reactivates_its_sealed_source_producer_epoch() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let texts = [
+            (
+                "main.zil",
+                "import dep; import channel; pub fn main()->i32{let a=dep.f(3);let b=channel.emit(a);let c=dep.f(b);return c;}",
+            ),
+            (
+                "dep.zil",
+                "pub fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}",
+            ),
+            (
+                "channel.zil",
+                "pub fn emit(x:i32)->i32{if x<0{return 0;}else{return x;}}",
+            ),
+        ];
+        for (file, text) in texts {
+            fs::write(dir.0.join(file), text).unwrap();
+        }
+        let options = CompileOptions {
+            producer_reuse: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut session = CompilationSession::with_capacity(64);
+        let cold = session.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let (cold_expand, epoch) = session
+            .raw
+            .iter()
+            .find_map(|(key, raw)| match raw {
+                RawSnapshot::Project(expanded)
+                    if expanded.core.source_fingerprint == cold.input_fingerprint =>
+                {
+                    expanded
+                        .producer_epoch
+                        .as_ref()
+                        .map(|epoch| (key.clone(), Arc::downgrade(epoch)))
+                }
+                _ => None,
+            })
+            .expect("the real scalar Expand owner retains its own sealed epoch");
+        for (file, text) in texts {
+            fs::write(
+                dir.0.join(file),
+                format!("// shifted source positions\n\n{text}"),
+            )
+            .unwrap();
+        }
+        let positions = session.compile_path(&path, &options);
+        assert_eq!(
+            positions.status,
+            ResultCategory::Success,
+            "{}",
+            positions.to_json()
+        );
+        for (file, text) in texts {
+            fs::write(dir.0.join(file), text).unwrap();
+        }
+        let parent = session.compile_path(&path, &options);
+        assert_eq!(
+            parent.status,
+            ResultCategory::Success,
+            "{}",
+            parent.to_json()
+        );
+        assert_eq!(parent.disk_cache, DiskCacheStatus::Resident);
+        assert_eq!(parent.verification_runs, 1);
+        assert_eq!(parent.source_ingress.as_ref().unwrap().parser_executions, 0);
+        assert!(parent.producer_work.is_none());
+        let broken = texts[1].1.replace("return x+1", "return absent_name+1");
+        fs::write(dir.0.join("dep.zil"), &broken).unwrap();
+        let error = session.compile_path(&path, &options);
+        let fresh = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(error.status, fresh.status);
+        assert_eq!(error.phase, fresh.phase);
+        assert_eq!(error.diagnostics, fresh.diagnostics);
+        assert_eq!(error.diagnostics[0].code, "E-UNKNOWN-NAME");
+        let at = broken.find("absent_name").unwrap();
+        assert_eq!(
+            error.diagnostics[0].span,
+            Some(Span::new(FileId(1), at, at + "absent_name".len()))
+        );
+        assert_eq!(error.verification_runs, 0);
+        let ingress = error.source_ingress.as_ref().unwrap();
+        assert_eq!((ingress.parser_executions, ingress.parser_reuses), (1, 2));
+        let producer = error.producer_work.as_ref().unwrap();
+        assert_eq!(producer.classified_modules, 1);
+        assert_eq!(
+            (producer.lower_modules, producer.reused_lower_modules),
+            (1, 2)
+        );
+        assert_eq!(producer.environment_imports_changed, 0);
+        let materializer = error
+            .materialization_work
+            .as_ref()
+            .expect("emit routing exercises the actual scalar materializer");
+        assert_eq!(
+            (materializer.executed_modules, materializer.reused_modules),
+            (1, 2)
+        );
+
+        // The enclosing epoch object has no independent history owner. Existing
+        // raw-owner removal releases it, including the public clear boundary.
+        // No private recency bookkeeping or independent epoch history is needed.
+        session.clear();
+        assert!(!session.raw.contains_key(&cold_expand));
+        assert!(epoch.upgrade().is_none());
         fs::remove_dir_all(dir.0).unwrap();
     }
 }

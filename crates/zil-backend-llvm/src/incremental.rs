@@ -24,6 +24,9 @@ pub struct BackendSessionSummary {
     pub lowered_functions: usize,
     pub reused_functions: usize,
     pub reused_partition: bool,
+    pub reused_partition_recipe: bool,
+    pub reused_partition_units: usize,
+    pub rebuilt_partition_units: usize,
     pub reused_machine_transforms: bool,
     pub reused_object_keys: usize,
     pub reused_link: bool,
@@ -34,14 +37,14 @@ impl BackendSession {
     pub fn summary(&self) -> &BackendSessionSummary {
         &self.summary
     }
-    pub(crate) fn render(&mut self, module: &Module) -> String {
+    pub(crate) fn render(&mut self, module: &Module) -> DiagnosticText {
         let header = Module {
             triple: module.triple.clone(),
             fingerprint: module.fingerprint.clone(),
             items: (Vec::new()).into(),
         }
         .to_text();
-        let mut text = header.clone();
+        let mut fragments = Vec::with_capacity(module.items.len());
         let mut next = std::collections::BTreeMap::new();
         for item in &module.items {
             let name = match item {
@@ -68,14 +71,18 @@ impl BackendSession {
                 .to_text();
                 Arc::new(DiagnosticItem {
                     item: item.clone(),
-                    text: rendered[header.len()..].to_owned(),
+                    text: Arc::new(rendered[header.len()..].to_owned()),
                 })
             };
-            text.push_str(&product.text);
+            fragments.push(product.text.clone());
             next.insert(name, product);
         }
         self.diagnostic_items = next;
-        text
+        DiagnosticText {
+            text: Arc::new(header),
+            fragments: fragments.into(),
+            fingerprint: None,
+        }
     }
     pub(crate) fn begin(&mut self) {
         self.summary = BackendSessionSummary::default();
@@ -85,7 +92,7 @@ impl BackendSession {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct DiagnosticItem {
     item: zil_llvm_api::model::Item,
-    text: String,
+    text: Arc<String>,
 }
 pub(crate) type ScalarIdentity = (Arc<()>, Vec<(Arc<()>, Arc<()>)>);
 pub(crate) fn same_identity(left: &ScalarIdentity, right: &ScalarIdentity) -> bool {
@@ -155,6 +162,15 @@ impl PartitionInput {
         }
     }
 }
+impl PartitionInput {
+    pub(crate) fn same_recipe_environment(&self, other: &Self) -> bool {
+        self.options == other.options
+            && self.names == other.names
+            && self.collected == other.collected
+            && self.closures == other.closures
+            && matches!((&self.scalar, &other.scalar), (Some((left, _)), Some((right, _))) if Arc::ptr_eq(left, right))
+    }
+}
 impl PartialEq for PartitionInput {
     fn eq(&self, other: &Self) -> bool {
         if self.options != other.options
@@ -186,6 +202,7 @@ pub(crate) struct PartitionProduct {
     pub(crate) fallback: Option<&'static str>,
     pub(crate) diagnostic: DiagnosticText,
     pub(crate) private_closures: usize,
+    pub(crate) recipe: Option<crate::machine_cgu::Recipe>,
 }
 impl PartitionProduct {
     pub(crate) fn diagnostic(&self, fingerprint: &str) -> DiagnosticText {
@@ -197,12 +214,14 @@ impl PartitionProduct {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DiagnosticText {
     text: Arc<String>,
+    fragments: zil_llvm_api::model::SharedVec<Arc<String>>,
     fingerprint: Option<String>,
 }
 impl From<String> for DiagnosticText {
     fn from(text: String) -> Self {
         Self {
             text: Arc::new(text),
+            fragments: Vec::new().into(),
             fingerprint: None,
         }
     }
@@ -211,12 +230,13 @@ impl DiagnosticText {
     fn current(&self, fingerprint: &str) -> Self {
         Self {
             text: self.text.clone(),
+            fragments: self.fragments.clone(),
             fingerprint: Some(fingerprint.to_owned()),
         }
     }
     pub(crate) fn write(&self, path: &std::path::Path) -> std::io::Result<()> {
         use std::io::Write;
-        let mut file = std::fs::File::create(path)?;
+        let mut file = std::io::BufWriter::new(std::fs::File::create(path)?);
         let prefix = "; ZIL verified LLVM module\n; verified-fingerprint: ";
         if let Some(fingerprint) = &self.fingerprint
             && let Some(rest) = self.text.strip_prefix(prefix)
@@ -228,7 +248,26 @@ impl DiagnosticText {
         } else {
             file.write_all(self.text.as_bytes())?;
         }
-        Ok(())
+        for fragment in &self.fragments {
+            file.write_all(fragment.as_bytes())?;
+        }
+        file.flush()
+    }
+    #[cfg(test)]
+    pub(crate) fn to_text(&self) -> String {
+        let mut text = self.text.as_ref().clone();
+        if let Some(fingerprint) = &self.fingerprint {
+            let prefix = "; ZIL verified LLVM module\n; verified-fingerprint: ";
+            if let Some(rest) = text.strip_prefix(prefix)
+                && let Some(end) = rest.find('\n')
+            {
+                text.replace_range(prefix.len()..prefix.len() + end, fingerprint);
+            }
+        }
+        for fragment in &self.fragments {
+            text.push_str(fragment);
+        }
+        text
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]

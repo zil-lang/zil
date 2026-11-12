@@ -11,6 +11,8 @@ use zil_ir::{
 const MAGIC: &[u8; 8] = b"ZILSEM04";
 #[path = "semantic_items.rs"]
 mod items;
+#[path = "packed_items.rs"]
+pub(crate) mod packed;
 pub(super) use items::SemanticPublicationSession;
 pub use items::SemanticPublicationStats;
 
@@ -78,7 +80,16 @@ impl Store {
         if !private_directory(&self.root, false) {
             return None;
         }
-        match ArtifactCache::with_limit(&self.root, self.maximum)
+        let maximum = if self.segmented {
+            packed::Bounds {
+                maximum: self.maximum,
+                max_items: options.limits.max_functions.checked_add(4)?,
+            }
+            .manifest_maximum()?
+        } else {
+            self.maximum
+        };
+        match ArtifactCache::with_limit(&self.root, maximum)
             .inspect_candidate(self.key)
             .ok()?
         {
@@ -720,6 +731,12 @@ pub struct FunctionPublicationStats {
     pub guard_ns: u128,
     pub item_io_ns: u128,
     pub manifest_io_ns: u128,
+    pub physical_pack_writes: usize,
+    pub physical_pack_bytes: usize,
+    pub manifest_writes: usize,
+    pub compacted_items: usize,
+    pub referenced_packs: usize,
+    pub referenced_pack_payload_bytes: usize,
 }
 impl FunctionStore {
     pub(super) fn new(
@@ -755,15 +772,44 @@ impl FunctionStore {
         &self,
         session: &mut zil_types::FunctionSession,
         options: &CompileOptions,
+        packs: &mut packed::Epoch,
     ) {
         if !session.is_empty() || !private_directory(&self.store.root, false) {
             return;
         }
+        let bounds = packed::Bounds {
+            maximum: self.store.maximum,
+            max_items: options.limits.max_functions,
+        };
+        let Some(maximum) = (if self.items {
+            bounds.manifest_maximum()
+        } else {
+            Some(self.store.maximum)
+        }) else {
+            return;
+        };
         if let Ok(CacheRead::Candidate(bytes)) =
-            ArtifactCache::with_limit(&self.store.root, self.store.maximum)
-                .inspect_candidate(self.store.key)
+            ArtifactCache::with_limit(&self.store.root, maximum).inspect_candidate(self.store.key)
         {
             if self.items {
+                if packed::is_packed(&bytes) {
+                    let root = self.store.root.join("packs-v1");
+                    let Some(mut reader) =
+                        packed::Reader::new(&root, &bytes, bounds, &options.cancellation)
+                    else {
+                        return;
+                    };
+                    let logical = reader.logical().to_vec();
+                    if session.restore_item_products(
+                        &logical,
+                        &mut |key| reader.load(key),
+                        &options.target,
+                        &options.limits,
+                    ) {
+                        *packs = reader.epoch();
+                    }
+                    return;
+                }
                 let root = self.store.root.join("items");
                 if !private_directory(&root, false) {
                     return;
@@ -791,12 +837,13 @@ impl FunctionStore {
         session: &zil_types::FunctionSession,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
+        packs: &mut packed::Epoch,
     ) -> Option<(
         zil_ir::wire::FunctionEncodingStats,
         FunctionPublicationStats,
     )> {
         if self.items {
-            return self.save_items(session, options, plan);
+            return self.save_items(session, options, plan, packs);
         }
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return None;
@@ -823,6 +870,7 @@ impl FunctionStore {
         session: &zil_types::FunctionSession,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
+        packs: &mut packed::Epoch,
     ) -> Option<(
         zil_ir::wire::FunctionEncodingStats,
         FunctionPublicationStats,
@@ -833,7 +881,7 @@ impl FunctionStore {
         }
         let mut guarded = plan.clone();
         let root = guarded
-            .cache_directory("function-items", &self.store.root.join("items"))
+            .cache_directory("function-packs", &self.store.root.join("packs-v1"))
             .ok()?;
         let mut guard_ns = publication_elapsed(batch);
         let encode = publication_start(options.profile_compilation);
@@ -847,55 +895,43 @@ impl FunctionStore {
         }
         let namespace = guarded.pin_cache_directory(&root).ok()?;
         guard_ns += publication_elapsed(pin);
-        let cache = ArtifactCache::with_limit(namespace.root(), self.store.maximum);
-        let mut stats = FunctionPublicationStats {
-            encode_ns,
-            guard_ns,
-            ..Default::default()
+        let stats = packed::publish(
+            packed::PublishContext {
+                packs: &namespace,
+                manifest_root: &self.store.root,
+                namespace_key: &root,
+                manifest_key: self.store.key,
+                cancellation: &options.cancellation,
+                profile: options.profile_compilation,
+            },
+            &products.manifest,
+            products
+                .items
+                .into_iter()
+                .map(|item| (item.content_fingerprint, item.bytes))
+                .collect(),
+            packed::Bounds {
+                maximum: self.store.maximum,
+                max_items: options.limits.max_functions,
+            },
+            packs,
+        )?;
+        let stats = FunctionPublicationStats {
+            written_functions: stats.written_items,
+            existing_functions: stats.existing_items,
+            written_bytes: stats.written_bytes,
+            manifest_bytes: stats.manifest_bytes,
+            encode_ns: encode_ns + stats.encode_ns,
+            guard_ns: guard_ns + stats.guard_ns,
+            item_io_ns: stats.item_io_ns,
+            manifest_io_ns: stats.manifest_io_ns,
+            physical_pack_writes: stats.physical_pack_writes,
+            physical_pack_bytes: stats.physical_pack_bytes,
+            manifest_writes: stats.manifest_writes,
+            compacted_items: stats.compacted_items,
+            referenced_packs: stats.referenced_packs,
+            referenced_pack_payload_bytes: stats.referenced_pack_payload_bytes,
         };
-        for item in products.items {
-            if options.cancellation.is_cancelled() {
-                return None;
-            }
-            let io = publication_start(options.profile_compilation);
-            let path = namespace
-                .root()
-                .join(format!("{}.candidate", item.content_fingerprint));
-            let exists = !self.corrupt.borrow().contains(&item.content_fingerprint)
-                && fs::symlink_metadata(&path)
-                    .is_ok_and(|m| m.is_file() && m.len() == item.bytes.len() as u64 + 80);
-            stats.item_io_ns += publication_elapsed(io);
-            if exists {
-                stats.existing_functions += 1;
-            } else {
-                let guard = publication_start(options.profile_compilation);
-                namespace.validate_write().ok()?;
-                stats.guard_ns += publication_elapsed(guard);
-                let io = publication_start(options.profile_compilation);
-                cache
-                    .write_candidate_cancellable(
-                        item.content_fingerprint,
-                        &item.bytes,
-                        &options.cancellation,
-                    )
-                    .ok()?;
-                stats.item_io_ns += publication_elapsed(io);
-                stats.written_functions += 1;
-                stats.written_bytes += item.bytes.len();
-            }
-        }
-        let guard = publication_start(options.profile_compilation);
-        if options.cancellation.is_cancelled() {
-            return None;
-        }
-        namespace.validate().ok()?;
-        stats.guard_ns += publication_elapsed(guard);
-        let io = publication_start(options.profile_compilation);
-        ArtifactCache::with_limit(&self.store.root, self.store.maximum)
-            .write_candidate_cancellable(self.store.key, &products.manifest, &options.cancellation)
-            .ok()?;
-        stats.manifest_io_ns = publication_elapsed(io);
-        stats.manifest_bytes = products.manifest.len();
         Some((encoding, stats))
     }
 }

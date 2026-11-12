@@ -387,17 +387,17 @@ impl CompileReport {
                 "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
                 stats.serialized_functions, stats.reused_functions)),
             self.function_cache_publication.map_or_else(|| "null".into(), |stats| format!(
-                "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{}}}",
-                stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns)),
+                "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{},\"physical_pack_writes\":{},\"physical_pack_bytes\":{},\"manifest_writes\":{},\"compacted_items\":{},\"referenced_packs\":{},\"referenced_pack_payload_bytes\":{}}}",
+                stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns, stats.physical_pack_writes, stats.physical_pack_bytes, stats.manifest_writes, stats.compacted_items, stats.referenced_packs, stats.referenced_pack_payload_bytes)),
             self.semantic_cache_publication.map_or_else(|| "null".into(), |stats| format!(
-                "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"canonical_functions\":{},\"bound_functions\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{}}}",
-                stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes, stats.canonical_functions, stats.bound_functions, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns)),
+                "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"canonical_functions\":{},\"bound_functions\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{},\"physical_pack_writes\":{},\"physical_pack_bytes\":{},\"manifest_writes\":{},\"compacted_items\":{},\"referenced_packs\":{},\"referenced_pack_payload_bytes\":{}}}",
+                stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes, stats.canonical_functions, stats.bound_functions, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns, stats.physical_pack_writes, stats.physical_pack_bytes, stats.manifest_writes, stats.compacted_items, stats.referenced_packs, stats.referenced_pack_payload_bytes)),
             self.verification_work.map_or_else(|| "null".into(), |stats| format!(
                 "{{\"full_receipts_reused\":{},\"function_proofs_checked\":{},\"function_proofs_reused\":{},\"instruction_proofs_reused\":{}}}",
                 stats.full_receipts_reused, stats.function_proofs_checked, stats.function_proofs_reused, stats.instruction_proofs_reused)),
             self.backend_work.as_ref().map_or_else(|| "null".into(), |stats| format!(
-                "{{\"lowered_functions\":{},\"reused_functions\":{},\"reused_machine_transforms\":{},\"reused_partition\":{},\"reused_object_keys\":{},\"reused_link\":{},\"rendered_diagnostic_items\":{},\"reused_diagnostic_items\":{}}}",
-                stats.lowered_functions, stats.reused_functions, stats.reused_machine_transforms, stats.reused_partition, stats.reused_object_keys, stats.reused_link, stats.rendered_diagnostic_items, stats.reused_diagnostic_items)),
+                "{{\"lowered_functions\":{},\"reused_functions\":{},\"reused_machine_transforms\":{},\"reused_partition\":{},\"reused_object_keys\":{},\"reused_link\":{},\"rendered_diagnostic_items\":{},\"reused_diagnostic_items\":{},\"reused_partition_recipe\":{},\"reused_partition_units\":{},\"rebuilt_partition_units\":{}}}",
+                stats.lowered_functions, stats.reused_functions, stats.reused_machine_transforms, stats.reused_partition, stats.reused_object_keys, stats.reused_link, stats.rendered_diagnostic_items, stats.reused_diagnostic_items, stats.reused_partition_recipe, stats.reused_partition_units, stats.rebuilt_partition_units)),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,

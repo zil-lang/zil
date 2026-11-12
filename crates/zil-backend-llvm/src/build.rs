@@ -414,6 +414,7 @@ pub fn build_view_with_cancellation_and_session(
     {
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_partition = true;
+            session.summary.reused_partition_units = cached.units.len();
         }
         (
             crate::machine_cgu::Plan {
@@ -426,6 +427,26 @@ pub fn build_view_with_cancellation_and_session(
             cached.private_closures,
         )
     } else {
+        // Only the already admitted scalar ordinary-O2 domain has no imports,
+        // closure internalization, closed linkage or global transform plans.
+        // Other domains retain the complete original partition path.
+        let ordinary_recipe = session
+            .as_ref()
+            .is_some_and(|session| session.lower.eligible)
+            && options.backend == NativeBackend::LlvmApi
+            && options.optimization == Optimization::O2
+            && !options.incremental_o2
+            && !options.closed_executable;
+        let recipe_replay = ordinary_recipe
+            .then(|| {
+                let old = session.as_ref()?.partition.as_ref()?;
+                let input = partition_input.as_ref()?;
+                if !old.input.same_recipe_environment(input) {
+                    return None;
+                }
+                old.recipe.as_ref()?.replay(&machine, &old.units)
+            })
+            .flatten();
         let mut stable = if options.closed_executable
             && options.backend == NativeBackend::LlvmApi
             && options.optimization == Optimization::O2
@@ -465,47 +486,72 @@ pub fn build_view_with_cancellation_and_session(
         // complete original-model preflight. Existing per-unit API preflight still runs
         // immediately before its LLVMBuilder calls and cannot be bypassed.
         let diagnostic_started = std::time::Instant::now();
-        let llvm: crate::incremental::DiagnosticText =
-            if let Some(session) = session.as_deref_mut() {
-                session.render(&machine)
-            } else {
-                machine.to_text()
-            }
-            .into();
+        let llvm = if let Some(session) = session.as_deref_mut() {
+            session.render(&machine)
+        } else {
+            crate::incremental::DiagnosticText::from(machine.to_text())
+        };
         timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
-        let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
-            let trace =
-                std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
-            let (plan, candidates, diagnostic) = stable.partition(machine, trace);
-            (plan, Some(candidates), diagnostic)
-        } else if collected_closed {
-            (
-                crate::machine_cgu::Plan {
-                    units: vec![machine],
-                    fallback: None,
-                },
-                None,
-                None,
-            )
-        } else {
-            let (plan, pending) = crate::machine_cgu::partition_view_cached(
-                machine,
-                lir,
-                options.emit.entry,
-                options.codegen.units,
-                options.optimization == Optimization::O0 || options.incremental_o2,
-                crate::machine_cgu::CallImportPolicy::for_incremental_o2(
-                    options.optimization == Optimization::O2 && options.incremental_o2,
-                    options.function_merging,
-                ),
-                (options.backend == NativeBackend::LlvmApi)
-                    .then_some(options.object_cache.as_deref())
-                    .flatten(),
-            );
-            pending_layout = pending;
-            (plan, None, None)
-        };
+        let (mut plan, stable_candidates, stable_diagnostic, recipe) =
+            if let Some((plan, recipe, rebuilt)) = recipe_replay {
+                if let Some(session) = session.as_deref_mut() {
+                    session.summary.reused_partition_recipe = true;
+                    session.summary.rebuilt_partition_units = rebuilt;
+                    session.summary.reused_partition_units =
+                        plan.units.len().saturating_sub(rebuilt);
+                }
+                (plan, None, None, Some(recipe))
+            } else if let Some(stable) = stable {
+                let trace = std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV)
+                    .map(PathBuf::from);
+                let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+                (plan, Some(candidates), diagnostic, None)
+            } else if collected_closed {
+                (
+                    crate::machine_cgu::Plan {
+                        units: vec![machine],
+                        fallback: None,
+                    },
+                    None,
+                    None,
+                    None,
+                )
+            } else if ordinary_recipe {
+                let (plan, pending, recipe) = crate::machine_cgu::partition_view_cached_with_recipe(
+                    machine,
+                    lir,
+                    options.emit.entry,
+                    options.codegen.units,
+                    false,
+                    crate::machine_cgu::CallImportPolicy::Disabled,
+                    options.object_cache.as_deref(),
+                );
+                pending_layout = pending;
+                (plan, None, None, recipe)
+            } else {
+                let (plan, pending) = crate::machine_cgu::partition_view_cached(
+                    machine,
+                    lir,
+                    options.emit.entry,
+                    options.codegen.units,
+                    options.optimization == Optimization::O0 || options.incremental_o2,
+                    crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                        options.optimization == Optimization::O2 && options.incremental_o2,
+                        options.function_merging,
+                    ),
+                    (options.backend == NativeBackend::LlvmApi)
+                        .then_some(options.object_cache.as_deref())
+                        .flatten(),
+                );
+                pending_layout = pending;
+                (plan, None, None, None)
+            };
+        if let Some(session) = session.as_deref_mut()
+            && !session.summary.reused_partition_recipe
+        {
+            session.summary.rebuilt_partition_units = plan.units.len();
+        }
         if options.closed_executable {
             if let Some(candidates) = stable_candidates {
                 crate::machine_cgu::internalize_closed_executable_names(
@@ -527,6 +573,7 @@ pub fn build_view_with_cancellation_and_session(
                 fallback: plan.fallback,
                 diagnostic: llvm.clone(),
                 private_closures,
+                recipe,
             }));
         }
         (
@@ -819,11 +866,7 @@ pub fn build_view_with_cancellation_and_session(
     let previous_link = session
         .as_ref()
         .and_then(|session| session.link.as_ref())
-        .filter(|product| {
-            Some(product.key) == link_key
-                && codegen.object_cache.enabled
-                && codegen.object_cache.hits == actual_units
-        })
+        .filter(|product| Some(product.key) == link_key && codegen.object_cache.enabled)
         .cloned();
     let restoring_link = previous_link.is_some();
     let link_started = std::time::Instant::now();

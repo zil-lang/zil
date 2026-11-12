@@ -3,6 +3,8 @@
 use crate::{EntryPoint, FunctionMerging};
 
 pub(crate) mod layout;
+mod recipe;
+pub(crate) use recipe::Recipe;
 mod resource_helpers;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
@@ -173,13 +175,73 @@ pub(crate) fn partition_view_cached(
     imports: CallImportPolicy,
     cache_root: Option<&std::path::Path>,
 ) -> (Plan, Option<layout::Pending>) {
+    let (plan, pending, _) = partition_view_cached_impl(
+        module,
+        lir,
+        CachedPartitionOptions {
+            entry,
+            count,
+            split_large_files,
+            imports,
+            cache_root,
+            record_recipe: false,
+        },
+    );
+    (plan, pending)
+}
+pub(crate) fn partition_view_cached_with_recipe(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    imports: CallImportPolicy,
+    cache_root: Option<&std::path::Path>,
+) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
+    partition_view_cached_impl(
+        module,
+        lir,
+        CachedPartitionOptions {
+            entry,
+            count,
+            split_large_files,
+            imports,
+            cache_root,
+            record_recipe: true,
+        },
+    )
+}
+struct CachedPartitionOptions<'a> {
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    imports: CallImportPolicy,
+    cache_root: Option<&'a std::path::Path>,
+    record_recipe: bool,
+}
+fn partition_view_cached_impl(
+    module: Module,
+    lir: &LirView<'_>,
+    options: CachedPartitionOptions<'_>,
+) -> (Plan, Option<layout::Pending>, Option<Recipe>) {
+    let CachedPartitionOptions {
+        entry,
+        count,
+        split_large_files,
+        imports,
+        cache_root,
+        record_recipe,
+    } = options;
+    let recipe_source =
+        (record_recipe && imports == CallImportPolicy::Disabled).then(|| module.clone());
+
     // Shared helper code alone must not force otherwise independent resource
     // modules into one object. Keep full helper visibility, bounded small source
     // imports, identity-bearing local components and the original copy bound.
     if imports == CallImportPolicy::ResourceHelpers
         && let Some(recipe) = resource_helpers::prepare(&module, lir, entry, count)
     {
-        return (recipe.replay(module), None);
+        return (recipe.replay(module), None, None);
     }
     let cache = cache_root.and_then(|root| {
         layout::Cache::new(root, &module, lir, entry, count, split_large_files, imports)
@@ -189,12 +251,14 @@ pub(crate) fn partition_view_cached(
         .and_then(|cache| cache.load(&module, lir, count))
         && valid_declaration_prelude(&module)
     {
+        let recipe = recipe_source.and_then(|source| Recipe::new(source, cached.clone()));
         return (
             Plan {
                 units: cached.replay(module),
                 fallback: None,
             },
             None,
+            recipe,
         );
     }
     let mut recorded = None;
@@ -207,10 +271,13 @@ pub(crate) fn partition_view_cached(
         imports != CallImportPolicy::Disabled,
         &mut recorded,
     );
+    let recipe = recipe_source
+        .zip(recorded.as_ref())
+        .and_then(|(source, layout)| Recipe::new(source, layout.clone()));
     let pending = cache
         .zip(recorded)
         .and_then(|(cache, layout)| cache.pending(&layout));
-    (plan, pending)
+    (plan, pending, recipe)
 }
 
 // Complete implementation import is an optional optimization. A rejected copy

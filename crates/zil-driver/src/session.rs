@@ -2,7 +2,7 @@ use super::artifacts::ArtifactPlan;
 use super::*;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::Instant;
 use zil_backend_llvm::{BuildOptions, EmitOptions, EntryPoint};
 use zil_base::{
@@ -28,7 +28,90 @@ pub(super) enum RawSnapshot {
     Candidate(Arc<CandidatePlan>),
     Project(Arc<super::project::ExpandedProject>),
     ProjectCore(Arc<zil_types::PreparedProgram>),
-    ProjectTyped(Arc<zil_ir::TypedProgram>),
+    ProjectTyped(ProjectTypedOwner),
+}
+/// The epoch belongs to the existing bounded raw owner, not a separate history.
+/// Its weak program identity and full key seal only raw acceleration state.
+pub(super) struct TypesEpoch {
+    key: QueryKey,
+    program: Weak<TypedProgram>,
+    functions: Box<zil_types::FunctionSession>,
+    publication: OnceLock<super::semantic_cache::SemanticPublicationSession>,
+}
+#[derive(Clone)]
+pub(super) struct ProjectTypedOwner {
+    program: Arc<TypedProgram>,
+    epoch: Option<Arc<TypesEpoch>>,
+}
+impl std::fmt::Debug for ProjectTypedOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.program.fmt(f)
+    }
+}
+impl std::ops::Deref for ProjectTypedOwner {
+    type Target = TypedProgram;
+    fn deref(&self) -> &Self::Target {
+        &self.program
+    }
+}
+impl AsRef<TypedProgram> for ProjectTypedOwner {
+    fn as_ref(&self) -> &TypedProgram {
+        &self.program
+    }
+}
+impl ProjectTypedOwner {
+    pub(super) fn restored(program: TypedProgram) -> Self {
+        Self {
+            program: Arc::new(program),
+            epoch: None,
+        }
+    }
+    #[inline(never)]
+    pub(super) fn produced(
+        program: TypedProgram,
+        key: QueryKey,
+        functions: &zil_types::FunctionSession,
+        retain: bool,
+    ) -> Self {
+        let program = Arc::new(program);
+        let epoch = retain.then(|| {
+            Arc::new(TypesEpoch {
+                key,
+                program: Arc::downgrade(&program),
+                functions: Box::new(functions.epoch_checkpoint()),
+                publication: OnceLock::new(),
+            })
+        });
+        Self { program, epoch }
+    }
+    pub(super) fn program(&self) -> &Arc<TypedProgram> {
+        &self.program
+    }
+    fn matching_epoch(&self, key: &QueryKey) -> Option<&TypesEpoch> {
+        let epoch = self.epoch.as_deref()?;
+        (epoch.key == *key && Arc::ptr_eq(&epoch.program.upgrade()?, &self.program))
+            .then_some(epoch)
+    }
+    pub(super) fn checkpoint_publication(
+        &self,
+        key: &QueryKey,
+        publication: &super::semantic_cache::SemanticPublicationSession,
+    ) {
+        if let Some(epoch) = self.matching_epoch(key)
+            && let Some(checkpoint) = publication.checkpoint_for(&self.program)
+        {
+            let _ = epoch.publication.set(checkpoint);
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn epoch_weak(&self) -> Option<Weak<TypesEpoch>> {
+        self.epoch.as_ref().map(Arc::downgrade)
+    }
+    #[cfg(test)]
+    fn make_mut(&mut self) -> &mut TypedProgram {
+        self.epoch = None;
+        Arc::make_mut(&mut self.program)
+    }
 }
 /// Shared raw ownership never carries verification authority. Each request
 /// enters independent Verify with its current inputs, complete limits and target.
@@ -579,13 +662,14 @@ impl CompilationSession {
                 .map(|dep| dep.key.clone())
                 .collect::<Vec<_>>();
             replay.extend([expand.key.clone(), ct.key.clone(), types.key.clone()]);
-            Some((types, replay))
+            let producer_epoch = self.retained_producer_epoch(expand_key, sources, options);
+            Some((types, replay, producer_epoch))
         })();
         if options.profile_compilation {
             report.frontend_dependency_reads = Some(Box::new(reads.stats()));
         }
         drop(reads);
-        let Some((snapshot, replay)) = trace else {
+        let Some((snapshot, replay, producer_epoch)) = trace else {
             return Ok(None);
         };
         for completed in replay {
@@ -605,7 +689,35 @@ impl CompilationSession {
                 self.touch(&completed);
             }
         }
-        Ok(Some(ProjectFrontend { typed, snapshot }))
+        let activation = cost_start(options.profile_compilation);
+        if let Some(epoch) = producer_epoch {
+            self.activate_producer_epoch(&epoch, options);
+        }
+        report.record_driver_cost("producer_epoch_activation", activation);
+        self.activate_types_epoch(&typed, key, options);
+        Ok(Some(ProjectFrontend {
+            typed: typed.program().clone(),
+            snapshot,
+        }))
+    }
+
+    /// Called only after a current closed Types receipt has been read (or the
+    /// ordinary query has validated it). No independent verification is reused.
+    pub(super) fn activate_types_epoch(
+        &mut self,
+        owner: &ProjectTypedOwner,
+        key: &QueryKey,
+        options: &CompileOptions,
+    ) {
+        if !options.producer_reuse {
+            return;
+        }
+        if let Some(epoch) = owner.matching_epoch(key) {
+            *self.function_types = epoch.functions.epoch_checkpoint();
+            self.function_types
+                .set_cost_profiling(options.profile_compilation);
+            self.semantic_publication = epoch.publication.get().cloned().unwrap_or_default();
+        }
     }
 
     fn source_parse_stage(
@@ -1513,7 +1625,7 @@ mod bounded_history_tests {
             .raw
             .values()
             .find_map(|raw| match raw {
-                RawSnapshot::ProjectTyped(program) => Some(Arc::downgrade(program)),
+                RawSnapshot::ProjectTyped(program) => Some(Arc::downgrade(program.program())),
                 _ => None,
             })
             .unwrap();
@@ -1615,7 +1727,7 @@ mod bounded_history_tests {
         // still obtain current independent Verify, which rejects this change.
         for raw in session.raw.values_mut() {
             if let RawSnapshot::ProjectTyped(typed) = raw {
-                Arc::make_mut(typed).module.schema_version = 0;
+                typed.make_mut().module.schema_version = 0;
             }
         }
         let rejected = session.compile_project(&p, &options);

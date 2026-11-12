@@ -1,0 +1,258 @@
+{
+  "schema": "full-pipeline-canonical-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "140997e032df26c31d94fe029ac86c7b42560182",
+  "candidate_tree": "832ab8bf0e10f5e3038b9872499e35be21e16bef",
+  "review_delta_base": "fb6260aa30400cbc63a974b647723cd4b9147f9a",
+  "verdict": "ACCEPT bounded research source at 140997e032df26c31d94fe029ac86c7b42560182 after closing F3. No new blocking correctness or authority issue was established in this delta. The task remains under construction; this receipt is not full-pipeline performance acceptance, default enablement or main-merge approval.",
+  "identity_and_scope": {
+    "head_tree_and_clean_worktree_independently_checked": true,
+    "changed_crate_files_sha256": {
+      "crates/zil-backend-llvm/src/build.rs": "f9a9556538ae5b3c1187993267c1e2c13d55115f36270e5cc7040bfa23d9cd41",
+      "crates/zil-backend-llvm/src/incremental.rs": "67359f8d009abe1f14e00134e3cbbab2a1d34eeee5e773ef51e8369957fc685a",
+      "crates/zil-backend-llvm/src/lib.rs": "01a5a6084ea6643356050faa1c51bf001d887277ee84a4e53c846c6fdfecc43c",
+      "crates/zil-backend-llvm/src/link_cache.rs": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79",
+      "crates/zil-backend-llvm/src/object_cache.rs": "e927c28192b0df65018b1f493757a7794d21c069a0849e26d34f8596f4ca03ef",
+      "crates/zil-backend-llvm/src/tests.rs": "a5664a564b8477816fda3a1f8918831b334442962f5d7923e81205f6208d420d",
+      "crates/zil-db/src/lib.rs": "097a6b9135deeeda6214a840aa8682d91bf6abbae85051cb046a48a1c1eba881",
+      "crates/zil-db/src/reactive/tests.rs": "cd01069e89de540f09d56f0e91b23a6d4d78b2e93ad26be8bec00980cb4e4ef3",
+      "crates/zil-db/src/tests.rs": "72cf85ed461a6e79039da3b7e3872a295afb7103087d3ce7596f097f30fb3918",
+      "crates/zil-driver/src/lib.rs": "06414f894b074316c45230e65f4519774e6fdd6ff01fdc6d0667d19da13d6d75",
+      "crates/zil-driver/src/project.rs": "398cb59770b89ba97a8c41fbdf7601255e0253563b2a069a3ae713ee7176f5f2",
+      "crates/zil-driver/src/project_discovery_cache.rs": "9957a8a7fd937c777ac9fc3435733cb44223cdda3f5db690f6e9fa8da2a7f36a",
+      "crates/zil-driver/src/semantic_cache.rs": "f3ff0fc64494252669d471d54dbd3292fdc836afd8b06f8ff74f1fec5005280c",
+      "crates/zil-driver/src/semantic_items.rs": "a88e28dca83133110461e21edd6ecb1a3adcff02a6f26601eca0b85ddc5bfb29",
+      "crates/zil-driver/src/session.rs": "1329519808d5bc7eb2fb7aeb105e3b52840b48047a169a5751aa2d6199f6bdce",
+      "crates/zil-llvm-api/src/lib.rs": "c7d869abba86c003f1a82afab3386e6fa272288fd254ae015dd3d765efb7c3db",
+      "crates/zil-llvm-api/src/native.rs": "8d0b8ebb975d9228178ac9be51836488c1733913e27672fcf565faf46044757b",
+      "crates/zil-llvm-api/src/preflight.rs": "21f50cfd14592b1eeb3c72c4e79b15972688c109fe6f765244e3888619cecb3d",
+      "crates/zil-llvm-api/src/preflight_receipt.rs": "51e3918ccc09f7dc4e25af5887348a93519d434152e73fa35ec068affd0f512b",
+      "crates/zil-llvm-api/src/preflight_receipt/tests.rs": "6ff824ccde693e53dbbb4d2b278f939a6c2488c277f4928985a673e4cca87229",
+      "crates/zil-types/src/incremental.rs": "e4fd038e2cd02fb08718b88b102df04ab89a9fe55797f038e269a4ffcc40dcee",
+      "crates/zil-types/src/incremental_producer_tests.rs": "b4b7f3e68a85c65532b0dc9e614c910e3dea3c1c736f4c400f6cc9dcceb57df2"
+    },
+    "unchanged_context_read_sha256": {
+      "crates/zil-ir/src/wire.rs": "82bdc9b70b9a350b8da4a2956016b58de99682ac4551f9f3c828f0ee5530f15d",
+      "crates/zil-db/src/cache.rs": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "crates/zil-llvm-api/src/model.rs": "9dd883f945239a695c19e2689905194bbd55c8e93713f5f519ced3bcc03549dc",
+      "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883",
+      "crates/zil-driver/src/artifacts.rs": "55e9eac2fd3615151f67cc9d36ca75bf8c2322bc2405390d51bdf65ce31a1953",
+      "crates/zil-driver/src/artifacts/cache_namespace.rs": "e380ed778a14cb1392852e2ab35880d3c494472fdda72fe06338c4e1478d455e"
+    },
+    "method": "Reviewed live actual implementations during construction, then checked exact final Git commit/tree and all changed crate-file hashes. Rechecked final test-helper current-source selection and latest real consumer assertions at freeze. Prior unchanged source boundaries carry forward from the earlier exact-source receipts; no claim of rereading every unchanged source file.",
+    "excluded_reports": "Committed profile-r2 and recovery-v1 reports are separate evidence; this source receipt does not independently approve their timing/recovery conclusions."
+  },
+  "prior_receipts_and_new_finding": [
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-reuse-review.json",
+      "sha256": "ad88980ea346f4bf00593108a848b82243b5faf024893311c6bfb3f7e2183a19",
+      "scope": "Historical bounded acceptance of fb6260aa is preserved. Its library-byte-binding generalization must be qualified by subsequently discovered F3."
+    },
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-f3-finding.json",
+      "sha256": "091fce55ce279ca4ffe86607cbd9a038b05d2fd5686f5d34f574d96f5f0672ff",
+      "scope": "Independent exact-fb confirmation of the role-dedup gap; historical finding is preserved, with fix disposition recorded below."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F3",
+      "status": "CLOSED in this exact candidate",
+      "title": "Tool-runtime visit no longer suppresses actual link-library byte/admission checks",
+      "confirmed_old_behavior": "Old Inputs.seen deduplicated only by canonical path. Earlier clang/ld runtime file(false) visits could cause later actual library/script file(true) visits to return before full bytes, size/ELF/archive/script admission and DT_NEEDED collection.",
+      "fix_review": "Inputs.seen now keys canonical path plus role. A true/content-bound visit executes its original full fs::read/hash and format/dependency admission even if false/tool identity was already visited or memoized. The final DT_NEEDED closure admits only a matching content_bound=true path; runtime metadata identity alone cannot satisfy it. All candidate search roots, libraries, scripts, current argv/env and external discovery remain current.",
+      "counterexamples_reviewed": "The first regression accepts unsupported bytes in false role and then requires the same true-role input to reject, asserting the actual bytes read. A supported GNU-build-ID ELF fixture has zero tool SHA-fallback bytes while two separate true-role traversals each hash its full payload; tool memo cannot absorb that work. Both tests passed in the 217-test backend result.",
+      "evidence_limit": "This repairs the independently demonstrated skipped required admission. No stale ELF was independently reproduced on the controlled installed native toolchain, and none is claimed."
+    },
+    {
+      "id": "R2",
+      "status": "Specific failed-read elapsed omission corrected; measurement scope remains bounded",
+      "assessment": "Root source and discovery replay now settle elapsed before propagating read failure. files/bytes are explicitly successfully accepted SourceUnit data, not physical kernel I/O bytes. No complete failed-I/O byte accounting or whole-request ingestion coverage is inferred."
+    },
+    {
+      "id": "F2",
+      "status": "OPEN from earlier receipts",
+      "assessment": "Explicit incremental_o2 whole-transform and closed/stable-name passes can still COW unchanged bodies after a partial edit. Those optimization sources remain unchanged. This does not establish an ordinary-O2 regression and remains subject to complete-request/copy-cost measurement."
+    }
+  ],
+  "boundary_review": [
+    {
+      "area": "Trusted installed-tool memo",
+      "assessment": "Session-local memo keys canonical paths and a complete Unix stamp: dev/inode/mode/uid/gid/link count/length, modified time and nanosecond mtime/ctime. Lookup opens the actual file first, compares fresh path metadata to that handle, performs old installed identity on a miss, then rechecks the same handle, original canonical resolution and current path before using or publishing. Only successful final checks insert; failures cannot publish a new memo entry. Non-Unix does not reuse. At most 512 tool owners are cached. The trusted installed-tool model is explicit and does not become content proof for libraries."
+    },
+    {
+      "area": "Tool work and external dependency accounting",
+      "assessment": "Per-build summary resets counts while retaining bounded successful identities. full_identity_executions and hashed_fallback_bytes count actual old identity executions/SHA fallback, metadata_reuses counts successful memo reuse; build-ID reads and metadata bytes are deliberately outside fallback payload bytes. This does not remove clang -###, ldd, ld --verbose, directory inventories or true-role library hashing. Library-payload test instrumentation is cfg(test), not a claim that the tool counter measures all link bytes."
+    },
+    {
+      "area": "Cold native checker receipt",
+      "assessment": "Private validate_for_builder runs the original collecting preflight once and returns its Schedule plus a receipt sealed to that same immutable module. Collecting runs every validation-only check and the full schedule; validation-only can omit only its already-proved acyclic schedule work on fully reachable CFGs. No caller-supplied Schedule/hash can construct authority. Config/target/layout, cancellation, Builder, LLVM verification before/after optimization and emission remain in the original order. The public new entry returns receipt only with final successful Object; every Err drops pending proof. Original entry selects the unchanged no-receipt branch; non-native returns Unavailable."
+    },
+    {
+      "area": "Actual cold and patch proof consumers",
+      "assessment": "Backend retains checker proofs only when a BackendSession is supplied. Cold compilation uses the new paired-output API, so the first later exact object hit can reuse that same actual full-unit proof. Patch builds independently authorize the current complete unit, while still compiling/verifying the patch through its original native API. Object keys and prior objects supply no checker authority. Unit proof products publish after the unit batch succeeds; driver checkpoints continue to bind failures/cancellation. Native test checks first-hit reuse and byte-identical current output."
+    },
+    {
+      "area": "Canonical producer seal",
+      "assessment": "FunctionProduct canonical handle is private and owns Entry, immutable current TypedFunction and sealed fingerprint. Current full structural equality is required by canonical_identity/function; editing public product id/digest/function fields cannot retarget it. Result identity includes complete scalar raw fields and relative fn/local/instruction spans plus final label. Richer/unproven functions receive no canonical authorization and stay exactly current-bound. Canonical transport remains raw, never Verify authority."
+    },
+    {
+      "area": "Semantic-v6 encoding and aggregate quotas",
+      "assessment": "Encoding chooses source-relative bodies only via current matching producer handles, otherwise exact current bodies. Reuse uses the private sealed identity rather than mutable public digest. The unchanged segmented Wire writer still charges one cumulative module/candidate node/byte meter across warm and cold fragments under exact Limits. Original semantic metadata budget and aggregate legacy stream-byte limit remain. Manifest count/length arithmetic, <=max_functions/max_nodes binding rows, <=max_functions+4 pieces and independent manifest byte cap bound the new 25-byte/function binding table. This is a separate manifest limit, not a global disk quota."
+    },
+    {
+      "area": "Semantic-v6 decode order and current fingerprint",
+      "assessment": "Manifest layout validates every binding flag/span ordering and descriptor aggregate lengths before any child load. Each child hash/length is checked, then original bounded raw module/candidate/metadata decoding completes. These decoders do not validate semantic module fingerprint. rebind checks exact ordered function IDs/count, exact-bound function span equality, or canonical FileId(0),0,length; all canonical function/local/instruction spans must fit that envelope and are restored with checked addition. Only after complete rebinding does the pair return to current source/target/fingerprint checks and independent Verify. Source errors and rejected candidates retain existing clear/restart/fresh behavior; cancellation is never retried."
+    },
+    {
+      "area": "Persistence mutation and memory lifetime",
+      "assessment": "v6 selects a separate namespace/key version from v5. Items remain immutable content-addressed raw bytes; original guarded namespace writes, cancellation and manifest-last atomic publication remain. Driver binds only products of its successful current Types result and adopted Analyze candidate. A failed optional save can retain bounded successful raw serialization slots but cannot authorize Verify or publish a partial manifest. Current/previous publication fields are replaced, and session clear resets them; checkpoint-shared fragments and per-file budgets still do not imply an all-history/global byte bound."
+    },
+    {
+      "area": "ReadBatch fixed view and partial failures",
+      "assessment": "ReadBatch borrows &Database, with no interior database mutation escape. Its complete set contains only DFS-finished validated closures; a missing/stale/active/cyclic traversal cannot mark unfinished ancestors complete. Finished independent subtrees retained after failure remain valid in the same fixed view. active checks precede completed-cache hits, traversal/dependency ordering and diagnostics remain the old algorithm. The next mutable begin/abort/publish/retain/clear boundary requires dropping the view; nothing crosses views. Database.read uses a new single-call batch, preserving default behavior."
+    },
+    {
+      "area": "Publication and actual frontend batch consumer",
+      "assessment": "Database.publish shares one view across ordered dependency reads, then drops it before changing active/snapshots; original first error, abort-on-failure and old successful replacement preservation remain. Actual reuse_project_frontend reads Types/Ct/Expand in one batch and explicitly drops it before observer replay/touch. The current two-file test asserts five snapshots/four edges checked once and two reused validations. This is metadata closure-validation reuse, not unevaluated result reuse, query settling, elimination of all dynamic pull, or permission to skip Verify. ReactiveGraph production algorithm is unchanged; only its existing input-batch/flush behavior gains a test."
+    }
+  ],
+  "validation_logs_independently_read": [
+    {
+      "path": "out/runs/full-pipeline-cold-preflight-01.log",
+      "sha256": "cdcb8e81d2feb6d64d1d4cde0878c691e753ad37a192e8ca2f7dac3c8f53a97e",
+      "bytes": 4803,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 42,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-canonical-types-01.log",
+      "sha256": "e8973a5e5bea5bd5d8e77ef7060306b9c6058fd3e9c841b97c34a9de6337ddbc",
+      "bytes": 8106,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 78,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-canonical-native-01.log",
+      "sha256": "5f1d9f3891b7c3226daae42e804309da108da89368117279f64a403b476d685e",
+      "bytes": 44852,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 217,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        {
+          "status": "FAILED",
+          "passed": 183,
+          "failed": 2,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-canonical-batch-02.log",
+      "sha256": "447c9584dbbf3a572ab402aae8a1017aa6446c39591c0be9cb1226bf100a8d4a",
+      "bytes": 24521,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 30,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        {
+          "status": "ok",
+          "passed": 185,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-batch-consumer-01.log",
+      "sha256": "1b888521ae12b0d226cc05f61b4aaec3cd21c9e63885d1773685a6be5f3b7ef4",
+      "bytes": 383,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 184
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-batch-doc-01.log",
+      "sha256": "dbe85cddef2634c7d978685f67c228b6b8766fcfb053e1d1ad0a0445879b9823",
+      "bytes": 268,
+      "suite_results": [
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        }
+      ]
+    },
+    {
+      "path": "out/runs/full-pipeline-canonical-clippy-01.log",
+      "sha256": "ab109a31d2a049cc1caf386adf32f02f77231205ec90640b555886e3dff6ab70",
+      "bytes": 566,
+      "suite_results": []
+    },
+    {
+      "path": "out/runs/full-pipeline-canonical-fmt-01.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "suite_results": []
+    }
+  ],
+  "validation_interpretation": {
+    "execution": "All compiler/test/lint/fmt execution by root in its sole heavy window; reviewer ran only source/git/hash/log processing and wrote this JSON. No production/helper mutation or commit by reviewer.",
+    "source_and_command_attribution": "Root supplied precise invocation/source-window and exit status attribution; raw Cargo logs independently corroborate suites but do not embed commit identities.",
+    "passing_scope": "Cold LLVM API 42, Types 78, Backend 217; later DB 30 and Driver 185; latest real frontend-batch consumer 1 filtered case; immutable-borrow compile-fail doc 1. Latest consumer case overlaps Driver 185 rather than adding general coverage.",
+    "preserved_failure": "canonical-native-01 is an overall failed run: Backend 217 passed, Driver 183 passed/2 failed. Both failed fixture helpers selected an arbitrary old retained TypedProgram while pairing current producer products. Final helper selects Phase::Types matching report.input_fingerprint, preserving the 3->1->0 serialization and stale-handle 3 assertions; all 185 driver cases subsequently pass. This is not mislabeled as a passing combined log.",
+    "lint_and_fmt": "canonical-clippy-01 ends Finished dev profile; root reports strict workspace/all-targets llvm-api -D warnings pass. canonical-fmt-01 is empty and root-reported exit 0; reviewer did not independently run formatting.",
+    "no_full_workspace": "No full-workspace run on 140997e0 is claimed. Historical e105 workspace results and previous slice tests are not added to current-source coverage."
+  },
+  "remaining_limits": [
+    "Full task remains under construction. No new matched main/candidate/Rust performance, restart/crash recovery, peak-memory or allocation result is independently accepted here; release/measurement windows are separate.",
+    "Semantic-v6 restart still assembles a full byte buffer and performs complete raw decode/rebase/current Verify. Canonical publication reuse is not partial restart decode or disk proof reuse.",
+    "Ingress and frontend_dependency_reads are scoped counters. The latter measures only the three-read frontend batch, excluding resident eligibility probes and other DB reads/publications. Neither is whole-request physical I/O/parser/dependency cost.",
+    "Whole-project keys/global validation and aggregation, conservative domain fallbacks, output writes, link discovery subprocesses and current library content hashing remain. No single general minimal full-pipeline scheduler is established.",
+    "Unix tool metadata memo assumes the existing trusted installed-file model; arbitrary hostile filesystem/toolchain mutation is not covered by a finite metadata tuple or these tests. Unsupported external formats/closures must retain fail-closed fallback.",
+    "No non-Unix platform, arbitrary external plugin/toolchain, crash-injection or hostile concurrent-filesystem matrix was independently run. Default-off scope and prior memory/disk caveats remain."
+  ]
+}

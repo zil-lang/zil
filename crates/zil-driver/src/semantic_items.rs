@@ -23,6 +23,12 @@ pub struct SemanticPublicationStats {
     pub guard_ns: u128,
     pub item_io_ns: u128,
     pub manifest_io_ns: u128,
+    pub physical_pack_writes: usize,
+    pub physical_pack_bytes: usize,
+    pub manifest_writes: usize,
+    pub compacted_items: usize,
+    pub referenced_packs: usize,
+    pub referenced_pack_payload_bytes: usize,
 }
 
 #[derive(Clone, Default)]
@@ -32,7 +38,8 @@ pub(crate) struct SemanticPublicationSession {
     canonical: Vec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
     products: BTreeMap<FunctionId, zil_types::FunctionProduct>,
     bindings: Vec<FunctionBinding>,
-    published: BTreeMap<(PathBuf, Fingerprint), FileStamp>,
+    semantic_packs: packed::Epoch,
+    function_packs: packed::Epoch,
 }
 #[derive(Clone, Debug)]
 struct FunctionBinding {
@@ -41,37 +48,28 @@ struct FunctionBinding {
     span: zil_base::Span,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-struct FileStamp {
-    length: u64,
-    modified: Option<std::time::SystemTime>,
-    #[cfg(unix)]
-    device: u64,
-    #[cfg(unix)]
-    inode: u64,
-    #[cfg(unix)]
-    changed: (i64, i64),
-}
-fn file_stamp(path: &Path) -> Option<FileStamp> {
-    let metadata = fs::symlink_metadata(path).ok()?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() {
-        return None;
-    }
-    #[cfg(unix)]
-    use std::os::unix::fs::MetadataExt;
-    Some(FileStamp {
-        length: metadata.len(),
-        modified: metadata.modified().ok(),
-        #[cfg(unix)]
-        device: metadata.dev(),
-        #[cfg(unix)]
-        inode: metadata.ino(),
-        #[cfg(unix)]
-        changed: (metadata.ctime(), metadata.ctime_nsec()),
-    })
-}
-
 impl SemanticPublicationSession {
+    /// A Types raw owner may retain these bounded raw serialization/placement
+    /// hints. No directory handle or Verified capability enters the checkpoint.
+    pub(crate) fn checkpoint_for(&self, typed: &Arc<TypedProgram>) -> Option<Self> {
+        let count = typed.module.functions.len();
+        (self
+            .previous
+            .as_ref()
+            .is_some_and(|previous| Arc::ptr_eq(previous, typed))
+            && self.slots.len() == count
+            && self.canonical.len() == count
+            && self.bindings.len() == count
+            && self
+                .bindings
+                .iter()
+                .zip(&typed.module.functions)
+                .all(|(binding, function)| binding.function == function.id))
+        .then(|| self.clone())
+    }
+    pub(crate) fn function_packs(&mut self) -> &mut packed::Epoch {
+        &mut self.function_packs
+    }
     /// Public digests are not evidence. Encoding consults only the product's
     /// private producer handle, which must match the exact current raw value.
     pub(crate) fn bind_products(&mut self, products: &[zil_types::FunctionProduct]) {
@@ -370,11 +368,52 @@ fn assemble(
 }
 
 impl Store {
+    /// Loaded bytes are still raw. This bounded locator hint grants no trusted
+    /// file stamp: publication must recheck each referenced complete pack.
+    pub(crate) fn remember_packed_epoch(
+        &self,
+        options: &CompileOptions,
+        publication: &mut SemanticPublicationSession,
+    ) {
+        let Some(max_items) = options.limits.max_functions.checked_add(4) else {
+            return;
+        };
+        let bounds = packed::Bounds {
+            maximum: self.maximum,
+            max_items,
+        };
+        let Some(maximum) = bounds.manifest_maximum() else {
+            return;
+        };
+        if let Ok(CacheRead::Candidate(bytes)) =
+            ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
+            && let Some(epoch) = packed::Epoch::hint(&self.root.join("packs-v1"), &bytes, bounds)
+        {
+            publication.semantic_packs = epoch;
+        }
+    }
     pub(super) fn load_segments(
         &self,
         manifest: &[u8],
         options: &CompileOptions,
     ) -> Option<(TypedProgram, CandidatePlan)> {
+        if packed::is_packed(manifest) {
+            let bounds = packed::Bounds {
+                maximum: self.maximum,
+                max_items: options.limits.max_functions.checked_add(4)?,
+            };
+            let mut reader = packed::Reader::new(
+                &self.root.join("packs-v1"),
+                manifest,
+                bounds,
+                &options.cancellation,
+            )?;
+            let logical = reader.logical().to_vec();
+            let bytes = assemble(&logical, &options.limits, &mut |key| {
+                reader.load(key).map(|bytes| bytes.to_vec())
+            })?;
+            return decode_bound(&bytes, &logical, &options.limits);
+        }
         let root = self.root.join("items");
         if !private_directory(&root, false) {
             return None;
@@ -403,7 +442,7 @@ impl Store {
         }
         let mut guarded = plan.clone();
         let root = guarded
-            .cache_directory("semantic-items", &self.root.join("items"))
+            .cache_directory("semantic-packs", &self.root.join("packs-v1"))
             .ok()?;
         let mut guard_ns = publication_elapsed(batch);
         let encode = publication_start(options.profile_compilation);
@@ -420,70 +459,54 @@ impl Store {
         }
         let namespace = guarded.pin_cache_directory(&root).ok()?;
         guard_ns += publication_elapsed(pin);
-        let cache = ArtifactCache::with_limit(namespace.root(), self.maximum);
-        let mut stats = SemanticPublicationStats {
+        let stats = packed::publish(
+            packed::PublishContext {
+                packs: &namespace,
+                manifest_root: &self.root,
+                namespace_key: &root,
+                manifest_key: self.key,
+                cancellation: &options.cancellation,
+                profile: options.profile_compilation,
+            },
+            &manifest,
+            segments
+                .into_iter()
+                .map(|segment| (segment.fingerprint, segment.bytes))
+                .collect(),
+            packed::Bounds {
+                maximum: self.maximum,
+                max_items: options.limits.max_functions.checked_add(4)?,
+            },
+            &mut publication.semantic_packs,
+        )?;
+        let stats = SemanticPublicationStats {
             serialized_functions: encoding.serialized_functions,
             reused_functions: encoding.reused_functions,
-            canonical_functions: publication.bindings.iter().filter(|b| b.canonical).count(),
-            bound_functions: publication.bindings.iter().filter(|b| !b.canonical).count(),
-            encode_ns,
-            guard_ns,
-            ..Default::default()
+            canonical_functions: publication
+                .bindings
+                .iter()
+                .filter(|binding| binding.canonical)
+                .count(),
+            bound_functions: publication
+                .bindings
+                .iter()
+                .filter(|binding| !binding.canonical)
+                .count(),
+            written_segments: stats.written_items,
+            existing_segments: stats.existing_items,
+            written_bytes: stats.written_bytes,
+            manifest_bytes: stats.manifest_bytes,
+            encode_ns: encode_ns + stats.encode_ns,
+            guard_ns: guard_ns + stats.guard_ns,
+            item_io_ns: stats.item_io_ns,
+            manifest_io_ns: stats.manifest_io_ns,
+            physical_pack_writes: stats.physical_pack_writes,
+            physical_pack_bytes: stats.physical_pack_bytes,
+            manifest_writes: stats.manifest_writes,
+            compacted_items: stats.compacted_items,
+            referenced_packs: stats.referenced_packs,
+            referenced_pack_payload_bytes: stats.referenced_pack_payload_bytes,
         };
-        let mut published = BTreeMap::new();
-        for segment in segments {
-            if options.cancellation.is_cancelled() {
-                return None;
-            }
-            let io = publication_start(options.profile_compilation);
-            let path = namespace
-                .root()
-                .join(format!("{}.candidate", segment.fingerprint));
-            let key = (root.clone(), segment.fingerprint);
-            let before = file_stamp(&path);
-            let remembered = before
-                .as_ref()
-                .is_some_and(|stamp| publication.published.get(&key) == Some(stamp));
-            let valid_existing = remembered
-                || (before.is_some()
-                    && matches!(cache.inspect_candidate(segment.fingerprint),
-                Ok(CacheRead::Candidate(bytes)) if bytes.len()==segment.bytes.len() && Fingerprint::of(&bytes)==segment.fingerprint));
-            stats.item_io_ns += publication_elapsed(io);
-            if valid_existing {
-                stats.existing_segments += 1;
-            } else {
-                let guard = publication_start(options.profile_compilation);
-                namespace.validate_write().ok()?;
-                stats.guard_ns += publication_elapsed(guard);
-                let io = publication_start(options.profile_compilation);
-                cache
-                    .write_candidate_cancellable(
-                        segment.fingerprint,
-                        &segment.bytes,
-                        &options.cancellation,
-                    )
-                    .ok()?;
-                stats.item_io_ns += publication_elapsed(io);
-                stats.written_segments += 1;
-                stats.written_bytes = stats.written_bytes.checked_add(segment.bytes.len())?;
-            }
-            let io = publication_start(options.profile_compilation);
-            published.insert(key, file_stamp(&path)?);
-            stats.item_io_ns += publication_elapsed(io);
-        }
-        let guard = publication_start(options.profile_compilation);
-        if options.cancellation.is_cancelled() {
-            return None;
-        }
-        namespace.validate().ok()?;
-        stats.guard_ns += publication_elapsed(guard);
-        let io = publication_start(options.profile_compilation);
-        ArtifactCache::with_limit(&self.root, self.maximum)
-            .write_candidate_cancellable(self.key, &manifest, &options.cancellation)
-            .ok()?;
-        stats.manifest_io_ns = publication_elapsed(io);
-        publication.published = published;
-        stats.manifest_bytes = manifest.len();
         Some(stats)
     }
 }
@@ -635,12 +658,33 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
         };
+        // The transport version is independent of the original logical format.
+        // Old loose-item manifests remain readable before one-time migration.
+        let mut legacy = SemanticPublicationSession::default();
+        let (segments, _) = legacy.encode(&typed, &candidate, &options.limits).unwrap();
+        let logical = manifest(&segments, &legacy.bindings, &options.limits).unwrap();
+        let loose_root = store.root.join("items");
+        assert!(private_directory(&loose_root, true));
+        let loose = ArtifactCache::with_limit(&loose_root, store.maximum);
+        for segment in &segments {
+            loose
+                .write_candidate(segment.fingerprint, &segment.bytes)
+                .unwrap();
+        }
+        ArtifactCache::with_limit(&store.root, store.maximum)
+            .write_candidate(store.key, &logical)
+            .unwrap();
+        assert_eq!(
+            store.load(&options).unwrap(),
+            ((*typed).clone(), candidate.clone())
+        );
         let mut publication = SemanticPublicationSession::default();
         let cold = store
             .save(&typed, &candidate, &options, &plan, &mut publication)
             .unwrap();
         assert_eq!(cold.serialized_functions, 2);
         assert!(cold.written_segments > 0);
+        assert_eq!((cold.physical_pack_writes, cold.manifest_writes), (1, 1));
         assert!(
             cold.encode_ns > 0
                 && cold.guard_ns > 0
@@ -662,8 +706,30 @@ mod tests {
             ),
             (0, 2, 0)
         );
-        let item = publication.published.keys().next().unwrap().clone();
-        let item_path = item.0.join(format!("{}.candidate", item.1));
+        assert_eq!((warm.physical_pack_writes, warm.manifest_writes), (0, 1));
+        let mut restored_publication = SemanticPublicationSession::default();
+        store.remember_packed_epoch(&options, &mut restored_publication);
+        let restored = store
+            .save(
+                &typed,
+                &candidate,
+                &options,
+                &plan,
+                &mut restored_publication,
+            )
+            .unwrap();
+        assert_eq!(
+            (restored.physical_pack_writes, restored.written_segments),
+            (0, 0)
+        );
+        assert_eq!(restored.existing_segments, cold.written_segments);
+        assert!(publication.checkpoint_for(&typed).is_some());
+        assert!(
+            publication
+                .checkpoint_for(&Arc::new((*typed).clone()))
+                .is_none()
+        );
+        let item_path = publication.semantic_packs.first_pack_path().unwrap();
         let mut bad = fs::read(&item_path).unwrap();
         let last = bad.len() - 1;
         bad[last] ^= 1;
@@ -672,7 +738,11 @@ mod tests {
         let repaired = store
             .save(&typed, &candidate, &options, &plan, &mut publication)
             .unwrap();
-        assert_eq!(repaired.written_segments, 1);
+        assert_eq!(repaired.written_segments, cold.written_segments);
+        assert_eq!(
+            (repaired.physical_pack_writes, repaired.manifest_writes),
+            (1, 1)
+        );
         assert_eq!(
             store.load(&options).unwrap(),
             ((*typed).clone(), candidate.clone())
@@ -719,7 +789,7 @@ mod tests {
                     if key.phase == Phase::Types
                         && typed.module.source_fingerprint == report.input_fingerprint =>
                 {
-                    Some((key.clone(), typed.clone()))
+                    Some((key.clone(), typed.program().clone()))
                 }
                 _ => None,
             })

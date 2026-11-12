@@ -2189,19 +2189,27 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
 
 #[test]
 fn incremental_diagnostic_fragments_match_complete_renderer_after_local_change() {
+    let directory = TestDirectory::new();
+    let sidecar = directory.0.join("current.ll");
     let verified = checked_simple(returning(Constant::I64(42)));
     let raw = lir(&verified);
     let mut machine =
         crate::emit::lower_with_options(&verified, &raw, &EmitOptions::default()).unwrap();
     let mut session = BackendSession::default();
-    assert_eq!(session.render(&machine), machine.to_text());
+    let diagnostic = session.render(&machine);
+    assert_eq!(diagnostic.to_text(), machine.to_text());
+    diagnostic.write(&sidecar).unwrap();
+    assert_eq!(fs::read(&sidecar).unwrap(), machine.to_text().as_bytes());
     assert_eq!(
         session.summary().rendered_diagnostic_items,
         machine.items.len()
     );
     session.begin();
     machine.fingerprint = Fingerprint::of(b"current verified input").to_hex();
-    assert_eq!(session.render(&machine), machine.to_text());
+    let diagnostic = session.render(&machine);
+    assert_eq!(diagnostic.to_text(), machine.to_text());
+    diagnostic.write(&sidecar).unwrap();
+    assert_eq!(fs::read(&sidecar).unwrap(), machine.to_text().as_bytes());
     assert_eq!(session.summary().rendered_diagnostic_items, 0);
     assert_eq!(
         session.summary().reused_diagnostic_items,
@@ -2213,10 +2221,227 @@ fn incremental_diagnostic_fragments_match_complete_renderer_after_local_change()
     } else {
         panic!("expected final source function");
     }
-    assert_eq!(session.render(&machine), machine.to_text());
+    let diagnostic = session.render(&machine);
+    assert_eq!(diagnostic.to_text(), machine.to_text());
+    diagnostic.write(&sidecar).unwrap();
+    assert_eq!(fs::read(&sidecar).unwrap(), machine.to_text().as_bytes());
     assert_eq!(session.summary().rendered_diagnostic_items, 1);
     assert_eq!(
         session.summary().reused_diagnostic_items,
         machine.items.len() - 1
     );
+}
+
+#[test]
+fn partition_recipe_environment_binds_current_source_files_order_target_and_full_limits() {
+    fn verified(
+        functions: Vec<TypedFunction>,
+        target: TargetProfile,
+        limits: Limits,
+    ) -> VerifiedModule {
+        let claims = functions
+            .iter()
+            .map(|f| f.blocks.iter().map(|_| (vec![], vec![])).collect())
+            .collect();
+        let mut module = checked(functions, claims).module().clone();
+        module.target = target.clone();
+        let mut plan = CandidatePlan::empty_for(&module);
+        for function in &module.functions {
+            plan.functions.push(FunctionPlan {
+                function: function.id,
+                holds: (0..function.values.len())
+                    .map(|id| ValueHold {
+                        value: ValueId(id as u32),
+                        roots: vec![],
+                    })
+                    .collect(),
+                blocks: function
+                    .blocks
+                    .iter()
+                    .map(|block| BlockPlan {
+                        block: block.id,
+                        initialized_in: vec![],
+                        initialized_out: vec![],
+                    })
+                    .collect(),
+            });
+        }
+        verify_module(module, plan, &target, &limits).unwrap()
+    }
+    fn input(
+        verified: &VerifiedModule,
+        mut session: BackendSession,
+    ) -> (crate::incremental::PartitionInput, BackendSession) {
+        let raw = lir(verified);
+        let emit = EmitOptions {
+            entry: EntryPoint::None,
+        };
+        let (machine, _, _) = crate::emit::lower_view_with_session(
+            verified,
+            &raw.as_view(),
+            &emit,
+            false,
+            false,
+            1,
+            Some(&mut session.lower),
+        )
+        .unwrap();
+        let mut options = BuildOptions::new("unused");
+        options.backend = NativeBackend::LlvmApi;
+        options.optimization = Optimization::O2;
+        let input = crate::incremental::PartitionInput::new(
+            &options,
+            None,
+            false,
+            &raw.as_view(),
+            &machine,
+            session.lower.identity(),
+        );
+        (input, session)
+    }
+    let first = returning(Constant::I32(1));
+    let mut second = returning(Constant::I32(2));
+    second.id = FunctionId(1);
+    second.name = "second".into();
+    let functions = vec![first, second];
+    let host = TargetProfile::host_llvm();
+    let original = verified(functions.clone(), host.clone(), Limits::default());
+    let (baseline, session) = input(&original, BackendSession::default());
+    // Positions have no grouping meaning; the FileId component does.
+    let mut positions = functions.clone();
+    positions[0].span = Span::new(zil_base::FileId(0), 10, 20);
+    positions[0].blocks[0].instructions[0].span = Span::new(zil_base::FileId(0), 11, 19);
+    let (same, _) = input(
+        &verified(positions.clone(), host.clone(), Limits::default()),
+        session.clone(),
+    );
+    assert!(baseline.same_recipe_environment(&same));
+    positions[0].span.file = zil_base::FileId(7);
+    positions[0].blocks[0].instructions[0].span.file = zil_base::FileId(7);
+    let mut reordered = functions.clone();
+    reordered.swap(0, 1);
+    for (id, function) in reordered.iter_mut().enumerate() {
+        function.id = FunctionId(id as u32);
+    }
+    let mut limits = Limits::default();
+    limits.max_nodes += 1;
+    for current in [
+        verified(positions, host.clone(), Limits::default()),
+        verified(reordered, host.clone(), Limits::default()),
+        verified(
+            functions.clone(),
+            TargetProfile::windows_x64_llvm(),
+            Limits::default(),
+        ),
+        verified(functions, host.clone(), limits),
+        verified(vec![returning(Constant::F64(0))], host, Limits::default()),
+    ] {
+        let (changed, _) = input(&current, session.clone());
+        assert!(!baseline.same_recipe_environment(&changed));
+    }
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn equal_optimized_object_bytes_stop_before_link_even_when_the_object_action_misses() {
+    fn program(add_zero: bool) -> VerifiedModule {
+        let entry = function(
+            0,
+            "entry",
+            Type::I32,
+            vec![Type::I32; 2],
+            vec![block(
+                0,
+                vec![
+                    constant(0, Constant::I32(42)),
+                    instruction(
+                        Some(1),
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![ValueId(0)],
+                        },
+                    ),
+                ],
+                Terminator::Return(Some(ValueId(1))),
+            )],
+        );
+        let instructions = if add_zero {
+            vec![
+                load(0, 0),
+                constant(1, Constant::I32(0)),
+                binary(2, BinaryOp::Add, 0, 1),
+            ]
+        } else {
+            vec![load(0, 0)]
+        };
+        let mut identity = function(
+            1,
+            "identity",
+            Type::I32,
+            vec![Type::I32; if add_zero { 3 } else { 1 }],
+            vec![block(
+                0,
+                instructions,
+                Terminator::Return(Some(ValueId(if add_zero { 2 } else { 0 }))),
+            )],
+        );
+        identity.parameters.push(LocalId(0));
+        identity.locals.push(local(0, Type::I32, false));
+        checked(
+            vec![entry, identity],
+            vec![vec![(vec![], vec![])], vec![(vec![0], vec![0])]],
+        )
+    }
+    let directory = TestDirectory::new();
+    let mut options = BuildOptions::new(directory.0.join("program"));
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.codegen.units = 1;
+    options.object_cache = Some(directory.0.join("cache"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut session = BackendSession::default();
+    let original = program(false);
+    let raw = lir(&original);
+    let mut first = build_view_with_cancellation_and_session(
+        &original,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        Some(&mut session),
+    )
+    .unwrap();
+    assert_eq!(first.codegen.actual_units, 1);
+    assert_eq!(first.pending_cache.objects.len(), 1);
+    let object_key = first.pending_cache.objects[0].key;
+    let object_bytes = first.pending_cache.objects[0].bytes.clone();
+    let executable_bytes = fs::read(&first.executable).unwrap();
+    first.commit_object_cache();
+    let current = program(true);
+    let raw = lir(&current);
+    let mut equal = build_view_with_cancellation_and_session(
+        &current,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        Some(&mut session),
+    )
+    .unwrap();
+    assert_eq!(equal.codegen.object_cache.hits, 0);
+    assert_eq!(equal.codegen.object_cache.misses, 1);
+    assert_eq!(equal.pending_cache.objects.len(), 1);
+    assert_ne!(equal.pending_cache.objects[0].key, object_key);
+    assert_eq!(
+        equal.pending_cache.objects[0].bytes, object_bytes,
+        "fixture must produce exact equal native object bytes"
+    );
+    assert!(equal.codegen.object_reports[0].contains("\"input_kind\":\"builder\""));
+    assert!(equal.codegen.object_reports[0].contains("\"verify_before_after\":true"));
+    assert!(session.summary().reused_link);
+    assert_eq!(fs::read(&equal.executable).unwrap(), executable_bytes);
+    let output = Command::new(&equal.executable).output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"42\n");
+    equal.commit_object_cache();
 }

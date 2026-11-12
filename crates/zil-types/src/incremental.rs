@@ -355,7 +355,7 @@ struct MemoEntry {
 }
 #[derive(Clone, Default)]
 struct ProducerMemo {
-    entries: BTreeMap<FunctionOwner, MemoEntry>,
+    entries: Arc<BTreeMap<FunctionOwner, MemoEntry>>,
 }
 struct ProducerRequest<'a> {
     state: &'a mut ProducerMemo,
@@ -439,6 +439,14 @@ impl FunctionSession {
             products: self.products.clone(),
             changes: self.changes.clone(),
         }
+    }
+    /// A retained raw Types owner may reactivate its exact successful producer
+    /// epoch. This contains no Verify receipt and shares immutable memo entries;
+    /// the optional reactive graph is rebuilt conservatively.
+    pub fn epoch_checkpoint(&self) -> Self {
+        let mut checkpoint = self.checkpoint();
+        checkpoint.producer_memo = self.producer_memo.clone();
+        checkpoint
     }
     pub fn last_products(&self) -> &[FunctionProduct] {
         &self.products
@@ -1060,7 +1068,7 @@ impl ProducerRequest<'_> {
             if !identities.insert(identity.clone())
                 || project.as_ref().is_some_and(|prior| prior != &identity.0)
             {
-                self.state.entries.clear();
+                self.state.entries = Arc::default();
                 return keys(program, tables, target, limits, stats);
             }
             project = Some(identity.0.clone());
@@ -1139,7 +1147,7 @@ impl ProducerRequest<'_> {
             }
         }
         stats.inventory_ns += elapsed_cost(inventory_started).saturating_sub(excluded_ns);
-        self.state.entries = next;
+        self.state.entries = Arc::new(next);
         Some(result)
     }
 }

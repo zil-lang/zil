@@ -1,0 +1,894 @@
+{
+  "schema": "full-pipeline-profile-v1",
+  "purpose": "Single-block cost diagnosis, not statistical acceptance or Rust comparison",
+  "source": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "candidate": "140997e032df26c31d94fe029ac86c7b42560182"
+  },
+  "workload": {
+    "modules": 20,
+    "functions_per_module": 20,
+    "steps": 16,
+    "mode": "O2",
+    "requested_cgu": 16,
+    "jobs": 1,
+    "cache": "all",
+    "blocks": 1
+  },
+  "raw": {
+    "path": "out/runs/full-pipeline-profile-o2-r3/rows.jsonl",
+    "sha256": "bbea74b275e8c60c6bbff36ebda68a7182041e631ea5b02be2bae3810013b906",
+    "durability": "local pending next remote checkpoint"
+  },
+  "rows": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "wall_ms": 6524.349702,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "wall_ms": 7039.386541,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1879088,
+        "function_cache_publication": 386387496,
+        "function_cache_read": 1282,
+        "function_checkpoint": 7161,
+        "owner_binding": 7712,
+        "producer_checkpoint": 1633,
+        "project_setup": 556224,
+        "semantic_cache_read": 991,
+        "semantic_candidate_publication": 416769145,
+        "source_ingress": 197068922
+      },
+      "phase_timings_ns": {
+        "parse": 36626,
+        "expand": 548831326,
+        "types": 246830801,
+        "analyze": 101636185,
+        "verify": 71351998,
+        "lower": 2641231,
+        "codegen": 5021529929,
+        "ct": 35691348
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 498620,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 445265,
+        "discovery_receipt_ns": 243505,
+        "semantic_probe_ns": 0,
+        "parser_ns": 195662831
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 421,
+        "existing_functions": 0,
+        "written_bytes": 5280377,
+        "manifest_bytes": 53932,
+        "encode_ns": 22752012,
+        "guard_ns": 21774839,
+        "item_io_ns": 340958427,
+        "manifest_io_ns": 707831
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 429,
+        "existing_segments": 0,
+        "written_bytes": 6738242,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 89158182,
+        "guard_ns": 21487179,
+        "item_io_ns": 304906970,
+        "manifest_io_ns": 929374
+      },
+      "backend_work": {
+        "lowered_functions": 425,
+        "reused_functions": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 429,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 423,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "backend_timings": {
+        "machine_ns": 663990652,
+        "partition_ns": 65299551,
+        "diagnostic_ns": 130553063,
+        "object_ns": 3773297143,
+        "link_key_ns": 344962181,
+        "link_execution_ns": 43135662,
+        "other_ns": 275463,
+        "total_ns": 5021513715
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 14,
+        "metadata_reuses": 14,
+        "hashed_fallback_bytes": 282512476
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "wall_ms": 90.225603,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 40,
+        "function_checkpoint": 1842,
+        "project_setup": 524116,
+        "source_ingress": 1637286
+      },
+      "phase_timings_ns": {
+        "analyze": 6690,
+        "verify": 4356,
+        "lower": 3032558,
+        "codegen": 82439045
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 1323,
+        "parser_executions": 0,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 1,
+        "resident_frontend_hits": 1,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 1,
+        "source_read_ns": 320933,
+        "discovery_receipt_ns": 1111877,
+        "semantic_probe_ns": 0,
+        "parser_ns": 0
+      },
+      "frontend_dependency_reads": {
+        "validated_snapshots": 25,
+        "dependency_checks": 24,
+        "reused_validations": 2,
+        "retained_validations": 25
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 1,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "backend_timings": {
+        "machine_ns": 21179142,
+        "partition_ns": 25498,
+        "diagnostic_ns": 5437304,
+        "object_ns": 3383605,
+        "link_key_ns": 50423341,
+        "link_execution_ns": 1381632,
+        "other_ns": 319600,
+        "total_ns": 82150122
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 14,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "wall_ms": 540.780222,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "wall_ms": 1578.487558,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "wall_ms": 917.092709,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1680971,
+        "function_cache_publication": 4902272,
+        "function_cache_read": 801,
+        "function_checkpoint": 6350,
+        "owner_binding": 9925,
+        "producer_checkpoint": 311037,
+        "project_setup": 567491,
+        "semantic_cache_read": 4797,
+        "semantic_candidate_publication": 14195695,
+        "source_ingress": 3634480
+      },
+      "phase_timings_ns": {
+        "parse": 19250,
+        "expand": 25436958,
+        "types": 31776586,
+        "analyze": 53932059,
+        "verify": 63593293,
+        "lower": 3094450,
+        "codegen": 666991412,
+        "ct": 39384205
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498621,
+        "source_clone_bytes": 26173,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 308143,
+        "discovery_receipt_ns": 844056,
+        "semantic_probe_ns": 0,
+        "parser_ns": 2179747
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932,
+        "encode_ns": 1175613,
+        "guard_ns": 1359479,
+        "item_io_ns": 1688178,
+        "manifest_io_ns": 640180
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 1,
+        "reused_functions": 424,
+        "written_segments": 4,
+        "existing_segments": 425,
+        "written_bytes": 1462334,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 3922863,
+        "guard_ns": 1657225,
+        "item_io_ns": 7531994,
+        "manifest_io_ns": 671638
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 12583411,
+        "partition_ns": 64454323,
+        "diagnostic_ns": 43393729,
+        "object_ns": 410453578,
+        "link_key_ns": 90552380,
+        "link_execution_ns": 44892100,
+        "other_ns": 346558,
+        "total_ns": 666676079
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 28,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "wall_ms": 1103.826732,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1456164,
+        "function_cache_publication": 6661320,
+        "function_cache_read": 822,
+        "function_checkpoint": 4457,
+        "owner_binding": 8352,
+        "producer_checkpoint": 332949,
+        "project_setup": 502724,
+        "semantic_cache_read": 5308,
+        "semantic_candidate_publication": 22742759,
+        "source_ingress": 9833077
+      },
+      "phase_timings_ns": {
+        "parse": 25700,
+        "expand": 50249916,
+        "types": 21485582,
+        "analyze": 30847213,
+        "verify": 53683811,
+        "lower": 3732748,
+        "codegen": 861617362,
+        "ct": 32645750
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498624,
+        "source_clone_bytes": 75892,
+        "parser_executions": 3,
+        "parser_reuses": 19,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 264285,
+        "discovery_receipt_ns": 775283,
+        "semantic_probe_ns": 0,
+        "parser_ns": 8350871
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 2,
+        "existing_functions": 419,
+        "written_bytes": 25856,
+        "manifest_bytes": 53932,
+        "encode_ns": 189875,
+        "guard_ns": 1350775,
+        "item_io_ns": 3901272,
+        "manifest_io_ns": 1162673
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 2,
+        "reused_functions": 423,
+        "written_segments": 5,
+        "existing_segments": 424,
+        "written_bytes": 1475284,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 4187530,
+        "guard_ns": 1831256,
+        "item_io_ns": 15738500,
+        "manifest_io_ns": 581843
+      },
+      "backend_work": {
+        "lowered_functions": 3,
+        "reused_functions": 422,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 13,
+        "reused_link": false,
+        "rendered_diagnostic_items": 3,
+        "reused_diagnostic_items": 426
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 3,
+        "function_proofs_reused": 420,
+        "instruction_proofs_reused": 132539
+      },
+      "backend_timings": {
+        "machine_ns": 14037273,
+        "partition_ns": 63375376,
+        "diagnostic_ns": 38238788,
+        "object_ns": 610939022,
+        "link_key_ns": 108882824,
+        "link_execution_ns": 25480044,
+        "other_ns": 328132,
+        "total_ns": 861281459
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 28,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "wall_ms": 1759.127398,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "wall_ms": 5380.798862,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "wall_ms": 6689.955976,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2228092,
+        "function_cache_publication": 323414141,
+        "function_cache_read": 461,
+        "function_checkpoint": 6760,
+        "owner_binding": 15664,
+        "producer_checkpoint": 308102,
+        "project_setup": 621202,
+        "semantic_cache_read": 6369,
+        "semantic_candidate_publication": 379147561,
+        "source_ingress": 110500611
+      },
+      "phase_timings_ns": {
+        "parse": 51849,
+        "expand": 565432159,
+        "types": 255891866,
+        "analyze": 94622844,
+        "verify": 62268737,
+        "lower": 3516945,
+        "codegen": 4767714277,
+        "ct": 33138569
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 499119,
+        "source_clone_bytes": 498928,
+        "parser_executions": 20,
+        "parser_reuses": 2,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 378418,
+        "discovery_receipt_ns": 847711,
+        "semantic_probe_ns": 0,
+        "parser_ns": 108892688
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 397,
+        "existing_functions": 24,
+        "written_bytes": 5132616,
+        "manifest_bytes": 53932,
+        "encode_ns": 14920616,
+        "guard_ns": 19305652,
+        "item_io_ns": 288263913,
+        "manifest_io_ns": 761102
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 397,
+        "reused_functions": 28,
+        "written_segments": 400,
+        "existing_segments": 29,
+        "written_bytes": 6589096,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 36452650,
+        "guard_ns": 19924208,
+        "item_io_ns": 319856666,
+        "manifest_io_ns": 713399
+      },
+      "backend_work": {
+        "lowered_functions": 400,
+        "reused_functions": 25,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 400,
+        "reused_diagnostic_items": 29
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 400,
+        "function_proofs_reused": 23,
+        "instruction_proofs_reused": 2323
+      },
+      "backend_timings": {
+        "machine_ns": 606933084,
+        "partition_ns": 62386333,
+        "diagnostic_ns": 112852770,
+        "object_ns": 3862327474,
+        "link_key_ns": 84016571,
+        "link_execution_ns": 38506530,
+        "other_ns": 426838,
+        "total_ns": 4767449600
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 28,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "wall_ms": 733.669309,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2061882,
+        "function_cache_publication": 18712033,
+        "function_cache_read": 1091,
+        "function_checkpoint": 7911,
+        "owner_binding": 14361,
+        "producer_checkpoint": 410916,
+        "project_setup": 533821,
+        "semantic_cache_read": 6190,
+        "semantic_candidate_publication": 52869289,
+        "source_ingress": 60744685
+      },
+      "phase_timings_ns": {
+        "parse": 69970,
+        "expand": 205954514,
+        "types": 138606000,
+        "analyze": 60588005,
+        "verify": 47683523,
+        "lower": 3202352,
+        "codegen": 73499018,
+        "ct": 39226869
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 499808,
+        "source_clone_bytes": 499808,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 341834,
+        "discovery_receipt_ns": 291166,
+        "semantic_probe_ns": 0,
+        "parser_ns": 59121162
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 0,
+        "existing_functions": 421,
+        "written_bytes": 0,
+        "manifest_bytes": 53932,
+        "encode_ns": 15417202,
+        "guard_ns": 1294071,
+        "item_io_ns": 972044,
+        "manifest_io_ns": 913540
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 404,
+        "reused_functions": 21,
+        "written_segments": 7,
+        "existing_segments": 422,
+        "written_bytes": 1450401,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 26131540,
+        "guard_ns": 2068034,
+        "item_io_ns": 23419253,
+        "manifest_io_ns": 696614
+      },
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 423,
+        "instruction_proofs_reused": 133523
+      },
+      "backend_timings": {
+        "machine_ns": 25403920,
+        "partition_ns": 20851,
+        "diagnostic_ns": 6901009,
+        "object_ns": 2701702,
+        "link_key_ns": 36511557,
+        "link_execution_ns": 1275443,
+        "other_ns": 331927,
+        "total_ns": 73146409
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 14,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "wall_ms": 1738.705541,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "wall_ms": 517.456275,
+      "valid": true,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "wall_ms": 676.198464,
+      "valid": true,
+      "status": "SafeReject",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 40,
+        "function_cache_read": 821,
+        "function_checkpoint": 8603,
+        "owner_binding": 15473,
+        "producer_checkpoint": 3563915,
+        "project_setup": 624377,
+        "semantic_cache_read": 10565,
+        "source_ingress": 109555152
+      },
+      "phase_timings_ns": {
+        "parse": 238277,
+        "expand": 448792970,
+        "types": 21985382,
+        "ct": 40588481
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498630,
+        "source_clone_bytes": 499953,
+        "parser_executions": 22,
+        "parser_reuses": 0,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 5505049,
+        "discovery_receipt_ns": 12037022,
+        "semantic_probe_ns": 0,
+        "parser_ns": 92367142
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": null,
+      "verification_work": null,
+      "backend_timings": null,
+      "link_tool_identities": null
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "wall_ms": 890.811339,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1690635,
+        "function_cache_publication": 5870104,
+        "function_cache_read": 631,
+        "function_checkpoint": 7131,
+        "owner_binding": 12149,
+        "producer_checkpoint": 329294,
+        "project_setup": 813149,
+        "semantic_cache_read": 5078,
+        "semantic_candidate_publication": 19640845,
+        "source_ingress": 4502933
+      },
+      "phase_timings_ns": {
+        "parse": 36686,
+        "expand": 22831901,
+        "types": 47068568,
+        "analyze": 37936435,
+        "verify": 45009100,
+        "lower": 2983365,
+        "codegen": 662859920,
+        "ct": 31855194
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498622,
+        "source_clone_bytes": 26174,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 273159,
+        "discovery_receipt_ns": 828662,
+        "semantic_probe_ns": 0,
+        "parser_ns": 2811184
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932,
+        "encode_ns": 382433,
+        "guard_ns": 1486810,
+        "item_io_ns": 3102123,
+        "manifest_io_ns": 807902
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 5,
+        "reused_functions": 420,
+        "written_segments": 4,
+        "existing_segments": 425,
+        "written_bytes": 1462334,
+        "manifest_bytes": 27809,
+        "canonical_functions": 421,
+        "bound_functions": 4,
+        "encode_ns": 5157465,
+        "guard_ns": 1918658,
+        "item_io_ns": 11352792,
+        "manifest_io_ns": 692629
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 23010459,
+        "partition_ns": 72301793,
+        "diagnostic_ns": 46220879,
+        "object_ns": 389387122,
+        "link_key_ns": 105294547,
+        "link_execution_ns": 24376617,
+        "other_ns": 454773,
+        "total_ns": 661046190
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 28,
+        "hashed_fallback_bytes": 0
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "wall_ms": 2055.137954,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "wall_ms": 518.228155,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "wall_ms": 311.281116,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1990695,
+        "function_checkpoint": 2564,
+        "project_setup": 504547,
+        "semantic_cache_read": 32014592,
+        "source_ingress": 6018086
+      },
+      "phase_timings_ns": {
+        "types": 3301912,
+        "analyze": 21883,
+        "verify": 47881375,
+        "lower": 4144034,
+        "codegen": 210303945
+      },
+      "source_ingress": {
+        "source_files_read": 22,
+        "source_bytes_read": 498620,
+        "source_clone_bytes": 26172,
+        "parser_executions": 1,
+        "parser_reuses": 21,
+        "semantic_load_attempts": 0,
+        "semantic_restored_functions": 0,
+        "resident_routes": 0,
+        "resident_frontend_hits": 0,
+        "discovery_receipt_probes": 1,
+        "discovery_receipt_complete": 0,
+        "source_read_ns": 335705,
+        "discovery_receipt_ns": 844436,
+        "semantic_probe_ns": 0,
+        "parser_ns": 4231185
+      },
+      "frontend_dependency_reads": null,
+      "function_cache_publication": null,
+      "semantic_cache_publication": null,
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "backend_timings": {
+        "machine_ns": 13235128,
+        "partition_ns": 48406512,
+        "diagnostic_ns": 34345778,
+        "object_ns": 18296689,
+        "link_key_ns": 66665737,
+        "link_execution_ns": 28675032,
+        "other_ns": 411888,
+        "total_ns": 210036764
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 28,
+        "hashed_fallback_bytes": 0
+      }
+    }
+  ]
+}
