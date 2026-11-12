@@ -22,6 +22,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
+#include <cstdio>
 #include <dlfcn.h>
 #include <map>
 #include <memory>
@@ -181,7 +182,9 @@ struct Symbols {
   using Visit = void (*)(void *, void *, void (*)(void *, const void *), void *);
   using Has = int (*)(void *, const void *);
   using Require = void (*)(void *, void *, const void *);
+  using Name = const char *(*)(void *, const void *, uint64_t *);
   Set set = nullptr; Visit visit = nullptr; Has has = nullptr; Require require = nullptr;
+  Name name = nullptr;
   bool available = false;
   Symbols() {
     auto Cap = [](const char *N) { auto F = reinterpret_cast<unsigned (*)()>(dlsym(RTLD_DEFAULT, N)); return F && F() == 1; };
@@ -191,15 +194,28 @@ struct Symbols {
     visit = reinterpret_cast<Visit>(dlsym(RTLD_DEFAULT, "ZilLLVMVisitFunctionAnalysisKeys"));
     has = reinterpret_cast<Has>(dlsym(RTLD_DEFAULT, "ZilLLVMHasFunctionAnalysisKey"));
     require = reinterpret_cast<Require>(dlsym(RTLD_DEFAULT, "ZilLLVMRequireFunctionAnalysisKey"));
+    name = reinterpret_cast<Name>(dlsym(RTLD_DEFAULT, "ZilLLVMFunctionAnalysisName"));
     available = set && visit && has && require;
   }
 };
 Symbols &symbols() { static Symbols S; return S; }
 using Keys = std::vector<const void *>;
+thread_local bool AnalysisDiagnostics = false;
 Keys analysisKeys(FunctionAnalysisManager &AM, Function &F) {
   Keys K; symbols().visit(&AM, &F, [](void *P, const void *K) {
     static_cast<Keys *>(P)->push_back(K);
   }, &K); return K;
+}
+void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Point, const Keys &K) {
+  if (!AnalysisDiagnostics) return;
+  std::fprintf(stderr, "ZIL FPM %.*s %s:", static_cast<int>(F.getName().size()), F.getName().data(), Point);
+  for (const void *ID : K) {
+    uint64_t Length = 0;
+    const char *Name = symbols().name ? symbols().name(&AM, ID, &Length) : nullptr;
+    if (Name) std::fprintf(stderr, " %.*s;", static_cast<int>(Length), Name);
+    else std::fprintf(stderr, " <name-unavailable>;");
+  }
+  std::fprintf(stderr, "\n");
 }
 struct Stage {
   std::string Input, World, Path, Pipeline, Output, OutputText;
@@ -362,7 +378,9 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   // dependent payload. Incrementally maintained analyses require explicit value
   // bindings before their stages may use products.
   Keys Entry = analysisKeys(AM, F);
+  describeAnalyses(AM, F, "entry", Entry);
   for (const void *K : Entry) if (K != PassInstrumentationAnalysis::ID()) {
+    if (AnalysisDiagnostics) *Token = new Pending{};
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   auto P = std::make_shared<Stage>();
@@ -376,6 +394,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
       const auto &Old = *It->second;
       if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys) {
         if (!replay(R, F, AM, Old)) { R.Failed = true; ++R.Stats.failed_replays; return 0; }
+        describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
         *static_cast<PreservedAnalyses *>(PA) = Old.PA;
         retainStage(R, Slot, It->second); ++R.Stats.optimizer_function_stage_reuses; return 1;
       }
@@ -388,7 +407,8 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   std::unique_ptr<Pending> P(static_cast<Pending *>(Token));
   if (!P) return;
   auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
-  if (R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
+  describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
+  if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
   P->Product->OutputText = functionText(F);
   P->Product->Output = snapshot(F);
   if (P->Product->Output.empty()) return;
@@ -456,4 +476,8 @@ extern "C" void *ZilNativeProductsSuspend(void) {
 extern "C" void ZilNativeProductsResume(void *P) {
   auto &S = zil::symbols();
   if (S.available) S.set(static_cast<const ZilLLVMFunctionProductHooks *>(P));
+}
+
+extern "C" int ZilNativeProductsAnalysisDiagnostics(int Enabled) {
+  bool Old = zil::AnalysisDiagnostics; zil::AnalysisDiagnostics = Enabled != 0; return Old;
 }

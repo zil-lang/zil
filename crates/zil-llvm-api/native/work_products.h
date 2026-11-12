@@ -42,6 +42,8 @@ void ZilNativeProductsDispose(void *products);
 // Reentrant ordinary compilations temporarily suspend the outer TLS hooks.
 void *ZilNativeProductsSuspend(void);
 void ZilNativeProductsResume(void *previous_hooks);
+// Explicit per-thread test diagnostics; disabled by default. Returns old mode.
+int ZilNativeProductsAnalysisDiagnostics(int enabled);
 #ifdef __cplusplus
 }
 #endif
