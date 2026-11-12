@@ -125,14 +125,14 @@ impl Builder<'_, '_> {
         }
         // This checks the complete value, including discarded fields, exact arity
         // at every tuple and duplicate names, using the existing paid pattern core.
-        if !self.irrefutable_pattern(pattern, &ty)? {
+        if !self.irrefutable_pattern(pattern, stored::physical(&ty))? {
             return Err(error(
                 "E-PATTERN-REFUTABLE",
                 pattern.span,
                 "ordinary binding must be irrefutable",
             ));
         }
-        if owned_shapes::tuple(&ty) {
+        if owned_shapes::tuple(&ty) || matches!(&ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))) {
             let work = inference::type_snapshot_work(&ty, initializer.span, self.limits)?;
             self.closures
                 .snapshot(work.saturating_mul(3), initializer.span)?;
@@ -172,7 +172,7 @@ impl Builder<'_, '_> {
             }
             CorePatternKind::Wildcard => Ok(()),
             CorePatternKind::Tuple(fields) => {
-                let Type::Tuple(types) = ty else {
+                let Type::Tuple(types) = stored::physical(ty) else {
                     unreachable!("checked tuple pattern")
                 };
                 if ty.is_copy_value() {

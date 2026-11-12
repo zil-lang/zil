@@ -591,6 +591,7 @@ struct Engine<'a> {
     // signature replaces it with its physical name. Only body checking reads
     // this hint; the emitted function header remains physical.
     source_enum_return: Option<TypeRef>,
+    signature_candidate: Option<crate::stored_types::SignatureCandidate>,
     source_enum_return_active: bool,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
@@ -705,6 +706,7 @@ impl<'a> Engine<'a> {
             nominals: BTreeMap::new(),
             return_type: None,
             source_enum_return: None,
+            signature_candidate: None,
             source_enum_return_active: false,
             callable_name: None,
             callable_pair: None,
@@ -1236,6 +1238,7 @@ impl<'a> Engine<'a> {
             mut item,
             origin,
             source_enum_return,
+            signature_candidate,
             member_calls,
             runtime_calls,
         }) = self.pending.pop_front()
@@ -1243,6 +1246,7 @@ impl<'a> Engine<'a> {
             // The source result belongs to this exact pending item, even if
             // header preparation enqueued other specializations first.
             self.source_enum_return = source_enum_return;
+            self.signature_candidate = signature_candidate;
             self.runtime_instance = name(&item)
                 .and_then(|name| self.runtime_instances.get(name))
                 .copied();
@@ -1298,6 +1302,10 @@ impl<'a> Engine<'a> {
                 output_origins
                     .entries
                     .push(origin.ok_or_else(|| error(item.span, "output provenance absent"))?);
+            }
+            if let Some(candidate)=self.signature_candidate.take() {
+                self.budget.node(item.span,0)?;
+                self.products.storage.signature_candidates.insert((module.id,result.items.len()),candidate);
             }
             result.items.push(item);
         }
