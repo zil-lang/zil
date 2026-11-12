@@ -9,7 +9,8 @@ namespace zil {
 // These helpers read actual current IR; a digest is never an authorization.
 bool eligibleFunction(const llvm::Function &F);
 std::string functionText(const llvm::Function &F);
-std::string worldText(const llvm::Module &M, const llvm::Function *Subject);
+std::string worldText(const llvm::Module &M, const llvm::Function *Subject,
+                      ZilNativeProductStats *Stats = nullptr);
 struct MachineProducts;
 struct MachineRequest;
 std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &);

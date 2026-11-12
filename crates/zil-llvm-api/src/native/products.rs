@@ -31,6 +31,10 @@ mod enabled {
         mir_capture_ns: u64,
         retained_bytes: u64,
         failed_replays: u64,
+        world_projection_direct: u64,
+        world_projection_fallback: u64,
+        tli_projection_builds: u64,
+        tli_projection_reuses: u64,
     }
     impl From<WireStats> for NativeProductStats {
         fn from(value: WireStats) -> Self {
@@ -57,6 +61,10 @@ mod enabled {
                 mir_capture_ns: value.mir_capture_ns,
                 retained_bytes: value.retained_bytes,
                 failed_replays: value.failed_replays,
+                world_projection_direct: value.world_projection_direct,
+                world_projection_fallback: value.world_projection_fallback,
+                tli_projection_builds: value.tli_projection_builds,
+                tli_projection_reuses: value.tli_projection_reuses,
                 ..Self::default()
             }
         }
@@ -68,6 +76,10 @@ mod enabled {
         fn ZilNativeProductsIncomingCallerCounterexample() -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsAttributeMetadataCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsModuleHeaderCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeAnalysisFactsTLIMemoCounterexample() -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
@@ -348,6 +360,18 @@ mod enabled {
         use super::*;
 
         #[test]
+        fn current_module_headers_preserve_values_and_reject_body_owners() {
+            // SAFETY: all fixture LLVM owners remain inside the C++ call.
+            assert_eq!(unsafe { ZilNativeProductsModuleHeaderCounterexample() }, 1);
+        }
+
+        #[test]
+        fn request_local_tli_projection_matches_full_current_facts() {
+            // SAFETY: the fixture owns each FAM and tests explicit token expiry.
+            assert_eq!(unsafe { ZilNativeAnalysisFactsTLIMemoCounterexample() }, 1);
+        }
+
+        #[test]
         fn complete_call_attributes_and_metadata_distinguish_equal_function_text() {
             let _diagnostics = analysis_diagnostics_for_test();
             // SAFETY: the fixture owns all LLVM values and returns only its
@@ -381,8 +405,8 @@ mod enabled {
         }
 
         #[test]
-        fn native_stats_wire_matches_the_twenty_two_u64_c_fields() {
-            assert_eq!(std::mem::size_of::<WireStats>(), 22 * 8);
+        fn native_stats_wire_matches_the_twenty_six_u64_c_fields() {
+            assert_eq!(std::mem::size_of::<WireStats>(), 26 * 8);
             assert_eq!(
                 std::mem::align_of::<WireStats>(),
                 std::mem::align_of::<u64>()
@@ -395,6 +419,23 @@ mod enabled {
             );
             assert_eq!(std::mem::offset_of!(WireStats, mir_capture_ns), 19 * 8);
             assert_eq!(std::mem::offset_of!(WireStats, failed_replays), 21 * 8);
+            assert_eq!(
+                std::mem::offset_of!(WireStats, world_projection_direct),
+                22 * 8
+            );
+            assert_eq!(
+                std::mem::offset_of!(WireStats, world_projection_fallback),
+                23 * 8
+            );
+            assert_eq!(
+                std::mem::offset_of!(WireStats, tli_projection_builds),
+                24 * 8
+            );
+            assert_eq!(
+                std::mem::offset_of!(WireStats, tli_projection_reuses),
+                25 * 8
+            );
+
             fn assert_send_sync<T: Send + Sync>() {}
             assert_send_sync::<NativeWorkProducts>();
         }

@@ -31,7 +31,18 @@ struct ZilNativeProductStats {
   uint64_t mir_capture_ns;
   uint64_t retained_bytes;
   uint64_t failed_replays;
+  uint64_t world_projection_direct;
+  uint64_t world_projection_fallback;
+  uint64_t tli_projection_builds;
+  uint64_t tli_projection_reuses;
 };
+#ifdef __cplusplus
+static_assert(sizeof(ZilNativeProductStats) == 26 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, world_projection_direct) == 22 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, world_projection_fallback) == 23 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, tli_projection_builds) == 24 * sizeof(uint64_t));
+static_assert(offsetof(ZilNativeProductStats, tli_projection_reuses) == 25 * sizeof(uint64_t));
+#endif
 // config is a length-delimited complete adapter policy (LLVM pin, triple,
 // pipeline/options/merging, CPU/features, relocation/model, layout). No env opt-in.
 void *ZilNativeProductsCreateRequest(void *module, void *target_machine,

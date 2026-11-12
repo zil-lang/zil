@@ -452,6 +452,27 @@ class PushReceiptTests(unittest.TestCase):
         self.assertIsNone(checked['groups']['raw_inference_work'])
         self.assertFalse(checked['required_by_execution']['raw_inference_work'])
 
+    def test_projection_schema_preserves_legacy_unknown_and_requires_current_observations(self):
+        legacy = self.native_stats()
+        report = {'native_codegen': {'object_reports': [{'native_products': legacy}]}}
+        observed = pc.inspect_native_products(report)['units'][0]['stats']
+        self.assertIsNone(observed.get('world_projection_direct'))
+        current = dict(legacy, observer_schema=2)
+        current.update({field: 7 for field in pc.NATIVE_PROJECTION_FIELDS})
+        report['native_codegen']['object_reports'][0]['native_products'] = current
+        self.assertEqual(pc.inspect_native_products(report)['units'][0]['stats'], current)
+        for field in pc.NATIVE_PROJECTION_FIELDS:
+            for value in (None, -1, True):
+                malformed = dict(current)
+                malformed[field] = value
+                report['native_codegen']['object_reports'][0]['native_products'] = malformed
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, field):
+                    pc.inspect_native_products(report)
+        for version in (True, 0, 3):
+            report['native_codegen']['object_reports'][0]['native_products'] = dict(current, observer_schema=version)
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'observer_schema'):
+                pc.inspect_native_products(report)
+
     def native_stats(self):
         return {field: 0 for field in pc.NATIVE_PRODUCT_FIELDS}
 

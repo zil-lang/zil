@@ -293,25 +293,17 @@ std::string declarationText(const Function &F) {
   for (const auto &E : Metadata) { OS << "\n; metadata " << E.first << '\n'; E.second->printTree(OS, F.getParent()); }
   return S;
 }
-std::string worldText(const Module &M, const Function *Subject) {
+std::string worldText(const Module &M, const Function *Subject, ZilNativeProductStats *Stats) {
   using PrintHeaders = int (*)(const void *, void *);
   static auto Print = reinterpret_cast<PrintHeaders>(dlsym(RTLD_DEFAULT, "ZilLLVMPrintModuleHeaders"));
   std::string S; raw_string_ostream OS(S);
-  if (!Print || !Print(&M, &OS)) {
-    // Older SDKs and header references into bodies retain the complete prior
-    // conservative projection. A rejected new renderer writes no bytes.
-    ValueToValueMapTy Map;
-    auto World = CloneModule(M, Map, [](const GlobalValue *G) { return !isa<Function>(G); });
-    for (const Function &F : M) {
-      auto *D = cast<Function>(Map[&F]);
-      D->setLinkage(F.getLinkage());
-      if (F.hasPersonalityFn()) D->setPersonalityFn(MapValue(F.getPersonalityFn(), Map));
-      if (F.hasComdat()) {
-        auto *C = World->getOrInsertComdat(F.getComdat()->getName());
-        C->setSelectionKind(F.getComdat()->getSelectionKind()); D->setComdat(C);
-      }
-    }
-    World->print(OS, nullptr, true);
+  if (Print && Print(&M, &OS)) {
+    if (Stats) ++Stats->world_projection_direct;
+  } else {
+    // An unsupported header owner or missing SDK renderer must retain ALL
+    // current bodies, not strip away the very owner the fast path rejected.
+    if (Stats) ++Stats->world_projection_fallback;
+    M.print(OS, nullptr, true);
   }
   for (const Function &F : M) {
     SmallVector<std::pair<unsigned, MDNode *>, 4> MD;
@@ -622,7 +614,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   }
   auto P = std::make_shared<Stage>();
   P->Path = path(R, F); P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
-  P->Input = functionText(F); P->World = worldText(R.M, &F); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
+  P->Input = functionText(F); P->World = worldText(R.M, &F, &R.Stats); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
   std::string Slot = P->Path;
   if (R.Prior && R.Prior->Config == R.Config) {
@@ -651,7 +643,7 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   if (R.Failed) return;
   auto &F = *static_cast<Function *>(IR);
   describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
-  if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
+  if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F, &R.Stats) != P->Product->World) return;
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
                      P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
@@ -687,7 +679,11 @@ int skippedCallback(void *C, void *P, void *F) {
   return static_cast<Function *>(F)->getParent() == &R.M && R.Machine ? machineWasSkipped(*R.Machine, *static_cast<Pass *>(P), *static_cast<Function *>(F)) : 0;
 }
 int requestFailedCallback(void *C) { return static_cast<Request *>(C)->Failed; }
-void copyStats(Request &R, ZilNativeProductStats *Out) { if (Out) *Out = R.Stats; }
+void copyStats(Request &R, ZilNativeProductStats *Out) {
+  R.Stats.tli_projection_builds = R.AnalysisMemo.targetLibraryProjections();
+  R.Stats.tli_projection_reuses = R.AnalysisMemo.targetLibraryReuses();
+  if (Out) *Out = R.Stats;
+}
 }
 }
 extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *Prior, const char *C, size_t N) {
@@ -873,5 +869,11 @@ extern "C" int ZilNativeProductsModuleHeaderCounterexample() {
   auto *Address = BlockAddress::get(F, Target);
   new GlobalVariable(M, Address->getType(), true, GlobalValue::ExternalLinkage, Address, "taken");
   std::string Rejected; raw_string_ostream RejectedOS(Rejected);
-  return !verifyModule(M, nullptr) && !Print(&M, &RejectedOS) && Rejected.empty();
+  if (verifyModule(M, nullptr) || Print(&M, &RejectedOS) || !Rejected.empty()) return 0;
+  ZilNativeProductStats Stats{};
+  const std::string Before = zil::worldText(M, F, &Stats);
+  cast<ReturnInst>(Target->getTerminator())->setOperand(0, TB.getInt32(1));
+  const std::string After = zil::worldText(M, F, &Stats);
+  return !Before.empty() && Before != After && Stats.world_projection_fallback == 2 &&
+         Stats.world_projection_direct == 0 && !verifyModule(M, nullptr);
 }

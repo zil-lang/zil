@@ -937,7 +937,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     }
     if (C.recording) {
       C.recording->input = functionText(F);
-      C.recording->world = worldText(R.module, &F);
+      C.recording->world = worldText(R.module, &F, &R.stats);
       R.stats.mir_key_bytes += C.recording->input.size() + C.recording->world.size();
       if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
         R.discardRecording(C);
@@ -1078,7 +1078,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       auto *MF = MMI.getMachineFunction(F);
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
-          C.recording->world != worldText(R.module, &F) ||
+          C.recording->world != worldText(R.module, &F, &R.stats) ||
           !captureBody(*MF, C.recording->body)) {
         if (MachineDiagnostics && MF) {
           diagnose(F, "cold-typed-body-not-retained",

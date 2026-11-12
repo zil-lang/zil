@@ -58,6 +58,10 @@ NATIVE_PRODUCT_FIELDS = (
     'mir_key_ns', 'mir_parse_ns', 'mir_restore_validate_ns', 'mir_capture_ns',
     'retained_bytes', 'failed_replays', 'fresh_context_fallbacks', 'fallback_ns',
 )
+NATIVE_PROJECTION_FIELDS = (
+    'world_projection_direct', 'world_projection_fallback',
+    'tli_projection_builds', 'tli_projection_reuses',
+)
 NATIVE_WORK_SCOPE = (
     'native_products hook counters and MIR scope timers describe the first hooked attempt only; '
     'after fresh_context_fallbacks, subsequent ordinary native work has unavailable per-pass counts. '
@@ -86,7 +90,11 @@ def inspect_native_products(report):
         if stats is not None:
             if not isinstance(stats, dict):
                 raise ValueError('native_products must be an object or null')
-            for field in NATIVE_PRODUCT_FIELDS:
+            version = stats.get('observer_schema', 1)
+            if type(version) is not int or version not in (1, 2):
+                raise ValueError('native_products.observer_schema unsupported')
+            fields = NATIVE_PRODUCT_FIELDS + (NATIVE_PROJECTION_FIELDS if version == 2 else ())
+            for field in fields:
                 if type(stats.get(field)) is not int or stats[field] < 0:
                     raise ValueError('native_products.' + field + ' missing or not a nonnegative integer')
         result.append({'unit_index': index, 'stats': stats,
