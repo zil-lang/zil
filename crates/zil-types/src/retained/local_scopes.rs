@@ -122,9 +122,10 @@ fn add(
         return Ok(false);
     };
     if count as usize > limits.max_nodes {
-        return Err(limit(
+        return Err(Diagnostic::limit(
+            Phase::Types,
             "local callable class directory exceeds node quota",
-            span,
+            Some(span),
         ));
     }
     for class in 0..count {
