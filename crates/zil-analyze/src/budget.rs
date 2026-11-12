@@ -47,6 +47,7 @@ pub(super) struct Budget {
     pub(super) affine_packages: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    pub(super) mutable_capture_contexts: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
@@ -170,6 +171,7 @@ impl Budget {
             affine_packages: false,
             address_capture: false,
             owning_address_captures: false,
+            mutable_capture_contexts: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),
             callable_receiver_roles: BTreeMap::new(),
@@ -1583,14 +1585,12 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
+            budget.mutable_capture_contexts |= super::stored_callables::mutable_context_capture(ty);
             // Actual capture shape schedules the independent resource ledger;
             // a qualifier wrapper never removes a physical owning ticket.
-            budget.owning_environment_captures |= matches!(
-                super::resources::package_storage(ty),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
-            );
-            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
-            {
+            budget.owning_environment_captures |= matches!(super::resources::package_storage(ty),Type::Managed(_)|Type::Package{..}|Type::Closure(_)|Type::OwnedDyn{..});
+            budget.owning_environment_captures |= matches!(ty, Type::Address { mutable: true, .. });
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
                 super::resources::product::admit_owned(module, ty, budget)?;
                 budget.owning_environment_captures = true;
@@ -1624,6 +1624,7 @@ pub(super) fn preflight(
             if closure.storage_life.is_some() {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
+                    && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
@@ -2036,10 +2037,10 @@ pub(super) fn preflight(
                         .closures
                         .get(id.0 as usize)
                         .ok_or_else(|| bad("returned environment child definition absent"))?;
-                    budget.input(
-                        definition.captures.len(),
-                        "returned environment actual child edges",
-                    )?;
+                    budget.input(definition.captures.len(), "returned environment actual child edges")?;
+                    if definition.captures.iter().any(super::stored_callables::exclusive_capture) {
+                        budget.stored_borrows=true;
+                    }
                     for capture in &definition.captures {
                         if let Type::Closure(child) = capture {
                             pending.push(*child);

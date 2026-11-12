@@ -198,12 +198,18 @@ fn fixture(kind: CallableKind, alias: bool, write: Write) -> TypedModule {
             },
         );
     }
+    if matches!(address,Type::Address{mutable:true,..}) {
+        main.op(InstructionKind::DropClosure{local:environment});
+    }
     main.op(InstructionKind::StorageDead(environment));
     module.functions[0] = main.finish(result);
     module.closures[0].captures = vec![address.clone()];
     let mut entry = Body::new(1);
     entry.0.environment = Some(ClosureId(0));
-    let captured = entry.value(address, InstructionKind::ReadCapture { index: 0 });
+    let read = if kind==CallableKind::Fn {
+        Type::Address {mutable:false,inner:Box::new(Type::I32)}
+    } else {address};
+    let captured = entry.value(read, InstructionKind::ReadCapture { index: 0 });
     let result = entry.value(
         Type::I32,
         InstructionKind::ReadAddress { address: captured },

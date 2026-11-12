@@ -3,6 +3,27 @@
 //! the runtime target and preserve its complete parent loan chain.
 use super::*;
 
+pub(super) fn has_context(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.mutable_capture_contexts {return Ok(false);}
+    let mut pending=vec![(definition,0usize)];
+    while let Some((d,depth))=pending.pop() {
+        fee(b,d.captures.len())?;
+        if depth>b.partial_depth {return Err(failure("captured holder inventory exceeds finite depth"));}
+        for ty in &d.captures {
+            if super::super::stored_callables::mutable_context_capture(ty) {return Ok(true);}
+            if let Type::Closure(id)=ty {
+                pending.push((module.closures.get(id.0 as usize)
+                    .ok_or_else(||failure("captured holder inventory child absent"))?,depth+1));
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// Schedule new mutable environment facts from the actual owning capture graph
 /// or a direct pointer-capture write. A scalar mutation does not change any
 /// stored target and keeps the established invocation path.
@@ -22,6 +43,9 @@ pub(super) fn required(
         }
         for capture in &definition.captures {
             match capture {
+                ty if super::super::stored_callables::mutable_context_capture(ty) => {
+                    return Ok(true);
+                }
                 Type::BorrowedStorage { storage, .. }
                     if matches!(storage.as_ref(), Type::Package { .. }) =>
                 {
@@ -170,7 +194,19 @@ pub(super) fn summarize(
         if !value.pointer.targets.is_empty() {
             add(&Vec::new(), &value.pointer)?;
         }
-        for (path, p) in value.slots.iter().chain(&value.environment) {
+        let slots = if definition
+            .captures
+            .get(*index as usize)
+            .is_some_and(super::super::stored_callables::mutable_context_capture)
+        {
+            state
+                .external
+                .get(&HoldRoot::Capture(*index))
+                .ok_or_else(|| failure("terminal captured holder has no actual slot memory"))?
+        } else {
+            &value.slots
+        };
+        for (path, p) in slots.iter().chain(&value.environment) {
             add(path, p)?;
         }
     }
@@ -287,7 +323,112 @@ pub(super) fn invoke(
         rows.insert(path, permission);
         b.stored_exclusive_loans |= mutable;
     }
+    publish_contexts(module, d, state, &receiver.environment, &rows, b)?;
     environment_memory::publish(state, base, rows, b)?;
+    Ok(())
+}
+
+/// Publish through the captured address into the same authenticated storage
+/// cell. Environment rows describe that cell; they do not replace its identity.
+pub(super) fn publish_contexts(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    state: &mut State,
+    before: &BTreeMap<Path, Permission>,
+    after: &BTreeMap<Path, Permission>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut pending = vec![(definition, Vec::new(), 0usize)];
+    let mut updates = Vec::new();
+    while let Some((d, prefix, depth)) = pending.pop() {
+        fee(b, d.captures.len().saturating_add(prefix.len()))?;
+        if depth > b.partial_depth {
+            return Err(failure("captured holder publication exceeds finite depth"));
+        }
+        for (index, ty) in d.captures.iter().enumerate() {
+            let mut head = prefix.clone();
+            fee(b, head.len().saturating_add(1))?;
+            head.push(PlaceProjection::Field(index as u32));
+            if let Type::Closure(child) = ty {
+                pending.push((
+                    module
+                        .closures
+                        .get(child.0 as usize)
+                        .ok_or_else(|| failure("captured holder child definition absent"))?,
+                    head,
+                    depth + 1,
+                ));
+                continue;
+            }
+            if !super::super::stored_callables::mutable_context_capture(ty) {
+                continue;
+            }
+            let (_, shape) = pointed_carrier(ty)
+                .ok_or_else(|| failure("captured holder has no actual qualified pointee"))?;
+            // Empty predecessor/callee facts are bottom during iteration.
+            // The complete actual-environment inventory below derive_cfg
+            // requires every head and slot before any access window runs.
+            let Some(address) = before.get(&head) else { continue; };
+            if address.targets.is_empty() {continue;}
+            let strong = address.targets.len() == 1;
+            for slot in &shape.slots {
+                let mut leaf = head.clone();
+                fee(b, leaf.len().saturating_add(slot.path.len()))?;
+                leaf.extend(&slot.path);
+                let replacement = after
+                    .get(&leaf)
+                    .ok_or_else(|| failure("captured holder publication omits a physical slot"))?;
+                for root in &address.targets {
+                    fee(b, target_width(root).saturating_add(slot.path.len()))?;
+                    if root.heap_element.is_some() || root.retained_port.is_some() {
+                        return Err(failure(
+                            "captured holder publication requires explicit opaque/heap context",
+                        ));
+                    }
+                    let environment = !root.stored.is_empty();
+                    let mut path = if environment {
+                        root.stored.clone()
+                    } else {
+                        Vec::new()
+                    };
+                    path.extend(&root.place);
+                    path.extend(&slot.path);
+                    updates.push((
+                        root.base,
+                        path,
+                        copy_permission(replacement, b)?,
+                        strong,
+                        environment,
+                    ));
+                }
+            }
+        }
+    }
+    // All sources are staged before changing a destination (including swaps).
+    for (base, path, replacement, strong, environment) in updates {
+        if environment {
+            let mut rows = copy_permission_rows(environment_memory::rows(state, base, b)?, b)?;
+            let previous = rows.get_mut(&path).ok_or_else(|| {
+                failure("captured holder update has no authenticated context slot")
+            })?;
+            if strong {
+                *previous = replacement;
+            } else {
+                union(previous, &replacement, b)?;
+            }
+            environment_memory::publish(state, base, rows, b)?;
+        } else {
+            let rows = actual_slot_rows_mut(state, base, b)?;
+            let previous = rows.get_mut(&path).ok_or_else(|| {
+                failure("captured holder update has no authenticated physical slot")
+            })?;
+            if strong {
+                *previous = replacement;
+            } else {
+                union(previous, &replacement, b)?;
+            }
+        }
+    }
     Ok(())
 }
 

@@ -221,6 +221,17 @@ pub(super) fn capture(t: &Type) -> bool {
         if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
 }
+/// Reborrow the head on every read, preserving its nominal pointee classes.
+pub(super) fn mutable_context_capture(t: &Type) -> bool {
+    matches!(t, Type::Address { mutable: true, inner }
+        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                && life.retained.is_empty()))
+}
+pub(super) fn exclusive_capture(t: &Type) -> bool {
+    mutable_context_capture(t)
+        || matches!(t, Type::Address { mutable: true, inner } if scalar(inner))
+}
 pub(super) fn resource_payload(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::Record { fields, .. } = t else {
         return Ok(false);
@@ -261,12 +272,12 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 continue;
             }
             admitted &= if d.storage_life.is_some() {
-                capture(t)
-                    || owned_capture(t, b)?
+                capture(t) || exclusive_capture(t) || owned_capture(t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
                     || capture(t)
+                    || exclusive_capture(t)
                     || b.returned_borrowed_environments.contains(&d.id)
                         && (owned_capture(t, b)?
                             || matches!(t, Type::Closure(child)
@@ -574,10 +585,18 @@ pub(super) fn types(
                         "qualified capture write requires exclusive environment and exact field",
                     ));
                 }
-            } else if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(t) {
+            } else if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(t)
+                && !(d.kind == CallableKind::Fn
+                    && matches!((t, i.result.and_then(|v| f.values.get(v.0 as usize))),
+                        (Type::Address { mutable: true, inner },
+                         Some(Type::Address { mutable: false, inner: result })) if inner == result)) {
                 return Err(bad(
                     "qualified capture read result differs from actual field",
                 ));
+            }
+            if d.kind == CallableKind::Fn && exclusive_capture(t)
+                && matches!(i.result.and_then(|v| f.values.get(v.0 as usize)), Some(Type::Address { mutable: true, .. })) {
+                return Err(bad("shared environment cannot expose a mutable captured capability"));
             }
             return Ok(());
         }
