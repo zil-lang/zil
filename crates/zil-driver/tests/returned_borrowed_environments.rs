@@ -282,6 +282,15 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
     for (label, text) in [
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
+        ("holder-pointer", HOLDER_SOURCE.to_owned()),
+        (
+            "holder-pointer-replaced",
+            format!(
+                "{}{}",
+                HOLDER_SOURCE.split("fn main").next().unwrap(),
+                "fn main()->i32{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;return f()-41}"
+            ),
+        ),
     ] {
         let module = typed_source(&text);
         let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
