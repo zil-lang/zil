@@ -182,7 +182,7 @@ Keys analysisKeys(FunctionAnalysisManager &AM, Function &F) {
   }, &K); return K;
 }
 struct Stage {
-  std::string Input, World, Path, Pipeline, Output;
+  std::string Input, World, Path, Pipeline, Output, OutputText;
   Keys EntryKeys, ExitKeys;
   PreservedAnalyses PA = PreservedAnalyses::none();
 };
@@ -217,6 +217,33 @@ std::string path(Request &R, Function &F) {
   for (auto E : R.Path) OS << '/' << E.first << ':' << E.second;
   OS.flush(); auto &N = R.Occurrences[P]; return P + "#" + std::to_string(N++);
 }
+// CloneFunctionInto preserves values/CFG but does not promise use-list order.
+// LLVM analyses and scheduling can observe that order. Transport only the
+// function-owned values; constants and symbol users remain current owners.
+bool preserveLocalUseOrder(const Function &Source, ValueToValueMapTy &Map) {
+  auto Restore = [&](const Value *V) {
+    Value *New = Map.lookup(V);
+    if (!New) return false;
+    std::map<const Use *, size_t> Ranks;
+    for (const Use &U : V->uses()) {
+      Value *MappedUser = Map.lookup(U.getUser());
+      auto *NewUser = dyn_cast_or_null<User>(MappedUser);
+      if (!NewUser || U.getOperandNo() >= NewUser->getNumOperands()) return false;
+      const Use *NewUse = &NewUser->getOperandUse(U.getOperandNo());
+      if (NewUse->get() != New) return false;
+      Ranks.emplace(NewUse, Ranks.size());
+    }
+    if (Ranks.size() != New->getNumUses()) return false;
+    New->sortUseList([&](const Use &A, const Use &B) { return Ranks.at(&A) < Ranks.at(&B); });
+    return true;
+  };
+  for (const Argument &A : Source.args()) if (!Restore(&A)) return false;
+  for (const BasicBlock &B : Source) {
+    if (!Restore(&B)) return false;
+    for (const Instruction &I : B) if (!Restore(&I)) return false;
+  }
+  return true;
+}
 std::string snapshot(Function &F) {
   Module Out("zil.function.product", F.getContext());
   Out.setTargetTriple(F.getParent()->getTargetTriple()); Out.setDataLayout(F.getParent()->getDataLayout());
@@ -234,7 +261,7 @@ std::string snapshot(Function &F) {
   }
   SmallVector<ReturnInst *, 8> Returns;
   CloneFunctionInto(NF, &F, Map, CloneFunctionChangeType::DifferentModule, Returns);
-  if (verifyModule(Out, nullptr)) return {};
+  if (!preserveLocalUseOrder(F, Map) || verifyModule(Out, nullptr)) return {};
   std::string S; raw_string_ostream OS(S); WriteBitcodeToFile(Out, OS, true); return S;
 }
 bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P) {
@@ -262,7 +289,8 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   A = F.arg_begin(); for (const Argument &SA : SF->args()) (A++)->setName(SA.getName());
   SmallVector<ReturnInst *, 8> Returns;
   CloneFunctionInto(&F, SF, Map, CloneFunctionChangeType::DifferentModule, Returns);
-  if (verifyFunction(F, nullptr)) return false;
+  if (!preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
+      functionText(F) != P.OutputText) return false;
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
   if (analysisKeys(AM, F) != P.ExitKeys) return false;
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
@@ -296,11 +324,12 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   if (!P) return;
   auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
   if (R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
+  P->Product->OutputText = functionText(F);
   P->Product->Output = snapshot(F);
   if (P->Product->Output.empty()) return;
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
-  R.Stats.ir_snapshot_bytes += P->Product->Output.size();
+  R.Stats.ir_snapshot_bytes += P->Product->Output.size() + P->Product->OutputText.size();
   R.Next.Stages[P->Slot] = std::move(P->Product);
 }
 void enterPass(void *C, unsigned Kind, unsigned Index) {
@@ -343,7 +372,7 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
     if (!R->Stats.failed_replays) ++R->Stats.failed_replays;
     copyStats(*R, S); return nullptr;
   }
-  for (const auto &E : R->Next.Stages) R->Stats.retained_bytes += E.first.size() + E.second->Input.size() + E.second->World.size() + E.second->Output.size() + E.second->Pipeline.size();
+  for (const auto &E : R->Next.Stages) R->Stats.retained_bytes += E.first.size() + E.second->Input.size() + E.second->World.size() + E.second->Output.size() + E.second->OutputText.size() + E.second->Pipeline.size();
   copyStats(*R, S);
   auto *Result = new Products(std::move(R->Next));
   if (Failed) *Failed = 0;
