@@ -119,7 +119,7 @@ fn fixture(
         }],
         entry: BlockId(0),
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         callable_return_contract: None,
         span: span(),
     };

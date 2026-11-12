@@ -341,7 +341,7 @@ mod tests {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             id: FunctionId(id),
             name: if module == 0 {
                 function.name.clone()

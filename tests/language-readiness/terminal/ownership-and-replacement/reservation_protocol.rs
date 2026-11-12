@@ -31,7 +31,7 @@ pub fn module() -> TypedModule {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "replace".into(),
         foreign: None,

@@ -135,7 +135,7 @@ fn candidate(copy: Type, operation: Operation, repetitions: usize) -> TypedModul
             environment: None,
             callable_return_contract: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             parameters: vec![LocalId(0), LocalId(1), LocalId(2)],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,

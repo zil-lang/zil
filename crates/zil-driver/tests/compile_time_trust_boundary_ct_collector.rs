@@ -76,7 +76,7 @@ fn program() -> CoreProgram {
                     receiver: None,
                     callable_return: None,
                     state_parameters: Vec::new(),
-                    protocol_contract: None,
+                    protocol_contracts: Vec::new(),
                     type_parameters: Vec::new(),
                     callable_parameters: Vec::new(),
                     foreign: None,

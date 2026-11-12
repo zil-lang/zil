@@ -41,7 +41,7 @@ fn module() -> TypedModule {
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             result_mode: PassingMode::Infer,
             foreign: None,
             environment: None,

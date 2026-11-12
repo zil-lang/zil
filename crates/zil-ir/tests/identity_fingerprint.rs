@@ -276,7 +276,7 @@ fn module(flag: bool) -> TypedModule {
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             id: FunctionId(i as u32),
             name: format!("function-{i}-λ"),
             foreign: flag.then(|| ForeignDeclaration {

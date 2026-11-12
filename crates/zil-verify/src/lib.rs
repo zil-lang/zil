@@ -816,7 +816,29 @@ fn check_module(
                 "unsafe driver transfer promise lacks actual threaded provider role",
             ));
         }
-        budget.protocol_contracts |= function.protocol_contract.is_some();
+        if function.protocol_contracts.len() > limits.max_locals {
+            return Err(limit("protocol role inventory exceeds the local bound"));
+        }
+        if !function.protocol_contracts.is_empty() {
+            budget.spend(function.protocol_contracts.len().saturating_mul(13))?;
+            for role in &function.protocol_contracts {
+                if role.entry.len() > limits.max_nodes || role.exits.len() > limits.max_nodes {
+                    return Err(limit("protocol relation exceeds selected bounds"));
+                }
+                budget.spend(
+                    role.entry
+                        .len()
+                        .saturating_add(role.exits.len().saturating_mul(6)),
+                )?;
+                for row in &role.exits {
+                    if row.output.len() > limits.max_nodes {
+                        return Err(limit("protocol output exceeds selected bounds"));
+                    }
+                    budget.spend(row.output.len())?;
+                }
+            }
+        }
+        budget.protocol_contracts |= !function.protocol_contracts.is_empty();
         if let Some(contract) = &function.storage_life {
             if function.call_kind == CallKind::Suspend {
                 budget.spend(function.parameters.len())?;

@@ -21,7 +21,7 @@ fn source(count: u32) -> LirModule {
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
-                protocol_contract: None,
+                protocol_contracts: Vec::new(),
                 id: zil_ir::FunctionId(id),
                 name: format!("f{id}"),
                 foreign: None,

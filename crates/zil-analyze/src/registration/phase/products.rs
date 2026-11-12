@@ -212,7 +212,7 @@ pub(super) fn step(
         InstructionKind::TaskCreateOwned {
             worker, arguments, ..
         } => {
-            if let Some(c) = &m.functions[worker.0 as usize].protocol_contract {
+            for c in &m.functions[worker.0 as usize].protocol_contracts {
                 let input = *arguments
                     .get(c.parameter as usize)
                     .ok_or_else(|| invalid(f, "Task owning input protocol role absent"))?;

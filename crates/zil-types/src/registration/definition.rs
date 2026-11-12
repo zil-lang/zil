@@ -22,6 +22,8 @@ fn mask(states: &[ProtocolState]) -> u8 {
 #[derive(Clone, Copy)]
 enum Value {
     Root,
+    OtherRoot,
+    OtherPoll,
     Scalar,
     Poll { epoch: usize, pending: u8 },
 }
@@ -70,6 +72,14 @@ impl<P: FnMut(usize) -> R<()>> Proof<'_, P> {
                     return Err(self.reject(argument.span));
                 };
                 (self.pay)(root.len().saturating_add(self.locals.len()))?;
+                if matches!(self.locals.get(root), Some(Value::OtherRoot)) {
+                    // This per-role definition check proves only the selected
+                    // root. Returning another role's Poll remains unsupported.
+                    if name == REQUEST {
+                        return Ok(Value::Scalar);
+                    }
+                    return Ok(Value::OtherPoll);
+                }
                 if !matches!(self.locals.get(root), Some(Value::Root)) {
                     return Err(self.reject(argument.span));
                 }
@@ -159,6 +169,12 @@ impl<P: FnMut(usize) -> R<()>> Proof<'_, P> {
                             self.exit(ProtocolExit::PollPending, pending, statement.span)?;
                             self.exit(ProtocolExit::PollReady, CLOSED, statement.span)?;
                         }
+                        Value::OtherPoll
+                            if self.function.return_type == tasks::poll_type(&Type::Unit) =>
+                        {
+                            self.exit(ProtocolExit::PollPending, self.phase, statement.span)?;
+                            self.exit(ProtocolExit::PollReady, self.phase, statement.span)?;
+                        }
                         Value::Scalar
                             if !matches!(self.function.return_type, Type::ErrorUnion { .. })
                                 && self.function.return_type != tasks::poll_type(&Type::Unit) =>
@@ -189,91 +205,109 @@ pub(crate) fn check(
     if !borrowed_template(f) {
         return Ok(());
     }
-    let c = f
-        .protocol_contract
-        .as_ref()
-        .ok_or_else(|| unsupported(f.span, "borrowed protocol definition has no contract"))?;
-    pay(module
-        .functions
-        .len()
-        .saturating_add(imports.len())
-        .saturating_add(c.entry.len())
-        .saturating_add(c.exits.len())
-        .saturating_add(1))?;
-    // Resolve bare primitive identity against the actual defining module. A
-    // user declaration with this spelling is never a transition certificate.
-    if imports.contains_key(REQUEST)
-        || imports.contains_key(POLL)
-        || module
+    if f.protocol_contracts.is_empty() {
+        return Err(unsupported(
+            f.span,
+            "borrowed protocol definition has no contract",
+        ));
+    }
+    if f.protocol_contracts
+        .iter()
+        .any(|c| !f.callable_parameters.iter().any(|b| b.index == c.parameter))
+    {
+        return Err(unsupported(
+            f.span,
+            "protocol role is not an actual registration parameter",
+        ));
+    }
+    for c in &f.protocol_contracts {
+        pay(module
             .functions
-            .iter()
-            .any(|function| matches!(function.name.as_str(), REQUEST | POLL))
-    {
-        return Err(error(
-            "E-PROTOCOL-DEFINITION",
-            f.span,
-            "protocol primitive name is shadowed by an actual function declaration",
-        ));
-    }
-    if c.entry.is_empty()
-        || c.entry.windows(2).any(|w| w[0] >= w[1])
-        || c.parameter != 0
-        || c.exits
-            .windows(2)
-            .any(|w| (w[0].input, w[0].exit) >= (w[1].input, w[1].exit))
-    {
-        return Err(error(
-            "E-PROTOCOL-DEFINITION",
-            f.span,
-            "invalid protocol definition relation",
-        ));
-    }
-    for row in &c.exits {
-        pay(row.output.len().saturating_add(1))?;
-        let allowed = match &f.return_type {
-            Type::ErrorUnion { .. } => {
-                matches!(row.exit, ProtocolExit::ErrorOk | ProtocolExit::ErrorErr)
-            }
-            ty if *ty == tasks::poll_type(&Type::Unit) => matches!(
-                row.exit,
-                ProtocolExit::PollPending | ProtocolExit::PollReady
-            ),
-            _ => row.exit == ProtocolExit::Return,
-        };
-        if !allowed
-            || row.output.is_empty()
-            || row.output.windows(2).any(|w| w[0] >= w[1])
-            || !c.entry.contains(&row.input)
+            .len()
+            .saturating_add(imports.len())
+            .saturating_add(c.entry.len())
+            .saturating_add(c.exits.len())
+            .saturating_add(1))?;
+        // Resolve bare primitive identity against the actual defining module. A
+        // user declaration with this spelling is never a transition certificate.
+        if imports.contains_key(REQUEST)
+            || imports.contains_key(POLL)
+            || module
+                .functions
+                .iter()
+                .any(|function| matches!(function.name.as_str(), REQUEST | POLL))
         {
             return Err(error(
                 "E-PROTOCOL-DEFINITION",
                 f.span,
-                "invalid protocol definition output relation",
+                "protocol primitive name is shadowed by an actual function declaration",
             ));
         }
-    }
-    for input in &c.entry {
-        let name = &f.parameters[0].name;
-        pay(name.len().saturating_add(1))?;
-        if matches!(name.as_str(), REQUEST | POLL) {
+        if c.entry.is_empty()
+            || c.entry.windows(2).any(|w| w[0] >= w[1])
+            || c.parameter as usize >= f.parameters.len()
+            || c.exits
+                .windows(2)
+                .any(|w| (w[0].input, w[0].exit) >= (w[1].input, w[1].exit))
+        {
             return Err(error(
                 "E-PROTOCOL-DEFINITION",
                 f.span,
-                "protocol root shadows a primitive",
+                "invalid protocol definition relation",
             ));
         }
-        let mut locals = BTreeMap::new();
-        locals.insert(name.clone(), Value::Root);
-        Proof {
-            function: f,
-            contract: c,
-            input: *input,
-            phase: bit(*input),
-            epoch: 0,
-            locals,
-            pay: &mut pay,
+        for row in &c.exits {
+            pay(row.output.len().saturating_add(1))?;
+            let allowed = match &f.return_type {
+                Type::ErrorUnion { .. } => {
+                    matches!(row.exit, ProtocolExit::ErrorOk | ProtocolExit::ErrorErr)
+                }
+                ty if *ty == tasks::poll_type(&Type::Unit) => matches!(
+                    row.exit,
+                    ProtocolExit::PollPending | ProtocolExit::PollReady
+                ),
+                _ => row.exit == ProtocolExit::Return,
+            };
+            if !allowed
+                || row.output.is_empty()
+                || row.output.windows(2).any(|w| w[0] >= w[1])
+                || !c.entry.contains(&row.input)
+            {
+                return Err(error(
+                    "E-PROTOCOL-DEFINITION",
+                    f.span,
+                    "invalid protocol definition output relation",
+                ));
+            }
         }
-        .run()?;
+        for input in &c.entry {
+            let name = &f.parameters[c.parameter as usize].name;
+            pay(name.len().saturating_add(1))?;
+            if matches!(name.as_str(), REQUEST | POLL) {
+                return Err(error(
+                    "E-PROTOCOL-DEFINITION",
+                    f.span,
+                    "protocol root shadows a primitive",
+                ));
+            }
+            let mut locals = BTreeMap::new();
+            for role in &f.protocol_contracts {
+                let other = &f.parameters[role.parameter as usize].name;
+                pay(other.len().saturating_add(1))?;
+                locals.insert(other.clone(), Value::OtherRoot);
+            }
+            locals.insert(name.clone(), Value::Root);
+            Proof {
+                function: f,
+                contract: c,
+                input: *input,
+                phase: bit(*input),
+                epoch: 0,
+                locals,
+                pay: &mut pay,
+            }
+            .run()?;
+        }
     }
     Ok(())
 }

@@ -781,7 +781,7 @@ fn interface_fingerprint(
     }
     *remaining = remaining.checked_sub(exports.len()).ok_or_else(exhausted)?;
     for export in exports {
-        if let Some(contract) = &functions[export.function.0 as usize].protocol_contract {
+        for contract in &functions[export.function.0 as usize].protocol_contracts {
             *remaining = remaining
                 .checked_sub(export.name.len().saturating_mul(2).saturating_add(128))
                 .ok_or_else(exhausted)?;

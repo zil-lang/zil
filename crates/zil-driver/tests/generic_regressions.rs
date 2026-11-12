@@ -6064,7 +6064,8 @@ fn pollable_registration_phase_matches_actual_ready_owner() {
     let claimed = raw
         .functions
         .iter_mut()
-        .find_map(|f| f.protocol_contract.as_mut())
+        .flat_map(|f| f.protocol_contracts.iter_mut())
+        .next()
         .unwrap();
     let pending = claimed
         .exits

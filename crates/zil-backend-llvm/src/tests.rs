@@ -83,7 +83,7 @@ fn function(
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         result_mode: zil_ir::PassingMode::Infer,
         foreign: None,
         id: FunctionId(id),

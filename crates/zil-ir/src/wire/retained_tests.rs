@@ -104,7 +104,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "probe".into(),
         foreign: None,

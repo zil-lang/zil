@@ -52,7 +52,7 @@ fn fixture() -> TypedModule {
         foreign: None,
         environment: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         callable_return_contract: None,
         parameters: vec![LocalId(0), LocalId(1)],
         return_type: qualified(),

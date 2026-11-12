@@ -590,7 +590,7 @@ fn fixture(
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "word-liveness-oracle".into(),
         foreign: None,

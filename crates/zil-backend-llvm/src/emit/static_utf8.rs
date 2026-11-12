@@ -94,7 +94,7 @@ pub(crate) fn same_functions(
             reference_return_bound,
             callable_return_contract,
             callable_contract,
-            protocol_contract,
+            protocol_contracts,
             id,
             name,
             foreign,
@@ -115,7 +115,7 @@ pub(crate) fn same_functions(
             || reference_return_bound != &right.reference_return_bound
             || callable_return_contract != &right.callable_return_contract
             || callable_contract != &right.callable_contract
-            || protocol_contract != &right.protocol_contract
+            || protocol_contracts != &right.protocol_contracts
             || id != &right.id
             || name != &right.name
             || foreign != &right.foreign

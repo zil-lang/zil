@@ -689,12 +689,12 @@
         "Closing",
         "Closed"
       ],
-      "function_field": "CoreFunction.protocol_contract / TypedFunction.protocol_contract: Option<FunctionProtocolContract>",
+      "function_field": "CoreFunction.protocol_contracts / TypedFunction.protocol_contracts: Vec<FunctionProtocolContract>; ordered unique actual parameter roles; empty means no declared relation, never a closed-owner proof",
       "contract": {
         "protocol": "ProtocolKind",
         "parameter": "u32 actual parameter index",
         "entry": "canonical nonempty ordered unique Vec<ProtocolState>",
-        "exits": "Vec<ProtocolTransition{input:ProtocolState,exit:ProtocolExit,output:Vec<ProtocolState>}>; unique canonical (input,exit), nonempty ordered output"
+        "exits": "Vec<ProtocolTransition{input:ProtocolState,exit:ProtocolExit,output:Vec<ProtocolState>}>; unique canonical (input,exit); borrowed outputs are nonempty ordered states, owning Give roles have empty retired output"
       },
       "exit_selectors": [
         "Return",
@@ -703,12 +703,12 @@
         "PollPending",
         "PollReady"
       ],
-      "source": "requires(state(r,Closing,Closed)); provides(on_pending(state(r,Closing)),on_ready(state(r,Closed))); on a single actual &mut AsyncRegistration<F> parameter; F keeps its actual FnMut/ClosedEnvironment qualification.",
+      "source": "requires(state(r,Closing,Closed)); provides(on_pending(state(r,Closing)),on_ready(state(r,Closed))); on actual &mut AsyncRegistration<F> roles, or requires(state(a,Open,Closing,Closed),state(b,Open,Closing,Closed)); provides(retired(a),retired(b)); for distinct actual Give owners; every F keeps its actual FnMut/ClosedEnvironment qualification.",
       "checked_finish": "AsyncRegistrationFinishDestroyChecked{registration:ValueId}; opcode140; actual owner must be proved Closed. Existing AsyncRegistrationFinishDestroy retains its runtime CLOSED guard.",
       "proof": "Actual Poll/root/generation and nominal result selector; invalidate all stale SSA/local result and condition origins on root mutation. Independent bounded worklists and caller checks, including unannotated callers. Unknown effects/calls never mean empty state effects.",
       "definition": "Unused finite borrowed helper definitions are checked symbolically without fabricated F environments; currently straight-line real primitives, local aliases and returns. Other template control flow/forwarding is Unsupported; caller retry loops are supported.",
-      "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; legacy None identities remain unchanged with a disjoint protocol extension discriminator. Wire44 rejects old envelope.",
-      "boundary": "Sealed registration protocol only; no general user protocols, multiple roles, arbitrary projections or indirect/foreign protocol helper authority."
+      "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; the ordered role inventory and every transition bind identity before hashing; every role row is bounded and prepaid. The current transport rejects historical envelopes.",
+      "boundary": "Sealed registration protocol only; no general user protocols, arbitrary projections or indirect/foreign protocol helper authority. Equal types never merge actual roots, phases, loans or cleanup flags."
     }
   },
   "schemas": [

@@ -104,7 +104,7 @@ pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> 
         budget.work(parameter.name.len().saturating_add(1), function.span)?;
     }
     state_snapshot(&function.state_parameters, function.span, &mut budget)?;
-    if let Some(contract) = &function.protocol_contract {
+    for contract in &function.protocol_contracts {
         registration::charge_contract(contract, |work| budget.work(work, function.span))?;
     }
     for bound in &function.callable_parameters {
@@ -604,7 +604,7 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
-        if let Some(contract) = &function.protocol_contract {
+        for contract in &function.protocol_contracts {
             registration::charge_contract(contract, |work| budget.work(work, function.span))?;
         }
         lifetimes::preflight(function, &mut budget.work)?;
@@ -876,7 +876,7 @@ pub(super) fn snapshot_context_function(
     limits: &Limits,
     left: &mut usize,
 ) -> R<CoreFunction> {
-    if let Some(contract) = &function.protocol_contract {
+    for contract in &function.protocol_contracts {
         registration::charge_contract(contract, |work| {
             *left = left.checked_sub(work).ok_or_else(|| {
                 Diagnostic::limit(
@@ -910,7 +910,7 @@ pub(super) fn snapshot_context_function(
         life: function.life.clone(),
         type_parameters: function.type_parameters.clone(),
         state_parameters: function.state_parameters.clone(),
-        protocol_contract: function.protocol_contract.clone(),
+        protocol_contracts: function.protocol_contracts.clone(),
         callable_return: function.callable_return.clone(),
         id: function.id,
         name: function.name.clone(),

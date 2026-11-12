@@ -239,7 +239,7 @@ impl Walk<'_> {
         if self.tag(1)? == 1 {
             self.callable()?;
         }
-        insertions.push((self.pos, &[0])); // Absent protocol contract.
+        insertions.push((self.pos, &[0, 0, 0, 0])); // Ordered protocol role count is zero.
         self.take(4)?;
         self.text()?;
         if self.tag(1)? == 1 {

@@ -785,9 +785,7 @@ fn template_with_state(
             let registration_input =
                 borrowed_registration(&input.ty, &parameter.name) || owned_registration_input;
             if registration_input
-                && (callables.len() != 1
-                    || function.generics.len() != 1
-                    || (!owned_registration_input && function.params.len() != 1)
+                && (function.generics.len() != callables.len()
                     || !closed_environment
                     || kind != CallableKind::FnMut
                     || life.is_some()
@@ -795,7 +793,7 @@ fn template_with_state(
             {
                 return Err(unsupported(
                     input.span,
-                    "borrowed registration helper requires one closed FnMut binder, one exclusive carrier and an explicit state contract",
+                    "registration helper requires closed FnMut binders, actual exclusive or owning carriers and explicit state contracts",
                 ));
             }
             let mode = if owned_registration_input {

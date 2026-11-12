@@ -33,7 +33,7 @@ fn candidate() -> TypedModule {
             foreign: None,
             environment: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             callable_return_contract: None,
             parameters: vec![],
             return_type: Type::Unit,
