@@ -1,0 +1,754 @@
+{
+  "archive": {
+    "bytes": 4468425,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 4468425,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "cc85c41da231088267cd274843a1234826e8f61551907d368dbddf62a6cce94b"
+      }
+    ],
+    "sha256": "cc85c41da231088267cd274843a1234826e8f61551907d368dbddf62a6cce94b",
+    "tar_bytes": 62648320
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 13834950,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/program.ll",
+        "sha256": "be49c0b9f61662b64a1b02052d41879f7b8fff861eea99af7b9373362e75a0b8"
+      },
+      {
+        "bytes": 1279,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/runtime-final.json",
+        "sha256": "793c03c043da1f6c275840e6b2ea258a129aa8eb2069ecb63f8d677b8b81082e"
+      },
+      {
+        "bytes": 1279,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/runtime-startup.json",
+        "sha256": "dec7a40ca89735462a166e0d372f20efed9a4aadd28e2e82157d60e82b3aefc8"
+      },
+      {
+        "bytes": 3758,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/discovery-v1/c70db7db6e2bbd8d94f79919179505a74c0d86c4a7661720ba6059dae494689c.candidate",
+        "sha256": "f6cd7567a6f90952df4ad3e439eeb5944bf49b95c2fb8723e0e15544a3afbd79"
+      },
+      {
+        "bytes": 3758,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/discovery-v1/e0c64b19c33c2f98c23cf5a12e5717c3ff0e9bcfc23a8dcf47299702d72abbeb.candidate",
+        "sha256": "8d9602c7ce84700ad08755911ae4b1aa6872e9eec6e7e8468ffedbe245f3d7cb"
+      },
+      {
+        "bytes": 5314392,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/function-types-v1/922ff87762e526c207e29eb1cccc0b54c53445cd0d0e9905fc64fc543cc8f868.candidate",
+        "sha256": "342339027f434368a62e4c0e32540d15f0514ce5c23d2c01b817f4e1e5446827"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/01991ce5e3b660a5b6a69cb8b30fe12a6e3f8c11db69b93345bfa83828483582.candidate",
+        "sha256": "917f306366ac03db562c522b295bf4e9721d3b3fd0d9c30f0788e9c505e2256f"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/056f783d69af54b0059223d4b0ef84f4a7684daae30d16f1dda8dba14e024061.candidate",
+        "sha256": "a8fb6c25f8f5943cac7b3464360fa0bbf02f21927576a503b1c40d6552649640"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/423cd962769394f62502f23462b14f5210dab0023ac75e8f63c059ac772220a0.candidate",
+        "sha256": "cf705beea410416292141e83ce01a8aa97483f48e2554875a556351bfa848839"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/7bbf88d69b6f211cd56ca167112349fb99f2efb9f28624e95a51033e0d6bc8a1.candidate",
+        "sha256": "d2a8999dbe43eae64a5de5480b2b920d7240f18b7be37ded4b6a9a2f491f3b60"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/887f9384afa751bbcdefbd36f9a2b62edb4b046c31bf5854e145f30a568c49b0.candidate",
+        "sha256": "bc1063b4898b9da6228f44790e781037f1023b9b65118d231fde57cfbf5505c5"
+      },
+      {
+        "bytes": 6738322,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/927faa628ae972e977b4b4b89d26a8a1b8560d1a0264723cf306ef2411023a8c.candidate",
+        "sha256": "bf42c393be9a6fad2f2c836266f2f962acc71b211f4c789b18a545da7584bbca"
+      },
+      {
+        "bytes": 1307,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/startup.json",
+        "sha256": "8a80644eeae65341add3f43ac09df2f295b705435863e00904f977562cb97112"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 62051,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.memory-samples.json",
+        "sha256": "d592c19d4c9ca271b7182ddfb6a3b762cdede1b66d839a77deead0a580055344"
+      },
+      {
+        "bytes": 84024,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.response.json",
+        "sha256": "45db2d85d2111033b70243ee59d2f65178a193894f076266a6cf8f63e1b14a5a"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.runtime.json",
+        "sha256": "1616f718c28e7505145f6483a80170cac025651d1bf022a21c297d66f213c147"
+      },
+      {
+        "bytes": 722,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.memory-samples.json",
+        "sha256": "d0d8bb3f5c1f8cde36b375d42796e861d79a459ff4cc0f0ed03c1579b3956bf9"
+      },
+      {
+        "bytes": 44947,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.response.json",
+        "sha256": "2a938dfcb822ab98026b88a7096e3d273e625ebeea4093328c9e8ba7fa0722a6"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.runtime.json",
+        "sha256": "1616f718c28e7505145f6483a80170cac025651d1bf022a21c297d66f213c147"
+      },
+      {
+        "bytes": 722,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.memory-samples.json",
+        "sha256": "773f3ef7687386eaa2abf8232ed56f7b3545820f6ad0e3bdd7675685b3cf5afe"
+      },
+      {
+        "bytes": 44955,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.response.json",
+        "sha256": "99b5199fe53c30c95673b3e8dcbf23eb619ed64e04c892cc89f4816c5e224607"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.runtime.json",
+        "sha256": "1616f718c28e7505145f6483a80170cac025651d1bf022a21c297d66f213c147"
+      },
+      {
+        "bytes": 720,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.memory-samples.json",
+        "sha256": "72315f7523f4b3e19223ea140193d8883a4819990253153d8c16d17d718548a4"
+      },
+      {
+        "bytes": 44946,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.response.json",
+        "sha256": "61a2944db69b02aa019dc1a24f394ce9d1c7c4e14cf40c91130457db331ad25a"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.runtime.json",
+        "sha256": "1616f718c28e7505145f6483a80170cac025651d1bf022a21c297d66f213c147"
+      },
+      {
+        "bytes": 4083,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.memory-samples.json",
+        "sha256": "523d78a78bc474de9a1e583d2347b6a56e48de5277a2f9c439982a82417a3e33"
+      },
+      {
+        "bytes": 62366,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.response.json",
+        "sha256": "92b5291a441b0ff03ffd1f77b878cdf19aada71f44b95255f63e2bbbb6cc7920"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.runtime.json",
+        "sha256": "e23f14a3afe4d8892b57fba11a3b973f186e5e39abe0b4364e7132346623ea67"
+      },
+      {
+        "bytes": 6164,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.memory-samples.json",
+        "sha256": "ca36482af244987edb07402907c073b8f41491d8c4f2acd586fd1627352c3f52"
+      },
+      {
+        "bytes": 63880,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.response.json",
+        "sha256": "32a0792b71577753316de6121b2fbbbda8980295ef70a7c35223d94def5a8433"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.runtime.json",
+        "sha256": "86a14ecd15d7416bf26ce980e93651027c8d0cd1bb2b8527eeea1211b8625ca6"
+      },
+      {
+        "bytes": 1447,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.memory-samples.json",
+        "sha256": "c950ecacf2d79a6a14b32b5f04a747c471c9392cf897f2acbbb27b0230f65efb"
+      },
+      {
+        "bytes": 50366,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.response.json",
+        "sha256": "1f2c345a330edf51d3962c65ac4f3946ab99b64d47aefcb53435d06d924ba186"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.runtime.json",
+        "sha256": "3dda85cb4fcc0ae6a95082341b45e7ed8480c078e1ee8e899b3857c6ad0e527a"
+      },
+      {
+        "bytes": 59570,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.memory-samples.json",
+        "sha256": "4b69052712c30ba95ae69ca0a22797c017985bb8ddecaf98bf7fee28e3d7ef6b"
+      },
+      {
+        "bytes": 84067,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.response.json",
+        "sha256": "cb8cc3f6592e0d1d036e5158d425bab3cdd9e7ac2d586dce06d26b4a1a8ee863"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.runtime.json",
+        "sha256": "718452327d80fcfa8a6dab7c65171222c3a71d53a3e0c72948af451fce4b526f"
+      },
+      {
+        "bytes": 2357,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.memory-samples.json",
+        "sha256": "36461fa2b51448e5bb86535d0f3126e38e700cf012589815350de609041c4680"
+      },
+      {
+        "bytes": 50396,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.response.json",
+        "sha256": "f4ac4cec3f0b08ae1a52ea116238306f67f54d7f247f8569a063685c08afeafd"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.runtime.json",
+        "sha256": "1104d1c7728fcd601c14bb49bab90d370a79f80a13c6fd5da13f4e538886500a"
+      },
+      {
+        "bytes": 7434,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.memory-samples.json",
+        "sha256": "1ef81ccd0a0fd1678cfad7cfe389f84cc8bad9a60ab04362630ad5414d78b157"
+      },
+      {
+        "bytes": 55733,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.response.json",
+        "sha256": "000cb4cd474803ac975694c10ea592aad7a04927b720af39cc9982aab5adf890"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.runtime.json",
+        "sha256": "3b9333a4cd0012ec6d5e25242ba84827aa4589959473f9d116e7aa009a8c6640"
+      },
+      {
+        "bytes": 5688,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.memory-samples.json",
+        "sha256": "ae17d89558636029f5ff26dc4ee717b4ff0046d69db4524520feab7c0379f92b"
+      },
+      {
+        "bytes": 50577,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.response.json",
+        "sha256": "d6103ed0a50e350fbe06d94bcb476c505769032540997d8db3befd7771b7ee6b"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.runtime.json",
+        "sha256": "e305d26c41e90721578c79d8b38f721e4a0adbf3d0e15d336734153242a33180"
+      },
+      {
+        "bytes": 548,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.memory-samples.json",
+        "sha256": "d72eb21921c0979ad4466a5037a49de0ad651eaa144ae7bb2242eef88ea558fd"
+      },
+      {
+        "bytes": 16903,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.response.json",
+        "sha256": "c433ffdfe209bbeded60e595e616f218f728a7ce3cabaf9febe775c3c4a750a8"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.runtime.json",
+        "sha256": "743b5d738925bbb8a20a074611c784a090d8d45c9306cb12a6bacd947778befa"
+      },
+      {
+        "bytes": 1096,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.memory-samples.json",
+        "sha256": "bbecc0f611a77aeb6ca46f5a1a4a6397b2d738d594e656d01b3d6a8914f0fae3"
+      },
+      {
+        "bytes": 45075,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.response.json",
+        "sha256": "0df0a6db1a23ec1dac2ab4943cda4590be7441dceaa71e83a95b0c26c8e80715"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.runtime.json",
+        "sha256": "7609168579d1254bdb6ab22987e0218b9c4f6855333695fe491b66e8ddde7b04"
+      },
+      {
+        "bytes": 183,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.memory-samples.json",
+        "sha256": "df59718328d2e36b7802ba9311203694d00d0f1ad4e269a91c198ae7fcc91229"
+      },
+      {
+        "bytes": 10397,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.response.json",
+        "sha256": "56bc1dc9f1800c7a97589b0ae53d195a22e8c03bf14ec7334659d2db1c47b9c2"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.runtime.json",
+        "sha256": "743b5d738925bbb8a20a074611c784a090d8d45c9306cb12a6bacd947778befa"
+      },
+      {
+        "bytes": 5048,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.memory-samples.json",
+        "sha256": "15c98f271f42ca13610d6ee36b9f536e95fccc6342304dc8abb2d038bdb7020b"
+      },
+      {
+        "bytes": 62506,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.response.json",
+        "sha256": "b79f281c0ff4eef6875932073c80753c99221ae5012bf7ed70673a768ccaaf43"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.runtime.json",
+        "sha256": "9ed0c4298a4d79d81512ef28e7abd783e5ad5730f6a501d72699cd1e55a90188"
+      },
+      {
+        "bytes": 1921,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.memory-samples.json",
+        "sha256": "347b2ec8bba7c5f01194fd64023121f03db1f8b00ed7d04273f2d4f955bd11d0"
+      },
+      {
+        "bytes": 50490,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.response.json",
+        "sha256": "6e1fc6b457118cd2a571d481f5d7600955cf1337c131e1826d6823c78c3c5235"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.runtime.json",
+        "sha256": "7096614c139d11cfdb4bb4ac45bb48416984501036fdde7370c94e0555454f08"
+      },
+      {
+        "bytes": 1553,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.memory-samples.json",
+        "sha256": "70e13bf369302ff04c4c67e2a82a840788063487a4fb0b6f701cbab68c1c0dc4"
+      },
+      {
+        "bytes": 50468,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.response.json",
+        "sha256": "683cbea3ade0533381d0df8b3d0f7814d9154b7d79883e73aa0ed21138ec3521"
+      },
+      {
+        "bytes": 1339,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.runtime.json",
+        "sha256": "7096614c139d11cfdb4bb4ac45bb48416984501036fdde7370c94e0555454f08"
+      },
+      {
+        "bytes": 26760,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/114b78c92786cc1894d14080820508b8a04cd8083954bc92035bb354acc3f256.zobj",
+        "sha256": "e6d9b2053eaa2dd6360c8bfc6164da64f1774913e9371bdc0fab37221e027907"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/13eebebb8942b22296d68c7ae1b2d3b1e25f93702f57f638b1b9fbcd24cd19e0.zobj",
+        "sha256": "fe4a5288d138b0e8e8393487200c49279d27850bef7ff03627020f27da32ad79"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/225db2517cb613d28e8b8d2efe75b6967887ab8583c60a2e44758d0d917eb267.zobj",
+        "sha256": "6d3dcbbb40cfb120f44191d1a1802a9c978991289efc6d89838b98ccfae46870"
+      },
+      {
+        "bytes": 52856,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/286f309118dd370bd4dd8e4adec24b313548524cc377b19310742fb1c0633a3c.zobj",
+        "sha256": "8be86dae85ce50ee7e776f430be8e333c2e4ca24c0620c544af3fa203a80e638"
+      },
+      {
+        "bytes": 27104,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/34ef02bcd8134be8861500bdc8a68c23763ba18436c7bcf048e9f94698a98fbd.zobj",
+        "sha256": "d23e9742825f3ac77d932b56b7cd1aba4486995522eabbabcd1725168889b6f4"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/3719c488a53d368c1dd03febea5df0f0876edf17e08106d5e603884cf2eb4a39.zobj",
+        "sha256": "a4e88ae73982b013f219ca26f777da7bf6a7cbf3b77ab29f139ded6bcac1382d"
+      },
+      {
+        "bytes": 26944,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/4046ab38ba7fcf9c23eec7c0b369c46719e940520e0de380053e45bf490f4522.zobj",
+        "sha256": "6b4a4b5240d1dc4398ad5ae2186fe4e5c179a1b89460cb54bf28e83c4d2147a1"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/45335c7f9ae198470aaa35c734affa07720e7f48b16a0197b0391bb5f595b050.zobj",
+        "sha256": "97be926da1253376b9946415a0b4886977f964f1fff45c22833df430d867a670"
+      },
+      {
+        "bytes": 52840,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/4d0c251c1d6d4dae5dea8feab73135dbd3d4d14d5d4ccaf39ab6960720f8b3ab.zobj",
+        "sha256": "6b2301245c3f5d0b45bf81cbd960ab6835ee29872650ced2fcae127e62c176a6"
+      },
+      {
+        "bytes": 26768,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/56a478e0ea4c0b61f527f7137919cc8f88ebac762aa9c688c80b7c12003ccbeb.zobj",
+        "sha256": "290f7b1a3e0aea6e25c60a612e281c4e93c303d6a637d771fbe4071364a8dda4"
+      },
+      {
+        "bytes": 27080,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/5a684e6731eb416b3cd6aec3ab01d5450a5aa7ac385b7efa634648a2cada11c9.zobj",
+        "sha256": "bdb396814a2965996680dd4634c2a450c7f0f8836ccc7a36b669e33326b97d33"
+      },
+      {
+        "bytes": 27264,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/60f5155bd4cf1c674125fc6389a852161878942a8dcad8634291651eb3513c17.zobj",
+        "sha256": "1214ac47827c634272640045e1d2a5928e4236fe88ac456f406d7cd51cfacbc0"
+      },
+      {
+        "bytes": 52888,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/65e952f74d1bd1c8e3314aba5bf41f889dd8ce7f0c57e376f51a7a12dac2d071.zobj",
+        "sha256": "21130a59344fc1d5fabd510a5d34bebdf9007b356fa841b949387f0dcbd0db70"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/663c018d75fac5a548304ebb9a3ccd0d48a94039343714f9022ae8ddf4d1564a.zobj",
+        "sha256": "98d5e86fdd1673adc931b543a986704cf01c94b04d1ed5fece5acb8480925eb5"
+      },
+      {
+        "bytes": 52872,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/68a3691411de067ba775296b0a86a1f33a91b9566480c31e0b68049f05bec66a.zobj",
+        "sha256": "852cbc5b499bea898bafa33946b343e35402d0302ddfc79a59fc5b55656765aa"
+      },
+      {
+        "bytes": 52856,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/6c08772c052b4cd228c91b679d0b4ae4f3d91a59924f9215263c400749a455b7.zobj",
+        "sha256": "41deb4c4e4d6e9fae52fb34e3a863efd312864de8f272479fcd1904101c7a7d3"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/6dcc15d0257b2072c1fc4c43373e4e126126d0987880231a481a71f5349d8601.zobj",
+        "sha256": "6695e3bd3425c09a130d11bf02b4c858238fb43df2a384deab41b20877b4662d"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/77d3839bf9bca966dc6957e7396e373731a5e6ee637d4b16bf625b13f164008a.zobj",
+        "sha256": "2305147e6acf96d16d6bcab987027f41c26d8cc26e9787f4713612c0ae5e924f"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/79ef722fbc9a91b3b68140f849ce80e0ea7b88c003ffe31153ff2b67e95ff1ee.zobj",
+        "sha256": "12aa275d7c26088ec07c3ef811584bfe3668374de74162983a4e4e7e75d0e55b"
+      },
+      {
+        "bytes": 27104,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/7b73c7e791a7e891f901e3baaecce0ce98158d42f77a70052c89c12091f52ffa.zobj",
+        "sha256": "7b4175a7f95536f41ec8e5560b68434e53d87f00f6dac50f1e29213c8eadbf22"
+      },
+      {
+        "bytes": 29632,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/8a5578cf810c9d056ed522282432459114479f8ac4fa81d7b6e349275c3f65ff.zobj",
+        "sha256": "a8d026267e7ad0dc5904ba66fb558f937cd38ca695f00e7808053b014759e875"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/8b0fc09a78cf2fc1fe4d52cd36663b0166a6910bff26b0814f31674ad09ee1b9.zobj",
+        "sha256": "03d56c578ecf48a1771d78c126da1fc80740f8dafbf24a4807bf0a5cfa120c77"
+      },
+      {
+        "bytes": 26736,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/9dd53276c3e5c0af8e9bd019c3205ed92aa87da09f5991981d08fff10331ae9a.zobj",
+        "sha256": "787da97cef064bf48f12bc49dfe892de67bccd0baf76f58f2a857e069047aab1"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/9dd98e6256e51b26558b0f232a9b820482b9d305456b12bf15c6d09b23d71c02.zobj",
+        "sha256": "c50356153eae3bed63e225523c32a38d753eecf72dcd0b188df284937ed45e9a"
+      },
+      {
+        "bytes": 29936,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/a7acfef6919cc7345ad47fc11655c4b31fffe123011ac2dd9b3474d64277df93.zobj",
+        "sha256": "f9769635965e502197f22d776fed1d0795c4a397f6c4ef3c223535fc117549c6"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/a8dbeeedcf4b69126f1248b17394d3680cd0f8e0e807705124f92480ca7945d3.zobj",
+        "sha256": "105114b321147a7d41117b4b084641acf7fd76c858f5de02c5b464e48c5db2d4"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/ad9e3535d8fcea6a7d3a00c7a74f94c5dd0af93ac63f64597885638f8a304ac4.zobj",
+        "sha256": "e73d33a84d66e5188fbd7c02ec5b2e7c2d6b2aeac59524588528e9500594a961"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b48cc40fad2dbc60f30a4397f0f254b53348e216014a9cf35835fd696a6679f9.zobj",
+        "sha256": "3e137fcbdc10444c92f7c00e0ecaeb1a04b5e80297cfb746ebd1293949b30f28"
+      },
+      {
+        "bytes": 52872,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b56e6e5212e3c4a84e4529ffd4e62dc1c47ad9f00550838082e93a811b1a11a5.zobj",
+        "sha256": "5fd03a87f1a4c405af5e0edf1e0fabb1fae94b5fb95158f8e5783cf8d89c58e5"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b5edac208d250bf34c3dfcc52683c96999b2b149785976c73952e5906604381c.zobj",
+        "sha256": "008c69ddf1d36066f6cbc71964b04cb7f2ebd6e0eb11cff1dbf8da27f5505d62"
+      },
+      {
+        "bytes": 26768,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b79b5a964c4d594ccf58518ea42a76b5a20d3984b24a13372c71bd20d0571efb.zobj",
+        "sha256": "ac9278b0f7fa99364b33e6bbbf9fb52d72478a86c31e093b4525918e42908f98"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/c4ccbbf39fc151bf0620bb3cbefb739739c756b01ff4f8926f46fb75ba2e14d7.zobj",
+        "sha256": "609a63ac1a429c80f56e01f1bd9b5de9d0ccd5b5342647b012f1b10e97f9ab0c"
+      },
+      {
+        "bytes": 53512,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/c956a6900c38f2b2c7a5910fb7643dec142dde4e351c0d85ae250c570becc851.zobj",
+        "sha256": "3b31321c1cad577d6e257600f6241fc0ca37f107775a67c686d05b9bc0a6b506"
+      },
+      {
+        "bytes": 27072,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/cd6ee6c29a8bc3beffd0c980b97740c8744188c849c6cd3c4b5a334865db579a.zobj",
+        "sha256": "02b1256912e747aa5878dd2183da89733db7a449ddda2a70bb42534f8d8e78ef"
+      },
+      {
+        "bytes": 52824,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/e5a9c08b20ab14cf1c3150abe6dcfab99be2e5631e0a6ccd527976420911ae31.zobj",
+        "sha256": "eec249dee77385f38a7a89f88925a14562b34d633cb943a81449e5cd83b1b939"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/efba71ff1d1be61b51929ada1254c52e1a16a1d448161b10f5ef1be1ba148841.zobj",
+        "sha256": "7c13fa11882e39beb90ab0937c630a97a2a046ea90a0c9c1cb3c146c25249862"
+      },
+      {
+        "bytes": 2376,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/partition-layout-v1/9781a4347ff84e2f235237c301157611217915e78c73815ba028bac5fa72d629.layout",
+        "sha256": "de9dee8a8e130b39bca1604ef5f1b462e42530348750de3f40733982863e1f8c"
+      },
+      {
+        "bytes": 530608,
+        "mode": 448,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/program",
+        "sha256": "959573f89d8b9367b2f034de10a32e3bc2ee2b573da88e821589c4a38743d632"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "827e928dc97331d4d30adf04a2c0a61798207f77579240adfc6cb486e7f81758",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/program.ll",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/runtime-final.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/runtime-startup.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/discovery-v1/c70db7db6e2bbd8d94f79919179505a74c0d86c4a7661720ba6059dae494689c.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/discovery-v1/e0c64b19c33c2f98c23cf5a12e5717c3ff0e9bcfc23a8dcf47299702d72abbeb.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/function-types-v1/922ff87762e526c207e29eb1cccc0b54c53445cd0d0e9905fc64fc543cc8f868.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/01991ce5e3b660a5b6a69cb8b30fe12a6e3f8c11db69b93345bfa83828483582.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/056f783d69af54b0059223d4b0ef84f4a7684daae30d16f1dda8dba14e024061.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/423cd962769394f62502f23462b14f5210dab0023ac75e8f63c059ac772220a0.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/7bbf88d69b6f211cd56ca167112349fb99f2efb9f28624e95a51033e0d6bc8a1.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/887f9384afa751bbcdefbd36f9a2b62edb4b046c31bf5854e145f30a568c49b0.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/semantic/semantic-v4/927faa628ae972e977b4b4b89d26a8a1b8560d1a0264723cf306ef2411023a8c.candidate",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/startup.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-baseline/stderr.log",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/0-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/1-unchanged.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/2-private.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-multi.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/3-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-broad.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/4-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-positions.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/5-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-error.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/6-prepare-cold.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-prepare-error.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/7-recovery.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-prepare-private.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.memory-samples.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.response.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/8-restore.runtime.json",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/114b78c92786cc1894d14080820508b8a04cd8083954bc92035bb354acc3f256.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/13eebebb8942b22296d68c7ae1b2d3b1e25f93702f57f638b1b9fbcd24cd19e0.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/225db2517cb613d28e8b8d2efe75b6967887ab8583c60a2e44758d0d917eb267.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/286f309118dd370bd4dd8e4adec24b313548524cc377b19310742fb1c0633a3c.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/34ef02bcd8134be8861500bdc8a68c23763ba18436c7bcf048e9f94698a98fbd.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/3719c488a53d368c1dd03febea5df0f0876edf17e08106d5e603884cf2eb4a39.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/4046ab38ba7fcf9c23eec7c0b369c46719e940520e0de380053e45bf490f4522.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/45335c7f9ae198470aaa35c734affa07720e7f48b16a0197b0391bb5f595b050.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/4d0c251c1d6d4dae5dea8feab73135dbd3d4d14d5d4ccaf39ab6960720f8b3ab.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/56a478e0ea4c0b61f527f7137919cc8f88ebac762aa9c688c80b7c12003ccbeb.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/5a684e6731eb416b3cd6aec3ab01d5450a5aa7ac385b7efa634648a2cada11c9.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/60f5155bd4cf1c674125fc6389a852161878942a8dcad8634291651eb3513c17.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/65e952f74d1bd1c8e3314aba5bf41f889dd8ce7f0c57e376f51a7a12dac2d071.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/663c018d75fac5a548304ebb9a3ccd0d48a94039343714f9022ae8ddf4d1564a.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/68a3691411de067ba775296b0a86a1f33a91b9566480c31e0b68049f05bec66a.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/6c08772c052b4cd228c91b679d0b4ae4f3d91a59924f9215263c400749a455b7.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/6dcc15d0257b2072c1fc4c43373e4e126126d0987880231a481a71f5349d8601.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/77d3839bf9bca966dc6957e7396e373731a5e6ee637d4b16bf625b13f164008a.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/79ef722fbc9a91b3b68140f849ce80e0ea7b88c003ffe31153ff2b67e95ff1ee.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/7b73c7e791a7e891f901e3baaecce0ce98158d42f77a70052c89c12091f52ffa.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/8a5578cf810c9d056ed522282432459114479f8ac4fa81d7b6e349275c3f65ff.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/8b0fc09a78cf2fc1fe4d52cd36663b0166a6910bff26b0814f31674ad09ee1b9.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/9dd53276c3e5c0af8e9bd019c3205ed92aa87da09f5991981d08fff10331ae9a.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/9dd98e6256e51b26558b0f232a9b820482b9d305456b12bf15c6d09b23d71c02.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/a7acfef6919cc7345ad47fc11655c4b31fffe123011ac2dd9b3474d64277df93.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/a8dbeeedcf4b69126f1248b17394d3680cd0f8e0e807705124f92480ca7945d3.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/ad9e3535d8fcea6a7d3a00c7a74f94c5dd0af93ac63f64597885638f8a304ac4.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b48cc40fad2dbc60f30a4397f0f254b53348e216014a9cf35835fd696a6679f9.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b56e6e5212e3c4a84e4529ffd4e62dc1c47ad9f00550838082e93a811b1a11a5.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b5edac208d250bf34c3dfcc52683c96999b2b149785976c73952e5906604381c.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/b79b5a964c4d594ccf58518ea42a76b5a20d3984b24a13372c71bd20d0571efb.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/c4ccbbf39fc151bf0620bb3cbefb739739c756b01ff4f8926f46fb75ba2e14d7.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/c956a6900c38f2b2c7a5910fb7643dec142dde4e351c0d85ae250c570becc851.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/cd6ee6c29a8bc3beffd0c980b97740c8744188c849c6cd3c4b5a334865db579a.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/e5a9c08b20ab14cf1c3150abe6dcfab99be2e5631e0a6ccd527976420911ae31.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/objects-v1/c40e9cf7a8c36e55fbe5895f69ac76c7b7c787e47c1f3fa0147e3a0bfca2ca64/efba71ff1d1be61b51929ada1254c52e1a16a1d448161b10f5ef1be1ba148841.zobj",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/objects/partition-layout-v1/9781a4347ff84e2f235237c301157611217915e78c73815ba028bac5fa72d629.layout",
+    "zil-push-main/out/runs/full-push-native-profile-12/block-0-candidate/program"
+  ],
+  "source_root": "/workspace"
+}
