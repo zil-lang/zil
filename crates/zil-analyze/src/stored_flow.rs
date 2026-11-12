@@ -3634,6 +3634,13 @@ fn transfer(
         InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
         }
+        InstructionKind::DescribeCapture { index }
+            if f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                .and_then(|definition|definition.captures.get(*index as usize))
+                .is_some_and(|ty|matches!(ty,Type::Managed(payload) if super::stored_callables::scalar(payload) || matches!(payload.as_ref(),Type::Record{..}))) => {
+            owned::instruction(module,f,i,b)?;
+            owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
+        }
         InstructionKind::DropManaged { local } if b.stored_owned_fixed => {
             state.locals.remove(local);
         }
@@ -4251,6 +4258,9 @@ fn reverse(
         | InstructionKind::BorrowLocalMut { local } => {
             live.put(f.values.len() + local.0 as usize, true)?
         }
+        InstructionKind::DropClosure { local }
+            if environment_value(module,&f.locals[local.0 as usize].ty,b)?
+                && !capture_after::cleanup_reads_external(module,&f.locals[local.0 as usize].ty,b)? => {}
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
@@ -4295,6 +4305,9 @@ fn reverse_bool(
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
         }
+        InstructionKind::DropClosure { local }
+            if environment_value(module,&f.locals[local.0 as usize].ty,b)?
+                && !capture_after::cleanup_reads_external(module,&f.locals[local.0 as usize].ty,b)? => {}
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
@@ -5295,7 +5308,7 @@ fn derive_cfg(
                 fee(b, 1)?;
                 if *live && matches!(block.terminator,Terminator::Return(_))
                     && f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut) {
-                    capture_after::summarize(f,&outputs[bi],&mut actual,b)?;
+                    capture_after::summarize(module,f,&outputs[bi],&mut actual,b)?;
                 }
                 if b.stored_slot_updates
                     && *live

@@ -3913,7 +3913,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-            || matches!(ty, Type::Package { .. })
+            || packages::physical_package(ty).is_some()
             || drop_plan::owned_sum(ty) =>
         {
             llvm_type(ty)
@@ -4022,7 +4022,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field,Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                    && !matches!(field, Type::Package { .. })
+                    && packages::physical_package(field).is_none()
                     && !drop_plan::owned_sum(field)
                 {
                     return unsupported("unsupported closure field alignment", None);
