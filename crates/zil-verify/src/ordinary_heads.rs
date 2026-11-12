@@ -38,9 +38,24 @@ fn zero(
         | Type::Slice { element: inner }
         | Type::Opaque { hidden: inner, .. }
         | Type::OwnedStore { element: inner }
-        | Type::Mutex { payload: inner }
-        | Type::Registration { environment: inner }
-        | Type::AsyncRegistration { environment: inner } => child(inner),
+        | Type::Mutex { payload: inner } => child(inner),
+        Type::Registration { environment } | Type::AsyncRegistration { environment } => {
+            if !b.task_failure_carriers {
+                return zero(module, environment, active, depth + 1, b);
+            }
+            // This is only an executable-domain dispatch. The verifier-local
+            // inventory binds the full actual closure definition and entry;
+            // neither an absent contract nor a registration label means zero.
+            if b.task_input_scopes.is_none() {
+                b.task_input_scopes = Some(crate::tasks::input_scope::build(
+                    module,
+                    &b.limits.clone(),
+                    b,
+                )?);
+            }
+            Ok(crate::tasks::input_scope::domain(ty, b)?
+                == crate::tasks::input_scope::Domain::Known(0))
+        }
         Type::Task {
             result,
             retained_life,
