@@ -158,8 +158,12 @@ fn main()->i32{let ticket=Ticket{value:42};let read=move()=>ticket.value;return 
 "#;
     let mut typed = typed_stdlib(&[("main", source)]);
     let limits = zil_base::Limits::default();
-    assert!(typed.closures.iter().any(|definition| definition.captures.iter()
-        .any(|capture| matches!(capture, zil_ir::Type::Managed(_)))));
+    assert!(typed.closures.iter().any(|definition| {
+        definition
+            .captures
+            .iter()
+            .any(|capture| matches!(capture, zil_ir::Type::Managed(_)))
+    }));
     zil_analyze::analyze(&typed, &limits).unwrap();
     let mut removed = 0;
     for function in &mut typed.functions {
@@ -678,20 +682,33 @@ fn typed_stdlib(sources: &[(&str, &str)]) -> zil_ir::TypedModule {
         .collect();
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
-    let aliases = sources.iter().enumerate().skip(1)
-        .map(|(index, (name, _))| (vec!["std".to_string(), name.to_string()], ModuleId(index as u32)))
+    let aliases = sources
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(index, (name, _))| {
+            (
+                vec!["std".to_string(), name.to_string()],
+                ModuleId(index as u32),
+            )
+        })
         .collect();
-    let modules =
-        zil_expand::expand_program_with_limits_target_context(&units, &syntax, &imports, &limits, &target,
-            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
-                root: ModuleId(0),
-                aliases: &aliases,
-                declarations: zil_expand::source_context::DeclarationPlacement::Original,
-            })
-            .unwrap()
-            .into_iter()
-            .map(|(module, _)| module)
-            .collect();
+    let modules = zil_expand::expand_program_with_limits_target_context(
+        &units,
+        &syntax,
+        &imports,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(0),
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .into_iter()
+    .map(|(module, _)| module)
+    .collect();
     zil_types::check_program(
         &zil_ir::CoreProgram {
             root: ModuleId(0),

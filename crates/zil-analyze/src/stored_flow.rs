@@ -2907,6 +2907,11 @@ fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compile
     if super::stored_callables::fixed_value(module, ty) {
         return Ok(true);
     }
+    // Concrete ordinary environments still have actual frame memory. This
+    // selects its producer/field proof, not a known-zero semantic domain.
+    if super::stored_callables::value(module, ty) {
+        return Ok(true);
+    }
     if b.returned_borrowed_environments.is_empty() {
         return Ok(false);
     }
@@ -2943,7 +2948,10 @@ fn seed_environment(
         .closures
         .get(id.0 as usize)
         .ok_or_else(|| failure("environment parameter definition absent"))?;
-    if d.storage_life.is_none() && !b.returned_borrowed_environments.contains(id) {
+    if d.storage_life.is_none()
+        && !b.returned_borrowed_environments.contains(id)
+        && !super::stored_callables::finite(module, *id)
+    {
         return Ok(());
     }
     fee(b, d.captures.len())?;
@@ -3263,7 +3271,9 @@ fn seed(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+        && (d.storage_life.is_some()
+            || b.returned_borrowed_environments.contains(&d.id)
+            || super::stored_callables::finite(module, d.id))
     {
         if super::stored_callables::lending(d)
             || d.captures
@@ -3284,7 +3294,9 @@ fn seed(
                 loans,
                 b,
             )?;
-            if matches!(ty, Type::Closure(_)) {
+            if matches!(ty, Type::Closure(_))
+                || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+            {
                 seed_environment(
                     module,
                     ty,
@@ -4570,7 +4582,8 @@ fn transfer(
         }
         InstructionKind::MakeClosure { closure, captures }
             if module.closures[closure.0 as usize].storage_life.is_some()
-                || b.returned_borrowed_environments.contains(closure) =>
+                || b.returned_borrowed_environments.contains(closure)
+                || super::stored_callables::finite(module, *closure) =>
         {
             let mut complete = true;
             for (index, capture) in captures.iter().enumerate() {
@@ -7479,9 +7492,25 @@ fn derive_cfg(
             ));
         }
         if !facts.complete {
-            return Err(failure(
-                "stored/address producer has incomplete actual target facts",
+            let mut errors = failure(&format!(
+                "stored/address producer has incomplete actual target facts in {}",
+                f.name
             ));
+            for (other, found) in module.functions.iter().zip(&summaries) {
+                if !found.complete {
+                    for (value, ty) in other.values.iter().enumerate() {
+                        if matches!(ty, Type::Address { .. })
+                            && found.values.get(value).is_none_or(Vec::is_empty)
+                        {
+                            errors[0].notes.push(format!(
+                                "ungrounded actual address {} value {}: {:?}",
+                                other.name, value, ty
+                            ));
+                        }
+                    }
+                }
+            }
+            return Err(errors);
         }
         returned_upper::check(module, f, facts, b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
