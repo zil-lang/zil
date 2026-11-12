@@ -24,3 +24,4 @@ zil-backend-llvm.workspace = true
 [features]
 default = []
 llvm-api = ["zil-backend-llvm/llvm-api"]
+native-products = ["llvm-api", "zil-backend-llvm/native-products"]

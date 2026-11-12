@@ -15,7 +15,7 @@
 - 纯Rust schema：`zil-llvm-api/src/model.rs`。类型、指令、值、基本块和引用是数据；文本渲染不反向决定结构。符号仍是机器层名字，不冒称稳定跨请求身份。
 - 构图前核验：`zil-llvm-api/src/preflight.rs`。核对名称、类型、常量、对齐、聚合/GEP索引、调用ABI、CFG终结、phi边与SSA支配，并生成构图顺序。只核对机器表示，不产生ZIL验证授权。
 - 结构化分区：`zil-backend-llvm/src/machine_cgu.rs`。来源文件分组，本地链接定义与引用者共置，只导入真实使用的声明。单元取得函数体所有权，跨单元声明只复制签名；不克隆函数体再丢弃。
-- 原生边界：`zil-llvm-api/src/native.rs`及私有`native/builder.rs`。每个单元有独立Context/Module/Builder/TargetMachine，先声明类型与符号，再构造定义和phi回边。原生句柄不在线程间传递，成功返回拥有的对象字节。
+- 原生边界：`zil-llvm-api/src/native.rs`及私有`native/builder.rs`。显式研究 feature `native-products` 另包含私有 `native/products.rs` 和 `native/work_products.cpp`；完成的工作产物只保留拥有的快照，不传递当前 LLVM 请求的所有者。每个单元有独立Context/Module/Builder/TargetMachine，先声明类型与符号，再构造定义和phi回边。原生句柄不在线程间传递，成功返回拥有的对象字节。
 - 调度与发布：`zil-backend-llvm/src/build.rs`及driver。有界工人、统一链接、阶段取消与失败清理。所有API单元进入原生Builder前都执行完整机器预检；不存在另一份重复整模块预检。
 
 普通已核Package达到4096字节时，后端使用私有完整值快照及既有`.lc1`生成函数约定：大参数先复制到callee自己的局部载体，大结果写入caller的独立结果槽。构造与字段读写直接消费目标布局内存，所有快照槽在入口分配；整值移动和字段take/refill仍按已核IR更新原有清理责任，字节复制不授予语言Copy。拥有快照不参加Copy槽复用。具名Closure环境、特殊helper及外部ABI仍须各自完整适配；此路径不授予新的语言组合资格，也不提高默认限额。
@@ -26,7 +26,7 @@ LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify�
 
 ## 安装与构建
 
-支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
+支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。默认构建不依赖 LLVM 头文件、llvm-sys 或 Inkwell；Cargo依赖仅workspace。源码包不携带工具链。
 
 ```sh
 export ZIL_LLVM_LIB_DIR=/opt/llvm-23.1.4/lib
@@ -123,3 +123,9 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
 - 显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
 - 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。
+
+## 显式 LLVM 工作产物研究构建
+
+`native-products` Cargo feature 默认关闭。它需要与固定 LLVM 提交匹配的头文件和 C++ 编译器；构建时显式设置 `ZIL_LLVM_INCLUDE_DIR`、`ZIL_LLVM_CONFIG`、`ZIL_CLANG`。使用 `tools/llvm/build_function_products.py` 可在新的前缀生成固定补丁的 LLVM DSO，原 SDK 保留。构建 `cargo build --locked --release -p zil-cli --features native-products` 后，仍需运行时显式 `--push-reuse` 才请求工作产物复用。
+
+优化和机器函数产品由当前依赖检查决定是否适用；原 O2 管线及独立 ZIL Verify 保留。只通过普通编译或报告 `available=0` 不证明原生复用生效，原生验收必须检查实际优化和机器函数复用计数、完整产物质量及失败后重试成本。该研究能力尚未作为默认产品路径验收。

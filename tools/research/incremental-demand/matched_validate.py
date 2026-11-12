@@ -134,8 +134,9 @@ def audit(out):
         require(math.isfinite(row['measurement']['wall_ms']) and row['measurement']['wall_ms']>0, 'invalid wall time')
         if arm=='rust':
             command=json.loads((directory/'command.json').read_text())['argv']
-            require(all(flag in command for flag in ['--offline','--locked','--verbose','--jobs','--message-format=json']), 'Cargo cache/history/command flags missing')
-            require(command[command.index('--jobs')+1]=='1' and ('--release' in command)==(mode=='o2'), 'Cargo jobs/optimization changed')
+            expected_command = pc.rust_command(cargo=manifest['arguments']['cargo'], mode=mode,
+                                               target=Path(manifest['arguments']['out']) / f'block-{row["block"]:02d}' / 'rust-target')
+            require(command == expected_command, 'complete Cargo argv differs from declared protocol')
             result=row['measurement']
             require(result['returncode']==(101 if label=='error' else 0) and not result['timed_out'], 'Rust process failure')
             require(file_hash(directory/'stdout.bin')==result['stdout_sha256'] and file_hash(directory/'stderr.bin')==result['stderr_sha256'], 'Rust raw process stream differs')

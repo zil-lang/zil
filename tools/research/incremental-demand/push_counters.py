@@ -93,6 +93,19 @@ def command_flags(command, arm, extras, *, binary, mode, source, work):
         raise ValueError('complete formal Zil argv differs from declared protocol for ' + arm)
 
 
+def rust_command(*, cargo, mode, target):
+    if mode not in ('check', 'o2') or not isinstance(cargo, str) or not cargo:
+        raise ValueError('unsupported formal Cargo command')
+    target = Path(target)
+    if not target.is_absolute() or '..' in target.parts:
+        raise ValueError('Cargo target must be absolute without parent traversal')
+    command = [cargo, 'check' if mode == 'check' else 'build', '--offline', '--locked',
+               '--jobs', '1', '--verbose', '--message-format=json', '--target-dir', str(target)]
+    if mode == 'o2':
+        command.append('--release')
+    return command
+
+
 def inspect_commands(run, manifest):
     """Bind all recorded argv to the original manifest, also after relocation."""
     original = Path(manifest['arguments']['out'])

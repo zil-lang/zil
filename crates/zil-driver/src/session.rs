@@ -1205,6 +1205,7 @@ impl CompilationSession {
         build.optimization = options.optimization;
         build.closed_executable = options.closed_executable;
         build.incremental_o2 = options.incremental_o2;
+        build.native_products = options.push_reuse && cfg!(feature = "native-products");
         build.function_merging = options.function_merging;
         build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();

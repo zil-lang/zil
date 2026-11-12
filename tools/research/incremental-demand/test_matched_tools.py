@@ -334,5 +334,16 @@ class PushReceiptTests(unittest.TestCase):
         self.assertIsNone(result['initialization']['product_function_queries_executed'])
 
 
+class CargoCommandTests(unittest.TestCase):
+    def test_modes_and_target_are_complete_and_fixed(self):
+        common = ['/tool/cargo', 'check', '--offline', '--locked', '--jobs', '1',
+                  '--verbose', '--message-format=json', '--target-dir', '/run/rust-target']
+        self.assertEqual(pc.rust_command(cargo='/tool/cargo', mode='check', target='/run/rust-target'), common)
+        common[1] = 'build'
+        self.assertEqual(pc.rust_command(cargo='/tool/cargo', mode='o2', target='/run/rust-target'), common + ['--release'])
+        with self.assertRaises(ValueError):
+            pc.rust_command(cargo='/tool/cargo', mode='o2', target='/run/../other')
+
+
 if __name__=='__main__':
     unittest.main()

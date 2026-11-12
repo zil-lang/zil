@@ -102,8 +102,8 @@
     "zil-llvm-api": {
       "module": "src/native.rs",
       "feature": "native",
-      "upstream": "LLVM 23.1.4 C API",
-      "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private native/builder.rs; no frontend/verify dependency; machine preflight before LLVMBuilder"
+      "upstream": "LLVM 23.1.4 C API; opt-in pinned native-products adapter",
+      "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private native/builder.rs; native/products.rs and native/work_products.cpp only for explicit native-products feature; completed immutable work products may share owned snapshots, never live LLVM request owners; no frontend/verify dependency; machine preflight before LLVMBuilder"
     }
   }
 }

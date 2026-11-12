@@ -336,10 +336,7 @@ def native_outcomes(args, workloads, program, label, directory, env):
 
 def rust_request(args, workloads, fixtures, label, project, target, directory, env, previous):
     source = rc.write_files(project, fixtures[label]['rust'], '.rs')
-    command = [args.cargo, 'check' if args.mode == 'check' else 'build', '--offline', '--locked',
-               '--jobs', '1', '--verbose', '--message-format=json', '--target-dir', str(target)]
-    if args.mode == 'o2':
-        command.append('--release')
+    command = pc.rust_command(cargo=args.cargo, mode=args.mode, target=target)
     program_path = target / ('release' if args.mode == 'o2' else 'debug') / rc.PACKAGE
     before_publication = publication_state([program_path])
     # run_process creates the leaf directory itself.

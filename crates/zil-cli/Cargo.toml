@@ -19,3 +19,4 @@ path = "src/main.rs"
 [features]
 default = ["llvm-api"]
 llvm-api = ["zil-driver/llvm-api"]
+native-products = ["llvm-api", "zil-driver/native-products"]

@@ -17,3 +17,4 @@ zil-verify.workspace = true
 [features]
 default = []
 llvm-api = ["zil-llvm-api/native"]
+native-products = ["llvm-api", "zil-llvm-api/native-products"]
