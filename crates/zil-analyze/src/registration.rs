@@ -599,6 +599,27 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> CompileResul
     if !budget.async_registrations {
         return Ok(());
     }
+    let mut input_workers = Vec::new();
+    if budget.owned_task_input_inventory {
+        budget.spend(
+            module.functions.len(),
+            "actual owned input constructor functions",
+        )?;
+        for f in &module.functions {
+            budget.spend(f.blocks.len(), "actual owned input constructor blocks")?;
+            for i in f.blocks.iter().flat_map(|b| &b.instructions) {
+                budget.spend(1, "actual owned input constructor instruction")?;
+                if let InstructionKind::TaskCreateOwned { worker, .. } = i.kind {
+                    let actual = module
+                        .functions
+                        .get(worker.0 as usize)
+                        .ok_or_else(|| fail(i.span, "owned input worker absent"))?;
+                    budget.spend(1, "actual input worker row")?;
+                    input_workers.push(actual);
+                }
+            }
+        }
+    }
     let roots = module
         .resources
         .iter()
@@ -673,9 +694,33 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> CompileResul
                 }
                 Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
                 Type::Tuple(fields) => {
+                    let mut actual_inputs = false;
+                    for worker in &input_workers {
+                        budget.spend(
+                            fields.len().saturating_add(worker.parameters.len()),
+                            "actual ordered input Tuple comparison",
+                        )?;
+                        if fields.len() != worker.parameters.len() {
+                            continue;
+                        }
+                        let mut same = true;
+                        for (field, param) in fields.iter().zip(&worker.parameters) {
+                            let wanted = &worker
+                                .locals
+                                .get(param.0 as usize)
+                                .ok_or_else(|| fail(worker.span, "input formal absent"))?
+                                .ty;
+                            budget.type_work(field, false, "actual input tuple child")?;
+                            budget.type_work(wanted, false, "actual input formal child")?;
+                            same &= field == wanted;
+                        }
+                        actual_inputs |= same;
+                    }
+                    blocked |= !actual_inputs;
                     children.extend(fields);
                 }
                 Type::Enum { variants, .. } => {
+                    blocked = true;
                     for (_, fields) in variants {
                         children.extend(fields);
                     }

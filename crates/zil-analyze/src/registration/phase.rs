@@ -581,7 +581,10 @@ fn effect(
                 if let Some(o) = out
                     && is_owner(&f.values[o])
                 {
-                    s.values[o] = OPEN | CLOSED;
+                    // No declared/derived return relation: an owner may have
+                    // been returned after request_close. Unknown includes
+                    // Closing; type/factory shape is not a phase certificate.
+                    s.values[o] = ANY;
                 }
             }
         }

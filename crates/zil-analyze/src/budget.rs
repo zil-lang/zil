@@ -111,6 +111,7 @@ pub(super) struct Budget {
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
     pub(super) task_failure_carriers: bool,
+    pub(super) owned_task_input_inventory: bool,
     pub(super) stored_fixed_owner: bool,
     pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
@@ -204,6 +205,7 @@ impl Budget {
             stored_owned_fixed: false,
             stored_packages: false,
             task_failure_carriers: false,
+            owned_task_input_inventory: false,
             stored_fixed_owner: false,
             stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
@@ -2107,6 +2109,8 @@ pub(super) fn preflight(
                     | InstructionKind::TaskPollClose { .. }
                     | InstructionKind::TaskFinishDestroy { .. } => {
                         budget.tasks = true;
+                        budget.owned_task_input_inventory |=
+                            matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. });
                         budget.input(
                             crate::resources::uses(&instruction.kind)
                                 .count()

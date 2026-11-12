@@ -9,14 +9,14 @@ typedef int64_t (*callback_t)(void *, int32_t);
 static void *records[3];
 static size_t sizes[3];
 static callback_t callbacks[2];
-static unsigned attempts, installs, freed[3], requests[2], polls[2], denied[2], next_request;
+static unsigned entered,ready,attempts, installs, freed[3], requests[2], polls[2], denied[2], next_request;
 static const int64_t rejected=INT64_C(1)<<32;
 static unsigned index_of(void *p) {for(unsigned i=0;i<3;i++) if(records[i]==p)return i;abort();}
 static void check(void) {
     assert(attempts==3 && installs==2 && next_request==2);
     for(unsigned i=0;i<2;i++) assert(freed[i]==1 && !callbacks[i] && requests[i]==1 && polls[i]==2 && denied[i]==2);
-    if(getenv("ZIL_TASK_ALLOC_FAIL")) assert(!records[2] && !freed[2]);
-    else assert(records[2] && freed[2]==1);
+    if(getenv("ZIL_TASK_ALLOC_FAIL")) assert(!records[2] && !freed[2] && !entered && !ready);
+    else {assert(records[2] && freed[2]==1 && entered==1);assert(ready==(getenv("ZIL_TASK_CANCEL_AFTER_FINISH")?0u:1u));}
     puts("two original same-type active inputs retired once through the actual helper heads");
 }
 void *__wrap_calloc(size_t n,size_t s) {
@@ -54,3 +54,7 @@ int32_t drain(void *token) {
     assert(++polls[i]<=2);if(polls[i]==1)return 0;
     assert(callbacks[i](token,101)==rejected);denied[i]++;callbacks[i]=NULL;return 1;
 }
+
+void mark_worker_entry(void){assert(entered++==0 && records[2]);}
+void mark_worker_ready(void){assert(ready++==0 && freed[0] && freed[1]);}
+int32_t cancel_after_finish(void){assert(entered==1 && !ready && freed[0] && freed[1]);return getenv("ZIL_TASK_CANCEL_AFTER_FINISH")?1:0;}

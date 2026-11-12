@@ -515,6 +515,20 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if !budget.async_registrations {
         return Ok(());
     }
+    let mut actual_creations = Vec::new();
+    if budget.owned_task_input_inventory {
+        budget.spend(module.functions.len())?;
+        for f in &module.functions {
+            budget.spend(f.blocks.len())?;
+            for i in f.blocks.iter().flat_map(|b| &b.instructions) {
+                budget.spend(1)?;
+                if let InstructionKind::TaskCreateOwned { arguments, .. } = &i.kind {
+                    budget.spend(1)?;
+                    actual_creations.push((f, arguments.as_slice()));
+                }
+            }
+        }
+    }
     let roots = module
         .resources
         .iter()
@@ -589,9 +603,29 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 }
                 Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
                 Type::Tuple(fields) => {
+                    let mut present = false;
+                    for (f, args) in &actual_creations {
+                        budget.spend(fields.len().saturating_add(args.len()))?;
+                        if fields.len() != args.len() {
+                            continue;
+                        }
+                        let mut exact = true;
+                        for (field, id) in fields.iter().zip(*args) {
+                            let actual = f
+                                .values
+                                .get(id.0 as usize)
+                                .ok_or_else(|| error(None, "owned input SSA absent"))?;
+                            resources::charge_payload(field, budget)?;
+                            resources::charge_payload(actual, budget)?;
+                            exact &= field == actual;
+                        }
+                        present |= exact;
+                    }
+                    blocked |= !present;
                     children.extend(fields);
                 }
                 Type::Enum { variants, .. } => {
+                    blocked = true;
                     for (_, fields) in variants {
                         children.extend(fields);
                     }

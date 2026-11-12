@@ -345,17 +345,66 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
 // This is a whole root slot profile, not a recursive addition to storage():
 // Address<Enum>, a Product containing an owning Enum and pollable captures
 // must not inherit the new frame qualification.
+fn borrowed_driver_signature(f: &TypedFunction, budget: &mut Budget) -> Check<bool> {
+    if f.protocol_contracts.is_empty() {
+        return Ok(false);
+    }
+    // Existing owned-retirement and ordinary helpers keep their prior
+    // admission/fees. Only a real borrowed registration role enters this path.
+    let first = f.protocol_contracts[0].parameter as usize;
+    if !f.parameters.get(first).and_then(|p|f.locals.get(p.0 as usize)).is_some_and(|local|matches!(&local.ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})))) {return Ok(false);}
+    resources::charge_payload(&f.return_type, budget)?;
+    budget.spend(
+        f.parameters
+            .len()
+            .saturating_add(f.protocol_contracts.len()),
+    )?;
+    for local in &f.parameters {
+        resources::charge_payload(&f.locals[local.0 as usize].ty, budget)?;
+    }
+    let registration = |t: &Type| matches!(t,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
+    Ok(f.foreign.is_none()
+        && f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && f.return_type.is_copy_value()
+        && f.parameters.iter().all(|p| {
+            let t = &f.locals[p.0 as usize].ty;
+            t.is_copy_value() || registration(t)
+        })
+        && f.protocol_contracts.iter().all(|c| {
+            f.parameters
+                .get(c.parameter as usize)
+                .is_some_and(|p| registration(&f.locals[p.0 as usize].ty))
+        }))
+}
 fn cleanup(
     module: &TypedModule,
     first: FunctionId,
     budget: &mut Budget,
     span: Option<Span>,
 ) -> Check<()> {
-    let mut pending = vec![first];
+    helper_graph(module, first, budget, span, false)
+}
+fn driver_call(
+    module: &TypedModule,
+    first: FunctionId,
+    budget: &mut Budget,
+    span: Option<Span>,
+) -> Check<()> {
+    helper_graph(module, first, budget, span, true)
+}
+fn helper_graph(
+    module: &TypedModule,
+    first: FunctionId,
+    budget: &mut Budget,
+    span: Option<Span>,
+    driver_root: bool,
+) -> Check<()> {
+    let mut pending = vec![(first, driver_root)];
     let mut seen = BTreeSet::new();
-    while let Some(id) = pending.pop() {
+    while let Some((id, driving)) = pending.pop() {
         budget.spend(seen.len().saturating_add(1))?;
-        if !seen.insert(id) {
+        if !seen.insert((id, driving)) {
             continue;
         }
         let f = module
@@ -397,6 +446,7 @@ fn cleanup(
             }
             continue;
         }
+        let borrowed_driver = driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -409,7 +459,15 @@ fn cleanup(
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
             let closed_input = closed_retirement
                 && matches!(t, Type::Managed(inner) if matches!(inner.as_ref(), Type::AsyncRegistration { .. }));
-            if !closed_input && !storage(t, budget)? && !complete_aggregate(t, budget)? {
+            if closed_input {
+                continue;
+            }
+            let supported = if borrowed_driver {
+                pollable_storage(module, t, budget)?
+            } else {
+                storage(t, budget)?
+            };
+            if !supported && !complete_aggregate(t, budget)? {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     span,
@@ -428,7 +486,7 @@ fn cleanup(
                     .find(|r| r.payload == **payload)
                     .and_then(|r| r.teardown)
                 {
-                    pending.push(drop);
+                    pending.push((drop, false));
                 }
             }
         }
@@ -459,7 +517,7 @@ fn cleanup(
                             )
                         })?;
                     if let Some(drop) = resource.teardown {
-                        pending.push(drop);
+                        pending.push((drop, false));
                     }
                 }
             }
@@ -469,7 +527,18 @@ fn cleanup(
                 budget.spend(1)?;
                 match &i.kind {
                     InstructionKind::Call { function, .. }
-                    | InstructionKind::ForeignCall { function, .. } => pending.push(*function),
+                    | InstructionKind::ForeignCall { function, .. } => {
+                        pending.push((*function, borrowed_driver))
+                    }
+                    InstructionKind::AsyncRegistrationRequestClose { .. }
+                    | InstructionKind::AsyncRegistrationPollClose { .. }
+                    | InstructionKind::AsyncRegistrationValid { .. }
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                        if borrowed_driver => {}
                     InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
                     | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                         if closed_retirement => {}
@@ -673,7 +742,7 @@ pub(super) fn profile(
                 | InstructionKind::DropEnum { .. }
                     if enum_frame => {}
                 InstructionKind::Call { function, .. } => {
-                    cleanup(module, *function, budget, Some(i.span))?
+                    driver_call(module, *function, budget, Some(i.span))?
                 }
                 InstructionKind::SuspendCall {
                     function,
