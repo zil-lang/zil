@@ -1362,8 +1362,20 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::UnpackTuple{local,fields} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
-                    for (index,field) in fields.iter().enumerate(){link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],&locals[field.0 as usize],LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),&mut e,b)?;}
+                InstructionKind::UnpackTuple{local,fields} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_)) || matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))=>{
+                    for (index,field) in fields.iter().enumerate(){
+                        let parent_ty=&f.locals[local.0 as usize].ty;
+                        let parent=&locals[local.0 as usize];
+                        let child=&locals[field.0 as usize];
+                        if let (Type::BorrowedStorage{life,..},Some(outer))=(parent_ty,child.outer) {
+                            let path=[PlaceProjection::Field(u32::try_from(index).map_err(|_|bad("anonymous Tuple child ordinal overflow"))?)];
+                            b.spend(life.slots.len().saturating_add(parent.keys.len()),"anonymous Tuple selected address class")?;
+                            let row=life.slots.iter().find(|row|row.path==path).ok_or_else(||bad("anonymous Tuple address child lacks actual slot class"))?;
+                            let position=parent.keys.iter().position(|(path,class)|path.is_empty() && *class==row.binder).ok_or_else(||bad("anonymous Tuple address class is outside actual parent domain"))?;
+                            e.equal(parent.classes[position],outer,b)?;
+                        }
+                        link_projection(parent_ty,parent,child,LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),&mut e,b)?;
+                    }
                 }
                 InstructionKind::TakeTupleField{local,path} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
                     if let Some(out)=out {
