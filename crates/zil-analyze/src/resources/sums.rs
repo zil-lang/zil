@@ -14,6 +14,7 @@ mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage{storage,..}=>owned(storage),
         Type::Managed(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
@@ -33,7 +34,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         {
             return Ok((false, false));
         }
-        match ty {
+        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..})) {
+            budget.type_work(ty,true,"scoped Sum child snapshot")?;
+            let tuple=Type::Tuple(vec![ty.clone()]);
+            if crate::stored_flow::shared_compound(module,&tuple,budget)? || crate::stored_flow::affine_compound(module,&tuple,budget)? {return Ok((false,false))}
+        }
+        match package_storage(ty) {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {
                     crate::ownership_store::ordinary_owned(module, ty, budget)?;
@@ -248,7 +254,7 @@ impl Tree {
         if self.missing {
             return Ok(false);
         }
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             (Node::Leaf(_), Type::Managed(t)) => {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
             }
@@ -301,7 +307,7 @@ impl Tree {
         if self.missing {
             return Ok(false);
         }
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             (Node::Leaf(_), Type::Managed(_)) => Ok(true),
             (Node::Product(children), Type::Tuple(fields)) => {
                 for (child, ty) in children.iter().zip(fields) {
@@ -351,7 +357,7 @@ impl Tree {
     }
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
-        let node = match ty {
+        let node = match package_storage(ty) {
             Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "Tuple tree children")?;
@@ -600,7 +606,7 @@ impl Tree {
     }
     fn tags_unknown(&self, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum existing unknown tag shape")?;
-        match (&self.node, ty) {
+        match (&self.node, package_storage(ty)) {
             // Match Tree::unknown's actual terminal representation. A Leaf
             // may carry different births, so conservatively rebuild it even
             // for Managed rather than treating its node kind as equality.

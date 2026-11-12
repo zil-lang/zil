@@ -115,6 +115,7 @@ pub(super) struct Budget {
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
+    pub(super) stored_compound_values:bool,
     // Presence flags from paid actual-type/slot/capture inventories. These
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
@@ -207,6 +208,7 @@ impl Budget {
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
+            stored_compound_values:false,
             stored_packages: false,
             stored_fixed_owner: false,
             stored_projected_slots: false,
@@ -738,7 +740,7 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
-    } else if super::stored_flow::shared_compound(module,ty,budget)? || super::stored_flow::pure_inline(module, ty, budget)? {
+    } else if super::stored_flow::shared_compound(module,ty,budget)? || super::stored_flow::affine_compound(module,ty,budget)? || super::stored_flow::pure_inline(module, ty, budget)? {
         Ok(false)
     } else if let Type::Address {
         inner,
@@ -1011,6 +1013,10 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
+                Type::BorrowedStorage{life,..} if context.in_tuple=>{
+                    budget.input(life.slots.len(),"affine compound exclusive slots")?;
+                    new_sum|=life.slots.iter().any(|slot|slot.mode==zil_ir::StoredBorrowMode::ExclusiveAddress);
+                }
                 Type::Enum { .. } => {
                     child.in_enum = true;
                     child.pod_aggregate = true;
@@ -1119,6 +1125,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
+                    budget.stored_compound_values|=context.in_tuple;
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;

@@ -345,6 +345,7 @@ fn relation_inner(
                         self.class+=1;self.binder(binder,capture || !self.captured && self.inputs.is_none())?;
                     }
                 },
+                Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..}|Type::ByteBuffer|Type::OwnedStore{..})=>{},
                 other if other.is_copy_value()=>{},
                 _=>return Err(bad("compound signature child needs its complete value consumer")),
             }
