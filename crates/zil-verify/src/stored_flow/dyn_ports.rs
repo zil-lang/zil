@@ -419,11 +419,14 @@ pub(super) fn call(
     module: &TypedModule,
     f: &TypedFunction,
     callee: &TypedFunction,
+    instruction: &Instruction,
     summary: &Summary,
     args: &[ValueId],
     values: &[Payload],
     state: &Frame,
     out: &mut Payload,
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -442,11 +445,21 @@ pub(super) fn call(
             &source.permission.sources
         };
         for original in originals {
-            join_permission(
-                &mut permission,
-                &instantiate(module, f, original, args, values, state, b)?,
-                b,
-            )?;
+            let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            if dyn_leases::borrowed_input(callee, original)? {
+                b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
+                actual = dyn_leases::retain(
+                    sites,
+                    loans,
+                    instruction,
+                    dyn_leases::Destination::Result(path.clone()),
+                    dyn_leases::Component::Summary(original.clone()),
+                    mode_at(module, &callee.return_type, path, b)?,
+                    &actual,
+                    b,
+                )?;
+            }
+            join_permission(&mut permission, &actual, b)?;
         }
         for parent in &source.parent_sources {
             let actual = instantiate(module, f, parent, args, values, state, b)?;
@@ -466,15 +479,60 @@ pub(super) fn call(
     Ok(())
 }
 
+fn mode_at(
+    module: &TypedModule,
+    ty: &Type,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<StoredBorrowMode> {
+    let Some((ContractProjection::RetainedPort(port), carrier)) = path.split_last() else {
+        return Err(bad("retained lease has no typed terminal Dyn port"));
+    };
+    let (Type::Dyn { interface } | Type::OwnedDyn { interface }) =
+        carrier_type(module, ty, carrier, b)?
+    else {
+        return Err(bad("retained lease destination has no actual Dyn carrier"));
+    };
+    crate::dynamic_ports::interface(module, *interface, b)?
+        .retained_life
+        .ports
+        .get(*port as usize)
+        .map(|p| p.mode)
+        .ok_or_else(|| bad("retained lease destination port is absent"))
+}
+
+fn old_port(
+    source: &Source,
+    parameter: u32,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<bool> {
+    source_work(std::slice::from_ref(source), b)?;
+    let Some(PortOrigin::Dyn { carrier, port }) = &source.retained_port else {
+        return Ok(false);
+    };
+    let expected = carrier_path(carrier, *port, b)?;
+    b.spend(path.len().saturating_add(expected.len()))?;
+    Ok(source.base == HoldRoot::Parameter(parameter)
+        && source.leaf.is_empty()
+        && source.inline.is_empty()
+        && source.heap_element.is_none()
+        && expected == path)
+}
+
 pub(super) struct PreparedAfter(Vec<(Permission, Rows)>);
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prepare_after(
     module: &TypedModule,
     f: &TypedFunction,
+    callee: &TypedFunction,
+    instruction: &Instruction,
     summary: &Summary,
     args: &[ValueId],
     values: &[Payload],
     state: &Frame,
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<PreparedAfter> {
     if !b.dyn_contexts {
@@ -493,11 +551,27 @@ pub(super) fn prepare_after(
         for (path, source) in &rows.0 {
             let mut permission = Permission::default();
             for original in &source.permission.sources {
-                join_permission(
-                    &mut permission,
-                    &instantiate(module, f, original, args, values, state, b)?,
-                    b,
-                )?;
+                let mut actual = instantiate(module, f, original, args, values, state, b)?;
+                if !old_port(original, *parameter, path, b)?
+                    && dyn_leases::borrowed_input(callee, original)?
+                {
+                    let ty = &callee.locals[callee.parameters[*parameter as usize].0 as usize].ty;
+                    b.spend(path.len().saturating_add(width(original)).saturating_add(2))?;
+                    actual = dyn_leases::retain(
+                        sites,
+                        loans,
+                        instruction,
+                        dyn_leases::Destination::After(StoragePosition {
+                            base: StorageBase::Parameter(*parameter),
+                            path: path.clone(),
+                        }),
+                        dyn_leases::Component::Summary(original.clone()),
+                        mode_at(module, ty, path, b)?,
+                        &actual,
+                        b,
+                    )?;
+                }
+                join_permission(&mut permission, &actual, b)?;
             }
             for parent in &source.parent_sources {
                 let actual = instantiate(module, f, parent, args, values, state, b)?;
@@ -618,12 +692,15 @@ fn remove(rows: &mut Rows, prefix: &[ContractProjection], b: &mut Budget) -> Che
     rows.0.retain(|(path, _)| !path.starts_with(prefix));
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
 pub(super) fn transfer(
     module: &TypedModule,
     f: &TypedFunction,
     instruction: &Instruction,
     state: &mut Frame,
     values: &[Payload],
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<Option<Payload>> {
     if !b.dyn_contexts {
@@ -795,11 +872,28 @@ pub(super) fn transfer(
                 }
                 let mut permission = Permission::default();
                 for source in &binding.sources {
-                    join_permission(
-                        &mut permission,
-                        &slot_source(module, f, source, &args, values, state, b)?,
-                        b,
-                    )?;
+                    let mut actual = slot_source(module, f, source, &args, values, state, b)?;
+                    if source != &binding.position {
+                        b.spend(
+                            binding
+                                .position
+                                .path
+                                .len()
+                                .saturating_add(source.path.len())
+                                .saturating_add(2),
+                        )?;
+                        actual = dyn_leases::retain(
+                            sites,
+                            loans,
+                            instruction,
+                            dyn_leases::Destination::After(binding.position.clone()),
+                            dyn_leases::Component::Slot(source.clone()),
+                            definition.retained_life.ports[*port as usize].mode,
+                            &actual,
+                            b,
+                        )?;
+                    }
+                    join_permission(&mut permission, &actual, b)?;
                 }
                 prepared.push((*port, permission));
             }
