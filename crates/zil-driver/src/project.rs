@@ -99,6 +99,7 @@ pub(super) struct ProducerEpoch {
     producer: Box<zil_expand::ExpandSession>,
     materializer: super::ct_artifact::ScalarMaterializationSession,
     raw_inference: std::sync::OnceLock<zil_types::RawInferenceSession>,
+    plain_source: std::sync::OnceLock<zil_ct::PlainSourceSession>,
 }
 impl std::fmt::Debug for ProducerEpoch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -121,6 +122,7 @@ fn capture_producer_epoch(
         producer: super::session::producer_checkpoint(producer),
         materializer: materializer.checkpoint(),
         raw_inference: std::sync::OnceLock::new(),
+        plain_source: std::sync::OnceLock::new(),
     })
 }
 
@@ -1240,6 +1242,9 @@ impl CompilationSession {
         }
         let mut raw_inference = std::mem::take(&mut self.raw_inference);
         let inference_checkpoint = raw_inference.clone();
+        let mut plain_source = std::mem::take(&mut self.plain_source);
+        let plain_checkpoint = plain_source.clone();
+        let mut plain_published = false;
         let mut inference_work = None;
         let ct_result = self.query(
             key(Phase::Ct, true),
@@ -1291,6 +1296,25 @@ impl CompilationSession {
                         })?;
                 }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
+                if options.push_reuse
+                    && let Some(usages) = plain_source.validate_program(
+                        inferred,
+                        &options.target,
+                        &remaining,
+                        &context,
+                    )
+                {
+                    // Retain the actual ordered project allowance consumer;
+                    // plain receipts only replace fully bound function bodies.
+                    for (module, usage) in inferred.modules.iter().zip(usages) {
+                        charge_ct_usage(&mut remaining, usage, module.core.functions.len())?;
+                    }
+                    plain_published = true;
+                    drop(context);
+                    return Ok(RawSnapshot::ProjectCore(Arc::new(
+                        inference.into_prepared(),
+                    )));
+                }
                 let initial_remaining = remaining.clone();
                 let mut unchanged = true;
                 for module in &inferred.modules {
@@ -1352,6 +1376,13 @@ impl CompilationSession {
         } else {
             inference_checkpoint
         };
+        self.plain_source = if ct_result.is_err() {
+            plain_checkpoint
+        } else if options.push_reuse {
+            plain_source
+        } else {
+            zil_ct::PlainSourceSession::default()
+        };
         report.raw_inference_work = inference_work;
         let (raw, ct_snapshot) = ct_result?;
         if options.push_reuse
@@ -1374,6 +1405,20 @@ impl CompilationSession {
                 .and_then(|session| session.checkpoint_for(&epoch.core))
             {
                 self.raw_inference = checkpoint;
+            }
+            if plain_published {
+                if let Some(checkpoint) = self.plain_source.checkpoint_for(&epoch.core) {
+                    let _ = epoch.plain_source.set(checkpoint);
+                }
+            } else if report.raw_inference_work.is_none()
+                && let Some(checkpoint) = epoch
+                    .plain_source
+                    .get()
+                    .and_then(|session| session.checkpoint_for(&epoch.core))
+            {
+                // This existing bounded raw owner was restored without CT
+                // execution. The next real consumer rebinds all current inputs.
+                self.plain_source = checkpoint;
             }
         }
         let RawSnapshot::ProjectCore(prepared) = raw else {

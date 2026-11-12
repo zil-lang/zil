@@ -157,6 +157,15 @@ fn complete_driver_pushes_one_private_body_through_current_verify_and_lower() {
     assert_eq!(inference.name_functions_reused, 424);
     assert_eq!(inference.dependency_bodies_checked, 1);
     assert_eq!(inference.dependency_bodies_reused, 424);
+    let plain = session.plain_source_stats();
+    assert_eq!(plain.body_checks, 1, "{plain:?}");
+    assert_eq!(plain.body_reuses, 424, "{plain:?}");
+    assert_eq!(plain.shape_checks, 1, "{plain:?}");
+    assert_eq!(plain.shape_reuses, 424, "{plain:?}");
+    assert_eq!(
+        plain.declaration_modules, 22,
+        "current global checks remain actual work"
+    );
     assert_eq!(
         changed
             .initialization_work
@@ -246,6 +255,12 @@ fn retained_parent_restores_actual_push_consumers_after_broad_history() {
     assert_eq!(inference.closure_bodies_checked, 1);
     assert_eq!(inference.name_functions_checked, 1);
     assert_eq!(inference.dependency_bodies_checked, 1);
+    let plain = session.plain_source_stats();
+    assert_eq!(plain.body_checks, 1, "{plain:?}");
+    assert_eq!(plain.body_reuses, 424, "{plain:?}");
+    assert_eq!(plain.shape_checks, 1, "{plain:?}");
+    assert_eq!(plain.shape_reuses, 424, "{plain:?}");
+    assert_eq!(plain.declaration_modules, 22);
     session.clear();
     assert!(
         epoch.upgrade().is_none(),

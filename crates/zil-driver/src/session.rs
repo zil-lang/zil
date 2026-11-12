@@ -304,6 +304,7 @@ pub struct CompilationSession {
     pub(super) function_types: Box<zil_types::FunctionSession>,
     pub(super) push_types: zil_types::TypesPushSession,
     pub(super) raw_inference: zil_types::RawInferenceSession,
+    pub(super) plain_source: zil_ct::PlainSourceSession,
     pub(super) producer: Box<zil_expand::ExpandSession>,
     pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
     pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
@@ -329,6 +330,7 @@ impl CompilationSession {
             function_types: Box::default(),
             push_types: Default::default(),
             raw_inference: Default::default(),
+            plain_source: Default::default(),
             producer: Box::default(),
             materializer: super::ct_artifact::ScalarMaterializationSession::default(),
             producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
@@ -347,6 +349,7 @@ impl CompilationSession {
         self.function_types.clear();
         self.push_types.clear();
         self.raw_inference.clear();
+        self.plain_source.clear();
         *self.producer = Default::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
@@ -355,6 +358,12 @@ impl CompilationSession {
     /// query hits do not execute the function cache and leave these unchanged.
     pub fn function_type_stats(&self) -> zil_types::FunctionStats {
         self.function_types.last_stats()
+    }
+    /// Work recorded by the active plain project-CT checkpoint. A whole-query
+    /// hit can restore an older checkpoint but executes no current body work;
+    /// its saved counters must not be interpreted as a current execution.
+    pub fn plain_source_stats(&self) -> zil_ct::PlainSourceStats {
+        self.plain_source.last_stats().clone()
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()

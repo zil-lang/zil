@@ -7,6 +7,9 @@ use zil_ir::*;
 mod dyn_inventory;
 #[path = "source_inventory.rs"]
 mod inventory;
+#[path = "plain_session.rs"]
+mod plain_session;
+pub use plain_session::{PlainSourceSession, PlainSourceStats};
 
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
@@ -29,6 +32,10 @@ pub struct SourceEvaluationUsage {
 /// types still checks visibility, aliases, argument types and arity afterwards.
 /// No dependency body is copied or executed while constructing or using it.
 pub struct SourceProgramContext<'a> {
+    // Complete live binding for private plain-body receipts. Construction above
+    // still executes every current global/header check before this token exists.
+    program: &'a CoreProgram,
+    limits: Limits,
     functions: BTreeMap<(zil_base::ModuleId, &'a str), Option<&'a CoreFunction>>,
     // Explicit runtime type applications only target ordinary templates.
     // Bare calls also use their bounded headers through `functions`; neither
@@ -213,6 +220,8 @@ impl<'a> SourceProgramContext<'a> {
             }
         }
         Ok(Self {
+            program,
+            limits: limits.clone(),
             functions,
             type_templates,
             imports,
@@ -742,15 +751,7 @@ pub fn validate_unchanged_source(
         };
         walker.declarations()?;
         for f in &core.functions {
-            let mut scope = BTreeMap::new();
-            for p in &f.parameters {
-                walker.text(&p.name, Some(p.span))?;
-                walker.pattern_type_shape(&p.ty, 0, p.span)?;
-                scope.insert(p.name.clone(), Some(p.ty.clone()));
-            }
-            walker.scopes.push(scope);
-            walker.unchanged_block(&f.body, Some(&f.return_type), 0)?;
-            walker.scopes.pop();
+            walker.unchanged_function(f)?;
         }
         Ok(SourceEvaluationUsage {
             steps: limits.max_ct_steps - walker.steps_left,
@@ -761,7 +762,42 @@ pub fn validate_unchanged_source(
 
 // This iterative classification establishes every recursive visitor's shape
 // and depth before it starts. Classification failure has no diagnostic effect.
+enum PlainShapeNode<'a> {
+    Block(&'a CoreBlock),
+    Expr(&'a CoreExpr),
+}
+fn unchanged_inventory(core: &CoreModule) -> Option<()> {
+    if !core.closure_life_contexts.is_empty()
+        || !core.life_declarations.is_empty()
+        || !core.life_instances.is_empty()
+        || !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+        || !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+        || !core.aggregates.is_empty()
+        || !core.enums.is_empty()
+        || !core.unsupported.is_empty()
+    {
+        return None;
+    }
+    Some(())
+}
 fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
+    unchanged_inventory(core)?;
+    let mut fuel = limits.max_nodes.min(1_000_000);
+    let mut stack = Vec::new();
+    for f in &core.functions {
+        unchanged_function_shape(f, limits, &mut fuel, &mut stack)?;
+    }
+    Some(())
+}
+fn unchanged_function_shape<'a>(
+    f: &'a CoreFunction,
+    limits: &Limits,
+    fuel: &mut usize,
+    stack: &mut Vec<(PlainShapeNode<'a>, usize)>,
+) -> Option<()> {
     fn scalar(ty: &Type) -> bool {
         matches!(
             ty,
@@ -781,146 +817,123 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                 | Type::F64
         )
     }
-    enum Node<'a> {
-        Block(&'a CoreBlock),
-        Expr(&'a CoreExpr),
-    }
     fn push<'a>(
-        stack: &mut Vec<(Node<'a>, usize)>,
+        stack: &mut Vec<(PlainShapeNode<'a>, usize)>,
         fuel: &mut usize,
-        node: Node<'a>,
+        node: PlainShapeNode<'a>,
         depth: usize,
     ) -> Option<()> {
         *fuel = fuel.checked_sub(1)?;
         stack.push((node, depth));
         Some(())
     }
-    if !core.closure_life_contexts.is_empty()
-        || !core.life_declarations.is_empty()
-        || !core.life_instances.is_empty()
-        || !core.dyn_declarations.is_empty()
-        || !core.dyn_interfaces.is_empty()
-        || !core.dyn_vtables.is_empty()
-        || !core.aggregate_templates.is_empty()
-        || !core.aggregate_applications.is_empty()
-        || !core.aggregates.is_empty()
-        || !core.enums.is_empty()
-        || !core.unsupported.is_empty()
+    *fuel = fuel.checked_sub(f.parameters.len().checked_add(1)?)?;
+    if !f.type_parameters.is_empty()
+        || !f.state_parameters.is_empty()
+        || !f.callable_parameters.is_empty()
+        || f.callable_return.is_some()
+        || f.receiver.is_some()
+        || !scalar(&f.return_type)
+        || !f.parameters.iter().all(|p| scalar(&p.ty))
     {
         return None;
     }
-    let mut fuel = limits.max_nodes.min(1_000_000);
-    let mut stack = Vec::new();
-    for f in &core.functions {
-        fuel = fuel.checked_sub(f.parameters.len().checked_add(1)?)?;
-        if !f.type_parameters.is_empty()
-            || !f.state_parameters.is_empty()
-            || !f.callable_parameters.is_empty()
-            || f.callable_return.is_some()
-            || f.receiver.is_some()
-            || !scalar(&f.return_type)
-            || !f.parameters.iter().all(|p| scalar(&p.ty))
-        {
+    push(stack, fuel, PlainShapeNode::Block(&f.body), 0)?;
+    while let Some((node, depth)) = stack.pop() {
+        if depth > limits.max_call_depth.min(128) {
             return None;
         }
-        push(&mut stack, &mut fuel, Node::Block(&f.body), 0)?;
-        while let Some((node, depth)) = stack.pop() {
-            if depth > limits.max_call_depth.min(128) {
-                return None;
-            }
-            let next = depth + 1;
-            match node {
-                Node::Block(block) => {
-                    fuel = fuel.checked_sub(block.statements.len())?;
-                    for s in &block.statements {
-                        match &s.kind {
-                            CoreStatementKind::TupleBinding { .. } => return None,
-                            CoreStatementKind::Binding {
-                                ty, initializer, ..
-                            } => {
-                                if ty.as_ref().is_some_and(|ty| !scalar(ty)) {
-                                    return None;
-                                }
-                                if let Some(e) = initializer {
-                                    push(&mut stack, &mut fuel, Node::Expr(e), next)?;
-                                }
+        let next = depth + 1;
+        match node {
+            PlainShapeNode::Block(block) => {
+                *fuel = fuel.checked_sub(block.statements.len())?;
+                for s in &block.statements {
+                    match &s.kind {
+                        CoreStatementKind::TupleBinding { .. } => return None,
+                        CoreStatementKind::Binding {
+                            ty, initializer, ..
+                        } => {
+                            if ty.as_ref().is_some_and(|ty| !scalar(ty)) {
+                                return None;
                             }
-                            CoreStatementKind::Assign { target, value } => {
-                                push(&mut stack, &mut fuel, Node::Expr(target), next)?;
-                                push(&mut stack, &mut fuel, Node::Expr(value), next)?;
+                            if let Some(e) = initializer {
+                                push(stack, fuel, PlainShapeNode::Expr(e), next)?;
                             }
-                            CoreStatementKind::Expression(e)
-                            | CoreStatementKind::Return(Some(e)) => {
-                                push(&mut stack, &mut fuel, Node::Expr(e), next)?
-                            }
-                            CoreStatementKind::If {
-                                condition,
-                                then_body,
-                                else_body,
-                            } => {
-                                push(&mut stack, &mut fuel, Node::Expr(condition), next)?;
-                                push(&mut stack, &mut fuel, Node::Block(then_body), next)?;
-                                if let Some(b) = else_body {
-                                    push(&mut stack, &mut fuel, Node::Block(b), next)?;
-                                }
-                            }
-                            CoreStatementKind::While { condition, body } => {
-                                push(&mut stack, &mut fuel, Node::Expr(condition), next)?;
-                                push(&mut stack, &mut fuel, Node::Block(body), next)?;
-                            }
-                            CoreStatementKind::Block(b)
-                            | CoreStatementKind::Defer(b)
-                            | CoreStatementKind::Unsafe(b) => {
-                                push(&mut stack, &mut fuel, Node::Block(b), next)?
-                            }
-                            CoreStatementKind::Return(None)
-                            | CoreStatementKind::Break
-                            | CoreStatementKind::Continue => {}
-                            _ => return None,
                         }
+                        CoreStatementKind::Assign { target, value } => {
+                            push(stack, fuel, PlainShapeNode::Expr(target), next)?;
+                            push(stack, fuel, PlainShapeNode::Expr(value), next)?;
+                        }
+                        CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                            push(stack, fuel, PlainShapeNode::Expr(e), next)?
+                        }
+                        CoreStatementKind::If {
+                            condition,
+                            then_body,
+                            else_body,
+                        } => {
+                            push(stack, fuel, PlainShapeNode::Expr(condition), next)?;
+                            push(stack, fuel, PlainShapeNode::Block(then_body), next)?;
+                            if let Some(b) = else_body {
+                                push(stack, fuel, PlainShapeNode::Block(b), next)?;
+                            }
+                        }
+                        CoreStatementKind::While { condition, body } => {
+                            push(stack, fuel, PlainShapeNode::Expr(condition), next)?;
+                            push(stack, fuel, PlainShapeNode::Block(body), next)?;
+                        }
+                        CoreStatementKind::Block(b)
+                        | CoreStatementKind::Defer(b)
+                        | CoreStatementKind::Unsafe(b) => {
+                            push(stack, fuel, PlainShapeNode::Block(b), next)?
+                        }
+                        CoreStatementKind::Return(None)
+                        | CoreStatementKind::Break
+                        | CoreStatementKind::Continue => {}
+                        _ => return None,
                     }
                 }
-                Node::Expr(e) => match &e.kind {
-                    CoreExprKind::Integer(_)
-                    | CoreExprKind::Float(_)
-                    | CoreExprKind::Bool(_)
-                    | CoreExprKind::Unit
-                    | CoreExprKind::Name(_) => {}
-                    CoreExprKind::Literal(c) if scalar(&c.ty()) => {}
-                    CoreExprKind::Unary { operand, .. } => {
-                        push(&mut stack, &mut fuel, Node::Expr(operand), next)?
-                    }
-                    CoreExprKind::IntegerConvert { value, target }
-                    | CoreExprKind::NumericConvert { value, target }
-                        if scalar(target) =>
-                    {
-                        push(&mut stack, &mut fuel, Node::Expr(value), next)?
-                    }
-                    CoreExprKind::Binary { left, right, .. } => {
-                        push(&mut stack, &mut fuel, Node::Expr(left), next)?;
-                        push(&mut stack, &mut fuel, Node::Expr(right), next)?;
-                    }
-                    CoreExprKind::Call { callee, arguments } => {
-                        push(&mut stack, &mut fuel, Node::Expr(callee), next)?;
-                        for a in arguments {
-                            push(&mut stack, &mut fuel, Node::Expr(a), next)?;
-                        }
-                    }
-                    CoreExprKind::Member { object, .. } => {
-                        push(&mut stack, &mut fuel, Node::Expr(object), next)?
-                    }
-                    CoreExprKind::If {
-                        condition,
-                        then_value,
-                        else_value,
-                    } => {
-                        for e in [condition, then_value, else_value] {
-                            push(&mut stack, &mut fuel, Node::Expr(e), next)?;
-                        }
-                    }
-                    _ => return None,
-                },
             }
+            PlainShapeNode::Expr(e) => match &e.kind {
+                CoreExprKind::Integer(_)
+                | CoreExprKind::Float(_)
+                | CoreExprKind::Bool(_)
+                | CoreExprKind::Unit
+                | CoreExprKind::Name(_) => {}
+                CoreExprKind::Literal(c) if scalar(&c.ty()) => {}
+                CoreExprKind::Unary { operand, .. } => {
+                    push(stack, fuel, PlainShapeNode::Expr(operand), next)?
+                }
+                CoreExprKind::IntegerConvert { value, target }
+                | CoreExprKind::NumericConvert { value, target }
+                    if scalar(target) =>
+                {
+                    push(stack, fuel, PlainShapeNode::Expr(value), next)?
+                }
+                CoreExprKind::Binary { left, right, .. } => {
+                    push(stack, fuel, PlainShapeNode::Expr(left), next)?;
+                    push(stack, fuel, PlainShapeNode::Expr(right), next)?;
+                }
+                CoreExprKind::Call { callee, arguments } => {
+                    push(stack, fuel, PlainShapeNode::Expr(callee), next)?;
+                    for a in arguments {
+                        push(stack, fuel, PlainShapeNode::Expr(a), next)?;
+                    }
+                }
+                CoreExprKind::Member { object, .. } => {
+                    push(stack, fuel, PlainShapeNode::Expr(object), next)?
+                }
+                CoreExprKind::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    for e in [condition, then_value, else_value] {
+                        push(stack, fuel, PlainShapeNode::Expr(e), next)?;
+                    }
+                }
+                _ => return None,
+            },
         }
     }
     Some(())
@@ -1031,6 +1044,18 @@ struct Walker<'a> {
     scopes: Vec<BTreeMap<String, Option<Type>>>,
 }
 impl<'a> Walker<'a> {
+    fn unchanged_function(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        let mut scope = BTreeMap::new();
+        for parameter in &function.parameters {
+            self.text(&parameter.name, Some(parameter.span))?;
+            self.pattern_type_shape(&parameter.ty, 0, parameter.span)?;
+            scope.insert(parameter.name.clone(), Some(parameter.ty.clone()));
+        }
+        self.scopes.push(scope);
+        self.unchanged_block(&function.body, Some(&function.return_type), 0)?;
+        self.scopes.pop();
+        Ok(())
+    }
     // Only called after unchanged_shape has classified the complete module.
     // Every hint below observes the original child, which that classification
     // proves the rebuilding evaluator would leave byte-for-byte unchanged.
