@@ -1719,7 +1719,7 @@ impl Plan {
                     || !match i.kind {
                         InstructionKind::TakeTupleField { .. } => {
                             matches!(root, Type::Tuple(_) | Type::Package { .. })
-                        },
+                        }
                         _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                     }
                 {

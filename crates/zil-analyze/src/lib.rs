@@ -303,15 +303,25 @@ fn analyze_budgeted(
                             budget,
                         )?;
                         let count = targets.len();
-                        let incomplete = targets.is_empty() || targets.iter().any(|target| {
-                                target.heap_element.is_none()
-                                    && !matches!((target.base, target.stored.as_slice()),
-                                        (zil_ir::HoldRoot::Parameter(_),
-                                            [zil_ir::PlaceProjection::Variant(selector)])
-                                            if selector.variant == 1 && selector.index == 0
-                                                && target.place.iter().all(|step|
-                                                    matches!(step, zil_ir::PlaceProjection::Field(_))))
-                            });
+                        let mut incomplete = targets.is_empty();
+                        for target in &targets {
+                            let existing = target.heap_element.is_some()
+                                || matches!((target.base,target.stored.as_slice()),
+                                    (zil_ir::HoldRoot::Parameter(_),[zil_ir::PlaceProjection::Variant(selector)])
+                                    if selector.variant==1 && selector.index==0
+                                        && target.place.iter().all(|step|matches!(step,zil_ir::PlaceProjection::Field(_))));
+                            if !existing
+                                && !stored_flow::inline_hold_source(
+                                    &module.functions[index],
+                                    target,
+                                    ty,
+                                    budget,
+                                )?
+                            {
+                                incomplete = true;
+                                break;
+                            }
+                        }
                         budget.spend(count, "stored Option element proof")?;
                         if incomplete {
                             return Err(bad("stored Option and ordinary actual roots disagree"));
