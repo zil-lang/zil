@@ -105,7 +105,24 @@ fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
         .unwrap()
         .module;
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
-    zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits).unwrap();
+    if let Err(errors) =
+        zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits)
+    {
+        let directory = std::path::Path::new("../../out/runs/iterator-verifier-counterexample")
+            .join(typed.source_fingerprint.hex());
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("source.zil"), source).unwrap();
+        std::fs::write(directory.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        std::fs::write(
+            directory.join("candidate.wire"),
+            zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap(),
+        )
+        .unwrap();
+        panic!(
+            "actual independent verifier failure: {errors:?}; snapshot {}",
+            directory.display()
+        );
+    }
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     assert_eq!(
         zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
