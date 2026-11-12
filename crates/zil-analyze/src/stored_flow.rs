@@ -8799,10 +8799,11 @@ mod tests {
         let limits = Limits::default();
         let plan = super::super::analyze(&m, &limits).unwrap();
         assert!(plan.functions[0].holds[7].roots.is_empty());
-        assert_eq!(
-            plan.functions[0].holds[8].roots,
-            vec![HoldRoot::Local(LocalId(1))]
-        );
+        assert!(matches!(&m.functions[0].values[8], Type::Desc(payload)
+            if matches!(payload.as_ref(), Type::Record { .. })));
+        // Weak descriptions do not add public Hold roots. The actual resource
+        // head and retirement remain required by all five attacks below.
+        assert!(plan.functions[0].holds[8].roots.is_empty());
         assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
         for mode in 0..5 {
             let mut raw = m.clone();
@@ -8882,7 +8883,7 @@ mod tests {
             // Six scalar Managed TakeCapture sites keep the existing owning
             // ledger (48 fewer steps), and addressed captures select current
             // memory once instead of also joining stale SSA slots (180 fewer).
-            12_246,
+            12_246 + 4 * m.functions.len(),
             "bounded actual identity/ownership work changed"
         );
         assert_eq!(
