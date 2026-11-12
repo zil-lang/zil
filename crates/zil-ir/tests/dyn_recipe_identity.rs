@@ -18,6 +18,11 @@ fn fixture() -> TypedModule {
         life_declarations: vec![],
         life_instances: vec![],
         dyn_declarations: vec![DynDeclaration {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
             id: id(9),
             identity: LifeDeclarationIdentity {
                 package: "recipe".into(),
@@ -28,21 +33,21 @@ fn fixture() -> TypedModule {
             kind: DynDeclarationKind::Impl,
             implemented_trait: Some(DynSelfPattern {
                 declaration: id(5),
-                arguments: vec![DynPatternActual::LifeParameter(0)],
+                arguments: vec![DynPatternActual::Life(DynLifePattern::DeclarationParameter(0))],
             }),
-            self_pattern: Some(DynSelfPattern {
+            self_pattern: Some(DynTypePattern::Nominal(Box::new(DynSelfPattern {
                 declaration: id(7),
                 arguments: vec![
-                    DynPatternActual::LifeParameter(1),
-                    DynPatternActual::LifeParameter(0),
-                    DynPatternActual::LifeParameter(1),
+                    DynPatternActual::Life(DynLifePattern::DeclarationParameter(1)),
+                    DynPatternActual::Life(DynLifePattern::DeclarationParameter(0)),
+                    DynPatternActual::Life(DynLifePattern::DeclarationParameter(1)),
                     DynPatternActual::Type(DynTypePattern::Array {
                         element: Box::new(DynTypePattern::Parameter(2)),
                         length: DynConstPattern::Parameter(3),
                     }),
                     DynPatternActual::Const(DynConstPattern::Value(Constant::Usize(7))),
                 ],
-            }),
+            }))),
             parameters: vec![
                 LifeParameterKind::Lifetime,
                 LifeParameterKind::Lifetime,
@@ -148,14 +153,14 @@ fn recipe_occurrences_and_formal_ordinals_match_independent_identity() {
                 7 => declaration.implemented_trait.as_mut().unwrap().declaration = id(6),
                 _ => {
                     declaration.implemented_trait.as_mut().unwrap().arguments[0] =
-                        DynPatternActual::LifeParameter(1)
+                        DynPatternActual::Life(DynLifePattern::DeclarationParameter(1))
                 }
             }
         } else {
             let pattern = declaration.self_pattern.as_mut().unwrap();
             match mutation {
                 1 => pattern.arguments.swap(0, 1),
-                2 => pattern.arguments[2] = DynPatternActual::LifeParameter(0),
+                2 => pattern.arguments[2] = DynPatternActual::Life(DynLifePattern::DeclarationParameter(0)),
                 3 => pattern.declaration.compiler = true,
                 4 => pattern.arguments[3] = DynPatternActual::Type(DynTypePattern::Parameter(2)),
                 _ => pattern.arguments[4] = DynPatternActual::Const(DynConstPattern::Parameter(3)),

@@ -94,9 +94,9 @@ impl Recipe<'_, '_, '_> {
         for (formal, actual) in parameters.iter().zip(args) {
             self.budget.node(ty.span, depth + 1)?;
             arguments.push(match (&formal.kind, actual) {
-                (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
-                    DynPatternActual::LifeParameter(self.parameter(name, 2, ty.span)?)
-                }
+                (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => DynPatternActual::Life(
+                    zil_ir::DynLifePattern::DeclarationParameter(self.parameter(name, 2, ty.span)?),
+                ),
                 (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
                     DynPatternActual::Type(self.ty(ty, depth + 1)?)
                 }
@@ -162,7 +162,10 @@ impl Recipe<'_, '_, '_> {
                 mutable: *mutable,
                 lifetime: lifetime
                     .as_ref()
-                    .map(|name| self.parameter(name, 2, ty.span))
+                    .map(|name| {
+                        self.parameter(name, 2, ty.span)
+                            .map(zil_ir::DynLifePattern::DeclarationParameter)
+                    })
                     .transpose()?,
                 inner: Box::new(self.ty(inner, depth + 1)?),
             }),
@@ -281,8 +284,18 @@ pub(super) fn pay(
         b.node(s, d)?;
         match value {
             DynTypePattern::Concrete(t) => crate::stored_types::pay_type(t, b, s, d + 1)?,
-            DynTypePattern::Parameter(_) => {}
+            DynTypePattern::Parameter(_)
+            | DynTypePattern::MethodParameter(_)
+            | DynTypePattern::SelfType => {}
             DynTypePattern::Nominal(p) => pay(p, b, s, d + 1)?,
+            DynTypePattern::AssociatedProjection {
+                receiver,
+                application,
+                ..
+            } => {
+                ty(receiver, b, s, d + 1)?;
+                pay(application, b, s, d + 1)?;
+            }
             DynTypePattern::Address { inner, .. }
             | DynTypePattern::Slice(inner)
             | DynTypePattern::Managed(inner)
@@ -306,8 +319,36 @@ pub(super) fn pay(
     }
     fn constant(value: &DynConstPattern, b: &mut Budget<'_>, s: Span, d: usize) -> R<()> {
         b.node(s, d)?;
-        if let DynConstPattern::Value(zil_ir::Constant::WideString(units)) = value {
-            b.identity_work(units.len(), s)?;
+        match value {
+            DynConstPattern::Value(zil_ir::Constant::WideString(units)) => {
+                b.identity_work(units.len(), s)?
+            }
+            DynConstPattern::Unary {
+                value, ty: result, ..
+            }
+            | DynConstPattern::Convert { value, ty: result } => {
+                constant(value, b, s, d + 1)?;
+                ty(result, b, s, d + 1)?;
+            }
+            DynConstPattern::Binary {
+                left,
+                right,
+                ty: result,
+                ..
+            } => {
+                constant(left, b, s, d + 1)?;
+                constant(right, b, s, d + 1)?;
+                ty(result, b, s, d + 1)?;
+            }
+            DynConstPattern::AssociatedProjection {
+                receiver,
+                application,
+                ..
+            } => {
+                ty(receiver, b, s, d + 1)?;
+                pay(application, b, s, d + 1)?;
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -317,7 +358,7 @@ pub(super) fn pay(
         match actual {
             DynPatternActual::Type(t) => ty(t, budget, span, depth + 2)?,
             DynPatternActual::Const(v) => constant(v, budget, span, depth + 2)?,
-            DynPatternActual::LifeParameter(_) => {}
+            DynPatternActual::Life(_) => {}
         }
     }
     Ok(())

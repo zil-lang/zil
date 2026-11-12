@@ -908,6 +908,11 @@ mod tests {
                 generation_path: Vec::new(),
             };
             let original = DynDeclaration {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
                 self_pattern: None,
                 implemented_trait: None,
                 id: declaration,

@@ -1069,6 +1069,7 @@ mod tests {
         returned: ValueId,
     ) -> TypedFunction {
         TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             id: FunctionId(id),
             name: format!("f{id}"),

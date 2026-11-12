@@ -97,6 +97,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         binder: StorageBinder::Fixed(0),
     });
     let f = TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: Some(contract.clone()),
         call_kind: CallKind::Direct,
@@ -272,6 +273,13 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         application,
         inherited: vec![],
         associated_types: vec![DynAssociatedType {
+            life: StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            classes: vec![],
             member,
             ty: Type::I64,
         }],
@@ -292,6 +300,11 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         slots: vec![slot],
     };
     let dyn_declaration = DynDeclaration {
+        direct_supertraits: None,
+        requirements: None,
+        associated_definitions: None,
+        method_signatures: None,
+        method_definitions: None,
         self_pattern: None,
         implemented_trait: None,
         id: trait_id,
@@ -309,6 +322,8 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }],
     };
     let vtable = DynVtable {
+        self_life: None,
+        implementation_witnesses: None,
         self_classes: vec![],
         id: DynVtableId {
             module: ModuleId(0),

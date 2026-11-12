@@ -965,6 +965,7 @@ mod owned_sum_drop_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,

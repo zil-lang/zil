@@ -70,6 +70,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     call_kind: None,
@@ -114,6 +115,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     life: None,

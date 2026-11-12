@@ -645,6 +645,11 @@ impl<'a> Writer<'a> {
             self.count(instance.arguments.len(), self.limits.max_nodes)?;
             for argument in &instance.arguments {
                 match argument {
+                    LifeNominalActual::QualifiedType { ty, life } => {
+                        self.u8(3)?;
+                        self.ty(ty, 0)?;
+                        self.storage_shape(life)?;
+                    }
                     LifeNominalActual::Type(ty) => {
                         self.u8(0)?;
                         self.ty(ty, 0)?;
@@ -1086,6 +1091,11 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.boolean(function.dyn_instance.is_some())?;
+        if let Some(instance) = &function.dyn_instance {
+            self.dyn_function_instance(instance, 0)?;
+        }
+
         self.boolean(function.retained_return_sources.is_some())?;
         if let Some(bindings) = &function.retained_return_sources {
             self.count(bindings.len(), self.limits.max_nodes)?;
@@ -2797,6 +2807,10 @@ impl<'a> Reader<'a> {
             let mut arguments = Vec::with_capacity(n);
             for _ in 0..n {
                 arguments.push(match self.u8()? {
+                    3 => LifeNominalActual::QualifiedType {
+                        ty: self.ty(0)?,
+                        life: self.storage_shape()?,
+                    },
                     0 => LifeNominalActual::Type(self.ty(0)?),
                     1 => LifeNominalActual::Const(self.constant()?),
                     2 => LifeNominalActual::Lifetime(self.u32()?),
@@ -3489,6 +3503,12 @@ impl<'a> Reader<'a> {
         }
     }
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let dyn_instance = if self.boolean()? {
+            Some(self.dyn_function_instance(0)?)
+        } else {
+            None
+        };
+
         let retained_return_sources = if self.boolean()? {
             let count = self.count(self.limits.max_nodes, 9)?;
             let mut bindings = Vec::with_capacity(count);
@@ -3689,6 +3709,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            dyn_instance,
             retained_return_sources,
             storage_life,
             call_kind,

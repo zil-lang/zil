@@ -1583,6 +1583,7 @@ mod pod_tests {
         use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
         let span = Span::new(zil_base::FileId(0), 0, 1);
         let scalar = |count: usize| TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,

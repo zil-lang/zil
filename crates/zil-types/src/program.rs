@@ -431,6 +431,7 @@ pub(super) fn check_resolved_program_with_reuse(
                     .map_err(|e| vec![e])?;
             }
             let export = ScalarFunction {
+                dyn_instance: typed.dyn_instance.clone(),
                 retained_return_sources: typed.retained_return_sources.clone(),
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: typed.reference_return_bound.clone(),

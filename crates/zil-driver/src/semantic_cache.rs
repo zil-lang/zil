@@ -347,6 +347,7 @@ impl<'a> Reader<'a> {
             0,
         )?;
         Some(ScalarFunction {
+            dyn_instance: f.dyn_instance.clone(),
             retained_return_sources: f.retained_return_sources.clone(),
             storage_life: None,
             reference_return_bound,

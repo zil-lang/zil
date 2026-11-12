@@ -29,6 +29,7 @@ fn sum() -> Type {
 fn module(parameter: bool, swap: bool) -> TypedModule {
     let ty = sum();
     let mut f = TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -931,6 +932,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -1061,6 +1063,7 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
     for fresh in [false, true] {
         let mut m = module(true, false);
         let identity = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
@@ -1436,6 +1439,7 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
     f.result_mode = PassingMode::Create;
     f.blocks[0].terminator = Terminator::Return(Some(out));
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -1523,6 +1527,7 @@ fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() 
 fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
     let mut m = module(true, false);
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -1683,6 +1688,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         _ => InstructionKind::DropErrorUnion { local: LocalId(1) },
     };
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -1765,6 +1771,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,

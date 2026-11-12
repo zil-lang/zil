@@ -99,8 +99,8 @@ fn main()->i32{return 0}
     assert_eq!(
         d.implemented_trait.as_ref().unwrap().arguments,
         [
-            zil_ir::DynPatternActual::LifeParameter(0),
-            zil_ir::DynPatternActual::LifeParameter(1)
+            zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0)),
+            zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(1))
         ]
     );
 }

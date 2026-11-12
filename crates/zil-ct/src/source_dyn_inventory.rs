@@ -76,7 +76,7 @@ impl Walk<'_> {
             match actual {
                 DynPatternActual::Type(ty) => self.pattern_type(ty, depth + 2)?,
                 DynPatternActual::Const(value) => self.pattern_const(value, depth + 2)?,
-                DynPatternActual::LifeParameter(_) => {}
+                DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(_)) => {}
             }
         }
         Ok(())

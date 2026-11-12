@@ -124,6 +124,7 @@ fn candidate(copy: Type, operation: Operation, repetitions: usize) -> TypedModul
         source_fingerprint: Fingerprint::of(b"package field budget controls"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

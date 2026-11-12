@@ -288,8 +288,8 @@ impl Writer<'_> {
         depth: usize,
     ) -> WireResult<()> {
         self.dyn_recipe_node(depth)?;
-        self.u32(&value.module.0)?;
-        self.u32(&value.source.0)?;
+        self.u32((&value.module).0)?;
+        self.u32((&value.source).0)?;
         Ok(())
     }
     pub(super) fn dyn_definition_scope(
@@ -461,6 +461,181 @@ impl Writer<'_> {
         self.count((&value.associated).len(), self.limits.max_nodes)?;
         for item in &value.associated {
             self.dyn_associated_resolution(item, depth + 1)?;
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_self_pattern(
+        &mut self,
+        value: &DynSelfPattern,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        self.declaration_id(&value.declaration)?;
+        self.count((&value.arguments).len(), self.limits.max_nodes)?;
+        for item in &value.arguments {
+            self.dyn_pattern_actual(item, depth + 1)?;
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_pattern_actual(
+        &mut self,
+        value: &DynPatternActual,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        match value {
+            DynPatternActual::Type(value_0) => {
+                self.u8(0)?;
+                self.dyn_type_pattern(value_0, depth + 1)?;
+            }
+            DynPatternActual::Const(value_0) => {
+                self.u8(1)?;
+                self.dyn_const_pattern(value_0, depth + 1)?;
+            }
+            DynPatternActual::Life(value_0) => {
+                self.u8(2)?;
+                self.dyn_life_pattern(value_0, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_const_pattern(
+        &mut self,
+        value: &DynConstPattern,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        match value {
+            DynConstPattern::Value(value_0) => {
+                self.u8(0)?;
+                self.constant(value_0)?;
+            }
+            DynConstPattern::Parameter(value_0) => {
+                self.u8(1)?;
+                self.u32(*value_0)?;
+            }
+            DynConstPattern::MethodParameter(value_0) => {
+                self.u8(2)?;
+                self.u32(*value_0)?;
+            }
+            DynConstPattern::Unary { op, value, ty } => {
+                self.u8(3)?;
+                self.unary(*op)?;
+                self.dyn_const_pattern(value, depth + 1)?;
+                self.dyn_type_pattern(ty, depth + 1)?;
+            }
+            DynConstPattern::Binary {
+                op,
+                left,
+                right,
+                ty,
+            } => {
+                self.u8(4)?;
+                self.binary(*op)?;
+                self.dyn_const_pattern(left, depth + 1)?;
+                self.dyn_const_pattern(right, depth + 1)?;
+                self.dyn_type_pattern(ty, depth + 1)?;
+            }
+            DynConstPattern::Convert { value, ty } => {
+                self.u8(5)?;
+                self.dyn_const_pattern(value, depth + 1)?;
+                self.dyn_type_pattern(ty, depth + 1)?;
+            }
+            DynConstPattern::AssociatedProjection {
+                receiver,
+                application,
+                member,
+            } => {
+                self.u8(6)?;
+                self.dyn_type_pattern(receiver, depth + 1)?;
+                self.dyn_self_pattern(application, depth + 1)?;
+                self.u32(*member)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_type_pattern(
+        &mut self,
+        value: &DynTypePattern,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        match value {
+            DynTypePattern::Concrete(value_0) => {
+                self.u8(0)?;
+                self.ty(value_0, depth + 1)?;
+            }
+            DynTypePattern::Parameter(value_0) => {
+                self.u8(1)?;
+                self.u32(*value_0)?;
+            }
+            DynTypePattern::Nominal(value_0) => {
+                self.u8(2)?;
+                self.dyn_self_pattern(value_0, depth + 1)?;
+            }
+            DynTypePattern::Address {
+                mutable,
+                lifetime,
+                inner,
+            } => {
+                self.u8(3)?;
+                self.boolean(*mutable)?;
+                self.boolean((lifetime).is_some())?;
+                if let Some(item) = lifetime {
+                    self.dyn_life_pattern(item, depth + 1)?;
+                }
+                self.dyn_type_pattern(inner, depth + 1)?;
+            }
+            DynTypePattern::Tuple(value_0) => {
+                self.u8(4)?;
+                self.count((value_0).len(), self.limits.max_nodes)?;
+                for item in value_0 {
+                    self.dyn_type_pattern(item, depth + 1)?;
+                }
+            }
+            DynTypePattern::Array { element, length } => {
+                self.u8(5)?;
+                self.dyn_type_pattern(element, depth + 1)?;
+                self.dyn_const_pattern(length, depth + 1)?;
+            }
+            DynTypePattern::Slice(value_0) => {
+                self.u8(6)?;
+                self.dyn_type_pattern(value_0, depth + 1)?;
+            }
+            DynTypePattern::Managed(value_0) => {
+                self.u8(7)?;
+                self.dyn_type_pattern(value_0, depth + 1)?;
+            }
+            DynTypePattern::Desc(value_0) => {
+                self.u8(8)?;
+                self.dyn_type_pattern(value_0, depth + 1)?;
+            }
+            DynTypePattern::OwnedStore(value_0) => {
+                self.u8(9)?;
+                self.dyn_type_pattern(value_0, depth + 1)?;
+            }
+            DynTypePattern::ErrorUnion { error, result } => {
+                self.u8(10)?;
+                self.dyn_type_pattern(error, depth + 1)?;
+                self.dyn_type_pattern(result, depth + 1)?;
+            }
+            DynTypePattern::SelfType => {
+                self.u8(11)?;
+            }
+            DynTypePattern::MethodParameter(value_0) => {
+                self.u8(12)?;
+                self.u32(*value_0)?;
+            }
+            DynTypePattern::AssociatedProjection {
+                receiver,
+                application,
+                member,
+            } => {
+                self.u8(13)?;
+                self.dyn_type_pattern(receiver, depth + 1)?;
+                self.dyn_self_pattern(application, depth + 1)?;
+                self.u32(*member)?;
+            }
         }
         Ok(())
     }
@@ -868,6 +1043,103 @@ impl Reader<'_> {
                 }
                 rows
             },
+        })
+    }
+    pub(super) fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {
+        self.dyn_recipe_node(depth)?;
+        Ok(DynSelfPattern {
+            declaration: self.declaration_id()?,
+            arguments: {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_pattern_actual(depth + 1)?);
+                }
+                rows
+            },
+        })
+    }
+    pub(super) fn dyn_pattern_actual(&mut self, depth: usize) -> WireResult<DynPatternActual> {
+        self.dyn_recipe_node(depth)?;
+        Ok(match self.u8()? {
+            0 => DynPatternActual::Type(self.dyn_type_pattern(depth + 1)?),
+            1 => DynPatternActual::Const(self.dyn_const_pattern(depth + 1)?),
+            2 => DynPatternActual::Life(self.dyn_life_pattern(depth + 1)?),
+            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+        })
+    }
+    pub(super) fn dyn_const_pattern(&mut self, depth: usize) -> WireResult<DynConstPattern> {
+        self.dyn_recipe_node(depth)?;
+        Ok(match self.u8()? {
+            0 => DynConstPattern::Value(self.constant()?),
+            1 => DynConstPattern::Parameter(self.u32()?),
+            2 => DynConstPattern::MethodParameter(self.u32()?),
+            3 => DynConstPattern::Unary {
+                op: self.unary()?,
+                value: Box::new(self.dyn_const_pattern(depth + 1)?),
+                ty: Box::new(self.dyn_type_pattern(depth + 1)?),
+            },
+            4 => DynConstPattern::Binary {
+                op: self.binary()?,
+                left: Box::new(self.dyn_const_pattern(depth + 1)?),
+                right: Box::new(self.dyn_const_pattern(depth + 1)?),
+                ty: Box::new(self.dyn_type_pattern(depth + 1)?),
+            },
+            5 => DynConstPattern::Convert {
+                value: Box::new(self.dyn_const_pattern(depth + 1)?),
+                ty: Box::new(self.dyn_type_pattern(depth + 1)?),
+            },
+            6 => DynConstPattern::AssociatedProjection {
+                receiver: Box::new(self.dyn_type_pattern(depth + 1)?),
+                application: Box::new(self.dyn_self_pattern(depth + 1)?),
+                member: self.u32()?,
+            },
+            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
+        })
+    }
+    pub(super) fn dyn_type_pattern(&mut self, depth: usize) -> WireResult<DynTypePattern> {
+        self.dyn_recipe_node(depth)?;
+        Ok(match self.u8()? {
+            0 => DynTypePattern::Concrete(self.ty(depth + 1)?),
+            1 => DynTypePattern::Parameter(self.u32()?),
+            2 => DynTypePattern::Nominal(Box::new(self.dyn_self_pattern(depth + 1)?)),
+            3 => DynTypePattern::Address {
+                mutable: self.boolean()?,
+                lifetime: if self.boolean()? {
+                    Some(self.dyn_life_pattern(depth + 1)?)
+                } else {
+                    None
+                },
+                inner: Box::new(self.dyn_type_pattern(depth + 1)?),
+            },
+            4 => DynTypePattern::Tuple({
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_type_pattern(depth + 1)?);
+                }
+                rows
+            }),
+            5 => DynTypePattern::Array {
+                element: Box::new(self.dyn_type_pattern(depth + 1)?),
+                length: self.dyn_const_pattern(depth + 1)?,
+            },
+            6 => DynTypePattern::Slice(Box::new(self.dyn_type_pattern(depth + 1)?)),
+            7 => DynTypePattern::Managed(Box::new(self.dyn_type_pattern(depth + 1)?)),
+            8 => DynTypePattern::Desc(Box::new(self.dyn_type_pattern(depth + 1)?)),
+            9 => DynTypePattern::OwnedStore(Box::new(self.dyn_type_pattern(depth + 1)?)),
+            10 => DynTypePattern::ErrorUnion {
+                error: Box::new(self.dyn_type_pattern(depth + 1)?),
+                result: Box::new(self.dyn_type_pattern(depth + 1)?),
+            },
+            11 => DynTypePattern::SelfType,
+            12 => DynTypePattern::MethodParameter(self.u32()?),
+            13 => DynTypePattern::AssociatedProjection {
+                receiver: Box::new(self.dyn_type_pattern(depth + 1)?),
+                application: Box::new(self.dyn_self_pattern(depth + 1)?),
+                member: self.u32()?,
+            },
+            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
         })
     }
     pub(super) fn storage_source_binding(

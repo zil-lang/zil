@@ -896,7 +896,7 @@ fn main()->i32{return 0}
             .unwrap();
         assert_eq!(
             declaration.implemented_trait.as_ref().unwrap().arguments,
-            [zil_ir::DynPatternActual::LifeParameter(0)]
+            [zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))]
         );
     }
     #[test]
@@ -934,7 +934,7 @@ fn main()->i32{return 0}
         let pattern = declaration.self_pattern.as_ref().unwrap();
         assert_eq!(
             pattern.arguments,
-            [zil_ir::DynPatternActual::LifeParameter(0)]
+            [zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))]
         );
         let instance = module
             .life_instances
@@ -1042,8 +1042,8 @@ fn main()->i32{return 0}
             assert_eq!(
                 pattern.arguments,
                 [
-                    zil_ir::DynPatternActual::LifeParameter(1),
-                    zil_ir::DynPatternActual::LifeParameter(0)
+                    zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(1)),
+                    zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))
                 ]
             );
             let instance = module

@@ -58,6 +58,7 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
             values.push(Type::I32);
         }
         functions.push(TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

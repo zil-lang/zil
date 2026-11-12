@@ -387,7 +387,10 @@ pub struct LifeNominalDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LifeNominalActual {
     Type(Type),
-    QualifiedType { ty: Type, life: StorageLifeShape },
+    QualifiedType {
+        ty: Type,
+        life: StorageLifeShape,
+    },
     Const(Constant),
     /// The instance type's OWN qualified fixed scope, not an enclosing numeric
     /// class coincidentally having this ordinal. Outer maps explicitly compose.
@@ -913,6 +916,7 @@ pub enum CoreAggregateArgument {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
     /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
     pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
@@ -1599,6 +1603,7 @@ pub struct ClosureDefinition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
     /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
     pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
@@ -3094,6 +3099,11 @@ fn encode_life_inventory(
         encode_len(b, instance.arguments.len());
         for argument in &instance.arguments {
             match argument {
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    b.push(3);
+                    encode_type(b, ty);
+                    encode_storage_shape(b, life);
+                }
                 LifeNominalActual::Type(ty) => {
                     b.push(0);
                     encode_type(b, ty)
@@ -3288,6 +3298,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.dyn_instance.is_some()));
+    if let Some(instance) = &f.dyn_instance {
+        encode_dyn_function_instance(b, instance);
+    }
     b.push(u8::from(f.retained_return_sources.is_some()));
     if let Some(bindings) = &f.retained_return_sources {
         encode_len(b, bindings.len());

@@ -45,13 +45,18 @@ fn fixture(formals: Vec<u32>, classes: Vec<u32>, actuals: Vec<u32>) -> TypedModu
             .collect(),
     });
     module.dyn_declarations.push(DynDeclaration {
-        self_pattern: Some(DynSelfPattern {
+direct_supertraits: None,
+requirements: None,
+associated_definitions: None,
+method_signatures: None,
+method_definitions: None,
+        self_pattern: Some(zil_ir::DynTypePattern::Nominal(Box::new(DynSelfPattern {
             declaration: nominal,
             arguments: formals
                 .into_iter()
                 .map(DynPatternActual::LifeParameter)
                 .collect(),
-        }),
+        }))),
         implemented_trait: Some(DynSelfPattern {
             declaration: trait_id,
             arguments: (0..actuals.len() as u32)
@@ -95,6 +100,8 @@ fn fixture(formals: Vec<u32>, classes: Vec<u32>, actuals: Vec<u32>) -> TypedModu
         slots: vec![],
     });
     module.dyn_vtables.push(DynVtable {
+self_life: None,
+implementation_witnesses: None,
         self_classes: (0..count).map(StorageBinder::Fixed).collect(),
         id: DynVtableId {
             module: ModuleId(0),

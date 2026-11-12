@@ -639,6 +639,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,

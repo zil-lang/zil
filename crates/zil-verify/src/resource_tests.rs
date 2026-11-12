@@ -36,6 +36,7 @@ fn local(id: u32, ty: Type) -> LocalDecl {
 }
 fn function() -> TypedFunction {
     TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -322,6 +323,7 @@ fn with_teardown() -> TypedModule {
     let mut m = module();
     m.resources[0].teardown = Some(FunctionId(1));
     m.functions.push(TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
@@ -435,6 +437,7 @@ fn process_abort_is_not_a_normal_cleanup_exit() {
 
 fn consume_function(id: u32) -> TypedFunction {
     TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,

@@ -25,6 +25,7 @@ fn callback(count: usize) -> Type {
 }
 fn function() -> CoreFunction {
     CoreFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: None,
