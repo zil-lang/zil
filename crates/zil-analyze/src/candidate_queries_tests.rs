@@ -338,7 +338,7 @@ fn foreign_getters_do_not_disable_independent_scalar_queries_or_source_rebinding
         InstructionKind::Constant(Constant::I32(12345));
     // A real insertion shifts every following diagnostic binding. It must not
     // invalidate successful semantic candidate rows in otherwise equal items.
-    for function in &mut edited.module.functions[1..] {
+    for function in edited.module.functions.iter_mut().skip(1) {
         function.span = Span::new(FileId(8), 500, 510);
         for local in &mut function.locals {
             local.span = function.span;
