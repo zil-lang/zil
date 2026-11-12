@@ -79,6 +79,12 @@ pub struct NativeProductStats {
     pub mir_key_bytes: u64,
     pub mir_snapshot_bytes: u64,
     pub mir_replay_bytes: u64,
+    // Actual scoped MIR costs, not a partition of total native time. Dispatch,
+    // optimization, emission and other unassigned work remain in receipt totals.
+    pub mir_key_ns: u64,
+    pub mir_parse_ns: u64,
+    pub mir_restore_validate_ns: u64,
+    pub mir_capture_ns: u64,
     pub retained_bytes: u64,
     pub failed_replays: u64,
     pub fresh_context_fallbacks: u64,
@@ -87,7 +93,7 @@ pub struct NativeProductStats {
 impl NativeProductStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{}}}",
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"mir_key_ns\":{},\"mir_parse_ns\":{},\"mir_restore_validate_ns\":{},\"mir_capture_ns\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{}}}",
             self.available,
             self.optimizer_function_stage_executions,
             self.optimizer_function_stage_reuses,
@@ -104,6 +110,10 @@ impl NativeProductStats {
             self.mir_key_bytes,
             self.mir_snapshot_bytes,
             self.mir_replay_bytes,
+            self.mir_key_ns,
+            self.mir_parse_ns,
+            self.mir_restore_validate_ns,
+            self.mir_capture_ns,
             self.retained_bytes,
             self.failed_replays,
             self.fresh_context_fallbacks,
