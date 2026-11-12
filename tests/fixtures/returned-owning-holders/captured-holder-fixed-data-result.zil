@@ -6,7 +6,7 @@ fn main()->i32{
  var b=22
  var holder=hold(&a)
  var pointer=holder.pointer;
- {let f=make(&mut holder);pointer=f()}
+ if true {let f=make(&mut holder);pointer=f()}
  holder.pointer=&b
  let old=*pointer
  a=21

@@ -1690,7 +1690,7 @@ pub(super) fn preflight(
         }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
-        } else if invocation
+        } else if invocation || super::stored_callables::transferred(closure)
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
                 && matches!(
@@ -1763,9 +1763,6 @@ pub(super) fn preflight(
                 )
                 .ok_or_else(|| bad("callable return relation exceeds bounds"))?;
                 budget.input(work, "callable return relation")?;
-                return Err(bad(
-                    "callable return relation requires independent concrete environment proof",
-                ));
             }
             if let Some(bindings) = &contract.capture_sources {
                 count(
