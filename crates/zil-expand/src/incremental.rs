@@ -15,6 +15,18 @@ impl PartialEq for ModuleRevision {
     }
 }
 impl Eq for ModuleRevision {}
+/// Process-local scalar input identity, distinct from the current absolute
+/// source binding. Only the successful closed producer can mint or preserve it.
+/// Equal versions mean byte-identical function input under the same admitted
+/// environment, not a Typed/Verified result or a public content-hash promise.
+#[derive(Clone, Debug)]
+pub struct FunctionInputRevision(Arc<()>);
+impl PartialEq for FunctionInputRevision {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for FunctionInputRevision {}
 #[derive(Clone, Debug)]
 pub struct ProducedProgram {
     core: Arc<CoreProgram>,
@@ -33,6 +45,23 @@ impl ProducedProgram {
     pub fn function_revision(&self, module: ModuleId, name: &str) -> Option<&ModuleRevision> {
         Some(&self.functions.get(&(module, name.to_owned()))?.revision)
     }
+    /// Sealed source input equality with absolute positions tracked separately.
+    /// Current declaration IDs, context, signature reads and budgets are still
+    /// consumers' obligations; this cannot retarget an arbitrary raw Core.
+    pub fn function_input_revision(
+        &self,
+        module: ModuleId,
+        name: &str,
+    ) -> Option<&FunctionInputRevision> {
+        Some(
+            &self
+                .functions
+                .get(&(module, name.to_owned()))?
+                .input_revision,
+        )
+    }
+    /// Compiler-local fingerprint of current declaration bytes and absolute
+    /// source binding; relocation still changes it. This is not a wire key.
     pub fn function_source_fingerprint(&self, module: ModuleId, name: &str) -> Option<Fingerprint> {
         Some(self.functions.get(&(module, name.to_owned()))?.fingerprint)
     }
@@ -106,6 +135,8 @@ statistics!(
     cloned_source_bytes,
     function_input_hashes,
     function_input_reuses,
+    function_input_text_comparisons,
+    function_input_binding_hashes,
     context_ns,
     production_ns,
     reuse_ns,
@@ -232,8 +263,15 @@ struct Receipt {
 }
 #[derive(Clone, Debug)]
 struct FunctionInput {
+    // The declaration slice excludes other functions and includes all local
+    // relative positions. The old Entry owns its real ParsedSource until this
+    // epoch is replaced; no copied source buffer or independent history exists.
+    id: zil_base::NodeId,
+    span: Span,
+    text_fingerprint: Fingerprint,
     fingerprint: Fingerprint,
     revision: ModuleRevision,
+    input_revision: FunctionInputRevision,
 }
 #[derive(Clone)]
 struct Entry {
@@ -511,10 +549,12 @@ impl ExpandSession {
             let source = entry.parsed.source();
             let mut next_functions = BTreeMap::new();
             for function in &module.core.functions {
-                // The scalar producer performs no CT/trait/generic rewrites.
-                // Preserve identity only for byte-identical declaration text,
-                // exact relocation IDs/spans and the complete compatible
-                // environment. Position or identity changes conservatively miss.
+                // This closed scalar producer has rejected constants, CT,
+                // generics, traits, captures and all other rewriting domains.
+                // The compatible environment above binds current declarations,
+                // imports, target and source identity. Compare real old/current
+                // parser-owned declaration bytes, never a caller-provided hash
+                // or an old Typed result, before preserving relative input.
                 let Some(text) = source
                     .text
                     .get(function.span.start..function.span.end)
@@ -522,25 +562,61 @@ impl ExpandSession {
                 else {
                     return Ok(None);
                 };
-                let mut fingerprint = FingerprintBuilder::new();
-                source.module_id.hash(&mut fingerprint);
-                source.file_id.hash(&mut fingerprint);
-                function.id.hash(&mut fingerprint);
-                function.span.start.hash(&mut fingerprint);
-                function.span.end.hash(&mut fingerprint);
-                function.name.hash(&mut fingerprint);
-                fingerprint.update(text.as_bytes());
-                let fingerprint = fingerprint.digest();
-                self.stats.function_input_hashes += 1;
-                let input = entry
+                let previous = entry
                     .functions
                     .get(&function.name)
-                    .filter(|previous| previous.fingerprint == fingerprint)
-                    .cloned()
-                    .unwrap_or_else(|| FunctionInput {
-                        fingerprint,
-                        revision: ModuleRevision(Arc::new(())),
+                    .filter(|previous| {
+                        previous.id == function.id && previous.span.file == function.span.file
+                    })
+                    .and_then(|previous| {
+                        let old = self.entries.get(&source.module_id)?;
+                        let old_source = old.parsed.source();
+                        if old_source.file_id != source.file_id {
+                            return None;
+                        }
+                        let old_text = old_source
+                            .text
+                            .get(previous.span.start..previous.span.end)?;
+                        self.stats.function_input_text_comparisons += 1;
+                        (old_text == text).then_some(previous)
                     });
+                let text_fingerprint = previous.map_or_else(
+                    || {
+                        // Counts full declaration-text hashing, separately from the
+                        // small current-position binding digest below.
+                        self.stats.function_input_hashes += 1;
+                        Fingerprint::of(text.as_bytes())
+                    },
+                    |previous| {
+                        self.stats.function_input_reuses += 1;
+                        previous.text_fingerprint
+                    },
+                );
+                let input = if let Some(previous) = previous.filter(|p| p.span == function.span) {
+                    previous.clone()
+                } else {
+                    let mut fingerprint = FingerprintBuilder::new();
+                    fingerprint.update(b"ZIL-SCALAR-FUNCTION-SOURCE-2\0");
+                    source.module_id.hash(&mut fingerprint);
+                    source.file_id.hash(&mut fingerprint);
+                    function.id.hash(&mut fingerprint);
+                    function.span.start.hash(&mut fingerprint);
+                    function.span.end.hash(&mut fingerprint);
+                    function.name.hash(&mut fingerprint);
+                    fingerprint.update(&text_fingerprint.0);
+                    self.stats.function_input_binding_hashes += 1;
+                    FunctionInput {
+                        id: function.id,
+                        span: function.span,
+                        text_fingerprint,
+                        fingerprint: fingerprint.digest(),
+                        revision: ModuleRevision(Arc::new(())),
+                        input_revision: previous.map_or_else(
+                            || FunctionInputRevision(Arc::new(())),
+                            |previous| previous.input_revision.clone(),
+                        ),
+                    }
+                };
                 functions.insert((source.module_id, function.name.clone()), input.clone());
                 next_functions.insert(function.name.clone(), input);
             }

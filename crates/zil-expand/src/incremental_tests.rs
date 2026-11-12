@@ -725,3 +725,134 @@ fn function_revision_does_not_survive_a_changed_declaration_environment() {
         current.function_revision(ModuleId(0), "second")
     );
 }
+
+#[test]
+fn relocated_input_keeps_only_its_sealed_relative_version_and_current_binding() {
+    let limits = Limits::default();
+    let original = "fn first(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn second(x:i32)->i32{if x<10{return x+3;}else{return x*4;}}";
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &[parsed(0, original)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let wider = original.replace("x+1", "x+117");
+    let current = checked(&mut session, &[parsed(0, &wider)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_ne!(
+        cold.function_input_revision(ModuleId(0), "first"),
+        current.function_input_revision(ModuleId(0), "first")
+    );
+    assert_eq!(
+        cold.function_input_revision(ModuleId(0), "second"),
+        current.function_input_revision(ModuleId(0), "second")
+    );
+    // The existing public revision and fingerprint remain exact current
+    // position bindings. Only the new opaque input version survives movement.
+    assert_ne!(
+        cold.function_revision(ModuleId(0), "second"),
+        current.function_revision(ModuleId(0), "second")
+    );
+    assert_ne!(
+        cold.function_source_fingerprint(ModuleId(0), "second"),
+        current.function_source_fingerprint(ModuleId(0), "second")
+    );
+    assert_eq!(session.last_stats().function_input_hashes, 1);
+    assert_eq!(session.last_stats().function_input_reuses, 1);
+    assert_eq!(session.last_stats().function_input_text_comparisons, 2);
+    assert_eq!(session.last_stats().function_input_binding_hashes, 2);
+    assert_eq!(session.last_stats().cloned_source_bytes, 0);
+    let fresh = checked(&mut ExpandSession::default(), &[parsed(0, &wider)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    for name in ["first", "second"] {
+        assert_eq!(
+            current.function_source_fingerprint(ModuleId(0), name),
+            fresh.function_source_fingerprint(ModuleId(0), name)
+        );
+    }
+    let shifted = checked(&mut session, &[parsed(0, &format!("\n\n{wider}"))], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    for name in ["first", "second"] {
+        assert_eq!(
+            current.function_input_revision(ModuleId(0), name),
+            shifted.function_input_revision(ModuleId(0), name)
+        );
+        assert_ne!(
+            current.function_revision(ModuleId(0), name),
+            shifted.function_revision(ModuleId(0), name)
+        );
+    }
+    assert_eq!(session.last_stats().function_input_hashes, 0);
+    assert_eq!(session.last_stats().function_input_reuses, 2);
+    // Whitespace inside the declaration changes relative diagnostic positions.
+    let interior = checked(
+        &mut session,
+        &[parsed(0, &format!("\n\n{}", wider.replace("x+3", "x + 3")))],
+        &limits,
+    )
+    .into_program(ModuleId(0), Fingerprint::ZERO)
+    .0;
+    assert_ne!(
+        shifted.function_input_revision(ModuleId(0), "second"),
+        interior.function_input_revision(ModuleId(0), "second")
+    );
+    assert_eq!(session.last_stats().function_input_hashes, 1);
+}
+
+#[test]
+fn relative_input_versions_do_not_survive_declaration_insertion_deletion_or_signature_changes() {
+    let limits = Limits::default();
+    let original = "fn first(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn second(x:i32)->i32{if x<10{return first(x);}else{return x*4;}}";
+    for current_text in [
+        format!("fn inserted(x:i32)->i32=>x; {original}"),
+        original.replace(
+            "fn first(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} ",
+            "",
+        ),
+        original
+            .replace("first(x:i32)", "first(y:i32)")
+            .replace("return x+1", "return y+1")
+            .replace("return x*2", "return y*2")
+            .replace("if x<10{return y", "if y<10{return y"),
+        original.replacen("fn first", "pub fn first", 1),
+    ] {
+        let mut session = ExpandSession::default();
+        let cold = checked(&mut session, &[parsed(0, original)], &limits)
+            .into_program(ModuleId(0), Fingerprint::ZERO)
+            .0;
+        let current = checked(&mut session, &[parsed(0, &current_text)], &limits)
+            .into_program(ModuleId(0), Fingerprint::ZERO)
+            .0;
+        assert_ne!(
+            cold.function_input_revision(ModuleId(0), "second"),
+            current.function_input_revision(ModuleId(0), "second"),
+            "{current_text}"
+        );
+        assert_eq!(session.last_stats().function_input_reuses, 0);
+    }
+}
+
+#[test]
+fn rewritten_and_captured_inputs_cannot_mint_relative_scalar_versions() {
+    // These all parse successfully, but require ordinary complete expansion.
+    // A prior successful scalar epoch must not admit their unchanged function
+    // text without the constant/CT/instance/capture dependencies being checked.
+    let original = "fn first(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}";
+    for text in [
+        format!("const N:i32=7; {original}"),
+        format!("#if(true){{fn chosen()->i32=>7;}} {original}"),
+        format!("fn identity<T>(x:T)->T=>x; {original}"),
+        format!("trait Read{{fn get(self:&Self)->i32;}} {original}"),
+        "fn first(x:i32)->i32{let f=()=>x;return f();}".into(),
+    ] {
+        let mut session = ExpandSession::default();
+        checked(&mut session, &[parsed(0, original)], &Limits::default());
+        assert!(
+            expand(&mut session, &[parsed(0, &text)], &Limits::default())
+                .unwrap()
+                .is_none(),
+            "{text}"
+        );
+    }
+}

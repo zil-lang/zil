@@ -441,3 +441,89 @@ fn canonical_products_are_sealed_to_the_current_raw_result_not_public_fields() {
     );
     assert_eq!(canonical.name, current.name);
 }
+
+#[test]
+fn unchanged_relative_inputs_skip_bodykey_walks_but_current_cfg_positions_and_wire_match_fresh() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}}";
+    for use_graph in [false, true] {
+        let mut producer = ExpandSession::default();
+        let mut session = FunctionSession::default();
+        let wider = original.replace("x+1", "x+117");
+        for (text, keys, relocated) in [
+            (original.to_owned(), (2, 0), 0),
+            (wider.clone(), (1, 1), 1),
+            (format!("\n\n{wider}"), (0, 2), 2),
+            (format!("\n\n{}", wider.replace("x+3", "x + 3")), (1, 1), 0),
+        ] {
+            let produced = expand(&mut producer, &[parse_functions(&text)]);
+            let prepared =
+                preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+                    .unwrap()
+                    .into_prepared();
+            let actual = check(&mut session, &prepared, use_graph).unwrap();
+            let mut fresh = FunctionSession::default();
+            let expected = fresh
+                .check_prepared_program(&prepared, &TargetProfile::default(), &Limits::default())
+                .unwrap();
+            assert_eq!(actual, expected);
+            let stats = session.last_stats();
+            assert_eq!((stats.body_key_executions, stats.body_key_reuses), keys);
+            assert_eq!(stats.cfg_relocated_functions, relocated);
+            assert_eq!(stats.core_function_eq_comparisons, 0);
+            assert_eq!(
+                session.encode_work_products(&TargetProfile::default(), &Limits::default()),
+                fresh.encode_work_products(&TargetProfile::default(), &Limits::default()),
+            );
+            for product in session.last_products() {
+                let current = actual
+                    .module
+                    .functions
+                    .iter()
+                    .find(|f| f.id == product.id)
+                    .unwrap();
+                assert_eq!(product.source_span, current.span);
+                assert_eq!(product.function.as_deref(), Some(current));
+            }
+        }
+    }
+}
+
+#[test]
+fn raw_or_rewritten_core_cannot_borrow_a_relative_input_version() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}}";
+    let produced = expand(&mut ExpandSession::default(), &[parse_functions(original)]);
+    let limits = Limits::default();
+    let prepared = preparation::infer_produced_program_for_ct(&produced, &limits)
+        .unwrap()
+        .into_prepared();
+    assert!(prepared.function_input_revision(ModuleId(0), "g").is_some());
+    let mut raw = (**produced.program()).clone();
+    // Deliberately preserve caller-visible source fingerprints and every span.
+    // Changing the actual raw body still destroys the private producer route.
+    let mut other = (**expand(
+        &mut ExpandSession::default(),
+        &[parse_functions(&original.replace("x+3", "x+9"))],
+    )
+    .program())
+    .clone();
+    Arc::make_mut(&mut other.modules[0].core).source_fingerprint =
+        raw.modules[0].core.source_fingerprint;
+    raw.modules[0].core = other.modules.remove(0).core;
+    let raw = infer_program_for_ct(&raw, &limits).unwrap().into_prepared();
+    let evaluated = preparation::infer_produced_program_for_ct(&produced, &limits)
+        .unwrap()
+        .after_evaluation((**produced.program()).clone());
+    for current in [&raw, &evaluated] {
+        assert!(current.function_input_revision(ModuleId(0), "g").is_none());
+        for graph in [false, true] {
+            let mut session = FunctionSession::default();
+            check(&mut session, &prepared, graph).unwrap();
+            let actual = check(&mut session, current, graph);
+            assert_eq!(
+                actual,
+                check_program(current.program(), &TargetProfile::default(), &limits)
+            );
+            assert_eq!(session.last_stats().producer_version_reuses, 0);
+        }
+    }
+}

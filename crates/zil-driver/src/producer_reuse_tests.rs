@@ -682,6 +682,14 @@ fn producer_declarations_imports_absence_visibility_and_compact_ids_match_fresh(
                 RIGHT.to_owned(),
             ),
             (
+                MAIN.to_owned(),
+                LEFT.replace(
+                    "fn leaf(x:i32)->i32{if x<7{return x+1;}else{return x+2;}} ",
+                    "",
+                ),
+                RIGHT.to_owned(),
+            ),
+            (
                 MAIN.replace("import left\nimport right", "import right\nimport left"),
                 LEFT.to_owned(),
                 RIGHT.to_owned(),
@@ -1097,6 +1105,7 @@ fn actual_function_products_reach_analysis_and_independent_verification() {
     compare(&session, &current, &changed, &options);
     let cfg = current.function_type_work.as_ref().unwrap();
     assert_eq!((cfg.executed_functions, cfg.reused_functions), (1, 4));
+    assert_eq!((cfg.body_key_executions, cfg.body_key_reuses), (1, 4));
     assert!(cfg.cfg_relocated_functions > 0);
     let analysis = current.initialization_work.unwrap();
     assert_eq!(
@@ -1123,4 +1132,63 @@ fn actual_function_products_reach_analysis_and_independent_verification() {
     successful(&recovered);
     compare(&session, &recovered, &changed, &options);
     assert_eq!(recovered.verification_work.unwrap().full_receipts_reused, 1);
+}
+
+#[test]
+fn relative_scalar_versions_never_admit_constants_ct_generics_or_capture_rewrites() {
+    let families = [
+        (
+            "const N:i32=7;fn main()->i32{return N}",
+            "const N:i32=8;fn main()->i32{return N}",
+            false,
+        ),
+        (
+            "#if(true){fn selected()->i32=>7;}else{fn selected()->i32=>9;}fn main()->i32{return selected()}",
+            "#if(false){fn selected()->i32=>7;}else{fn selected()->i32=>9;}fn main()->i32{return selected()}",
+            true,
+        ),
+        (
+            "fn identity<T>(x:T)->T=>x;fn main()->i32{return identity::<i32>(7)}",
+            "fn identity<T>(x:T)->T=>x;fn main()->i32{return identity::<i32>(8)}",
+            true,
+        ),
+        (
+            "fn main()->i32{let x=7;let f=()=>x;return f();}",
+            "fn main()->i32{let x=8;let f=()=>x;return f();}",
+            true,
+        ),
+    ];
+    for graph in [false, true] {
+        for (first, changed, supported) in families {
+            let dir = Directory::new();
+            let options = options(graph);
+            let mut session = CompilationSession::default();
+            successful(&session.compile_project(&dir.scalar(MAIN, LEFT, RIGHT), &options));
+            for main in [first, changed] {
+                let current_sources = dir.scalar(main, LEFT, RIGHT);
+                let report = session.compile_project(&current_sources, &options);
+                compare(&session, &report, &current_sources, &options);
+                if supported {
+                    successful(&report);
+                } else {
+                    assert_eq!(report.status, ResultCategory::Unsupported);
+                    assert_eq!(report.phase, Phase::Expand);
+                    assert_eq!(report.verification_runs, 0);
+                }
+                if let Some(work) = &report.function_type_work {
+                    assert_eq!(work.producer_version_reuses, 0);
+                    if work.body_key_reuses > 0 {
+                        // Ordinary graph fallback may still validate unchanged
+                        // complete raw Core after CT/instance materialization.
+                        // It must not claim a sealed scalar input-version hit.
+                        assert!(work.core_function_eq_comparisons > 0);
+                    }
+                }
+                if let Some(work) = &report.producer_work {
+                    assert_eq!(work.function_input_reuses, 0);
+                    assert_eq!(work.reused_lower_modules, 0);
+                }
+            }
+        }
+    }
 }
