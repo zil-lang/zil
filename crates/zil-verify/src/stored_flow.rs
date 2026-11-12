@@ -9,6 +9,7 @@ mod borrowed_owned_entry_tests;
 mod byte_queries;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
+mod dyn_closed;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -1444,6 +1445,7 @@ pub(super) fn qualifications(
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
+                    && !dyn_closed::operation(module, f, i, b)?
                     && !owned_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
@@ -2835,6 +2837,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let failure_view = failure_projection(f, i, b)?;
     let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
@@ -3166,6 +3169,9 @@ fn step(
                 }],
                 loans: Vec::new(),
             };
+        }
+        InstructionKind::BorrowCapture { .. } if closed_dyn_transfer.is_some() => {
+            out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
         }
         InstructionKind::BorrowCapture {
             index,
@@ -3648,6 +3654,9 @@ fn step(
         _ if failure_wrapper.is_some() => {
             out = failure_wrapper.unwrap();
         }
+        _ if closed_dyn_transfer.is_some() => {
+            out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
+        }
         _ if enum_transfer.is_some() => {
             out = enum_transfer.unwrap();
         }
@@ -3813,6 +3822,9 @@ fn step(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::BorrowDynOwned { .. }
+                | InstructionKind::MakeDynBorrow { .. }
+                | InstructionKind::CallDynSlot { .. }
         ) || b.store_descriptions()
             && matches!(
                 i.kind,
@@ -4718,6 +4730,16 @@ fn windows(
                         store_paths::record(head_accesses, permission, write, b)?;
                     }
                 }
+                dyn_closed::access(
+                    module,
+                    f,
+                    i,
+                    &state,
+                    &solution.values,
+                    &mut checks,
+                    requirements,
+                    b,
+                )?;
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
@@ -5886,13 +5908,14 @@ fn check_with_mask(
     b: &mut Budget,
 ) -> Check<()> {
     let mixed_package = b.stored_package_instance;
+    let closed_dyn_profile = dyn_closed::related_resources(module, b)?;
     let owned_byte_profile = mask.is_none()
         && !mixed_package
         && !b.masked_stored_tasks()
         && !b.task_sources()
         && owned_byte_views::profile(module, b)?;
     if mask.is_none() || b.masked_stored_tasks() {
-        if !mixed_package && !b.task_sources() && !b.masked_stored_tasks() && !owned_byte_profile {
+        if !mixed_package && !b.task_sources() && !b.masked_stored_tasks() && !owned_byte_profile && !closed_dyn_profile {
             super::stored_owned::module(module, b)?;
         }
         if !b.returned_environment_sources {
@@ -5942,11 +5965,13 @@ fn check_with_mask(
         {
             type_work(ty, &b.limits.clone(), b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
+            let closed_dyn_value = dyn_closed::value(module, ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_sources() && task_address::shape(ty))
                 && !b.masked_stored_tasks()
                 && !byte_value
+                && !closed_dyn_value
             {
                 super::stored_owned::value_type(ty, b)?;
             }
@@ -5961,6 +5986,7 @@ fn check_with_mask(
                 false
             };
             if !(byte_value
+                || closed_dyn_value
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
                 || qualified(ty).is_some()
