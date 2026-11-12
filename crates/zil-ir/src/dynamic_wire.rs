@@ -14,35 +14,35 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_declaration(&mut self, value: &DynDeclaration) -> WireResult<()> {
         let depth = 0;
-        self.boolean((&value.direct_supertraits).is_some())?;
+        self.boolean(value.direct_supertraits.is_some())?;
         if let Some(item) = &value.direct_supertraits {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {
                 self.dyn_self_pattern(item, depth + 1)?;
             }
         }
-        self.boolean((&value.requirements).is_some())?;
+        self.boolean(value.requirements.is_some())?;
         if let Some(item) = &value.requirements {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {
                 self.dyn_obligation(item, depth + 1)?;
             }
         }
-        self.boolean((&value.associated_definitions).is_some())?;
+        self.boolean(value.associated_definitions.is_some())?;
         if let Some(item) = &value.associated_definitions {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {
                 self.dyn_associated_definition(item, depth + 1)?;
             }
         }
-        self.boolean((&value.method_signatures).is_some())?;
+        self.boolean(value.method_signatures.is_some())?;
         if let Some(item) = &value.method_signatures {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {
                 self.dyn_method_recipe(item, depth + 1)?;
             }
         }
-        self.boolean((&value.method_definitions).is_some())?;
+        self.boolean(value.method_definitions.is_some())?;
         if let Some(item) = &value.method_definitions {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {
@@ -179,11 +179,11 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_vtable(&mut self, value: &DynVtable) -> WireResult<()> {
         let depth = 0;
-        self.boolean((&value.self_life).is_some())?;
+        self.boolean(value.self_life.is_some())?;
         if let Some(item) = &value.self_life {
             self.storage_shape(item)?;
         }
-        self.boolean((&value.implementation_witnesses).is_some())?;
+        self.boolean(value.implementation_witnesses.is_some())?;
         if let Some(item) = &value.implementation_witnesses {
             self.count((item).len(), self.limits.max_nodes)?;
             for item in item {

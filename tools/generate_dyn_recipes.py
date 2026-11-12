@@ -163,5 +163,8 @@ for name in items:
  method='encode_'+snake(name)
  if re.search(r'\b'+method+r'\s*\(',others):
   f+=f'pub(super) fn {method}(b: &mut impl FingerprintSink, value: &{name}) {{ encode_recipe(b,Work::{name}(value)); }}\n'
+f=re.sub(r'\(&value\.(\w+)\)\.(iter|len|is_some)\(',r'value.\1.\2(',f)
+f=re.sub(r'\*&value\.(\w+)',r'value.\1',f)
+f=re.sub(r'\(&value\.(\w+)\)\.0',r'value.\1.0',f)
 open(root+'dynamic_recipes_fingerprint.rs','w').write(f)
 print('generated',len(items),'types')

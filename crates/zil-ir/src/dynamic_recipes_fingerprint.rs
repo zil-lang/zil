@@ -76,10 +76,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::DynMember(value) => encode_dyn_member(b, value),
             Work::Constant(value) => encode_constant(b, value),
             Work::DynTypeValue(value) => {
-                for item in (&value.classes).iter().rev() {
+                for item in value.classes.iter().rev() {
                     pending.push(Work::StorageBinder(item));
                 }
-                pending.push(Work::Length((&value.classes).len()));
+                pending.push(Work::Length(value.classes.len()));
                 pending.push(Work::StorageLifeShape(&value.life));
                 pending.push(Work::Type(&value.ty));
             }
@@ -140,14 +140,14 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             }
             Work::DynSignatureRecipe(value) => {
                 pending.push(Work::DynContractRecipe(&value.contract));
-                pending.push(Work::Word(*&value.invocation_binder_count));
+                pending.push(Work::Word(value.invocation_binder_count));
                 pending.push(Work::CallKind(&value.call_kind));
                 pending.push(Work::PassingMode(&value.result_mode));
                 pending.push(Work::DynTypePattern(&value.result));
-                for item in (&value.parameters).iter().rev() {
+                for item in value.parameters.iter().rev() {
                     pending.push(Work::DynParameterRecipe(item));
                 }
-                pending.push(Work::Length((&value.parameters).len()));
+                pending.push(Work::Length(value.parameters.len()));
             }
             Work::DynRequirementRecipe(value) => match value {
                 DynRequirementRecipe::Read(value_0) => {
@@ -232,70 +232,70 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
             },
             Work::DynCleanupRecipe(value) => {
-                for item in (&value.effects).iter().rev() {
+                for item in value.effects.iter().rev() {
                     pending.push(Work::DynEffectRecipe(item));
                 }
-                pending.push(Work::Length((&value.effects).len()));
+                pending.push(Work::Length(value.effects.len()));
                 pending.push(Work::DynCallAccess(&value.access));
-                for item in (&value.positions).iter().rev() {
+                for item in value.positions.iter().rev() {
                     pending.push(Work::StoragePosition(item));
                 }
-                pending.push(Work::Length((&value.positions).len()));
-                pending.push(Work::Byte(u8::from(*&value.environment)));
+                pending.push(Work::Length(value.positions.len()));
+                pending.push(Work::Byte(u8::from(value.environment)));
             }
             Work::DynContractRecipe(value) => {
                 if let Some(item) = &value.threads {
                     pending.push(Work::DynThreadRequirements(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.threads).is_some())));
+                pending.push(Work::Byte(u8::from(value.threads.is_some())));
                 if let Some(item) = &value.resume {
                     pending.push(Work::DynResumeBound(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.resume).is_some())));
+                pending.push(Work::Byte(u8::from(value.resume.is_some())));
                 if let Some(item) = &value.effects {
                     for item in (item).iter().rev() {
                         pending.push(Work::DynEffectRecipe(item));
                     }
                     pending.push(Work::Length((item).len()));
                 }
-                pending.push(Work::Byte(u8::from((&value.effects).is_some())));
+                pending.push(Work::Byte(u8::from(value.effects.is_some())));
                 if let Some(item) = &value.cleanup {
                     pending.push(Work::DynCleanupRecipe(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.cleanup).is_some())));
+                pending.push(Work::Byte(u8::from(value.cleanup.is_some())));
                 if let Some(item) = &value.result {
                     pending.push(Work::DynResultSource(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.result).is_some())));
+                pending.push(Work::Byte(u8::from(value.result.is_some())));
                 if let Some(item) = &value.call {
                     pending.push(Work::DynCallAccess(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.call).is_some())));
+                pending.push(Work::Byte(u8::from(value.call.is_some())));
                 if let Some(item) = &value.hold {
                     for item in (item).iter().rev() {
                         pending.push(Work::StoragePosition(item));
                     }
                     pending.push(Work::Length((item).len()));
                 }
-                pending.push(Work::Byte(u8::from((&value.hold).is_some())));
+                pending.push(Work::Byte(u8::from(value.hold.is_some())));
                 if let Some(item) = &value.guarantees {
                     for item in (item).iter().rev() {
                         pending.push(Work::DynGuaranteeRecipe(item));
                     }
                     pending.push(Work::Length((item).len()));
                 }
-                pending.push(Work::Byte(u8::from((&value.guarantees).is_some())));
+                pending.push(Work::Byte(u8::from(value.guarantees.is_some())));
                 if let Some(item) = &value.requires {
                     for item in (item).iter().rev() {
                         pending.push(Work::DynRequirementRecipe(item));
                     }
                     pending.push(Work::Length((item).len()));
                 }
-                pending.push(Work::Byte(u8::from((&value.requires).is_some())));
+                pending.push(Work::Byte(u8::from(value.requires.is_some())));
             }
             Work::DynDefinitionId(value) => {
-                pending.push(Work::Word((&value.source).0));
-                pending.push(Work::Word((&value.module).0));
+                pending.push(Work::Word(value.source.0));
+                pending.push(Work::Word(value.module.0));
             }
             Work::DynDefinitionScope(value) => match value {
                 DynDefinitionScope::TraitDefault => {
@@ -308,39 +308,39 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
             Work::DynDefinitionDeclaration(value) => {
                 pending.push(Work::DynSignatureRecipe(&value.signature));
                 pending.push(Work::DynDefinitionScope(&value.scope));
-                pending.push(Work::Word(*&value.member));
+                pending.push(Work::Word(value.member));
                 pending.push(Work::LifeDeclarationIdentity(&value.identity));
                 pending.push(Work::DynDefinitionId(&value.id));
-                for item in (&value.instances).iter().rev() {
+                for item in value.instances.iter().rev() {
                     pending.push(Work::DynDefinitionSpecialization(item));
                 }
-                pending.push(Work::Length((&value.instances).len()));
-                for item in (&value.requirements).iter().rev() {
+                pending.push(Work::Length(value.instances.len()));
+                for item in value.requirements.iter().rev() {
                     pending.push(Work::DynObligation(item));
                 }
-                pending.push(Work::Length((&value.requirements).len()));
+                pending.push(Work::Length(value.requirements.len()));
             }
             Work::DynMethodRecipe(value) => {
                 if let Some(item) = &value.default_definition {
                     pending.push(Work::DynDefinitionId(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.default_definition).is_some())));
+                pending.push(Work::Byte(u8::from(value.default_definition.is_some())));
                 pending.push(Work::DynSignatureRecipe(&value.signature));
-                pending.push(Work::Word(*&value.member));
-                for item in (&value.requirements).iter().rev() {
+                pending.push(Work::Word(value.member));
+                for item in value.requirements.iter().rev() {
                     pending.push(Work::DynObligation(item));
                 }
-                pending.push(Work::Length((&value.requirements).len()));
+                pending.push(Work::Length(value.requirements.len()));
             }
             Work::DynFunctionInstance(value) => {
-                for item in (&value.method_actuals).iter().rev() {
+                for item in value.method_actuals.iter().rev() {
                     pending.push(Work::DynGenericActual(item));
                 }
-                pending.push(Work::Length((&value.method_actuals).len()));
-                for item in (&value.declaration_actuals).iter().rev() {
+                pending.push(Work::Length(value.method_actuals.len()));
+                for item in value.declaration_actuals.iter().rev() {
                     pending.push(Work::DynGenericActual(item));
                 }
-                pending.push(Work::Length((&value.declaration_actuals).len()));
+                pending.push(Work::Length(value.declaration_actuals.len()));
                 pending.push(Work::DynTypeValue(&value.receiver));
                 pending.push(Work::DynDefinitionId(&value.definition));
             }
@@ -356,19 +356,19 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
             },
             Work::DynAssociatedDefinition(value) => {
-                for item in (&value.requirements).iter().rev() {
+                for item in value.requirements.iter().rev() {
                     pending.push(Work::DynObligation(item));
                 }
-                pending.push(Work::Length((&value.requirements).len()));
+                pending.push(Work::Length(value.requirements.len()));
                 if let Some(item) = &value.value {
                     pending.push(Work::DynAssociatedValueRecipe(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.value).is_some())));
-                pending.push(Work::Word(*&value.member));
+                pending.push(Work::Byte(u8::from(value.value.is_some())));
+                pending.push(Work::Word(value.member));
                 if let Some(item) = &value.carrier {
                     pending.push(Work::DynTypePattern(item));
                 }
-                pending.push(Work::Byte(u8::from((&value.carrier).is_some())));
+                pending.push(Work::Byte(u8::from(value.carrier.is_some())));
             }
             Work::DynAssociatedSource(value) => match value {
                 DynAssociatedSource::TraitDefault {
@@ -405,14 +405,14 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 pending.push(Work::DynMember(&value.member));
             }
             Work::DynImplementationWitness(value) => {
-                for item in (&value.associated).iter().rev() {
+                for item in value.associated.iter().rev() {
                     pending.push(Work::DynAssociatedResolution(item));
                 }
-                pending.push(Work::Length((&value.associated).len()));
-                for item in (&value.actuals).iter().rev() {
+                pending.push(Work::Length(value.associated.len()));
+                for item in value.actuals.iter().rev() {
                     pending.push(Work::DynGenericActual(item));
                 }
-                pending.push(Work::Length((&value.actuals).len()));
+                pending.push(Work::Length(value.actuals.len()));
                 pending.push(Work::LifeDeclarationId(&value.implementation));
                 pending.push(Work::DynTraitApplication(&value.application));
                 pending.push(Work::DynTypeValue(&value.receiver));
@@ -429,14 +429,14 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
             },
             Work::DynDefinitionSpecialization(value) => {
-                for item in (&value.method_actuals).iter().rev() {
+                for item in value.method_actuals.iter().rev() {
                     pending.push(Work::DynGenericActual(item));
                 }
-                pending.push(Work::Length((&value.method_actuals).len()));
-                for item in (&value.declaration_actuals).iter().rev() {
+                pending.push(Work::Length(value.method_actuals.len()));
+                for item in value.declaration_actuals.iter().rev() {
                     pending.push(Work::DynGenericActual(item));
                 }
-                pending.push(Work::Length((&value.declaration_actuals).len()));
+                pending.push(Work::Length(value.declaration_actuals.len()));
                 pending.push(Work::DynTypeValue(&value.receiver));
                 pending.push(Work::DynFunctionTarget(&value.function));
             }
@@ -455,10 +455,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
             },
             Work::DynSelfPattern(value) => {
-                for item in (&value.arguments).iter().rev() {
+                for item in value.arguments.iter().rev() {
                     pending.push(Work::DynPatternActual(item));
                 }
-                pending.push(Work::Length((&value.arguments).len()));
+                pending.push(Work::Length(value.arguments.len()));
                 pending.push(Work::LifeDeclarationId(&value.declaration));
             }
             Work::DynPatternActual(value) => match value {
@@ -608,10 +608,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 }
             },
             Work::StorageSourceBinding(value) => {
-                for item in (&value.sources).iter().rev() {
+                for item in value.sources.iter().rev() {
                     pending.push(Work::StoragePosition(item));
                 }
-                pending.push(Work::Length((&value.sources).len()));
+                pending.push(Work::Length(value.sources.len()));
                 pending.push(Work::StoragePosition(&value.position));
             }
         }

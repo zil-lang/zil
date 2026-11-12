@@ -31,7 +31,8 @@ def generate(items, existing, gen, snake, root):
             return 'match ' + e + ' { Value::Rows(rows) => rows.into_iter().map(|item| ' + extract(t[4:-1], 'item') + ').collect(), _ => unreachable!("recipe row grammar") }'
         if t.startswith('Option<'):
             return 'match ' + e + ' { Value::Optional(value) => value.map(|item| ' + extract(t[7:-1], '*item') + '), _ => unreachable!("recipe optional grammar") }'
-        return 'match ' + e + ' { Value::' + key(t) + '(value) => *value, _ => unreachable!("recipe field grammar") }'
+        payload = 'value' if t == 'String' else '*value'
+        return 'match ' + e + ' { Value::' + key(t) + '(value) => ' + payload + ', _ => unreachable!("recipe field grammar") }'
     def fields(fs, base):
         return '\n'.join('pending.push(Write::' + key(t) + '(' + (('&value.' + n) if base else ('field_' + n)) + ', depth + 1));' for n, t in reversed(fs))
     others = '\n'.join(p.read_text() for p in Path(root).glob('*.rs') if p.name != 'dynamic_recipes_wire.rs')
@@ -44,7 +45,7 @@ def generate(items, existing, gen, snake, root):
     out += 'enum Read { Start(Kind,usize), Finish(Kind,u8,usize) }\nenum Value { Rows(Vec<Value>), Optional(Option<Box<Value>>),\n'
     for t, k in types.items():
         if not t.startswith(('Vec<', 'Option<')):
-            out += k + '(Box<' + t + '>),\n'
+            out += k + ('(String),\n' if t == 'String' else '(Box<' + t + '>),\n')
     out += '}\nimpl Writer<\'_> {\n'
     out += 'fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> { if depth >= self.limits.max_call_depth.min(128) {return Err(quota("dynamic recipe depth exceeded"));} self.charge(1) }\n'
     for n in roots:
@@ -97,7 +98,9 @@ def generate(items, existing, gen, snake, root):
             if shape == 'enum':
                 out += '_ => return Err(malformed("E-WIRE-TAG","unknown dynamic recipe tag")), }\n'
         else:
-            out += 'let _ = depth;\nvalues.push(Value::' + k + '(Box::new(' + gen(t, '', 'r').replace('depth + 1', 'depth') + ')));\n'
+            payload = gen(t, '', 'r').replace('depth + 1', 'depth')
+            if t != 'String': payload = 'Box::new(' + payload + ')'
+            out += 'let _ = depth;\nvalues.push(Value::' + k + '(' + payload + '));\n'
         out += '},\n'
     out += '}, Read::Finish(kind,tag,count) => { let at=values.len().checked_sub(count).expect("recipe grammar arity"); let mut fields=values.split_off(at).into_iter(); let value = match kind {\n'
     for t, k in types.items():
