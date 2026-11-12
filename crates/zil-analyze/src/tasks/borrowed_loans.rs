@@ -629,6 +629,7 @@ fn shared_access(
     Ok(())
 }
 fn access(
+    module: &TypedModule,
     f: &TypedFunction,
     catalog: &Catalog,
     i: &Instruction,
@@ -774,11 +775,98 @@ fn access(
         )?;
     }
     match i.kind {
-        InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. } => {
-            return Err(fail(
-                i.span,
-                "closure environment effects during a borrowed Task require the retained capture consumer",
-            ));
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => {
+            let (definition, _) = crate::stored_callables::called(module, f, &i.kind)
+                .ok_or_else(|| fail(i.span, "Task callable access has no actual receiver entry"))?;
+            if !crate::stored_callables::scalar(&definition.result) {
+                return Err(fail(
+                    i.span,
+                    "Task callable result needs its complete retained transport",
+                ));
+            }
+            fee(
+                b,
+                definition
+                    .captures
+                    .len()
+                    .saturating_add(definition.parameters.len()),
+            )?;
+            for parameter in &definition.parameters {
+                b.type_work(parameter, false, "Task callable actual scalar input")?;
+                if !crate::stored_callables::scalar(parameter) {
+                    return Err(fail(
+                        i.span,
+                        "Task callable external inputs require exact effect substitution",
+                    ));
+                }
+            }
+            for capture in &definition.captures {
+                b.type_work(capture, false, "Task callable complete captured dependency")?;
+                if let Type::Managed(payload) = capture
+                    && matches!(payload.as_ref(), Type::Task { .. })
+                {
+                    super::require_closed_context(payload)?;
+                } else if !crate::stored_callables::scalar(capture) {
+                    return Err(fail(
+                        i.span,
+                        "Task callable borrowed captures require exact effect substitution",
+                    ));
+                }
+            }
+            // This actual entry can touch external data only through its own
+            // captured frames. Preserve that complete debt, and compare it
+            // with every other live owner even without a future SSA use.
+            let owner = Owner::Local(callee);
+            let carried = state.get(&owner);
+            if !catalog.locals[callee.0 as usize].is_empty() && carried.is_none() {
+                return Err(fail(
+                    i.span,
+                    "Task callable lost its actual captured frame responsibility",
+                ));
+            }
+            if let Some(carried) = carried {
+                carrier_work(carried, b)?;
+                fee(b, state.len())?;
+                for (other_owner, other) in state {
+                    if *other_owner == owner {
+                        continue;
+                    }
+                    carrier_work(other, b)?;
+                    for used in carried.values() {
+                        for protected in other.values() {
+                            let reads = if used.exclusive.is_empty() {
+                                &protected.exclusive
+                            } else {
+                                &protected.all
+                            };
+                            b.product(
+                                used.all.len(),
+                                reads.len(),
+                                1,
+                                "Task callable actual competing roots",
+                            )?;
+                            for left in &used.all {
+                                for right in reads {
+                                    if conflict(*left, *right, apart, b)? {
+                                        return Err(fail(
+                                            i.span,
+                                            "Task callable access conflicts with another live frame",
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        InstructionKind::BorrowCapture { mutable: true, .. }
+            if crate::stored_flow::task_capture_instruction(module, f, i, b)? =>
+        {
+            // This borrows the owning slot, not any retained data leaf. Actual
+            // Task contexts admit only the separately checked data referents;
+            // the head/receiver loan check protects the real capture slot.
         }
         InstructionKind::WriteCapture { index, .. }
         | InstructionKind::BorrowCapture {
@@ -1065,7 +1153,7 @@ pub(super) fn check(
             }
             let mut state = copy(&inputs[index], b)?;
             for i in &block.instructions {
-                access(f, &catalog, i, holds, &state, &mut apart[fi], b)?;
+                access(module, f, &catalog, i, holds, &state, &mut apart[fi], b)?;
                 transfer(module, f, i, holds, &catalog, &mut state, b)?;
             }
         }

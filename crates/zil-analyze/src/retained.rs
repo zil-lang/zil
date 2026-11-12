@@ -162,7 +162,7 @@ pub(super) fn check_function(
             crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
             continue;
         }
-        if definition.kind == CallableKind::FnOnce
+        if matches!(definition.kind, CallableKind::FnOnce | CallableKind::FnMut)
             && matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
         {
             continue;
