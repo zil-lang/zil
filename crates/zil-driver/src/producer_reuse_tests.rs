@@ -1192,3 +1192,7 @@ fn relative_scalar_versions_never_admit_constants_ct_generics_or_capture_rewrite
         }
     }
 }
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[path = "mixed_machine_reuse_tests.rs"]
+mod mixed_machine_reuse_tests;

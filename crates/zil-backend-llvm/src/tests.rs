@@ -2561,3 +2561,6 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
     assert_eq!(policy.source_projection_reuses, 1);
     zil_llvm_api::validate_module(&updated).unwrap();
 }
+
+#[path = "mixed_lowering_tests.rs"]
+mod mixed_lowering_tests;
