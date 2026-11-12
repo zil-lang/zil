@@ -146,7 +146,7 @@ struct BlockEmissionState {
 // Values only. In particular, neither MachineOperand's parent/use-list links
 // nor its ConstantInt/MBB pointers may escape the current compilation.
 struct BodyOperand {
-  enum Kind : uint8_t { Reg, Imm, CImm, Block };
+  enum Kind : uint8_t { Reg, Imm, CImm, Block, FrameIndex, CFIIndex };
   // Reg: low32 register, high32 subregister; extra holds all register flags.
   // Imm: exact signed immediate bits. Block: current-layout ordinal.
   // CImm: index into BodyState's owned, encounter-ordered APInt pool.
@@ -179,10 +179,11 @@ static_assert(std::is_trivially_copyable_v<BodyOperand>, "operand records must c
 struct BodyInstruction {
   unsigned opcode = 0, flags = 0, asmFlags = 0, cfiType = 0;
   std::vector<BodyOperand> operands;
+  std::vector<frame::Memory> memory;
   std::vector<std::pair<unsigned, unsigned>> ties;
   bool operator==(const BodyInstruction &O) const {
-    return std::tie(opcode, flags, asmFlags, cfiType, operands, ties) ==
-           std::tie(O.opcode, O.flags, O.asmFlags, O.cfiType, O.operands, O.ties);
+    return std::tie(opcode, flags, asmFlags, cfiType, operands, memory, ties) ==
+           std::tie(O.opcode, O.flags, O.asmFlags, O.cfiType, O.operands, O.memory, O.ties);
   }
 };
 struct BodyBlock {
@@ -218,6 +219,7 @@ struct BodyState {
 struct Snapshot {
   std::string input, world, mir, mirHeader;
   BodyState body;
+  frame::State frame;
   std::shared_ptr<const void> targetInfo;
   llvm::MachineFunctionProperties properties;
   // MIR's parser assigns dense IDs in layout order. Preserve both original
@@ -266,8 +268,10 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
       N = boundedAdd(N, sizeof(BodyInstruction));
       N = boundedAdd(N, MI.ties.size() * sizeof(MI.ties.front()));
       N = boundedAdd(N, MI.operands.size() * sizeof(BodyOperand));
+      N = boundedAdd(N, MI.memory.size() * sizeof(frame::Memory));
     }
   }
+  N = boundedAdd(N, S.frame.chargedBytes);
   for (const auto &I : S.body.integers) N = boundedAdd(N, integerPayload(I));
   for (const auto &Uses : S.body.registerUses) {
     N = boundedAdd(N, sizeof(Uses));
@@ -345,6 +349,16 @@ bool inputDomain(const llvm::Function &F) {
   return true;
 }
 
+// These fixed X86 register push/pop descriptors have implicit RSP memory and
+// the official frame lowering builds them without MMOs (7a, lines3215/3349).
+// getName comes from the current TII's unique generated opcode table; both the
+// opcode/descriptor identity and complete pass/target/config are also bound.
+bool implicitRegisterStackAccess(const llvm::MachineFunction &MF, const llvm::MachineInstr &MI) {
+  const auto *TII = MF.getSubtarget().getInstrInfo();
+  if (MI.getOpcode() >= TII->getNumOpcodes() || &MI.getDesc() != &TII->get(MI.getOpcode())) return false;
+  auto Name = TII->getName(MI.getOpcode());
+  return Name == "PUSH64r" || Name == "POP64r";
+}
 bool snapshotDomain(llvm::MachineFunction &MF) {
   const auto &Frame = MF.getFrameInfo();
   // The current product does not retain EH/section/symbol owners or BB-ID
@@ -359,16 +373,15 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       !MF.getLongjmpTargets().empty() || !MF.getEHContTargets().empty() ||
       !MF.getCodeViewAnnotations().empty() || !MF.getCallSitesInfo().empty() ||
       !MF.getCalledGlobals().empty() || MF.getObserver() || MF.hasFakeUses() ||
-      !MF.VariableDbgInfos.empty() || !MF.DebugValueSubstitutions.empty() ||
+      !MF.VariableDbgInfos.empty() || !MF.getEntryValueVariableDbgInfo().empty() ||
+      !MF.DebugValueSubstitutions.empty() ||
       !MF.DebugPHIPositions.empty() || MF.DebugInstrNumberingCount)
     return false;
-  // MIR renumbers stack objects and drops dead slots. No frame index may enter
-  // the opaque target-info copy until a separate relocation proof exists.
-  if (Frame.getObjectIndexBegin() != 0 || Frame.getObjectIndexEnd() != 0 ||
-      Frame.getStackSize() != 0 || Frame.hasCalls() ||
-      MF.getJumpTableInfo() || !MF.getConstantPool()->getConstants().empty() ||
-      !MF.getFrameInstructions().empty())
-    return false;
+  // A complete value copy preserves the full original FI table, including
+  // fixed negative IDs and dead holes. Every owner is null or separately
+  // rebound; a bodyless YAML header alone never authorizes these fields.
+  if (!frame::domain(MF, MaxMachinePayload) || MF.getJumpTableInfo() ||
+      !MF.getConstantPool()->getConstants().empty()) return false;
   auto *X = MF.getInfo<llvm::X86MachineFunctionInfo>();
   if (!X || X->getRAIndex() || X->getFAIndex() || X->getVarArgsFrameIndex() ||
       X->getRegSaveFrameIndex() || X->getSEHFramePtrSaveIndex() ||
@@ -391,19 +404,24 @@ bool snapshotDomain(llvm::MachineFunction &MF) {
       // has no memory operand. Other trapping forms (UD1 memory etc.) have
       // explicit operands and remain outside this no-memory snapshot domain.
       const bool PlainTrap = MI.getDesc().isTrap() && MI.getNumExplicitOperands() == 0;
-      if (MI.isCall() || MI.isInlineAsm() || (MI.mayLoad() && !PlainTrap) || MI.mayStore() ||
-          !MI.memoperands_empty() || MI.getDebugLoc() || MI.getPreInstrSymbol() ||
+      if (MI.isCall() || MI.isInlineAsm() || MI.isDebugInstr() ||
+          ((MI.mayLoad() || MI.mayStore()) && !PlainTrap && MI.memoperands_empty() &&
+           !implicitRegisterStackAccess(MF, MI)) ||
+          MI.getDebugLoc() || MI.getPreInstrSymbol() ||
           MI.getPostInstrSymbol() || MI.getPCSections() || MI.getHeapAllocMarker() ||
           MI.getMMRAMetadata() || MI.getDeactivationSymbol() || MI.peekDebugInstrNum())
         return false;
-      // References are exclusively current physical registers, scalar values
-      // and current MBBs. No symbol, global, metadata, regmask or pooled owner.
+      for (const auto *M : MI.memoperands()) if (!frame::captureMemory(MF, *M)) return false;
+      // FI/CFI references are scalar indices into complete owned value tables.
+      // No symbol, IR value, metadata, regmask or pooled owner may escape.
       for (const auto &MO : MI.operands()) {
         if (MO.isReg()) {
           if (MO.getReg().isVirtual()) return false;
-        } else if (!MO.isImm() && !MO.isCImm() && !MO.isMBB()) {
-          return false;
-        }
+        } else if (MO.isFI()) {
+          if (!frame::validIndex(Frame, MO.getIndex())) return false;
+        } else if (MO.isCFIIndex()) {
+          if (MO.getCFIIndex() >= MF.getFrameInstructions().size()) return false;
+        } else if (!MO.isImm() && !MO.isCImm() && !MO.isMBB()) return false;
       }
     }
   }
@@ -422,10 +440,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   // NoVRegs (which only describes instructions), or ignore unused vreg state.
   // Inactive allocation hints/names after clearVirtRegs are not read by the
   // fixed, preserves-all emission-provider closure; no allocator runs again.
-  if (MRI.getNumVirtRegs() || !MRI.getPendingVirtRegMapEntries().empty() ||
-      !MF.getFrameInfo().getSavePoints().empty() ||
-      !MF.getFrameInfo().getRestorePoints().empty())
-    return false;
+  if (MRI.getNumVirtRegs() || !MRI.getPendingVirtRegMapEntries().empty()) return false;
   for (auto LI : MRI.liveins()) if (LI.second) return false;
   Out.reservedFrozen = MRI.reservedRegsFrozen();
   Out.subRegLiveness = MRI.subRegLivenessEnabled();
@@ -476,6 +491,9 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
       BodyInstruction I;
       I.opcode = MI.getOpcode(); I.flags = MI.getFlags();
       I.asmFlags = MI.getAsmPrinterFlags(); I.cfiType = MI.getCFIType();
+      for (const auto *M : MI.memoperands()) {
+        if (!Charge(sizeof(frame::Memory)) || !frame::captureMemory(MF, *M, &I.memory)) return false;
+      }
       bool Implicits = false;
       for (const auto &MO : MI.operands()) {
         if (!Charge(sizeof(BodyOperand))) return false;
@@ -513,6 +531,12 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
           auto It = Blocks.find(MO.getMBB());
           if (It == Blocks.end()) return false;
           O.payload = It->second;
+        } else if (MO.isFI()) {
+          if (!frame::validIndex(MF.getFrameInfo(), MO.getIndex())) return false;
+          O.kind = BodyOperand::FrameIndex; O.setImmediate(MO.getIndex());
+        } else if (MO.isCFIIndex()) {
+          if (MO.getCFIIndex() >= MF.getFrameInstructions().size()) return false;
+          O.kind = BodyOperand::CFIIndex; O.payload = MO.getCFIIndex();
         } else return false;
         if (!MO.isReg()) O.extra = MO.getTargetFlags();
         const bool IsImplicit = MO.isReg() && MO.isImplicit();
@@ -538,7 +562,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   return UseCount == Operands.size();
 }
 
-bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
+bool restoreBody(llvm::MachineFunction &MF, const BodyState &S, const frame::State *Frame = nullptr) {
   // Pool indices are a lossless local encoding, not independent authority.
   // Prove the canonical one-to-one encounter order before allocating current
   // instructions; reject dangling, aliased, reordered, or unused pool entries.
@@ -567,6 +591,7 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
     for (auto LI : B.liveins) BB->addLiveIn(LI);
     Blocks.push_back(BB);
   }
+  if (Frame && !frame::restore(MF, *Frame, MaxMachinePayload)) return false;
   const auto *TII = MF.getSubtarget().getInstrInfo();
   std::vector<llvm::MachineInstr *> Instructions;
   for (size_t BI = 0; BI < S.blocks.size(); ++BI) {
@@ -600,6 +625,13 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
         case BodyOperand::Block:
           if (O.payload >= Blocks.size()) return false;
           MO = llvm::MachineOperand::CreateMBB(Blocks[O.payload]); break;
+        case BodyOperand::FrameIndex:
+          if (O.immediate() < std::numeric_limits<int>::min() || O.immediate() > std::numeric_limits<int>::max() ||
+              !frame::validIndex(MF.getFrameInfo(), static_cast<int>(O.immediate()))) return false;
+          MO = llvm::MachineOperand::CreateFI(static_cast<int>(O.immediate())); break;
+        case BodyOperand::CFIIndex:
+          if (O.payload >= MF.getFrameInstructions().size()) return false;
+          MO = llvm::MachineOperand::CreateCFIIndex(static_cast<unsigned>(O.payload)); break;
         default: return false;
         }
         if (!MO.isReg()) MO.setTargetFlags(O.extra);
@@ -613,6 +645,13 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S) {
       MI->setFlags(I.flags);
       MI->setAsmPrinterFlag(I.asmFlags);
       if (I.cfiType) MI->setCFIType(MF, I.cfiType);
+      llvm::SmallVector<llvm::MachineMemOperand *, 2> Memory;
+      for (const auto &M : I.memory) {
+        auto *Current = frame::restoreMemory(MF, M);
+        if (!Current) return false;
+        Memory.push_back(Current);
+      }
+      if (!Memory.empty()) MI->setMemRefs(MF, Memory);
     }
     // Bundling is restored only after insertion, so list insertion cannot
     // accidentally treat a partly reconstructed bundle as an existing bundle.
@@ -1070,7 +1109,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             bool BodyFailed = false;
             if (EmptyHeader && !ParseFailed) {
               auto *CurrentMF = MMI.getMachineFunction(F);
-              BodyFailed = !CurrentMF || !restoreBody(*CurrentMF, C.replay->body);
+              BodyFailed = !CurrentMF || !restoreBody(*CurrentMF, C.replay->body, &C.replay->frame);
             }
             ParseTime.pause();
             if (!EmptyHeader) {
@@ -1160,6 +1199,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
           C.recording->world != worldText(R.module, &F, &R.stats) ||
+          !frame::capture(*MF, C.recording->frame, MaxMachinePayload) ||
           !captureBody(*MF, C.recording->body)) {
         if (MachineDiagnostics && MF) {
           diagnose(F, "cold-typed-body-not-retained",
@@ -1193,7 +1233,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             R.discardRecording(C);
             return 0;
           }
-          C.recording->mirHeader = C.recording->mir.substr(0, BodyAt) + "\nbody:             |\n\n...\n";
+          const std::string EmptyBody = C.recording->mir.substr(0, BodyAt) + "\nbody:             |\n\n...\n";
+          C.recording->mirHeader = frame::headerForEmptyBody(EmptyBody, MF->getTarget(),
+              !C.recording->frame.saves.empty() || !C.recording->frame.restores.empty());
+          if (C.recording->mirHeader.empty()) {
+            R.discardRecording(C); return 0;
+          }
           R.stats.mir_snapshot_bytes += C.recording->mir.size();
           if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
             R.discardRecording(C);

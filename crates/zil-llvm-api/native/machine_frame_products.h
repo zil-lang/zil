@@ -6,6 +6,9 @@
 #define ZIL_MACHINE_FRAME_PRODUCTS_H
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/CodeGen/PseudoSourceValueManager.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -174,8 +177,84 @@ inline bool restore(llvm::MachineFunction &MF, const State &S, size_t Cap) {
   MF.getFrameInfo().setRestorePoints(std::move(Restores));
   for (unsigned I = 0; I != S.cfi.size(); ++I)
     if (MF.addFrameInst(S.cfi[I]) != I) return false;
+  const auto &Actual = MF.getFrameInstructions();
+  if (Actual.size() != S.cfi.size()) return false;
+  for (size_t I = 0; I != Actual.size(); ++I) if (!sameCFI(Actual[I], S.cfi[I])) return false;
   return true;
 }
+// The complete MMO value is copied, with its only permitted owner removed.
+// Metadata and IR pointer domains are deliberately excluded. The original FI
+// remains meaningful because full frame assignment preserves its entire table,
+// including negative fixed IDs and dead-object holes (no YAML FI authority).
+struct Memory {
+  enum Kind : uint8_t { Stack, FixedStack } kind;
+  int index = 0;
+  llvm::MachineMemOperand value;
+  Memory(Kind K, int I, const llvm::MachineMemOperand &M) : kind(K), index(I), value(M) {
+    value.setValue(static_cast<const llvm::PseudoSourceValue *>(nullptr));
+  }
+  bool operator==(const Memory &O) const {
+    const auto &A = value.getPointerInfo(), &B = O.value.getPointerInfo();
+    return kind == O.kind && index == O.index && A.Offset == B.Offset &&
+           A.AddrSpace == B.AddrSpace && A.StackID == B.StackID &&
+           value.getMemoryType() == O.value.getMemoryType() &&
+           value.getFlags() == O.value.getFlags() && value.getBaseAlign() == O.value.getBaseAlign() &&
+           value.getSyncScopeID() == O.value.getSyncScopeID() &&
+           value.getSuccessOrdering() == O.value.getSuccessOrdering() &&
+           value.getFailureOrdering() == O.value.getFailureOrdering() &&
+           !value.getValue() && !value.getPseudoValue() && !value.getRanges() &&
+           value.getAAInfo() == llvm::AAMDNodes() &&
+           !O.value.getValue() && !O.value.getPseudoValue() && !O.value.getRanges() &&
+           O.value.getAAInfo() == llvm::AAMDNodes();
+  }
+};
+inline bool plainMemoryFields(const llvm::MachineMemOperand &M) {
+  return !M.getValue() && !M.getRanges() && M.getAAInfo() == llvm::AAMDNodes() &&
+         !M.isVolatile() && !M.isAtomic() &&
+         M.getSyncScopeID() == llvm::SyncScope::System &&
+         M.getSuccessOrdering() == llvm::AtomicOrdering::NotAtomic &&
+         M.getFailureOrdering() == llvm::AtomicOrdering::NotAtomic;
+}
+inline bool captureMemory(const llvm::MachineFunction &MF, const llvm::MachineMemOperand &M,
+                           std::vector<Memory> *Out = nullptr) {
+  if (!plainMemoryFields(M)) return false;
+  const auto *P = M.getPseudoValue();
+  if (!P || M.getPointerInfo().AddrSpace != P->getAddressSpace()) return false;
+  if (const auto *Fixed = llvm::dyn_cast<llvm::FixedStackPseudoSourceValue>(P)) {
+    const int FI = Fixed->getFrameIndex();
+    if (!validIndex(MF.getFrameInfo(), FI) || MF.getPSVManager().getFixedStack(FI) != P) return false;
+    if (Out) Out->emplace_back(Memory::FixedStack, FI, M);
+    return true;
+  }
+  if (P->isStack() && MF.getPSVManager().getStack() == P) {
+    if (Out) Out->emplace_back(Memory::Stack, 0, M);
+    return true;
+  }
+  return false;
+}
+inline llvm::MachineMemOperand *restoreMemory(llvm::MachineFunction &MF, const Memory &S) {
+  if (!plainMemoryFields(S.value) || S.value.getPseudoValue()) return nullptr;
+  const llvm::PseudoSourceValue *P = nullptr;
+  switch (S.kind) {
+  case Memory::Stack:
+    if (S.index) return nullptr;
+    P = MF.getPSVManager().getStack(); break;
+  case Memory::FixedStack:
+    if (!validIndex(MF.getFrameInfo(), S.index)) return nullptr;
+    P = MF.getPSVManager().getFixedStack(S.index); break;
+  default: return nullptr;
+  }
+  llvm::MachinePointerInfo Ptr = S.value.getPointerInfo();
+  if (Ptr.AddrSpace != P->getAddressSpace()) return nullptr;
+  Ptr.V = P;
+  // The LLT overload retains the exact full memory-type encoding (including
+  // invalid/scalable states), unlike a round trip through getSize(). All nine
+  // remaining defined fields are explicit; no historical owner is referenced.
+  return MF.getMachineMemOperand(Ptr, S.value.getFlags(), S.value.getMemoryType(),
+      S.value.getBaseAlign(), llvm::AAMDNodes(), nullptr, S.value.getSyncScopeID(),
+      S.value.getSuccessOrdering(), S.value.getFailureOrdering());
+}
+
 // Save/restore point strings refer to MBBs, which the tiny parser intentionally
 // has not created. Parse the fixed official YAML schema and remove ONLY those
 // maps; their complete scalar CSI values/current BB mapping are restored above.
