@@ -14,6 +14,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -337,10 +338,21 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
   auto &AM = *static_cast<FunctionAnalysisManager *>(Manager);
   *Token = nullptr;
-  if (F.getParent() != &R.M || R.Phase != 1 || R.Failed || !eligibleFunction(F)) return 0;
+  if (F.getParent() != &R.M || R.Phase != 1) return 0;
+  if (R.Failed || !eligibleFunction(F)) {
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
+  // Cached-analysis availability alone is not its value. Start only from an
+  // instrumentation-only entry state, whose fixed native callbacks have no IR
+  // dependent payload. Incrementally maintained analyses require explicit value
+  // bindings before their stages may use products.
+  Keys Entry = analysisKeys(AM, F);
+  for (const void *K : Entry) if (K != PassInstrumentationAnalysis::ID()) {
+    ++R.Stats.optimizer_function_stage_executions; return 0;
+  }
   auto P = std::make_shared<Stage>();
   P->Path = path(R, F); P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
-  P->Input = functionText(F); P->World = worldText(R.M, &F); P->EntryKeys = analysisKeys(AM, F);
+  P->Input = functionText(F); P->World = worldText(R.M, &F); P->EntryKeys = std::move(Entry);
   R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + R.Config.size();
   std::string Slot = P->Path;
   if (R.Prior && R.Prior->Config == R.Config) {
