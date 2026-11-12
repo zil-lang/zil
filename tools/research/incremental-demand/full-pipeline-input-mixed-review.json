@@ -1,0 +1,110 @@
+{
+  "schema": "semantic-input-mixed-lowering-independent-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+  "candidate_tree": "88cec28d91f274e2d6d156bd93e44e11afcf7a86",
+  "delta_base": "532e01141b644d13c6e350a7dd310c50226d19d3",
+  "status": "ACCEPT_BOUNDED_SOURCE_WITH_TARGETED_TESTS",
+  "judgment": "ACCEPT bounded source at693f55cd0394a1a72a0bfe9d680740d9509885d1 for the two independently reviewed slices and same-raw-epoch graph correction. No blocking source correctness/dependency/authority issue established; Backend224, Driver200 and Types80 targeted tests passed. Strict lint/full workspace and release performance remain pending. This is not full task/performance/default-enable/main-merge approval.",
+  "scope": {
+    "frozen_files_sha256": {
+      "crates/zil-expand/src/incremental.rs": "92c997f449bb6bd7dad9f2ee4698ca9099f819a563f71ff828e904925f230998",
+      "crates/zil-expand/src/lib.rs": "2c19387c6084edad09aaac08ba91b20fbcfc77fd71f167b1aca8797e11c3a2a0",
+      "crates/zil-expand/src/incremental_tests.rs": "93b1d3fbde9ea2a80fdd59d4d2894dfdecfe65987b05b5e5a93c168b68f59a14",
+      "crates/zil-types/src/incremental.rs": "6b418acd7d6818793d07da47c8cc525d850332f9cda4bef3aca9d5c13f52413c",
+      "crates/zil-types/src/preparation.rs": "b175bc0675c221b6e6c77dfd4de20312ce7981471b2486bdab5a78ccf3e417ff",
+      "crates/zil-types/src/incremental_producer_tests.rs": "851b11527b561fbfffba86e6afd8ed54ced8cef98dd1cb5a55dbd88a07716870",
+      "crates/zil-driver/src/session.rs": "2e523589d910620f825f420ef3077c7c22e494a8ecd5048f502f7dc017b6b345",
+      "crates/zil-driver/src/project.rs": "a5218e5c56286e8cc4c898426be5f1a21ea3ca52b1a49150820725d2674613fe",
+      "crates/zil-driver/src/producer_reuse_tests.rs": "483432bcc389d916509d34435ea514d0fea42fdae4932015c194345491c2cd91",
+      "crates/zil-backend-llvm/src/emit.rs": "2135c29830fc2a9c2d98632a56fd42ff45be10e8c4645ac378399ed67f670bd9",
+      "crates/zil-backend-llvm/src/emit/incremental.rs": "8d1461ad2e7b73742b85082ecb257be0928fa4a481aae2074106a094d3adea33",
+      "crates/zil-backend-llvm/src/mixed_lowering_tests.rs": "6307deb6d4c33035bb51ee274d9856e922381e6742bc76aaccf93eeccae58da9",
+      "crates/zil-driver/src/mixed_machine_reuse_tests.rs": "935d58106252584eb4aa426e602bf5f29b7a878fa38109b4c498c8bc63165f7e"
+    },
+    "boundaries": "Sealed relative scalar input revisions, Types consumers/current rebasing, complete rewrite fallback; per-function mixed machine cache/current global context/reservation consumer/parallel fallback; exact raw-owner graph preservation.",
+    "excluded_slice": "RawFunctionPlan/Wire/semantic publication fragment changes in this integrated source are assigned to another non-author reviewer and are not approved by this receipt. project.rs contains both that slice and the reviewed semantic-input integration; file hash is an identity anchor, not an assertion that every unrelated edit was independently reviewed.",
+    "execution": "Read-only git/source/log/hash processing. No Cargo/build/native/benchmark execution, production/helper edits or commit. Only this /tmp draft written."
+  },
+  "source_assessments": [
+    {
+      "area": "Relative input seal minting",
+      "assessment": "Only successful closed scalar Expand can mint or preserve FunctionInputRevision. Compatible environment binds ordered current module/file/path inventory, header namespace/attributes/visibility/imports, target, exact nonmonotone limits and original context/declaration placement. Existing monotone work/node allowances are still replayed by their original stage receipts; Types context binds full Limits. Retained function must have matching name-map owner, current NodeId and FileId, and byte-for-byte equality between old parser-owned declaration slice and current declaration. No public digest or old Typed result is compared as authority. FunctionInput retains no copied source/history beyond the prior immutable ParsedSource already owned by its Entry."
+    },
+    {
+      "area": "Current source binding",
+      "assessment": "Old function_revision remains an absolute binding and changes on relocation; new input revision is separate and opaque. function_source_fingerprint remains current-position sensitive and equals a fresh current producer value; its compiler-local algorithm is versioned, not a stable external wire contract. Whitespace inside a declaration changes bytes and relative diagnostic positions and therefore misses. Declaration insertion/deletion/signature/visibility/environment changes invalidate seals conservatively."
+    },
+    {
+      "area": "Rewrite and raw-forgery fallback",
+      "assessment": "Current scalar classifier rejects constants, CT selection/evaluation, generic/trait/capture and other rewriting forms. Inference retains producer identity only for its exact unchanged immutable ProducedProgram; after_evaluation always drops producer evidence, even for equal raw output. Public/raw Core fingerprints or spans cannot retarget private ProducedProgram fields. Fallback may still reuse an unrelated function via the old complete actual RawCore equality graph path, but must report zero sealed producer version hits; tests preserve this distinction."
+    },
+    {
+      "area": "Types consumer and original budgets",
+      "assessment": "Direct memo still checks complete current context, signature and every observed declaration read before using the new input revision. Graph changes only its raw-body version source; complete current context/signature graph dependencies and current limits remain. Raw body/CFG building, six-component budget replay and insufficient-work fallback remain unchanged. Retained relative CFG rebase binds the current function/local/instruction spans; products and wire compare exactly with a fresh current Types result."
+    },
+    {
+      "area": "Same-raw-epoch graph preservation",
+      "assessment": "activate_types_epoch still requires producer_reuse, a closed successful current Types receipt, full QueryKey and exact Program Weak/Arc match. It avoids replacement only if entries/products/ProducerMemo.entries/publication_guard are the same four private strong owners as the checkpoint. This is not graph authority or a structural-hash shortcut. Successful Types publication creates new entries/products owners; failed work clears projections/memo, and preserving an already-empty graph remains conservative. Different historical owners still restore epoch_checkpoint with graph reset. Strong ownership prevents ABA and mutable aliases; immutable memo maps are replaced rather than modified."
+    },
+    {
+      "area": "Mixed global planning and authority",
+      "assessment": "Current bind_lir, stored/dynamic planning, copy plans, task helpers and wrapper construction precede cache admission. Context conservatively binds raw schema/module/target/fullLimits, complete resource/closure/dyn/life/task-interface inventories, worker/ownership/suspend/export roles and all function ABI/life/callable/foreign/environment headers and order/FileId. Current verified input supplies these roles; prior VerifiedModule is not retained as authorization. Mixed results never issue ScalarIdentity, so partial hits cannot certify whole transforms/CGU/key equality; global helpers and unsupported bodies are reconstructed now."
+    },
+    {
+      "area": "Per-function and callee admission",
+      "assessment": "Admitted functions are direct, environment/life/protocol/contract-free with primitive local/value/result types and a narrow actual instruction whitelist. Current worker/suspend/export/task-ownership, copy ABI/value/indirect plans are excluded. Every direct or foreign callee must have current direct/environment-free scalar ABI; all its metadata relevant to primitive call emission is in current headers. Changed local/value/CFG data still compares complete same_input. Cached callee IDs may share only a strongly retained immutable block allocation; COW changes private storage. Summary consumption preserves None->Some dependencies from the prior reviewed projection logic."
+    },
+    {
+      "area": "Current fee/error replay",
+      "assessment": "Fresh and cached admitted bodies call the same reserve_function_emission in original order: current bridge/registration work, worker-inventory debit, owner actions, replacements and vacated-drop scans. Original early foreign/collected/summary/leaf exits remain before reservation. FunctionEmitter itself has no shared Meter field; admitted primitive instruction emission has no additional hidden shared-meter debit. Global bind/copy/helper work remains current. N/N-1 fixture checks result and exact remaining against fresh. Mixed multi-job emission conservatively uses the original ordered parallel path rather than consuming partial session hits."
+    },
+    {
+      "area": "Actual differential tests",
+      "assessment": "Read actual original resource_closures three-module source and task-nonyield source tests: cold/repeat/private edit compare full current LLVM/ELF bytes and fresh executions. Resource branches assert D/S/O/M outputs and changed fallback exit, resource rename invalidates all hits. Task test transitions ordinary->task roles, requires current worker re-emission and expected native exit results. Raw mixed closure tests reject unbound substituted LIR and compare fresh current helpers/intrinsics/budget; task phase test preserves N/N-1 failure order."
+    }
+  ],
+  "corrections_preserved": [
+    "Mixed backend01 fixture lacked Unit SSA result for TaskFinishDestroy. Exact 3d1d148 adds ValueId(2)/Type::Unit matching actual Types task emission; no production guard was weakened. Backend02 then224/224 passed.",
+    "Frontend01 real graph-work assertion remained1/4; implementation now avoids same-owner graph reset using four private Arc identities instead of weakening that assertion. Constant fallback still rejects as Unsupported/Verify0; its expected phase is corrected from Expand to actual Types."
+  ],
+  "test_state": {
+    "completed_logs": [
+      {
+        "path": "out/runs/full-pipeline-plan-input-mixed-01.log",
+        "sha256": "080e863fc7c06abf2fd0f68a665f892d03e569aa1548dd82a5bae2b0e529db1b",
+        "scope": "Preserved Backend223 pass/1 failed: invalid TaskFinishDestroy test fixture omitted required Unit SSA result."
+      },
+      {
+        "path": "out/runs/full-pipeline-mixed-backend-02.log",
+        "sha256": "6e6904862a01fbd4e138465fc9ce5fb24c68d1d185b271beee837f6652889fc5",
+        "scope": "Backend224/0/0; root reports exit0. Source change after that result is the separate frontend same-raw-epoch graph correction."
+      },
+      {
+        "path": "out/runs/full-pipeline-plan-input-front-01.log",
+        "sha256": "05d6e9ce06a00f0063bef3a041215b9248b961128f9b705dfc92d9a1585f2ae6",
+        "scope": "Preserved Driver198 pass/2 fail, Expand96 pass, IR78 pass, Types80 pass. Driver failures expose warm graph reset (5/0 BodyKeys vs retained1/4 assertion) and incorrect constant-rejection phase expectation."
+      },
+      {
+        "path": "out/runs/full-pipeline-plan-input-front-02.log",
+        "sha256": "3c74097de8265effbfa679598c55faeb171e3e8edababfdfae92778e505d8e5a",
+        "scope": "Final same693 source: Driver200/0/0 and Types80/0/0; includes restored1/4 BodyKey assertion and original425 history regression. Root reports exit0; independently read adjacent .exit file equals0."
+      }
+    ],
+    "pending": [
+      "Strict combined lint window currently active; full workspace pending.",
+      "Release/native matched workflow/performance measurements for this new source remain unestablished."
+    ],
+    "attribution": "Root owns all test windows and supplies source/command/exit attribution. This draft independently reads completed raw logs and source, not a new compiler execution.",
+    "not_claimed": "No full-workspace pass, completed strict lint or new release performance claim."
+  },
+  "limits": [
+    "Declaration hash executions drop while actual old/current declaration byte comparisons still cost O(total compared source text); hash1 is not read-only-one-body work.",
+    "Mixed jobs>1 can fall back to original parallel lowering; session hit/miss fields do not count every physically lowered fallback function. No zero-work inference is valid from those fields.",
+    "Complete mixed context cloning/comparison and global helper/copy planning remain. This is a narrow primitive per-function cache, not generic resource/task body reuse.",
+    "Conservative fallback, original budgets and independent current Verify/native checking remain mandatory. No raw seal, graph owner or machine product authorizes safety.",
+    "Prior F2 explicit-mode COW, EB1 failed-request counter scope and memory/disk/whole-request measurement caveats remain."
+  ]
+}

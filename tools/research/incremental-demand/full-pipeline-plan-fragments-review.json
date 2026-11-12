@@ -1,0 +1,283 @@
+{
+  "schema": "zil.independent_source_review.v1",
+  "created_utc": "2026-11-12T06:21:05.302803+00:00",
+  "reviewer": "/root/verification_pipeline",
+  "independence": {
+    "non_author": true,
+    "author_commit": "cc7b67e5ed222b103cc643347f368bb2e3f91d61",
+    "production_edits_by_reviewer": false,
+    "cargo_or_tests_executed_by_reviewer": false
+  },
+  "source": {
+    "repository": "/workspace/zil-demand",
+    "commit": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "tree": "88cec28d91f274e2d6d156bd93e44e11afcf7a86",
+    "initial_review_commit": "382a30d77a29941ccb8d80c57f0dad212b4faf22",
+    "exact_scope_unchanged": true,
+    "files": [
+      {
+        "path": "crates/zil-ir/src/wire.rs",
+        "git_blob": "07b43c55256626d95931992d8e457ce1912329df",
+        "sha256": "2f8ee782acbccbc3be350ede07e96b3a79f97497d5c0f8ce5fe1efd83cb21edb",
+        "byte_count": 193717,
+        "unchanged_from_reviewed_commit": "382a30d77a29941ccb8d80c57f0dad212b4faf22"
+      },
+      {
+        "path": "crates/zil-ir/src/wire/function_encoding_tests.rs",
+        "git_blob": "24db78e85b3cd4bb34557d1f5f04a12c98384aa9",
+        "sha256": "41fcc54cf4351e64dae580bafb779f0d25ba3260a5881a8b316b9a2d4603e53c",
+        "byte_count": 17144,
+        "unchanged_from_reviewed_commit": "382a30d77a29941ccb8d80c57f0dad212b4faf22"
+      },
+      {
+        "path": "crates/zil-driver/src/semantic_items.rs",
+        "git_blob": "d07c1526254552e0baf819eff6f9c4a70d3929c5",
+        "sha256": "f39f33d6f7aa50fa572125b3fb2a8a7c90bc70e2348f5467438de66665a5a366",
+        "byte_count": 49836,
+        "unchanged_from_reviewed_commit": "382a30d77a29941ccb8d80c57f0dad212b4faf22"
+      },
+      {
+        "path": "crates/zil-driver/src/semantic_cache.rs",
+        "git_blob": "9d948436e696bf1fdce6c14d2ce854977e479341",
+        "sha256": "965686716288a4088cabfb0de6ea6973017edd9fcaa92f111261c3bf92b043c1",
+        "byte_count": 47548,
+        "unchanged_from_reviewed_commit": "382a30d77a29941ccb8d80c57f0dad212b4faf22"
+      }
+    ]
+  },
+  "scope": "Raw FunctionPlan serialization fragments, semantic publication session integration, logical manifest v07 and v06 read compatibility; exactly the four files listed.",
+  "source_review": {
+    "status": "no_blocking_findings",
+    "findings": [],
+    "checked_invariants": [
+      {
+        "id": "sealed_raw_binding",
+        "result": "satisfied",
+        "evidence": "wire.rs RawFunctionPlanEncoding has private owned FunctionPlan and private encoding fields. Reuse compares the complete current FunctionPlan and all Limits. Successful encoding alone constructs the row receipt; public Analyze summaries, module fingerprints and object-cache hits do not authorize reuse."
+      },
+      {
+        "id": "semantic_authority",
+        "result": "satisfied_with_scope_boundary",
+        "evidence": "Raw row encoding and Store.load/decode_bound return only raw bytes or TypedProgram/CandidatePlan. They cannot construct or restore VerifiedModule. Rebinding precedes the existing current-verification boundary. The unchanged driver Verify/old-VM control flow is outside this four-file review; this change introduces no new Verify authority or bypass."
+      },
+      {
+        "id": "wire_order",
+        "result": "satisfied",
+        "evidence": "Ordinary Writer.plan and segmented encoding use the same plan_header, function_plan and plan_suffix implementations in the same order. Module data and plan headers/suffix claims remain current. Flushes only split the byte stream; they do not insert framing bytes or change collection/node charges."
+      },
+      {
+        "id": "aggregate_quota_and_first_error",
+        "result": "satisfied",
+        "evidence": "Cached node debit and bytes are used only when both remaining aggregate allowances suffice and full Limits match. Otherwise the ordinary current-row function_plan traversal runs at the original stream position, preserving collection/node/byte first-error order. Every successful row debit is limits-before minus limits-after. Header and suffix remain charged by the ordinary writer."
+      },
+      {
+        "id": "raw_mutations",
+        "result": "satisfied",
+        "evidence": "Complete row equality includes function identity, block claims and all Hold rows. A differing row takes ordinary encoding even with unchanged enclosing public hashes. Current target/module bindings and global claims are encoded outside row cache. Tests mutate initialized_out, function identity, Limits, target binding and global claims, then compare ordinary output; forged restored raw identity is rejected by independent Verify."
+      },
+      {
+        "id": "cache_admission_and_transactions",
+        "result": "satisfied",
+        "evidence": "Admission counts retained raw function and plan encoding bytes, recomputes occupancy after function encoding, subtracts a replaced plan slot before checked addition, and treats slots as immutable Arcs. Driver encodes into a locally cloned plan_slots vector and publishes it only after wire/metadata total size succeeds. Already emitted valid raw fragments may survive a failed public encoder invocation but confer no semantic authority."
+      },
+      {
+        "id": "segment_count",
+        "result": "satisfied",
+        "evidence": "maximum_segments uses checked 2*max_functions+6. Each module and candidate independently has at most max_functions rows; constant pieces are semantic prefix, module header, module suffix, plan header, plan suffix and semantic metadata. Overflow returns None. Manifest length, binding count and segment sums are independently bounded and checked before loading."
+      },
+      {
+        "id": "legacy_manifest",
+        "result": "satisfied",
+        "evidence": "Logical ZILSMS06 keeps the old checked max_functions+4 limit; ZILSMS07 uses checked 2F+6. Enlarged outer packed bounds do not bypass logical-version checks. Tests build the actual legacy segmentation with encode_module_candidate_segments and validate both loose items and historical packed envelopes, rather than relabeling a new segmentation."
+      },
+      {
+        "id": "decode_consumption",
+        "result": "satisfied",
+        "evidence": "assemble validates nonzero segment lengths and exact total before loading, then checks each length and content fingerprint. Ordinary bounded Wire decoding consumes the complete module/candidate stream; semantic metadata decoding requires no trailing bytes. decode_bound checks complete current bindings and canonical span rebinding before returning raw data."
+      }
+    ]
+  },
+  "measurement_and_resource_caveats": [
+    "serialized_function_plan_bytes=0 means no complete FunctionPlan row was reencoded on that successful publication; it does not mean zero allocation or zero CPU work.",
+    "Cold receipt construction clones the complete FunctionPlan. Warm publication still compares complete rows and allocates auxiliary slot/segment vectors. Admission bounds encoded bytes, not total heap usage of owned rows and metadata.",
+    "Retained checkpoints keep historical Arcs. The current-epoch admission calculation is not a process-lifetime or all-snapshots memory bound.",
+    "Disk recovery still assembles a complete bounded raw logical stream for decoding. This review does not claim decode became incremental or whole-project copying disappeared on load."
+  ],
+  "test_acceptance": {
+    "status": "targeted_tests_accepted",
+    "updated_utc": "2026-11-12T06:22:15.740567+00:00",
+    "reviewer_executed_tests": false,
+    "evidence_method": "Reviewer independently read completed raw logs and explicit exit files, checked reported per-target test summaries, and hashed each file. Parent supplied test-window provenance and freeze declaration; logs do not embed an exact source manifest.",
+    "frozen_source_commit": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "current_head_checked": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "accepted_targets": [
+      {
+        "crate": "zil-driver",
+        "passed": 200,
+        "failed": 0,
+        "window": "front-02"
+      },
+      {
+        "crate": "zil-types",
+        "passed": 80,
+        "failed": 0,
+        "window": "front-02"
+      },
+      {
+        "crate": "zil-expand",
+        "passed": 96,
+        "failed": 0,
+        "window": "front-01 per-target success only"
+      },
+      {
+        "crate": "zil-ir",
+        "passed": 78,
+        "failed": 0,
+        "window": "front-01 per-target success only"
+      },
+      {
+        "crate": "zil-backend-llvm",
+        "passed": 224,
+        "failed": 0,
+        "window": "mixed-backend-02"
+      }
+    ],
+    "raw_logs": [
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-01.log",
+        "log_sha256": "05d6e9ce06a00f0063bef3a041215b9248b961128f9b705dfc92d9a1585f2ae6",
+        "log_bytes": 50448,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-01.exit",
+        "exit_file_sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+        "exit_code": 101,
+        "completed": true,
+        "results": [
+          {
+            "crate": "zil-driver",
+            "passed": 198,
+            "failed": 2,
+            "accepted": false
+          },
+          {
+            "crate": "zil-expand",
+            "passed": 96,
+            "failed": 0,
+            "accepted": true
+          },
+          {
+            "crate": "zil-ir",
+            "passed": 78,
+            "failed": 0,
+            "accepted": true
+          },
+          {
+            "crate": "zil-types",
+            "passed": 80,
+            "failed": 0,
+            "accepted": false,
+            "note": "Superseded by completed front-02."
+          }
+        ]
+      },
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-mixed-01.log",
+        "log_sha256": "080e863fc7c06abf2fd0f68a665f892d03e569aa1548dd82a5bae2b0e529db1b",
+        "log_bytes": 24332,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-mixed-01.exit",
+        "exit_file_sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+        "exit_code": 101,
+        "completed": true,
+        "results": [
+          {
+            "crate": "zil-backend-llvm",
+            "passed": 223,
+            "failed": 1,
+            "accepted": false
+          }
+        ]
+      },
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-02.log",
+        "log_sha256": "3c74097de8265effbfa679598c55faeb171e3e8edababfdfae92778e505d8e5a",
+        "log_bytes": 31671,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-02.exit",
+        "exit_file_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "exit_code": 0,
+        "completed": true,
+        "results": [
+          {
+            "crate": "zil-driver",
+            "passed": 200,
+            "failed": 0,
+            "accepted": true
+          },
+          {
+            "crate": "zil-types",
+            "passed": 80,
+            "failed": 0,
+            "accepted": true
+          }
+        ]
+      },
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-mixed-backend-02.log",
+        "log_sha256": "6e6904862a01fbd4e138465fc9ce5fb24c68d1d185b271beee837f6652889fc5",
+        "log_bytes": 22934,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-mixed-backend-02.exit",
+        "exit_file_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "exit_code": 0,
+        "completed": true,
+        "results": [
+          {
+            "crate": "zil-backend-llvm",
+            "passed": 224,
+            "failed": 0,
+            "accepted": true
+          }
+        ]
+      }
+    ],
+    "retained_failures": [
+      {
+        "window": "full-pipeline-plan-input-front-01",
+        "overall_exit": 101,
+        "failed_tests": [
+          "session::producer_reuse_tests::actual_function_products_reach_analysis_and_independent_verification",
+          "session::producer_reuse_tests::relative_scalar_versions_never_admit_constants_ct_generics_or_capture_rewrites"
+        ],
+        "disposition": "Preserved as failures; superseded by driver 200/200 in front-02. Only successful Expand/IR targets are accepted from front-01."
+      },
+      {
+        "window": "full-pipeline-plan-input-mixed-01",
+        "overall_exit": 101,
+        "failed_tests": [
+          "emit::incremental::mixed_tests::mixed_task_leaf_reuse_runs_current_reservations_at_n_and_n_minus_one"
+        ],
+        "disposition": "Preserved as failure; superseded by backend 224/224 in mixed-backend-02."
+      }
+    ],
+    "pending_gates": [
+      "full-workspace tests/checks",
+      "strict Clippy (parent window active)",
+      "release build and frozen binary acceptance",
+      "formal performance measurement"
+    ],
+    "scope_tests_read": [
+      "wire::function_encoding_tests::plan_fragments_bind_exact_rows_and_reuse_equal_outputs_after_module_changes",
+      "wire::function_encoding_tests::plan_fragment_replay_preserves_aggregate_first_errors_and_exact_boundaries",
+      "semantic_items::tests legacy loose/packed compatibility and exact bound checks",
+      "semantic_items::tests::equal_plan_rows_reach_packed_storage_without_reencoding_or_dirty_bytes"
+    ],
+    "not_an_overall_acceptance": true
+  },
+  "release_approval": false,
+  "disposition": "Exact-source non-author review has no blocking findings in the stated four-file scope. Completed targeted test evidence is accepted with original failed windows preserved. Full-workspace, strict Clippy, release and formal measurement remain pending; this is not overall release/performance approval.",
+  "revisions": [
+    {
+      "at_utc": "2026-11-12T06:22:15.740567+00:00",
+      "change": "Appended completed targeted test evidence; preserved failed initial windows and all pending overall gates. No source review or production files changed.",
+      "previous_receipt_sha256": "7d4d2f09da80734dbeb00aac60924876d144ee7a44d75fe5750f57b35166ca7e",
+      "previous_receipt_preserved_at": "/tmp/zil-plan-fragments-review-693f55cd0-source-only.json"
+    }
+  ]
+}
