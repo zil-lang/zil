@@ -247,7 +247,8 @@ pub(super) fn add_definitions(
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        let admitted = matches!(error.as_ref(),Type::Package{name,..}|Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+                        let admitted = (matches!(error.as_ref(),Type::Package{name,..}|Type::Record{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+                            || tasks::failure::is_carrier(error))
                             && matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}));
                         pending.extend([
                             (error.as_ref(), blocked || !admitted),

@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 mod methods;
 mod package_effects;
 mod patterns;
+mod projection_scopes;
 mod slots;
 mod source_context;
 
@@ -598,11 +599,30 @@ impl State {
         &mut self,
         parent: &Type,
         path: &[zil_ir::PlaceProjection],
+        interfaces: &[DynInterface],
         span: Span,
     ) -> R<zil_ir::source_projection::Projection> {
-        zil_ir::source_projection::project(parent,path,&self.limits,&mut self.work_left).map_err(|error|match error {
-            zil_ir::source_projection::ProjectionError::Limit=>Diagnostic::limit(Phase::Types,"source projection budget exceeded",Some(span)),
-            _=>unsupported(span,"source projection requires the complete actual child scope and parent class map"),
+        let definitions = self.projection_scope_definitions(parent, span)?;
+        zil_ir::source_projection::project_with_scopes(
+            parent,
+            path,
+            zil_ir::source_projection::ScopeCandidates {
+                closures: &definitions,
+                interfaces,
+            },
+            &self.limits,
+            &mut self.work_left,
+        )
+        .map_err(|error| match error {
+            zil_ir::source_projection::ProjectionError::Limit => Diagnostic::limit(
+                Phase::Types,
+                "source projection budget exceeded",
+                Some(span),
+            ),
+            _ => unsupported(
+                span,
+                "source projection requires the complete actual child scope and parent class map",
+            ),
         })
     }
     pub(super) fn snapshot_type(

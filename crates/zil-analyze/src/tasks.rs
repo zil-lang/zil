@@ -7,6 +7,7 @@ pub(super) mod transfer;
 pub(super) use context_work::{
     context as charge_result_context, selection as charge_result_selection,
 };
+pub(super) mod input_scope;
 mod owned;
 mod port_origins;
 pub(super) use drop_sync::{
@@ -278,12 +279,16 @@ fn owned_create_type(
             .saturating_add(retained.ports.len().saturating_mul(16)),
         "owned failure physical/retained rows",
     )?;
-    let qualify = !retained.ports.is_empty()
-        && parameters.iter().all(|t| {
-            t.is_copy_value()
-                || matches!(t, Type::Address { .. })
-                || matches!(t, Type::Managed(payload) if payload.is_copy_value())
-        });
+    let mut qualify = !retained.ports.is_empty();
+    for t in &parameters {
+        if !t.is_copy_value()
+            && !matches!(t, Type::Address { .. })
+            && !matches!(t,Type::Managed(payload) if payload.is_copy_value())
+        {
+            qualify &= matches!(t, Type::Managed(_))
+                && input_scope::domain(t, budget)? == input_scope::Domain::Known(0);
+        }
+    }
     let mut slots = Vec::new();
     let mut bindings = Vec::new();
     if qualify {

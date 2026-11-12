@@ -6,6 +6,7 @@ pub(super) mod transfer;
 pub(super) use context_work::{
     context as charge_result_context, selection as charge_result_selection,
 };
+pub(super) mod input_scope;
 mod owned;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
@@ -407,11 +408,16 @@ fn owned_create_type(
             .saturating_mul(48)
             .saturating_add(retained.ports.len().saturating_mul(12)),
     )?;
-    let qualified = parameters.iter().all(|t| {
-        matches!(t, Type::Address { .. })
-            || t.is_copy_value()
-            || matches!(t, Type::Managed(payload) if payload.is_copy_value())
-    }) && !retained.ports.is_empty();
+    let mut qualified = !retained.ports.is_empty();
+    for t in &parameters {
+        if !matches!(t, Type::Address { .. })
+            && !t.is_copy_value()
+            && !matches!(t,Type::Managed(payload) if payload.is_copy_value())
+        {
+            qualified &= matches!(t, Type::Managed(_))
+                && input_scope::domain(t, b)? == input_scope::Domain::Known(0);
+        }
+    }
     let mut rows = Vec::new();
     let mut relations = Vec::new();
     if qualified {

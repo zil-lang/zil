@@ -25,6 +25,23 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
             ]
         && d.identity.generation_path.is_empty()
 }
+fn complete_inputs(inputs: &[Type], b: &mut Budget) -> CompileResult<bool> {
+    for t in inputs {
+        if t.is_copy_value()
+            || matches!(t, Type::Address { .. })
+            || matches!(t,Type::Managed(payload) if payload.is_copy_value())
+        {
+            continue;
+        }
+        if !matches!(t, Type::Managed(_))
+            || crate::tasks::input_scope::domain(t, b)?
+                != crate::tasks::input_scope::Domain::Known(0)
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Some((storage, life)) = carrier(t) else {
         return Ok(false);
@@ -49,11 +66,7 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
             {
                 return Err(failure("failure complete input identity differs"));
             }
-            if inputs.iter().any(|t| {
-                !t.is_copy_value()
-                    && !matches!(t, Type::Address { .. })
-                    && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
-            }) {
+            if !complete_inputs(inputs, b)? {
                 return Err(failure(
                     "mixed owning failure view requires its complete per-leaf responsibility consumer",
                 ));
@@ -69,11 +82,7 @@ pub(super) fn shape(t: &Type, b: &mut Budget) -> CompileResult<bool> {
         Type::Tuple(inputs) => (inputs, false),
         _ => return Ok(false),
     };
-    if inputs.iter().any(|t| {
-        !t.is_copy_value()
-            && !matches!(t, Type::Address { .. })
-            && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
-    }) {
+    if !complete_inputs(inputs, b)? {
         return Err(failure(
             "mixed owning input view requires its complete per-leaf responsibility consumer",
         ));

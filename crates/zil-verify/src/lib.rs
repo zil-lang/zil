@@ -383,6 +383,7 @@ struct Budget {
     stored_borrows: bool,
     stored_package_instance: bool,
     task_failure_carriers: bool,
+    task_input_scopes: Option<crate::tasks::input_scope::Table>,
     owned_task_input_inventory: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
@@ -460,6 +461,7 @@ impl Budget {
             stored_borrows: false,
             stored_package_instance: false,
             task_failure_carriers: false,
+            task_input_scopes: None,
             owned_task_input_inventory: false,
             stored_slot_updates: false,
             stored_exclusive_shapes: false,
@@ -1467,7 +1469,8 @@ fn check_type_shape(
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 // This only schedules an actual-opcode inventory. The QName
                 // grants no origin, protocol state or ownership capability.
-                budget.owned_task_input_inventory |= name.starts_with("@std.task:v1:TaskCreateFailure:")
+                budget.owned_task_input_inventory |= name
+                    .starts_with("@std.task:v1:TaskCreateFailure:")
                     && matches!(fields.as_slice(),[(r,_),(i,Type::Tuple(_))] if r=="reason" && i=="inputs");
                 budget.spend(name.len())?;
                 budget.spend(fields.len())?;

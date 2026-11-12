@@ -3066,7 +3066,12 @@ impl<'a> Builder<'a, '_> {
             self.member_owner(&parent, owner.as_ref(), e.span)?;
             let view = self
                 .closures
-                .project_source_field(&parent, &[PlaceProjection::Field(1)], e.span)?
+                .project_source_field(
+                    &parent,
+                    &[PlaceProjection::Field(1)],
+                    self.dyn_interfaces,
+                    e.span,
+                )?
                 .ty;
             let temporary = self.temp(parent.clone(), e.span)?;
             self.store(temporary, value, e.span)?;

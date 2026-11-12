@@ -23,6 +23,23 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
         && d.identity.declaration_path.as_slice() == [word, "TaskCreateFailure"]
         && d.identity.generation_path.is_empty()
 }
+fn complete_inputs(inputs: &[Type], b: &mut Budget) -> Check<bool> {
+    for t in inputs {
+        if t.is_copy_value()
+            || matches!(t, Type::Address { .. })
+            || matches!(t,Type::Managed(payload) if payload.is_copy_value())
+        {
+            continue;
+        }
+        if !matches!(t, Type::Managed(_))
+            || crate::tasks::input_scope::domain(t, b)?
+                != crate::tasks::input_scope::Domain::Known(0)
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     let Some((raw, classes)) = qualified(t) else {
         return Ok(false);
@@ -62,11 +79,7 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
             {
                 return Err(err("Task failure input identity differs"));
             }
-            if elements.iter().any(|t| {
-                !t.is_copy_value()
-                    && !matches!(t, Type::Address { .. })
-                    && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
-            }) {
+            if !complete_inputs(elements, b)? {
                 return Err(err(
                     "mixed owning failure view lacks its complete responsibility consumer",
                 ));
@@ -83,11 +96,7 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
         }
         _ => return Ok(false),
     };
-    if elements.iter().any(|t| {
-        !t.is_copy_value()
-            && !matches!(t, Type::Address { .. })
-            && !matches!(t, Type::Managed(payload) if payload.is_copy_value())
-    }) {
+    if !complete_inputs(elements, b)? {
         return Err(err(
             "mixed owning input view lacks its complete responsibility consumer",
         ));
