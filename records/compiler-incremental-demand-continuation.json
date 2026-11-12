@@ -1091,10 +1091,10 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "eaafac4b0af7c752173d2c7de22ce10752136782",
+        "read_goal": "dfac08241b3cd762c2034ff857da6921ea12101d",
         "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
-        "measured_source": "d3f561bdc4dfbad403e886076573ade3a7640692",
-        "measured_binary_sha256": "66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7",
+        "measured_source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+        "measured_binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
         "main_capture": "15:08 UTC; frozen earlier main42 comparisons retain their original source, not relabelled",
         "main_new_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
@@ -1107,7 +1107,7 @@
           "frame": "Exact55e native69/backend239/driver207 pass;Clippy07 featuregetter condition failure retained,04a fix. Exact244c complete native70,strict alltargetClippy08,fmt07,tools39pass;release08 running,no new timing.",
           "d3": "native72/backend239/driver3mixed/strictalltargetClippy09/fmt08/tools39/release09pass; allsourceAfter exact",
           "Types_bridge": "365 Types101/driver208/strictClippy10pass;068 test-onlyfmt10/release10pass; original94 Types01 100/1 andfmt09 fail unchanged. Default workspace9daad6375 exact-source recovery remains earlier scope.",
-          "final_flat_native": "1e260 native23 72/0,backend10 239/0,mixednative02 3/0; finalClippy11/fmt11/release11 running,not yet claimed"
+          "final_flat_native": "Exact1e260 native72/backend239/mixeddriver3/strictalltargetClippy11/fmt11/release11 pass; no current completeworkspace rerun claimed"
         },
         "new_CT": "exact original20x20x16 locked fixture private21 actual body checks/404 reuses; positions425checks; globalcontext/declarations remain; originalprefix/N-N1/firsterror/independentVerify retained",
         "F14": "General function key now includes all reachable named type definitions and validates current caller owners; originalfinding/failed proofs retained; native negatives pass.",
@@ -1116,7 +1116,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "Flat typedMIR pools: MI88B→40B and fullcanonical partition/tie/APInt/MMO/frame/registeruse validation; fulloldMachineVerifier/MIRtext/typedrecapture preserved. CurrentTPM canonicalAU borrowed/fully fourcolumn lengths+order+flags compared insteadof virtualgetAU recompute; providerclosure onlythreeinput columns. Source1e260 bounded independent review acceptednative72;nettimingpending.",
+        "active_construction": "1e260 flatMIR/fullactualcanonical4columnAU completed and batchpassed; subsequent complete AU-value sharing/observed-ordinal component underway, narrowCT hint projection752 source complete pendingrootgates, two current-tool ldd probes combined under full binding under construction. Fullcomponents beforeunifiedtests, no new source retagged oldtimings.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1128,7 +1128,7 @@
           "sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
           "status": "freshHTTPS full restore byte+mode validated; two diagnostic saved-native oracles recomputed without new native execution"
         },
-        "local_custody": "Old07/closed01 exactv10,08/closed02 exactv12 and09/closed03 exactv13 materializations retiredaftercomplete localfile set/hash/mode proofs;fullrawremoterecoverable. 46topmetadata09/03 retainedcleanup06,sidecars/binaries/Gitobjects untouched. Debugcache notretiredyet;O2 needsbudgetedspace.",
+        "local_custody": "Prior profiles and originalcheck02 retired onlyafterfixedremote fullfilehash/mode proof; check15metadata preservedcleanup07, summary20fileprojectioncleanup09 boundv14. Own reproducible rootdebugcache retired after allbatchgates/noactiveknownusers tofitO2; explicitreceiptcleanup08, source/binaries/raw untouched. O2stillpresent untilpiecewisefixedref recoveryproof.",
         "automatic_review": "raw trace+ELF push to a new research source ref rejected for unapproved raw payload/destination; preserved locally for separate authorized archive, puretools branch27c454 pushed without raw ancestry. No retry/bypass.",
         "controls": "Default switches off; no research merge to main; default budgets, independent Verify and original O2 retained; one heavy window. User requests batch validation after complete logic; no per-getter reruns.",
         "astra_review": "Read-only fixed368ea architecture review source244c:tools/research/incremental-demand/full-push-astra-native-panorama-review.{json,md}; recommends frame consumers, entry negative-filter, then schema3-driven capture/replay economics. No new measuredspeed.",
@@ -1142,6 +1142,64 @@
           "compressed_bytes": 128739550,
           "status": "bothfreshHTTPSallfilehash+modeverified;v13A Git title oldshort244c corrected inB immutableSOURCE-LABEL-CORRECTION;allauthoritativebindingsd3",
           "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v13.json"
+        },
+        "matched_1e260": {
+          "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+          "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+          "binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
+          "per_mode": {
+            "rows": 270,
+            "measured": 144,
+            "named_parents": 126
+          },
+          "native_executions": 2808,
+          "verified_blobs": 476,
+          "quality_pairs": {
+            "all": 78,
+            "measured": 42,
+            "named_parents": 36,
+            "whole_ELF_and_strict_LLVM_equal": true
+          },
+          "check_candidate_ms": {
+            "cold": 658.042,
+            "unchanged": 3.316,
+            "private": 79.985,
+            "multi": 89.529,
+            "broad": 626.168,
+            "restore": 28.202,
+            "error": 45.981,
+            "recovery": 61.279
+          },
+          "o2_candidate_ms": {
+            "cold": 7616.131,
+            "unchanged": 63.766,
+            "private": 560.182,
+            "multi": 758.382,
+            "broad": 7070.189,
+            "restore": 166.038,
+            "error": 50.349,
+            "recovery": 516.202
+          },
+          "o2_Rust_ms": {
+            "cold": 6819.087,
+            "unchanged": 13.467,
+            "private": 593.243,
+            "multi": 1038.154,
+            "broad": 5826.406,
+            "restore": 495.323,
+            "error": 215.44,
+            "recovery": 515.146
+          },
+          "scope": "Six sequential balanced alternating blocks per mode; fixed original425/20x20x16,CGU16/O2/jobs1, allnamedparents/errors/recovery. Same CGU request not same partitions or guarantees; newCargo vsresidentZil, LLVM23.1.1/23.1.4. No per-slice attribution or priorcandidate comparison. Nativecold/broad/noop negative and recoveryparity; significant overallRustlead notachieved.",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-matched-1e260.{json,md}"
+        },
+        "raw_latest_v14": {
+          "commit": "8d10022e4c0daf0717a07bdfeb2905372372ca4a",
+          "files": 3185,
+          "raw_bytes": 784463141,
+          "archive_bytes": 152553847,
+          "parts": 7,
+          "status": "Fullcheck02/finalgates/binaries freshHTTPSallfilebytes+modeverified; capturedactualvalidator270/144/126/117 rerunidentical. checksummary20fileprojection separately fullmanifestverified. O2 originalfullvalidatorpassed but archivev15inprogress, notyetdurableclaim."
         }
       }
     }
