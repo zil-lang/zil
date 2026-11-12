@@ -12,7 +12,6 @@
  using namespace llvm;
  using namespace ore;
  
-+// Explicit scoped client only. The stock C API never installs a hook.
 +static thread_local const ZilLLVMFunctionProductHooks *ZilFunctionHooks = nullptr;
 +extern "C" LLVM_ABI const ZilLLVMFunctionProductHooks *
 +ZilLLVMSetFunctionProductHooks(const ZilLLVMFunctionProductHooks *Hooks) {
@@ -22,6 +21,7 @@
 +}
 +extern "C" LLVM_ABI const ZilLLVMFunctionProductHooks *
 +ZilLLVMGetFunctionProductHooks() { return ZilFunctionHooks; }
++extern "C" LLVM_ABI unsigned ZilLLVMMachineProductCapability() { return 1; }
 +
 +
  static cl::opt<bool> DroppedVarStatsMIR(
@@ -39,3 +39,139 @@
    MachineFunction &MF = MMI.getOrCreateMachineFunction(F);
  
    MachineFunctionProperties &MFProps = MF.getProperties();
+--- a/llvm/include/llvm/IR/PassManagerImpl.h
++++ b/llvm/include/llvm/IR/PassManagerImpl.h
+@@ -16,6 +16,7 @@
+ #define LLVM_IR_PASSMANAGERIMPL_H
+ 
+ #include "llvm/IR/Function.h"
++#include "zil_llvm_work_products_hooks.h"
+ #include "llvm/IR/PassInstrumentation.h"
+ #include "llvm/IR/PassManager.h"
+ #include "llvm/Support/CommandLine.h"
+@@ -63,8 +64,21 @@
+       detail::getAnalysisResult<PassInstrumentationAnalysis>(
+           AM, IR, std::tuple<ExtraArgTs...>(ExtraArgs...));
+ 
++  const auto *ZilHooks = ZilLLVMGetFunctionProductHooks();
++  void *ZilStageToken = nullptr;
++  if constexpr (std::is_same_v<IRUnitT, Function>) {
++    PreservedAnalyses ZilReplayPA = PreservedAnalyses::none();
++    if (ZilHooks && ZilHooks->abi_version == 1 &&
++        ZilHooks->before_function_stage &&
++        ZilHooks->before_function_stage(ZilHooks->context, this, &IR, &AM,
++                                       &PI, &ZilReplayPA, &ZilStageToken))
++      return ZilReplayPA;
++  }
++
+   StackTraceEntry Entry(PI, IR);
++  unsigned ZilPassIndex = 0;
+   for (auto &Pass : Passes) {
++    const unsigned ZilCurrentIndex = ZilPassIndex++;
+     Entry.setPass(&*Pass);
+ 
+     // Check the PassInstrumentation's BeforePass callbacks before running the
+@@ -73,7 +87,13 @@
+     if (!PI.runBeforePass<IRUnitT>(*Pass, IR))
+       continue;
+ 
++    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
++      ZilHooks->enter_pass(ZilHooks->context,
++                          std::is_same_v<IRUnitT, Module> ? 0 : 1,
++                          ZilCurrentIndex);
+     PreservedAnalyses PassPA = Pass->run(IR, AM, ExtraArgs...);
++    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
++      ZilHooks->leave_pass(ZilHooks->context);
+ 
+     // Update the analysis manager as each pass runs and potentially
+     // invalidates analyses.
+@@ -93,6 +113,11 @@
+   // AnalysisManager are preserved. We mark this with a set so that we don't
+   // need to inspect each one individually.
+   PA.preserveSet<AllAnalysesOn<IRUnitT>>();
++  if constexpr (std::is_same_v<IRUnitT, Function>) {
++    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->after_function_stage)
++      ZilHooks->after_function_stage(ZilHooks->context, this, &IR, &AM, &PA,
++                                      ZilStageToken);
++  }
+ 
+   return PA;
+ }
+--- a/llvm/lib/IR/PassManager.cpp
++++ b/llvm/lib/IR/PassManager.cpp
+@@ -13,6 +13,7 @@
+ #include <optional>
+ 
+ using namespace llvm;
++extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
+ 
+ namespace llvm {
+ // Explicit template instantiations and specialization defininitions for core
+--- a/llvm/lib/Analysis/CGSCCPassManager.cpp
++++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
+@@ -7,6 +7,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "llvm/Analysis/CGSCCPassManager.h"
++#include "zil_llvm_work_products_hooks.h"
+ #include "llvm/ADT/ArrayRef.h"
+ #include "llvm/ADT/PriorityWorklist.h"
+ #include "llvm/ADT/STLExtras.h"
+@@ -83,7 +84,10 @@
+   FunctionAnalysisManager &FAM =
+       AM.getCachedResult<FunctionAnalysisManagerCGSCCProxy>(*C)->getManager();
+ 
++  const auto *ZilHooks = ZilLLVMGetFunctionProductHooks();
++  unsigned ZilPassIndex = 0;
+   for (auto &Pass : Passes) {
++    const unsigned ZilCurrentIndex = ZilPassIndex++;
+     // Check the PassInstrumentation's BeforePass callbacks before running the
+     // pass, skip its execution completely if asked to (callback returns false).
+     if (!PI.runBeforePass(*Pass, *C))
+@@ -91,7 +95,11 @@
+ 
+     LargestCGSCC.updateMax(C->size());
+ 
++    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
++      ZilHooks->enter_pass(ZilHooks->context, 2, ZilCurrentIndex);
+     PreservedAnalyses PassPA = Pass->run(*C, AM, G, UR);
++    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
++      ZilHooks->leave_pass(ZilHooks->context);
+ 
+     // Update the SCC if necessary.
+     C = UR.UpdatedC ? UR.UpdatedC : C;
+--- a/llvm/lib/IR/LegacyPassManager.cpp
++++ b/llvm/lib/IR/LegacyPassManager.cpp
+@@ -11,6 +11,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ #include "llvm/IR/LegacyPassManager.h"
++#include "zil_llvm_work_products_hooks.h"
+ #include "llvm/ADT/MapVector.h"
+ #include "llvm/ADT/SmallString.h"
+ #include "llvm/IR/DiagnosticInfo.h"
+@@ -32,6 +33,7 @@
+ #include "llvm/Support/raw_ostream.h"
+ 
+ using namespace llvm;
++extern "C" LLVM_ABI unsigned ZilLLVMLegacyLifecycleCapability() { return 1; }
+ 
+ // See PassManagers.h for Pass Manager infrastructure overview.
+ 
+@@ -1447,6 +1449,16 @@
+       reportChangedIR(BeforeStr, AfterStr, FP->getPassName(), PassID, Name,
+                       IsInteresting, ShouldPrintChanged);
+ 
++    if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
++        Hooks && Hooks->abi_version == 1 && Hooks->legacy_pass_was_skipped &&
++        Hooks->legacy_pass_was_skipped(Hooks->context, FP, &F)) {
++      // The client restored a complete product before the first MF. This pass
++      // did not execute: do not verify or register a nonexistent analysis.
++      // Required-provider last-use cleanup still follows the original plan.
++      removeDeadPasses(FP, Name, ON_FUNCTION_MSG);
++      continue;
++    }
++
+     Changed |= LocalChanged;
+     if (LocalChanged)
+       dumpPassInfo(FP, MODIFICATION_MSG, ON_FUNCTION_MSG, Name);
