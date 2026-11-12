@@ -426,10 +426,16 @@ pub(super) fn check_definitions(
             // Actual capture origins, storage effects and future uses are
             // reconstructed by the independent resource and borrow checks.
             if slices::is_window(ty) {
-                return Err(unsupported(
-                    "borrowed slice captures are outside the finite slice profile",
-                    None,
-                ));
+                if closure.storage_life.is_none() {
+                    return Err(unsupported(
+                        "borrowed slice capture requires its complete actual environment relation",
+                        None,
+                    ));
+                }
+                // The complete actual entry/definition relation was checked
+                // above. This schedules CFG loan/unique-Take reconstruction;
+                // it does not obtain Copy or a pointee from the relation.
+                budget.nested_callable_sources = true;
             }
             // Capture qualification does not itself prove responsibility.
             // Complete child fields receive their own retained slots/flags;
