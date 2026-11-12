@@ -410,3 +410,128 @@ fn shared_provisional_allowance_never_gives_each_item_a_full_work_limit() {
         "a later item cannot replenish the shared allowance"
     );
 }
+
+fn shift_function(function: &mut TypedFunction, offset: usize) {
+    function.span.start += offset;
+    function.span.end += offset;
+    for local in &mut function.locals {
+        local.span.start += offset;
+        local.span.end += offset;
+    }
+    for block in &mut function.blocks {
+        for instruction in &mut block.instructions {
+            instruction.span.start += offset;
+            instruction.span.end += offset;
+        }
+    }
+}
+#[test]
+fn current_diagnostic_bindings_reuse_only_completely_equal_semantic_inputs() {
+    let source = program();
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let previous = run(&mut session, &source, &limits);
+    let mut relocated = (*source).clone();
+    for function in &mut relocated.module.functions {
+        shift_function(function, 25);
+    }
+    relocated.module.source_fingerprint = Fingerprint::of(b"positions only");
+    let relocated = Arc::new(relocated);
+    let result = run(&mut session, &relocated, &limits);
+    assert_eq!(session.last_stats().product_function_queries_executed, 0);
+    assert_eq!(session.last_stats().product_relocated_function_bindings, 3);
+    assert_eq!(session.last_stats().product_semantic_functions_compared, 3);
+    assert!(
+        result
+            .functions
+            .changed_indices(&previous.functions)
+            .is_empty()
+    );
+    assert_eq!(session.last_product_changes().len(), 3);
+    assert!(session.last_product_changes().iter().all(|r| r.reused));
+    // A real metadata input must not be mistaken for diagnostic rebinding.
+    let mut renamed = (*relocated).clone();
+    renamed.module.functions[0].name.push_str("actual_metadata");
+    run(&mut session, &Arc::new(renamed), &limits);
+    assert_eq!(session.last_stats().product_function_queries_executed, 2);
+}
+#[test]
+fn variable_width_private_edit_rebinds_siblings_without_reexecuting_their_queries() {
+    let source = program();
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let old = run(&mut session, &source, &limits);
+    let mut changed = (*edit(&source, 123456)).clone();
+    for function in changed.module.functions.iter_mut().skip(1) {
+        shift_function(function, 5);
+    }
+    let next = run(&mut session, &Arc::new(changed), &limits);
+    assert_eq!(session.last_stats().product_function_queries_executed, 1);
+    assert_eq!(session.last_stats().product_relocated_function_bindings, 2);
+    assert!(next.functions.changed_indices(&old.functions).is_empty());
+    assert_eq!(
+        session
+            .last_product_changes()
+            .iter()
+            .filter(|r| !r.reused)
+            .count(),
+        1
+    );
+}
+#[test]
+fn ordinary_unsafe_lexical_spans_are_never_ignored_as_diagnostic_relocations() {
+    let mut source = (*program()).clone();
+    let mut foreign = function(3, 0);
+    foreign.blocks.clear();
+    foreign.values.clear();
+    foreign.foreign = Some(ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "getchar".into(),
+        noescape_parameters: vec![],
+        static_callbacks: false,
+        scoped_callback: None,
+    });
+    source.module.functions.push(foreign);
+    let function = &mut source.module.functions[0];
+    function.span = Span::new(FileId(0), 0, 200);
+    function.blocks[0].instructions = vec![
+        Instruction {
+            result: None,
+            kind: InstructionKind::UnsafeEnter { region: 0 },
+            span: Span::new(FileId(0), 100, 150),
+        },
+        Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::ForeignCall {
+                function: FunctionId(3),
+                arguments: vec![],
+                region: 0,
+            },
+            span: Span::new(FileId(0), 110, 120),
+        },
+        Instruction {
+            result: None,
+            kind: InstructionKind::UnsafeExit { region: 0 },
+            span: Span::new(FileId(0), 100, 150),
+        },
+    ];
+    let source = Arc::new(source);
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    run(&mut session, &source, &limits);
+    assert!(session.product.is_some());
+    let previous = session.last_product_changes()[0];
+    let mut escaped = (*source).clone();
+    escaped.module.functions[0].blocks[0].instructions[1].span = Span::new(FileId(0), 160, 170);
+    let escaped = Arc::new(escaped);
+    // Ordinary foreign lexical safety belongs to independent current Verify.
+    // Analyze must keep its existing StopAfterAnalyze/raw-candidate behavior,
+    // while rebinding the actual current input instead of granting permission.
+    assert!(expected(&escaped, &limits).is_ok());
+    run(&mut session, &escaped, &limits);
+    assert_eq!(session.last_stats().product_function_queries_executed, 1);
+    assert_eq!(session.last_stats().product_relocated_function_bindings, 0);
+    let current = session.last_product_changes()[0];
+    assert!(!current.reused);
+    assert_ne!(current.input, previous.input);
+}

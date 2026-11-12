@@ -26,6 +26,8 @@ pub struct AnalysisStats {
     pub product_global_obligations_executed: usize,
     pub product_global_obligations_reused: usize,
     pub product_plan_rows_replaced: usize,
+    pub product_semantic_functions_compared: usize,
+    pub product_relocated_function_bindings: usize,
 }
 
 #[derive(Clone)]
