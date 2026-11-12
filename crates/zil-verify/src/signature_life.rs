@@ -1043,6 +1043,7 @@ mod tests {
                 None,
                 false,
                 Some(CallableKind::FnOnce),
+                &[],
             )
         };
         assert!(check(&c).is_ok());
