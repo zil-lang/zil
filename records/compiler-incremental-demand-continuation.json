@@ -184,7 +184,76 @@
           "retained_failure": "driver fixture reused nonblank discovery input; corrected without relaxing identity assertions; two lint failures retained"
         },
         "raw_durability": "new raw local pending archive/source-history push and fresh remote recovery; historical durable archive unchanged"
+      },
+      {
+        "source": "140997e032df26c31d94fe029ac86c7b42560182",
+        "status": "full workspace6205 passed; exact non-author source review accepted bounded delta; check/O2 matched windows complete; task remains active",
+        "implemented": "canonical function serialization with current span binding; cold checker-owned native receipt; complete stamped trusted-tool identity memo with separate library role; immutable database closure ReadBatch consumed by frontend",
+        "validation": "full workspace6205/0/0 across430 suites; strict all-target Clippy; both matched validators valid270rows/144measured/126parents; O2 native2808/351blobs",
+        "native_median_ms_main_candidate_rust": {
+          "cold": [
+            6078.98,
+            6994.98,
+            5973.31
+          ],
+          "unchanged": [
+            518.61,
+            111.65,
+            28.04
+          ],
+          "private": [
+            1706.23,
+            888.46,
+            514.51
+          ],
+          "multi": [
+            1753.85,
+            1069.16,
+            1107.68
+          ],
+          "broad": [
+            5472.8,
+            6696.25,
+            5677.93
+          ],
+          "restore": [
+            614.97,
+            553.58,
+            565.24
+          ],
+          "error": [
+            372.44,
+            325.0,
+            300.34
+          ],
+          "recovery": [
+            1807.68,
+            1202.01,
+            569.2
+          ]
+        },
+        "controls": "six alternating blocks, same requestedCGU16/O2/jobs1, actual current objects archived; different actual Rust/ZIL partitions, resident vs Cargo new process, LLVM23.1.4 vs23.1.1; no outliers removed",
+        "negative": "cold/broad regress versus main; private/recovery lag Rust; no general parity/completion claim"
+      },
+      {
+        "source": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
+        "status": "active; pushed; release/profile and exact review in progress",
+        "implemented": "bounded packed raw publication with original sync/atomic durability; sealed owner-bound producer/Types/publication epochs; ordinary-O2 partition recipe actual unchanged-unit sharing; streamed complete diagnostic fragments; equal object bytes stop link propagation",
+        "validation": "backend221; driver195; Types78; final hook driver195; strict workspace/alltargets Clippy and fmt passed; all first failures retained",
+        "limits": "raw packs/epochs are not Verify authority; recipe strict domain fallback, full output IO/discovery/global checks remain; no default flag/main change"
       }
-    ]
+    ],
+    "current_source": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
+    "read_goal_latest": "cd9a8894b9c3eda159ae4978c850a20b20e01d8f",
+    "raw_latest": {
+      "archive_ref": "archive/source-history",
+      "commit": "92b55c50dae095d035f69742ecb1b4276841247c",
+      "path": "research/incremental-demand-full-pipeline-20261112-v1",
+      "sha256": "209be2622c10a16170d0c748b8d4b31650bc12e1e5af8e14fb05c401d8f78b9a",
+      "bytes": 45005697,
+      "verified_files": 5282,
+      "scope": "through fb6260/profile-r2; freshly cloned via HTTPS and all bytes/source ancestry/recorded native oracles verified; newer140/e1ad raw local pending next checkpoint",
+      "receipt": "full-pipeline-recovery-v1.json"
+    }
   }
 }
