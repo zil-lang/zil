@@ -141,10 +141,17 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
 
 pub(super) mod enum_address;
 mod nominal;
+mod anonymous_tuple;
 pub(super) mod option_address;
 mod retained;
 mod task_address;
 mod task_failure;
+pub(super) fn anonymous_tuple(ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(anonymous_tuple::layout(ty, b)?.is_some())
+}
+pub(super) fn anonymous_operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+    anonymous_tuple::operation(f, i, b)
+}
 pub(super) fn borrowed_product_child(ty: &Type, b: &mut Budget) -> Check<bool> {
     compound::borrowed_child(ty, b)
 }
@@ -1121,6 +1128,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
+    if anonymous_tuple::layout(ty, b)?.is_some() { return Ok(true); }
     if b.task_failure_carriers && task_failure::shape(ty, limits, b)? {
         return Ok(true);
     }
@@ -1488,6 +1496,8 @@ pub(super) fn qualifications(
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
+                // Type/mode authentication is independent of dispatch flags.
+                anonymous_tuple::operation(f, i, b)?;
                 if let InstructionKind::Load(local) = i.kind
                     && f.locals
                         .get(local.0 as usize)
@@ -2950,6 +2960,18 @@ fn step(
         None
     };
     match &i.kind {
+        InstructionKind::UnpackTuple { local, fields } if anonymous_tuple::operation(f, i, b)? => {
+            anonymous_tuple::unpack(f, *local, fields, state, b)?;
+        }
+        InstructionKind::DropTuple { local } if anonymous_tuple::operation(f, i, b)? => {
+            state.locals[local.0 as usize] = Payload::default();
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::ExtractField { aggregate, index } if anonymous_tuple::operation(f, i, b)? => {
+            if let Some(permission) = leaf(val(*aggregate)?, &[PlaceProjection::Field(*index)], b)? {
+                join_permission(&mut out.address, permission, b)?;
+            }
+        }
         InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
             compound::unpack(*local, fields, state, b)?;
         }
@@ -3506,6 +3528,7 @@ fn step(
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
+                && !anonymous_tuple::operation(f, i, b)?
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
                 return Err(err("anonymous input Tuple must be moved from its actual parent field"));
