@@ -854,6 +854,59 @@ mod tests {
     }
 
     #[test]
+    fn opaque_free_domain_excludes_invocation_and_retains_mixed_static_occurrences() {
+        let mut module = closure(1);
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        module.closures[0].captures.insert(0, address.clone());
+        let mut relation = module.closures[0].storage_life.clone().unwrap();
+        relation.bindings[0].position.base = StorageBase::Capture(1);
+        relation.static_bindings = vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![],
+        }];
+        relation.invocation_binder_count = 1;
+        relation.bindings.insert(
+            0,
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            },
+        );
+        module.closures[0].parameters = vec![address.clone()];
+        module.functions[0].parameters = vec![LocalId(0)];
+        module.functions[0].locals[0].ty = address;
+        module.closures[0].storage_life = Some(relation.clone());
+        module.functions[0].storage_life = Some(relation);
+        let actual = value(Type::Closure(ClosureId(0)), 1);
+        assert!(run(&module, &actual).unwrap().pending_sources);
+        assert!(run(&module, &value(Type::Closure(ClosureId(0)), 2)).is_err());
+        let mut duplicated = module.clone();
+        duplicated.closures[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .bindings
+            .insert(
+                1,
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Capture(0),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Fixed(0),
+                },
+            );
+        duplicated.functions[0].storage_life = duplicated.closures[0].storage_life.clone();
+        assert!(run(&duplicated, &actual).is_err());
+    }
+
+    #[test]
     fn address_keeps_outer_borrow_and_the_whole_opaque_pointee_domain() {
         let module = closure(2);
         let mut actual = value(

@@ -152,6 +152,18 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
             fixed_binder_count: interface.retained_life.binder_count,
             invocation_binder_count: 0,
         };
+        scopes::bounded(context, b)?;
+        let identity: Vec<_> = (0..context.fixed_binder_count)
+            .map(|i| DynLifeEmbedding {
+                from: StorageBinder::Fixed(i),
+                to: StorageBinder::Fixed(i),
+            })
+            .collect();
+        let expected_receiver = DynTypeValue {
+            ty: table.self_type.clone(),
+            life: self_life.clone(),
+            classes: table.self_classes.clone(),
+        };
         let mut roots = 0;
         for witness in witnesses {
             dynamic_metadata::recipe(witness, b)?;
@@ -209,6 +221,29 @@ pub(super) fn claims(module: &TypedModule, b: &mut Budget) -> Check<()> {
                 && witness.receiver.ty == table.self_type
                 && witness.receiver.life == *self_life
             {
+                let Some(relation) = keys::relate(
+                    module,
+                    keys::Key {
+                        receiver: &witness.receiver,
+                        application: &witness.application,
+                        scope: witness.scope,
+                    },
+                    keys::Key {
+                        receiver: &expected_receiver,
+                        application: &interface.application,
+                        scope: context,
+                    },
+                    b,
+                )?
+                else {
+                    continue;
+                };
+                relation.context(&witness.to_context, &identity, b)?;
+                if relation.mapped(&witness.receiver, b)? != expected_receiver {
+                    return Err(bad(
+                        "root query substitution changes its complete intrinsic receiver",
+                    ));
+                }
                 b.spend(
                     witness
                         .receiver
