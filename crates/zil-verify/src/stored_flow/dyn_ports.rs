@@ -278,6 +278,7 @@ pub(super) fn seed(
 pub(super) fn call(
     module: &TypedModule,
     f: &TypedFunction,
+    callee: &TypedFunction,
     summary: &Summary,
     args: &[ValueId],
     values: &[Payload],
@@ -288,9 +289,19 @@ pub(super) fn call(
     if !b.dyn_contexts {
         return Ok(());
     }
+    if summary.complete && !summary.dyn_ports.0.is_empty() {
+        dyn_returns::validate(module, callee, &summary.dyn_ports, b)?;
+    }
     for (path, source) in &summary.dyn_ports.0 {
         let mut permission = Permission::default();
-        for original in &source.permission.sources {
+        let published;
+        let originals = if summary.complete {
+            published = dyn_returns::published_sources(module, callee, path, b)?;
+            &published
+        } else {
+            &source.permission.sources
+        };
+        for original in originals {
             join_permission(
                 &mut permission,
                 &instantiate(module, f, original, args, values, state, b)?,

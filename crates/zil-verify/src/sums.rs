@@ -41,6 +41,32 @@ fn owned_leaf(ty: &Type) -> bool {
     }
 }
 
+/// The allocation wrapper needs its actual selected-arm/source summary even
+/// though erased owners are checked by the independent dyn affine kernel.
+/// This does not admit arbitrary owning ErrorUnions or classify owners Copy.
+fn dyn_outcome(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
+    budget.spend(1)?;
+    if let Type::OwnedDyn { interface } = ty {
+        dynamic_dispatch::type_owned(module, *interface, budget)?;
+        return Ok(true);
+    }
+    let Type::ErrorUnion { error, result } = ty else {
+        return Ok(false);
+    };
+    let Type::OwnedDyn { interface } = result.as_ref() else {
+        return Ok(false);
+    };
+    budget.spend(1)?;
+    if error.as_ref() != &dynamic_dispatch::create_error() {
+        return Err(bad(
+            None,
+            "erased-owner allocation outcome has a different error route",
+        ));
+    }
+    dynamic_dispatch::type_owned(module, *interface, budget)?;
+    Ok(true)
+}
+
 // Both domains use the same complete Content constructor. Only immutable
 // type/slot classification is indexed; every invalidation still updates the
 // actual Content, missing fields, routes and current tag alternatives.
@@ -1167,7 +1193,7 @@ fn content(
         }
     }
     Ok(match ty {
-        Type::Managed(_) => Content::Leaf(if bottom {
+        Type::Managed(_) | Type::OwnedDyn { .. } => Content::Leaf(if bottom {
             BTreeSet::new()
         } else {
             BTreeSet::from([parameter.map_or(Source::Unknown, |p| Source::Input(p, path.clone()))])
@@ -1826,6 +1852,20 @@ impl Flow<'_> {
                 | InstructionKind::OwnedStoreNew { .. } => {
                     result = Some(Content::Leaf(BTreeSet::from([Source::Fresh])))
                 }
+                InstructionKind::MakeDynOwned { interface, .. } => {
+                    // The actual allocation instruction, rather than the
+                    // callee's result type, introduces this owning success.
+                    // Failed allocation contains only the canonical error;
+                    // the independent dyn proof checks its Self cleanup.
+                    dynamic_dispatch::type_owned(self.module, *interface, budget)?;
+                    result = Some(Content::Sum(
+                        BTreeMap::from([
+                            (0, vec![Content::Copy]),
+                            (1, vec![Content::Leaf(BTreeSet::from([Source::Fresh]))]),
+                        ]),
+                        None,
+                    ));
+                }
                 InstructionKind::MakePackage { fields }
                 | InstructionKind::MakeOwnedTuple { fields } => {
                     budget.spend(fields.len())?;
@@ -2173,6 +2213,7 @@ impl Flow<'_> {
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropOwnedArray { local }
+                | InstructionKind::DropDynOwned { local }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local) => {
                     self.kill(state, *local, budget)?;
@@ -2688,6 +2729,7 @@ pub(super) fn check_module(
             Ok(f.foreign.is_none()
                 && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
                     || owned(&f.return_type)
+                    || dyn_outcome(module, &f.return_type, budget)?
                     || shared_enum_content(&f.return_type, budget)?))
         })
         .collect::<Check<Vec<_>>>()?;

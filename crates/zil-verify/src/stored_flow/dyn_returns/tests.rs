@@ -61,6 +61,34 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         },
     ];
     f.return_type = Type::OwnedDyn { interface };
+    f.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 2,
+        bindings: vec![
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            },
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(1),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(1),
+            },
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Result,
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(0),
+        }],
+    });
     f.retained_return_sources = Some(vec![StorageSourceBinding {
         position: StoragePosition {
             base: StorageBase::Result,
@@ -351,5 +379,28 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
     assert!(
         loans[2].parents.contains(&5),
         "ordinary result assignment must preserve the real receiver head parent"
+    );
+    let mut b = Budget::new(&Limits::default());
+    let head = Permission {
+        sources: vec![Source {
+            base: HoldRoot::Local(owner),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+        }],
+        loans: vec![],
+    };
+    let active = ancestry(&result.address.loans, &loans, &mut b).unwrap();
+    assert!(
+        access(&head, true, &active, &loans, &mut vec![], &mut b).is_err(),
+        "retiring the real owner while its short view lives must reject"
+    );
+    let mut stripped = loans.clone();
+    stripped[2].parents.retain(|parent| *parent != 5);
+    let active = ancestry(&result.address.loans, &stripped, &mut b).unwrap();
+    assert!(
+        access(&head, true, &active, &stripped, &mut vec![], &mut b).is_ok(),
+        "removing the non-target head parent would incorrectly authorize retirement"
     );
 }
