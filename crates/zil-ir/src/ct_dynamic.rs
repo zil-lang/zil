@@ -28,7 +28,6 @@ pub struct CtFunctionSourceBindings {
     pub module: ModuleId,
     pub source: NodeId,
     pub retained_return_sources: Option<Vec<CtStorageSourceBinding>>,
-    pub returned_capture_sources: Option<Vec<CtStorageSourceBinding>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

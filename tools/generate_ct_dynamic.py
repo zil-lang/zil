@@ -77,7 +77,6 @@ pub struct CtFunctionSourceBindings {
     pub module: ModuleId,
     pub source: NodeId,
     pub retained_return_sources: Option<Vec<CtStorageSourceBinding>>,
-    pub returned_capture_sources: Option<Vec<CtStorageSourceBinding>>,
 }
 '''
 out=header
@@ -87,7 +86,7 @@ for name,(kind,rows) in items.items():out+='\n#[derive(Clone, Debug, PartialEq, 
 # child visit. Every vector allocation is governed by their shared budget.
 wire='//! Generated bounded transport for the complete CT dynamic catalogue.\nuse super::*;\nuse crate::*;\n'
 def codec(name,kind,rows):
- out='impl Wire for '+name+' {\nfn encode(&self,e:&mut Encoder)->Result<()> { e.descend(|e| {\n'
+ out='impl Wire for '+name+' {\nfn encode(&self,e:&mut Encoder)->Result<()> { if e.depth>=128 {return Err(WireError::Limit);} e.descend(|e| {\n'
  if kind=='struct':out+=''.join('self.'+n+'.encode(e)?;\n' for n,t in rows)
  else:
   out+='match self {\n'
@@ -95,7 +94,7 @@ def codec(name,kind,rows):
    pat='Self::'+v+(' { '+', '.join(n for n,t in fs)+' }' if k=='struct' else '('+', '.join(n for n,t in fs)+')' if k=='tuple' else '')
    out+=pat+' => { '+str(tag)+'u8.encode(e)?; '+''.join(n+'.encode(e)?; ' for n,t in fs)+'},\n'
   out+='}\n'
- out+='Ok(()) }) }\nfn decode(d:&mut Decoder<\'_>)->Result<Self>{d.descend(|d| {\n'
+ out+='Ok(()) }) }\nfn decode(d:&mut Decoder<\'_>)->Result<Self>{if d.depth>=128 {return Err(WireError::Limit);} d.descend(|d| {\n'
  if kind=='struct':out+='Ok(Self { '+', '.join(n+': <'+mapped(t)+' as Wire>::decode(d)?' for n,t in rows)+' })'
  else:
   out+='Ok(match u8::decode(d)? {\n'
@@ -111,7 +110,7 @@ for n,(kind,rows) in external.items():wire+=codec(n,kind,rows)
 extra={
 'CtDynamicCatalogue':[('types','Vec<CtDynamicTypeNode>'),('life_declarations','Vec<CtLifeNominalDeclaration>'),('life_instances','Vec<CtLifeNominalInstance>'),('declarations','Vec<CtDynDeclaration>'),('interfaces','Vec<CtDynInterface>'),('vtables','Vec<CtCoreDynVtable>'),('function_instances','Vec<CtDynFunctionInstanceRecord>'),('function_sources','Vec<CtFunctionSourceBindings>')],
 'CtDynFunctionInstanceRecord':[('module','ModuleId'),('source','NodeId'),('instance','CtDynFunctionInstance')],
-'CtFunctionSourceBindings':[('module','ModuleId'),('source','NodeId'),('retained_return_sources','Option<Vec<CtStorageSourceBinding>>'),('returned_capture_sources','Option<Vec<CtStorageSourceBinding>>')],
+'CtFunctionSourceBindings':[('module','ModuleId'),('source','NodeId'),('retained_return_sources','Option<Vec<CtStorageSourceBinding>>')],
 }
 for n,rows in extra.items():wire+=codec(n,'struct',rows)
 wire+='impl Wire for CtDynamicTypeId { fn encode(&self,e:&mut Encoder)->Result<()>{self.0.encode(e)} fn decode(d:&mut Decoder<\'_>)->Result<Self>{Ok(Self(u32::decode(d)?))} }\n'

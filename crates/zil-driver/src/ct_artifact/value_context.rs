@@ -218,7 +218,7 @@ pub(super) fn program_copy_cost(
     }
     let mut bytes = (std::mem::size_of::<CtArtifactProgram>() as u64)
         .saturating_add(ambient_cost(&program.ambient_life_scopes, budget)?)
-        .saturating_add(super::dynamic_catalogue::copy_cost(
+        .saturating_add(crate::ct_artifact::dynamic_catalogue::copy_cost(
             &program.dynamic_catalogue,
             budget,
         )?);

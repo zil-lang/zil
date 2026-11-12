@@ -1,6 +1,5 @@
 //! Lossless raw metadata reification from the frozen Core inventory.
 //! This bridge supplies data; it cannot authorize an implementation or source.
-use super::*;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
 use zil_ct::CtExecutionBudget;
 use zil_ir::{Constant, CoreProgram, ct_artifact::*};
@@ -180,11 +179,7 @@ pub(super) fn from_core(
                     instance: reify_dyn_function_instance(instance, &mut builder, 2)?,
                 });
             }
-            let captures = function
-                .callable_return_contract
-                .as_ref()
-                .and_then(|contract| contract.capture_sources.as_ref());
-            if function.retained_return_sources.is_some() || captures.is_some() {
+            if function.retained_return_sources.is_some() {
                 let mut sources=|rows:Option<&Vec<zil_ir::StorageSourceBinding>>|->CompileResult<Option<Vec<CtStorageSourceBinding>>>{
                     let Some(rows)=rows else{return Ok(None)};
                     builder.rows(rows.len(),std::mem::size_of::<CtStorageSourceBinding>(),2)?;
@@ -194,7 +189,6 @@ pub(super) fn from_core(
                     module: core.module_id,
                     source: function.id,
                     retained_return_sources: sources(function.retained_return_sources.as_ref())?,
-                    returned_capture_sources: sources(captures)?,
                 });
             }
         }

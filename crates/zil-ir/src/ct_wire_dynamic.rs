@@ -3,6 +3,9 @@ use super::*;
 use crate::*;
 impl Wire for CtDynInterfaceId {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.module.encode(e)?;
             self.index.encode(e)?;
@@ -10,6 +13,9 @@ impl Wire for CtDynInterfaceId {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 module: <ModuleId as Wire>::decode(d)?,
@@ -20,6 +26,9 @@ impl Wire for CtDynInterfaceId {
 }
 impl Wire for CtDynVtableId {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.module.encode(e)?;
             self.index.encode(e)?;
@@ -27,6 +36,9 @@ impl Wire for CtDynVtableId {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 module: <ModuleId as Wire>::decode(d)?,
@@ -37,6 +49,9 @@ impl Wire for CtDynVtableId {
 }
 impl Wire for CtDynDeclaration {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.direct_supertraits.encode(e)?;
             self.requirements.encode(e)?;
@@ -54,6 +69,9 @@ impl Wire for CtDynDeclaration {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 direct_supertraits: <Option<Vec<CtDynSelfPattern>> as Wire>::decode(d)?,
@@ -76,6 +94,9 @@ impl Wire for CtDynDeclaration {
 }
 impl Wire for CtDynSelfPattern {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.declaration.encode(e)?;
             self.arguments.encode(e)?;
@@ -83,6 +104,9 @@ impl Wire for CtDynSelfPattern {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 declaration: <LifeDeclarationId as Wire>::decode(d)?,
@@ -93,6 +117,9 @@ impl Wire for CtDynSelfPattern {
 }
 impl Wire for CtDynPatternActual {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type(value_0) => {
@@ -112,6 +139,9 @@ impl Wire for CtDynPatternActual {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type(<CtDynTypePattern as Wire>::decode(d)?),
@@ -124,6 +154,9 @@ impl Wire for CtDynPatternActual {
 }
 impl Wire for CtDynConstPattern {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::IntegerLiteral(value_0) => {
@@ -184,6 +217,9 @@ impl Wire for CtDynConstPattern {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::IntegerLiteral(<String as Wire>::decode(d)?),
@@ -218,6 +254,9 @@ impl Wire for CtDynConstPattern {
 }
 impl Wire for CtDynTypePattern {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::SelfType => {
@@ -294,6 +333,9 @@ impl Wire for CtDynTypePattern {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::SelfType,
@@ -331,6 +373,9 @@ impl Wire for CtDynTypePattern {
 }
 impl Wire for CtDynDeclarationKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Trait => {
@@ -344,6 +389,9 @@ impl Wire for CtDynDeclarationKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Trait,
@@ -355,6 +403,9 @@ impl Wire for CtDynDeclarationKind {
 }
 impl Wire for CtDynMemberDeclaration {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.name.encode(e)?;
             self.kind.encode(e)?;
@@ -362,6 +413,9 @@ impl Wire for CtDynMemberDeclaration {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 name: <String as Wire>::decode(d)?,
@@ -372,6 +426,9 @@ impl Wire for CtDynMemberDeclaration {
 }
 impl Wire for CtDynMemberKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type => {
@@ -389,6 +446,9 @@ impl Wire for CtDynMemberKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type,
@@ -401,6 +461,9 @@ impl Wire for CtDynMemberKind {
 }
 impl Wire for CtDynGenericActual {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type(value_0) => {
@@ -424,6 +487,9 @@ impl Wire for CtDynGenericActual {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type(<CtDynamicTypeId as Wire>::decode(d)?),
@@ -437,6 +503,9 @@ impl Wire for CtDynGenericActual {
 }
 impl Wire for CtDynTraitApplication {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.declaration.encode(e)?;
             self.actuals.encode(e)?;
@@ -444,6 +513,9 @@ impl Wire for CtDynTraitApplication {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 declaration: <LifeDeclarationId as Wire>::decode(d)?,
@@ -454,6 +526,9 @@ impl Wire for CtDynTraitApplication {
 }
 impl Wire for CtDynMember {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.application.encode(e)?;
             self.ordinal.encode(e)?;
@@ -461,6 +536,9 @@ impl Wire for CtDynMember {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 application: <CtDynTraitApplication as Wire>::decode(d)?,
@@ -471,6 +549,9 @@ impl Wire for CtDynMember {
 }
 impl Wire for CtDynAssociatedType {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.member.encode(e)?;
             self.ty.encode(e)?;
@@ -480,6 +561,9 @@ impl Wire for CtDynAssociatedType {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 member: <CtDynMember as Wire>::decode(d)?,
@@ -492,6 +576,9 @@ impl Wire for CtDynAssociatedType {
 }
 impl Wire for CtDynAssociatedConstant {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.member.encode(e)?;
             self.ty.encode(e)?;
@@ -500,6 +587,9 @@ impl Wire for CtDynAssociatedConstant {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 member: <CtDynMember as Wire>::decode(d)?,
@@ -511,6 +601,9 @@ impl Wire for CtDynAssociatedConstant {
 }
 impl Wire for CtDynReceiver {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.mutable.encode(e)?;
             self.mode.encode(e)?;
@@ -518,6 +611,9 @@ impl Wire for CtDynReceiver {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 mutable: <bool as Wire>::decode(d)?,
@@ -528,6 +624,9 @@ impl Wire for CtDynReceiver {
 }
 impl Wire for CtDynSlot {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.member.encode(e)?;
             self.actuals.encode(e)?;
@@ -543,6 +642,9 @@ impl Wire for CtDynSlot {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 member: <CtDynMember as Wire>::decode(d)?,
@@ -561,6 +663,9 @@ impl Wire for CtDynSlot {
 }
 impl Wire for CtDynInterface {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.context.encode(e)?;
             self.owning_cleanup.encode(e)?;
@@ -575,6 +680,9 @@ impl Wire for CtDynInterface {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 context: <Option<CtDynamicTypeId> as Wire>::decode(d)?,
@@ -592,6 +700,9 @@ impl Wire for CtDynInterface {
 }
 impl Wire for CtCoreDynEntry {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.slot.encode(e)?;
             self.module.encode(e)?;
@@ -600,6 +711,9 @@ impl Wire for CtCoreDynEntry {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 slot: <u32 as Wire>::decode(d)?,
@@ -611,6 +725,9 @@ impl Wire for CtCoreDynEntry {
 }
 impl Wire for CtDynEntry {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.slot.encode(e)?;
             self.function.encode(e)?;
@@ -618,6 +735,9 @@ impl Wire for CtDynEntry {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 slot: <u32 as Wire>::decode(d)?,
@@ -628,6 +748,9 @@ impl Wire for CtDynEntry {
 }
 impl Wire for CtDynRetainedPortBinding {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.port.encode(e)?;
             self.sources.encode(e)?;
@@ -635,6 +758,9 @@ impl Wire for CtDynRetainedPortBinding {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 port: <u32 as Wire>::decode(d)?,
@@ -645,6 +771,9 @@ impl Wire for CtDynRetainedPortBinding {
 }
 impl Wire for CtCoreDynVtable {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.self_life.encode(e)?;
             self.implementation_witnesses.encode(e)?;
@@ -662,6 +791,9 @@ impl Wire for CtCoreDynVtable {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 self_life: <Option<StorageLifeShape> as Wire>::decode(d)?,
@@ -683,6 +815,9 @@ impl Wire for CtCoreDynVtable {
 }
 impl Wire for CtDynVtable {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.self_life.encode(e)?;
             self.implementation_witnesses.encode(e)?;
@@ -700,6 +835,9 @@ impl Wire for CtDynVtable {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 self_life: <Option<StorageLifeShape> as Wire>::decode(d)?,
@@ -721,6 +859,9 @@ impl Wire for CtDynVtable {
 }
 impl Wire for CtDynOwnedStorage {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Heap => {
@@ -731,6 +872,9 @@ impl Wire for CtDynOwnedStorage {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Heap,
@@ -741,6 +885,9 @@ impl Wire for CtDynOwnedStorage {
 }
 impl Wire for CtDynRequirement {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Read(value_0) => {
@@ -775,6 +922,9 @@ impl Wire for CtDynRequirement {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Read(<StoragePosition as Wire>::decode(d)?),
@@ -796,6 +946,9 @@ impl Wire for CtDynRequirement {
 }
 impl Wire for CtDynGuarantee {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::StorageSources(value_0) => {
@@ -820,6 +973,9 @@ impl Wire for CtDynGuarantee {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::StorageSources(<CtStorageSourceBinding as Wire>::decode(d)?),
@@ -836,6 +992,9 @@ impl Wire for CtDynGuarantee {
 }
 impl Wire for CtDynEffect {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Alloc => {
@@ -875,6 +1034,9 @@ impl Wire for CtDynEffect {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Alloc,
@@ -894,6 +1056,9 @@ impl Wire for CtDynEffect {
 }
 impl Wire for CtDynCallAccess {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.reads.encode(e)?;
             self.writes.encode(e)?;
@@ -901,6 +1066,9 @@ impl Wire for CtDynCallAccess {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 reads: <Vec<StoragePosition> as Wire>::decode(d)?,
@@ -911,6 +1079,9 @@ impl Wire for CtDynCallAccess {
 }
 impl Wire for CtDynResultSource {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Value => {
@@ -932,6 +1103,9 @@ impl Wire for CtDynResultSource {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Value,
@@ -948,6 +1122,9 @@ impl Wire for CtDynResultSource {
 }
 impl Wire for CtDynCleanupContract {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.environment.encode(e)?;
             self.positions.encode(e)?;
@@ -957,6 +1134,9 @@ impl Wire for CtDynCleanupContract {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 environment: <bool as Wire>::decode(d)?,
@@ -969,6 +1149,9 @@ impl Wire for CtDynCleanupContract {
 }
 impl Wire for CtDynResumeBound {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Local => {
@@ -982,6 +1165,9 @@ impl Wire for CtDynResumeBound {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Local,
@@ -993,6 +1179,9 @@ impl Wire for CtDynResumeBound {
 }
 impl Wire for CtDynThreadRequirements {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.transfer.encode(e)?;
             self.share.encode(e)?;
@@ -1000,6 +1189,9 @@ impl Wire for CtDynThreadRequirements {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 transfer: <bool as Wire>::decode(d)?,
@@ -1010,6 +1202,9 @@ impl Wire for CtDynThreadRequirements {
 }
 impl Wire for CtDynContract {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.requires.encode(e)?;
             self.guarantees.encode(e)?;
@@ -1024,6 +1219,9 @@ impl Wire for CtDynContract {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 requires: <Option<Vec<CtDynRequirement>> as Wire>::decode(d)?,
@@ -1041,6 +1239,9 @@ impl Wire for CtDynContract {
 }
 impl Wire for CtDynTypeValue {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.ty.encode(e)?;
             self.life.encode(e)?;
@@ -1049,6 +1250,9 @@ impl Wire for CtDynTypeValue {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 ty: <CtDynamicTypeId as Wire>::decode(d)?,
@@ -1060,6 +1264,9 @@ impl Wire for CtDynTypeValue {
 }
 impl Wire for CtDynLifePattern {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::DeclarationParameter(value_0) => {
@@ -1084,6 +1291,9 @@ impl Wire for CtDynLifePattern {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::DeclarationParameter(<u32 as Wire>::decode(d)?),
@@ -1100,6 +1310,9 @@ impl Wire for CtDynLifePattern {
 }
 impl Wire for CtDynObligation {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Structural { receiver, bound } => {
@@ -1143,6 +1356,9 @@ impl Wire for CtDynObligation {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Structural {
@@ -1175,6 +1391,9 @@ impl Wire for CtDynObligation {
 }
 impl Wire for CtDynParameterRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.ty.encode(e)?;
             self.mode.encode(e)?;
@@ -1182,6 +1401,9 @@ impl Wire for CtDynParameterRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 ty: <CtDynTypePattern as Wire>::decode(d)?,
@@ -1192,6 +1414,9 @@ impl Wire for CtDynParameterRecipe {
 }
 impl Wire for CtDynSignatureRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.parameters.encode(e)?;
             self.result.encode(e)?;
@@ -1203,6 +1428,9 @@ impl Wire for CtDynSignatureRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 parameters: <Vec<CtDynParameterRecipe> as Wire>::decode(d)?,
@@ -1217,6 +1445,9 @@ impl Wire for CtDynSignatureRecipe {
 }
 impl Wire for CtDynRequirementRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Read(value_0) => {
@@ -1251,6 +1482,9 @@ impl Wire for CtDynRequirementRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Read(<StoragePosition as Wire>::decode(d)?),
@@ -1272,6 +1506,9 @@ impl Wire for CtDynRequirementRecipe {
 }
 impl Wire for CtDynGuaranteeRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::StorageSources(value_0) => {
@@ -1296,6 +1533,9 @@ impl Wire for CtDynGuaranteeRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::StorageSources(<CtStorageSourceBinding as Wire>::decode(d)?),
@@ -1312,6 +1552,9 @@ impl Wire for CtDynGuaranteeRecipe {
 }
 impl Wire for CtDynEffectRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Alloc => {
@@ -1351,6 +1594,9 @@ impl Wire for CtDynEffectRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Alloc,
@@ -1370,6 +1616,9 @@ impl Wire for CtDynEffectRecipe {
 }
 impl Wire for CtDynCleanupRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.environment.encode(e)?;
             self.positions.encode(e)?;
@@ -1379,6 +1628,9 @@ impl Wire for CtDynCleanupRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 environment: <bool as Wire>::decode(d)?,
@@ -1391,6 +1643,9 @@ impl Wire for CtDynCleanupRecipe {
 }
 impl Wire for CtDynContractRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.requires.encode(e)?;
             self.guarantees.encode(e)?;
@@ -1405,6 +1660,9 @@ impl Wire for CtDynContractRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 requires: <Option<Vec<CtDynRequirementRecipe>> as Wire>::decode(d)?,
@@ -1422,6 +1680,9 @@ impl Wire for CtDynContractRecipe {
 }
 impl Wire for CtDynDefinitionId {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.module.encode(e)?;
             self.source.encode(e)?;
@@ -1429,6 +1690,9 @@ impl Wire for CtDynDefinitionId {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 module: <ModuleId as Wire>::decode(d)?,
@@ -1439,6 +1703,9 @@ impl Wire for CtDynDefinitionId {
 }
 impl Wire for CtDynDefinitionScope {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::TraitDefault => {
@@ -1452,6 +1719,9 @@ impl Wire for CtDynDefinitionScope {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::TraitDefault,
@@ -1463,6 +1733,9 @@ impl Wire for CtDynDefinitionScope {
 }
 impl Wire for CtDynDefinitionDeclaration {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.requirements.encode(e)?;
             self.instances.encode(e)?;
@@ -1475,6 +1748,9 @@ impl Wire for CtDynDefinitionDeclaration {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 requirements: <Vec<CtDynObligation> as Wire>::decode(d)?,
@@ -1490,6 +1766,9 @@ impl Wire for CtDynDefinitionDeclaration {
 }
 impl Wire for CtDynMethodRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.requirements.encode(e)?;
             self.member.encode(e)?;
@@ -1499,6 +1778,9 @@ impl Wire for CtDynMethodRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 requirements: <Vec<CtDynObligation> as Wire>::decode(d)?,
@@ -1511,6 +1793,9 @@ impl Wire for CtDynMethodRecipe {
 }
 impl Wire for CtDynFunctionInstance {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.definition.encode(e)?;
             self.receiver.encode(e)?;
@@ -1520,6 +1805,9 @@ impl Wire for CtDynFunctionInstance {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 definition: <CtDynDefinitionId as Wire>::decode(d)?,
@@ -1532,6 +1820,9 @@ impl Wire for CtDynFunctionInstance {
 }
 impl Wire for CtDynAssociatedValueRecipe {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type(value_0) => {
@@ -1548,6 +1839,9 @@ impl Wire for CtDynAssociatedValueRecipe {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type(<CtDynTypePattern as Wire>::decode(d)?),
@@ -1562,6 +1856,9 @@ impl Wire for CtDynAssociatedValueRecipe {
 }
 impl Wire for CtDynAssociatedDefinition {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.carrier.encode(e)?;
             self.member.encode(e)?;
@@ -1571,6 +1868,9 @@ impl Wire for CtDynAssociatedDefinition {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 carrier: <Option<CtDynTypePattern> as Wire>::decode(d)?,
@@ -1583,6 +1883,9 @@ impl Wire for CtDynAssociatedDefinition {
 }
 impl Wire for CtDynAssociatedSource {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::TraitDefault {
@@ -1606,6 +1909,9 @@ impl Wire for CtDynAssociatedSource {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::TraitDefault {
@@ -1623,6 +1929,9 @@ impl Wire for CtDynAssociatedSource {
 }
 impl Wire for CtDynAssociatedValue {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type(value_0) => {
@@ -1639,6 +1948,9 @@ impl Wire for CtDynAssociatedValue {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type(<CtDynTypeValue as Wire>::decode(d)?),
@@ -1653,6 +1965,9 @@ impl Wire for CtDynAssociatedValue {
 }
 impl Wire for CtDynAssociatedResolution {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.member.encode(e)?;
             self.source.encode(e)?;
@@ -1661,6 +1976,9 @@ impl Wire for CtDynAssociatedResolution {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 member: <CtDynMember as Wire>::decode(d)?,
@@ -1672,6 +1990,9 @@ impl Wire for CtDynAssociatedResolution {
 }
 impl Wire for CtDynImplementationWitness {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.receiver.encode(e)?;
             self.application.encode(e)?;
@@ -1682,6 +2003,9 @@ impl Wire for CtDynImplementationWitness {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 receiver: <CtDynTypeValue as Wire>::decode(d)?,
@@ -1695,6 +2019,9 @@ impl Wire for CtDynImplementationWitness {
 }
 impl Wire for CtDynFunctionTarget {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Core { module, source } => {
@@ -1711,6 +2038,9 @@ impl Wire for CtDynFunctionTarget {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Core {
@@ -1725,6 +2055,9 @@ impl Wire for CtDynFunctionTarget {
 }
 impl Wire for CtDynDefinitionSpecialization {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.function.encode(e)?;
             self.receiver.encode(e)?;
@@ -1734,6 +2067,9 @@ impl Wire for CtDynDefinitionSpecialization {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 function: <CtDynFunctionTarget as Wire>::decode(d)?,
@@ -1746,6 +2082,9 @@ impl Wire for CtDynDefinitionSpecialization {
 }
 impl Wire for CtDynStructuralBound {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Copy => {
@@ -1765,6 +2104,9 @@ impl Wire for CtDynStructuralBound {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Copy,
@@ -1778,6 +2120,9 @@ impl Wire for CtDynStructuralBound {
 }
 impl Wire for CtStorageSource {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Exact(value_0) => {
@@ -1810,6 +2155,9 @@ impl Wire for CtStorageSource {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Exact(<StoragePosition as Wire>::decode(d)?),
@@ -1837,6 +2185,9 @@ impl Wire for CtStorageSource {
 }
 impl Wire for CtRetainedBorrowPort {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.leaf.encode(e)?;
             self.mode.encode(e)?;
@@ -1845,6 +2196,9 @@ impl Wire for CtRetainedBorrowPort {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 leaf: <CtDynamicTypeId as Wire>::decode(d)?,
@@ -1856,6 +2210,9 @@ impl Wire for CtRetainedBorrowPort {
 }
 impl Wire for CtRetainedLifeShape {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.binder_count.encode(e)?;
             self.ports.encode(e)?;
@@ -1865,6 +2222,9 @@ impl Wire for CtRetainedLifeShape {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 binder_count: <u32 as Wire>::decode(d)?,
@@ -1877,6 +2237,9 @@ impl Wire for CtRetainedLifeShape {
 }
 impl Wire for CtStorageSourceBinding {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.position.encode(e)?;
             self.sources.encode(e)?;
@@ -1884,6 +2247,9 @@ impl Wire for CtStorageSourceBinding {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 position: <StoragePosition as Wire>::decode(d)?,
@@ -1894,6 +2260,9 @@ impl Wire for CtStorageSourceBinding {
 }
 impl Wire for CtLifeNominalKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Record => {
@@ -1913,6 +2282,9 @@ impl Wire for CtLifeNominalKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Record,
@@ -1926,6 +2298,9 @@ impl Wire for CtLifeNominalKind {
 }
 impl Wire for CtLifeParameterKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type => {
@@ -1943,6 +2318,9 @@ impl Wire for CtLifeParameterKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type,
@@ -1955,6 +2333,9 @@ impl Wire for CtLifeParameterKind {
 }
 impl Wire for CtLifeNominalDeclaration {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.id.encode(e)?;
             self.identity.encode(e)?;
@@ -1964,6 +2345,9 @@ impl Wire for CtLifeNominalDeclaration {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 id: <LifeDeclarationId as Wire>::decode(d)?,
@@ -1976,6 +2360,9 @@ impl Wire for CtLifeNominalDeclaration {
 }
 impl Wire for CtLifeNominalActual {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Type(value_0) => {
@@ -2000,6 +2387,9 @@ impl Wire for CtLifeNominalActual {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Type(<CtDynamicTypeId as Wire>::decode(d)?),
@@ -2016,6 +2406,9 @@ impl Wire for CtLifeNominalActual {
 }
 impl Wire for CtLifeNominalInstance {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.declaration.encode(e)?;
             self.ty.encode(e)?;
@@ -2024,6 +2417,9 @@ impl Wire for CtLifeNominalInstance {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 declaration: <LifeDeclarationId as Wire>::decode(d)?,
@@ -2035,6 +2431,9 @@ impl Wire for CtLifeNominalInstance {
 }
 impl Wire for CtDynamicTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Dyn { interface } => {
@@ -2228,6 +2627,9 @@ impl Wire for CtDynamicTypeNode {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Dyn {
@@ -2336,6 +2738,9 @@ impl Wire for CtDynamicTypeNode {
 }
 impl Wire for CallKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Direct => {
@@ -2349,6 +2754,9 @@ impl Wire for CallKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Direct,
@@ -2360,6 +2768,9 @@ impl Wire for CallKind {
 }
 impl Wire for LifeDeclarationIdentity {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.package.encode(e)?;
             self.module_path.encode(e)?;
@@ -2369,6 +2780,9 @@ impl Wire for LifeDeclarationIdentity {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 package: <String as Wire>::decode(d)?,
@@ -2381,6 +2795,9 @@ impl Wire for LifeDeclarationIdentity {
 }
 impl Wire for PassingMode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::Copy => {
@@ -2412,6 +2829,9 @@ impl Wire for PassingMode {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::Copy,
@@ -2429,6 +2849,9 @@ impl Wire for PassingMode {
 }
 impl Wire for CallableKind {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             match self {
                 Self::FunctionPointer => {
@@ -2448,6 +2871,9 @@ impl Wire for CallableKind {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(match u8::decode(d)? {
                 0 => Self::FunctionPointer,
@@ -2461,6 +2887,9 @@ impl Wire for CallableKind {
 }
 impl Wire for CtDynamicCatalogue {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.types.encode(e)?;
             self.life_declarations.encode(e)?;
@@ -2474,6 +2903,9 @@ impl Wire for CtDynamicCatalogue {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 types: <Vec<CtDynamicTypeNode> as Wire>::decode(d)?,
@@ -2490,6 +2922,9 @@ impl Wire for CtDynamicCatalogue {
 }
 impl Wire for CtDynFunctionInstanceRecord {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.module.encode(e)?;
             self.source.encode(e)?;
@@ -2498,6 +2933,9 @@ impl Wire for CtDynFunctionInstanceRecord {
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 module: <ModuleId as Wire>::decode(d)?,
@@ -2509,21 +2947,25 @@ impl Wire for CtDynFunctionInstanceRecord {
 }
 impl Wire for CtFunctionSourceBindings {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         e.descend(|e| {
             self.module.encode(e)?;
             self.source.encode(e)?;
             self.retained_return_sources.encode(e)?;
-            self.returned_capture_sources.encode(e)?;
             Ok(())
         })
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
         d.descend(|d| {
             Ok(Self {
                 module: <ModuleId as Wire>::decode(d)?,
                 source: <NodeId as Wire>::decode(d)?,
                 retained_return_sources: <Option<Vec<CtStorageSourceBinding>> as Wire>::decode(d)?,
-                returned_capture_sources: <Option<Vec<CtStorageSourceBinding>> as Wire>::decode(d)?,
             })
         })
     }

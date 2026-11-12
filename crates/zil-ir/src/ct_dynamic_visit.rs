@@ -2642,17 +2642,6 @@ impl CtDynamicMetadata for CtFunctionSourceBindings {
                 (item).visit_ct_dynamic(visitor, depth + 1)?;
             }
         }
-        visitor.node(depth + 1)?;
-        if let Some(item) = &self.returned_capture_sources {
-            visitor.rows(
-                (item).len(),
-                std::mem::size_of::<CtStorageSourceBinding>(),
-                depth + 1,
-            )?;
-            for item in item {
-                (item).visit_ct_dynamic(visitor, depth + 1)?;
-            }
-        }
         Ok(())
     }
 }
