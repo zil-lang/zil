@@ -93,6 +93,7 @@ struct TargetInfoAPI {
   void (*dispose)(void *);
   const void *(*printerID)();
   int (*hasBlockOwners)(const void *);
+  int (*readBlockProbabilities)(const void *, uint32_t *, uint64_t);
   int (*restoreBlockNumbers)(void *, unsigned, unsigned, unsigned,
                              const unsigned *, const unsigned *, uint64_t);
   bool available() const {
@@ -106,6 +107,8 @@ const TargetInfoAPI &targetInfoAPI() {
       reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMDisposeX86ProductInfo")),
       reinterpret_cast<const void *(*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMAsmPrinterPassID")),
       reinterpret_cast<int (*)(const void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMHasMachineProductBlockOwners")),
+      reinterpret_cast<int (*)(const void *, uint32_t *, uint64_t)>(
+          dlsym(RTLD_DEFAULT, "ZilLLVMReadMachineBlockProbabilities")),
       reinterpret_cast<int (*)(void *, unsigned, unsigned, unsigned,
                               const unsigned *, const unsigned *, uint64_t)>(
           dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers"))};
@@ -382,6 +385,7 @@ enum OperandFlags : unsigned {
 };
 
 bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
+  if (!targetInfoAPI().readBlockProbabilities) return false;
   const auto &MRI = MF.getRegInfo();
   // VirtRegRewriter clears the final vreg domain. Do not infer that fact from
   // NoVRegs (which only describes instructions), or ignore unused vreg state.
@@ -415,10 +419,17 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
     }
     B.alignment = BB.getAlignment().value();
     B.probabilities = BB.hasSuccessorProbabilities();
+    // Preserve unknown sentinels, not getSuccProbability's normalized answer.
+    // Also distinguish an absent probability vector from a populated one.
+    std::vector<uint32_t> RawProbabilities(B.probabilities ? BB.succ_size() : 0);
+    if (!targetInfoAPI().readBlockProbabilities(&BB, RawProbabilities.data(), RawProbabilities.size()))
+      return false;
+    size_t SuccessorIndex = 0;
     for (auto SI = BB.succ_begin(); SI != BB.succ_end(); ++SI) {
       auto It = Blocks.find(*SI);
       if (It == Blocks.end() || !Charge(sizeof(B.successors.front()))) return false;
-      B.successors.emplace_back(It->second, B.probabilities ? BB.getSuccProbability(SI).getNumerator() : 0);
+      B.successors.emplace_back(It->second, B.probabilities ? RawProbabilities[SuccessorIndex] : 0);
+      ++SuccessorIndex;
     }
     for (auto LI : BB.liveins()) {
       if (!Charge(sizeof(LI))) return false;
@@ -648,8 +659,12 @@ void testTypedBody(llvm::MachineFunction &Current) {
   auto Source = Make();
   auto *A = Source->CreateMachineBasicBlock(&Current.getFunction().front());
   auto *B = Source->CreateMachineBasicBlock();
-  Source->push_back(A); Source->push_back(B);
-  A->addSuccessor(B, llvm::BranchProbability::getOne());
+  auto *C = Source->CreateMachineBasicBlock();
+  Source->push_back(A); Source->push_back(B); Source->push_back(C);
+  // A single unknown edge queries as probability one. The product must still
+  // preserve the raw unknown sentinel rather than that effective answer.
+  A->addSuccessor(B, llvm::BranchProbability::getUnknown());
+  B->addSuccessorWithoutProb(C);
   A->addLiveIn(llvm::MCRegister::from(1), llvm::LaneBitmask::getAll());
   A->setAlignment(llvm::Align(16));
   const auto *TII = Source->getSubtarget().getInstrInfo();
@@ -668,8 +683,16 @@ void testTypedBody(llvm::MachineFunction &Current) {
   MI->tieOperands(0, 1);
   MI->setFlag(llvm::MachineInstr::NoUWrap);
   MI->setAsmPrinterFlag(1);
+  const auto ReadProbabilities = targetInfoAPI().readBlockProbabilities;
+  uint32_t Untouched[] = {123, 456};
+  if (!ReadProbabilities || ReadProbabilities(nullptr, nullptr, 0) ||
+      ReadProbabilities(A, Untouched, 2) || Untouched[0] != 123 || Untouched[1] != 456 ||
+      ReadProbabilities(A, nullptr, 1) || ReadProbabilities(A, nullptr, 0) ||
+      !ReadProbabilities(B, nullptr, 0)) return;
   BodyState Saved;
-  if (!captureBody(*Source, Saved)) return;
+  if (!captureBody(*Source, Saved) ||
+      Saved.blocks[0].successors[0].second != llvm::BranchProbability::getUnknown().getNumerator() ||
+      Saved.blocks[1].probabilities || Saved.blocks[1].successors.size() != 1) return;
   MachineTypedBodyTestBits |= 1;
   auto Restored = Make();
   BodyState Again;
@@ -677,11 +700,12 @@ void testTypedBody(llvm::MachineFunction &Current) {
     MachineTypedBodyTestBits |= 2;
   // Destroy every historical MBB/MI before following restored pointers.
   Source.reset();
-  if (Restored->size() == 2 && !Restored->front().empty()) {
+  if (Restored->size() == 3 && !Restored->front().empty()) {
     auto &NewMI = Restored->front().front();
+    auto *NewB = &*std::next(Restored->begin());
     if (NewMI.getParent() == &Restored->front() &&
-        NewMI.getOperand(5).getMBB() == &Restored->back() &&
-        Restored->front().isSuccessor(&Restored->back()) &&
+        NewMI.getOperand(5).getMBB() == NewB &&
+        Restored->front().isSuccessor(NewB) && NewB->isSuccessor(&Restored->back()) &&
         NewMI.findTiedOperandIdx(1) == 0 &&
         NewMI.getOperand(4).getCImm()->getValue() == llvm::APInt(128, Words))
       MachineTypedBodyTestBits |= 4;
