@@ -311,7 +311,9 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         owner: &K,
         evaluator: &E,
     ) -> Result<V, GraphError> {
-        self.set_observed(owner, true)?;
+        if self.nodes.contains_key(owner) {
+            self.set_observed(owner, true)?;
+        }
         self.flush(evaluator)?;
         let result = self.ensure_current(owner, evaluator);
         if result.is_err() {

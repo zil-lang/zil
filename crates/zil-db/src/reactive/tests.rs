@@ -620,3 +620,20 @@ fn cloning_inside_a_transaction_detaches_its_rollback_history() {
     snapshot.set_inputs([(0, 5)]).unwrap();
     assert_eq!(snapshot.stats().journal_nodes, 0);
 }
+
+#[test]
+fn reading_an_unknown_owner_preserves_queued_failure_order_and_poisoning() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.ensure_query(1).unwrap();
+    let evaluate = |_: &u8, _: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| {
+        Err(GraphError::Evaluation("earlier queued failure".into()))
+    };
+    assert_eq!(
+        graph.read(&99, &evaluate),
+        Err(GraphError::Evaluation("earlier queued failure".into()))
+    );
+    assert!(graph.poisoned);
+    graph.clear();
+    assert_eq!(graph.read(&99, &evaluate), Err(GraphError::MissingOwner));
+    assert!(graph.poisoned);
+}
