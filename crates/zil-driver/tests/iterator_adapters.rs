@@ -928,3 +928,71 @@ fn anonymous_owned_and_exclusive_values_preserve_full_debt_and_loans(){
   assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
  }
 }
+
+#[test]
+fn anonymous_tuple_raw_and_wire_require_real_sources_modes_and_owner_cleanup(){
+ use zil_ir::{InstructionKind as I,StorageBase,StorageBinder,Type};
+ let limits=Limits::default();
+ let target=zil_base::TargetProfile::host_llvm();
+ let prepare=|text:&str|{
+  let source=SourceUnit::new(FileId(0),ModuleId(0),"anonymous-raw.zil",text);
+  let syntax=zil_syntax::parse(&source).into_result().unwrap();
+  let core=zil_expand::expand_with_map_limits_target_context(&source,&syntax,&limits,&target,
+   zil_expand::source_context::SourceIdentityContext::ClosedSnapshot{root:source.module_id,aliases:&std::collections::BTreeMap::new(),declarations:zil_expand::source_context::DeclarationPlacement::Original}
+  ).unwrap().core;
+  let module=zil_types::check(&core,&target,&limits).unwrap();
+  let plan=zil_analyze::analyze(&module,&limits).unwrap();
+  let wire=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+  let (decoded,_)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+  zil_analyze::analyze(&decoded,&limits).unwrap();
+  (module,plan)
+ };
+ let shared=include_str!("../../../tests/fixtures/qualified-values/anonymous-compound.zil");
+ let owned=include_str!("../../../tests/fixtures/qualified-values/owning-anonymous.zil");
+ let exclusive=include_str!("../../../tests/fixtures/qualified-values/exclusive-anonymous.zil");
+ prepare(shared);
+ let (owned,owned_plan)=prepare(owned);
+ let (exclusive,exclusive_plan)=prepare(exclusive);
+ for attack in 0..4{
+  let (mut module,mut plan)=if attack==0{(owned.clone(),owned_plan.clone())}else{(exclusive.clone(),exclusive_plan.clone())};
+  match attack{
+   0=>{
+    let mut removed=0;
+    for function in &mut module.functions{
+     let Some(ticket)=function.locals.iter().find(|local|local.name=="ticket" && matches!(local.ty,Type::Managed(_))).map(|local|local.id) else{continue};
+     for block in &mut function.blocks{
+      block.instructions.retain(|instruction|{if matches!(instruction.kind,I::DropManaged{local} if local==ticket){removed+=1;false}else{true}});
+     }
+    }
+    assert_eq!(removed,1);
+   },
+   1=>{
+    let instruction=module.functions.iter_mut().flat_map(|f|&mut f.blocks).flat_map(|b|&mut b.instructions)
+     .find(|instruction|matches!(instruction.kind,I::MakeOwnedTuple{..})).unwrap();
+    let I::MakeOwnedTuple{fields}=&instruction.kind else{unreachable!()};
+    instruction.kind=I::MakeAggregate{fields:fields.clone()};
+   },
+   2=>{
+    let fields=module.functions.iter_mut().flat_map(|f|&mut f.blocks).flat_map(|b|&mut b.instructions)
+     .find_map(|instruction|if let I::UnpackTuple{fields,..}=&mut instruction.kind{Some(fields)}else{None}).unwrap();
+    assert_eq!(fields.len(),2);assert_ne!(fields[0],fields[1]);fields[1]=fields[0];
+   },
+   3=>{
+    let helper=module.functions.iter_mut().find(|f|matches!(&f.return_type,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Tuple(_)))).unwrap();
+    let row=helper.storage_life.as_mut().unwrap().classes.iter_mut().find(|row|row.position.base==StorageBase::Result && row.position.class==1).unwrap();
+    assert_eq!(row.binder,StorageBinder::Fixed(1));row.binder=StorageBinder::Fixed(0);
+   },
+   _=>unreachable!(),
+  }
+  plan.module_fingerprint=module.fingerprint();
+  let wire=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+  let (decoded,_)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+  for (wire,module) in [(false,module),(true,decoded)]{
+   let errors=zil_analyze::analyze(&module,&limits).unwrap_err();
+   assert!(errors.iter().any(|error|error.category==ResultCategory::SafeReject),"attack {attack} Wire={wire}: {errors:?}");
+  }
+ }
+ let alias=include_str!("../../../tests/fixtures/qualified-values/exclusive-anonymous.zil").replace("edit(&mut first,&mut second)","edit(&mut first,&mut first)");
+ let report=compile_project(&project(&alias),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+}
