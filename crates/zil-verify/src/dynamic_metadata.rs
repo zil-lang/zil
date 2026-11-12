@@ -322,7 +322,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
                     position(&binding.position, b)?;
                     pay(b, &mut 0usize, b.limits.max_nodes, binding.sources.len())?;
                     for source in &binding.sources {
-                        position(source, b)?;
+                        position(crate::exact_storage_source(source)?, b)?;
                     }
                 }
                 DynGuarantee::State {
@@ -347,7 +347,7 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
         if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
             pay(b, &mut 0usize, b.limits.max_nodes, sources.len())?;
             for p in sources {
-                position(p, b)?;
+                position(crate::exact_storage_source(p)?, b)?;
             }
         }
         for effect in c.effects.iter().flatten() {

@@ -34,6 +34,21 @@
 //! }
 //! ```
 
+pub(crate) fn exact_storage_source(source: &zil_ir::StorageSource) -> Result<&zil_ir::StoragePosition, zil_base::Diagnostic> {
+    match source {
+        zil_ir::StorageSource::Exact(position) => Ok(position),
+        _ => Err(zil_base::Diagnostic::unsupported(zil_base::Phase::Verify, "source atom requires an independent region consumer", None)),
+    }
+}
+
+pub(crate) fn exact_storage_sources_contain(sources: &[zil_ir::StorageSource], position: &zil_ir::StoragePosition) -> Result<bool, zil_base::Diagnostic> {
+    let mut present=false;
+    for source in sources {
+        present |= exact_storage_source(source)? == position;
+    }
+    Ok(present)
+}
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,

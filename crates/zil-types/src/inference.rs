@@ -855,7 +855,8 @@ pub(super) fn charge_return_sources(
             .checked_add(binding.position.path.len())
             .and_then(|n| n.checked_add(binding.sources.len()))
             .ok_or_else(fail)?;
-        for source in &binding.sources {
+        for atom in &binding.sources {
+                    let source = crate::exact_storage_source(atom)?;
             if source.path.len() > limits.max_call_depth {
                 return Err(fail());
             }

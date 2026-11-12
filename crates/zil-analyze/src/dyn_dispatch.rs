@@ -234,7 +234,7 @@ fn valid_contract(slot: &DynSlot) -> bool {
     }
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![position()],
+            sources: vec![StorageSource::Exact(position())],
             mutable: false,
         });
     }
@@ -284,7 +284,7 @@ fn contextual_contract(
     ]);
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![position()],
+            sources: vec![StorageSource::Exact(position())],
             mutable: false,
         });
     }
@@ -304,7 +304,7 @@ fn contextual_contract(
             .expect("complete")
             .push(DynGuarantee::StorageSources(StorageSourceBinding {
                 position: p.clone(),
-                sources: vec![p.clone()],
+                sources: vec![StorageSource::Exact(p.clone())],
             }));
         expected
             .call
@@ -329,7 +329,7 @@ fn contextual_contract(
             && (port.leaf == slot.result
                 || matches!((&port.leaf,&slot.result),(Type::Address {inner:a,..}|Type::Desc(a),Type::Address {mutable:false,inner:z}) if a==z))
         {
-            sources.push(p);
+            sources.push(StorageSource::Exact(p));
         }
     }
     Ok(slot.contract == expected)

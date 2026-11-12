@@ -531,7 +531,8 @@ pub(super) fn transfer(
             if let Some(DynResultSource::Borrow { sources, .. }) = &selected.contract.result {
                 let actual = get(*callee)?;
                 let mut complete = true;
-                for source in sources {
+                for atom in sources {
+                    let source=crate::exact_storage_source(atom)?;
                     fee(b, source.path.len().saturating_add(1))?;
                     if source.base != StorageBase::Parameter(0) {
                         return Err(failure("dyn result source is outside its actual receiver"));

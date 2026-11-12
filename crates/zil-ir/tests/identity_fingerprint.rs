@@ -917,10 +917,10 @@ fn returned_capture_sources_bind_identity_including_unknown_empty_and_actual_pat
             base: StorageBase::Capture(0),
             path: vec![ContractProjection::Capture(1)],
         },
-        sources: vec![StoragePosition {
+        sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
-        }],
+        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
     }]);
     let actual = zil_ir::callable_return_contract_fingerprint(&contract);
     assert_ne!(empty, actual);
@@ -942,20 +942,20 @@ fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
                 base: StorageBase::Result,
                 path: vec![],
             },
-            sources: vec![StoragePosition {
+            sources: (vec![StoragePosition {
                 base: StorageBase::Result,
                 path: vec![],
-            }],
+            }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
         }]),
         Some(vec![StorageSourceBinding {
             position: StoragePosition {
                 base: StorageBase::Capture(0),
                 path: vec![ContractProjection::Capture(1)],
             },
-            sources: vec![StoragePosition {
+            sources: (vec![StoragePosition {
                 base: StorageBase::Parameter(1),
                 path: vec![ContractProjection::Place(PlaceProjection::Field(2))],
-            }],
+            }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
         }]),
     ] {
         // Transport controls deliberately assert no semantic kernel admission.
@@ -1024,7 +1024,7 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     raw.functions[0].storage_life = Some(life);
     raw.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
         position: position(StorageBase::Result),
-        sources: vec![position(StorageBase::Receiver)],
+        sources: (vec![position(StorageBase::Receiver)]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
     }]);
     let plan = CandidatePlan::empty_for(&raw);
     let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();

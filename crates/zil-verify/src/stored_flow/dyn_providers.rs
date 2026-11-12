@@ -462,7 +462,8 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                                 .len()
                                 .saturating_mul(position.path.len().saturating_add(1)),
                         )?;
-                        if !sources.contains(&position) {
+                        for atom in sources { crate::exact_storage_source(atom)?; }
+                        if !sources.contains(&StorageSource::Exact(position)) {
                             return Err(bad(
                                 "provider actual borrowed result exceeds its public source upper",
                             ));
@@ -513,7 +514,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                                 .len()
                                 .saturating_mul(source.path.len().saturating_add(1)),
                         )?;
-                        if !upper.sources.contains(&source) {
+                        if !crate::exact_storage_sources_contain(&upper.sources,&source)? {
                             return Err(bad(
                                 "actual provider after-state exceeds its declared source upper",
                             ));

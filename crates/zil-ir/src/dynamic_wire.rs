@@ -449,7 +449,7 @@ impl Writer<'_> {
                 self.storage_position(&binding.position)?;
                 self.count(binding.sources.len(), self.limits.max_nodes)?;
                 for source in &binding.sources {
-                    self.storage_position(source)?;
+                    self.storage_source(source)?;
                 }
             }
             DynGuarantee::ManageResult => {
@@ -520,7 +520,7 @@ impl Writer<'_> {
                 self.u8(3)?;
                 self.count(sources.len(), self.limits.max_nodes)?;
                 for value in sources {
-                    self.storage_position(value)?;
+                    self.storage_source(value)?;
                 }
                 self.boolean(*mutable)?;
             }
@@ -1084,7 +1084,7 @@ impl Reader<'_> {
                 let count = self.count(self.limits.max_nodes, 5)?;
                 let mut sources = Vec::with_capacity(count);
                 for _ in 0..count {
-                    sources.push(self.storage_position()?);
+                    sources.push(self.storage_source()?);
                 }
                 DynGuarantee::StorageSources(StorageSourceBinding { position, sources })
             }
@@ -1116,7 +1116,7 @@ impl Reader<'_> {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     let mut values_23 = Vec::with_capacity(count);
                     for _ in 0..count {
-                        values_23.push(self.storage_position()?);
+                        values_23.push(self.storage_source()?);
                     }
                     values_23
                 },

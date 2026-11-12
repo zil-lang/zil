@@ -4,6 +4,13 @@
 use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
+
+pub(crate) fn exact_storage_source(source: &StorageSource) -> Result<&StoragePosition, Diagnostic> {
+    match source {
+        StorageSource::Exact(position) => Ok(position),
+        _ => Err(Diagnostic::unsupported(Phase::Types, "source atom requires an independent region consumer", None)),
+    }
+}
 mod addresses;
 mod aggregate_templates;
 mod aggregates;

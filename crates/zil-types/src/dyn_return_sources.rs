@@ -320,7 +320,7 @@ pub(super) fn propose<'a>(
             inference::charge_type_snapshot(source_type, f.span, limits, walk.left, 2)?;
             if mode == *source_mode && binder == *source_binder && leaf == *source_type {
                 walk.pay(source.path.len().saturating_add(1))?;
-                sources.push(source.clone());
+                sources.push(StorageSource::Exact(source.clone()));
             }
         }
         walk.pay(position.path.len().saturating_add(1))?;

@@ -8,6 +8,8 @@ use zil_base::{
 };
 
 mod closure_context;
+mod storage_sources;
+pub use storage_sources::*;
 pub mod ct_artifact;
 pub mod ct_wire;
 pub use closure_context::*;
@@ -228,7 +230,7 @@ pub struct StoragePosition {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageSourceBinding {
     pub position: StoragePosition,
-    pub sources: Vec<StoragePosition>,
+    pub sources: Vec<StorageSource>,
 }
 /// Existing Fixed classes cannot be narrowed or freshened by an invocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -3073,6 +3075,22 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
         }
     }
 }
+
+fn encode_storage_source(b: &mut impl FingerprintSink, source: &StorageSource) {
+    match source {
+        StorageSource::Exact(position) => { b.push(0); encode_storage_position(b, position); }
+        StorageSource::PlaceAddress { place, mode } => {
+            b.push(1); encode_storage_position(b, place); b.push(*mode as u8);
+        }
+        StorageSource::OwnedView { head, leaf, mode } => {
+            b.push(2); encode_storage_position(b, head); encode_type(b, leaf); b.push(*mode as u8);
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            b.push(3); encode_storage_position(b, source); encode_storage_position(b, head);
+        }
+        StorageSource::Static { leaf, mode } => { b.push(4); encode_type(b, leaf); b.push(*mode as u8); }
+    }
+}
 fn encode_life_maps(
     b: &mut impl FingerprintSink,
     retained: &[StorageRetainedBinding],
@@ -3371,7 +3389,7 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
     }
@@ -4617,7 +4635,7 @@ pub fn retained_return_sources_fingerprint(bindings: &[StorageSourceBinding]) ->
         encode_storage_position(&mut bytes, &binding.position);
         encode_len(&mut bytes, binding.sources.len());
         for source in &binding.sources {
-            encode_storage_position(&mut bytes, source);
+            encode_storage_source(&mut bytes, source);
         }
     }
     bytes.finish()
@@ -4677,7 +4695,7 @@ fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableRet
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
     }

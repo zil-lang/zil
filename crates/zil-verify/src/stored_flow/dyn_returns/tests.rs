@@ -94,10 +94,10 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: vec![StoragePosition {
+        sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![],
-        }],
+        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
     }]);
     let source = Source {
         retained_port: None,
@@ -156,7 +156,7 @@ fn dyn_result_unknown_missing_and_empty_are_distinct() {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: vec![],
+        sources: (vec![]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
     }]);
     assert!(!checked(&module, &claim, &rows));
     actual.0[0].1.known = true;

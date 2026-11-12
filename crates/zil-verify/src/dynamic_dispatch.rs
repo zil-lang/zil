@@ -100,7 +100,7 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
         }),
         result: Some(if borrowed_result(&slot.result) {
             DynResultSource::Borrow {
-                sources: vec![receiver_position()],
+                sources: vec![StorageSource::Exact(receiver_position())],
                 mutable: false,
             }
         } else {

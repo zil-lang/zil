@@ -259,7 +259,7 @@ pub enum DynResultSource {
     Create,
     Give,
     Borrow {
-        sources: Vec<StoragePosition>,
+        sources: Vec<StorageSource>,
         mutable: bool,
     },
 }

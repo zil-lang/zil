@@ -1454,7 +1454,7 @@ impl Catalog {
                 if borrowed_result(&result_type) {
                     contract.result = Some(zil_ir::DynResultSource::Borrow {
                         sources: if result_binder == zil_ir::StorageBinder::Invocation(0) {
-                            vec![receiver_position()]
+                            vec![zil_ir::StorageSource::Exact(receiver_position())]
                         } else {
                             Vec::new()
                         },
@@ -1495,7 +1495,7 @@ impl Catalog {
                         && let Some(zil_ir::DynResultSource::Borrow { sources, .. }) =
                             &mut contract.result
                     {
-                        sources.push(binding.position.clone());
+                        sources.push(zil_ir::StorageSource::Exact(binding.position.clone()));
                     }
                 }
                 let mut classes = Vec::new();
@@ -1545,7 +1545,7 @@ impl Catalog {
                         .push(zil_ir::DynGuarantee::StorageSources(
                             zil_ir::StorageSourceBinding {
                                 position: position.clone(),
-                                sources: after_sources,
+                                sources: after_sources.into_iter().map(zil_ir::StorageSource::Exact).collect(),
                             },
                         ));
                     contract
@@ -1574,7 +1574,7 @@ impl Catalog {
                             && (result_binder == zil_ir::StorageBinder::Invocation(0)
                                 || result_binder == zil_ir::StorageBinder::Fixed(port.binder))
                         {
-                            sources.push(position);
+                            sources.push(zil_ir::StorageSource::Exact(position));
                         }
                     }
                 }

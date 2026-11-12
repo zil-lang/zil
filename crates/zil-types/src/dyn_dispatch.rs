@@ -196,7 +196,7 @@ pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
     }
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![receiver_position()],
+            sources: vec![StorageSource::Exact(receiver_position())],
             mutable: false,
         });
     }
@@ -211,7 +211,7 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
     expected.effects = slot.contract.effects.clone();
     if borrowed_result(&slot.result) {
         expected.result = Some(DynResultSource::Borrow {
-            sources: vec![receiver_position()],
+            sources: vec![StorageSource::Exact(receiver_position())],
             mutable: false,
         });
     }
@@ -226,7 +226,7 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
             .expect("finite guarantee")
             .push(DynGuarantee::StorageSources(StorageSourceBinding {
                 position: position.clone(),
-                sources: vec![position.clone()],
+                sources: vec![StorageSource::Exact(position.clone())],
             }));
         expected
             .requires
@@ -248,7 +248,7 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
                 || matches!((&port.leaf, &slot.result),
                 (Type::Address {inner: a, ..} | Type::Desc(a), Type::Address {mutable: false, inner: z}) if a == z))
         {
-            sources.push(position);
+            sources.push(StorageSource::Exact(position));
         }
     }
     expected

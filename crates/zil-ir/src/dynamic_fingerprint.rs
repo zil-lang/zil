@@ -325,7 +325,7 @@ pub(super) fn encode_dyn_guarantee(b: &mut impl FingerprintSink, value: &DynGuar
             encode_storage_position(b, &binding.position);
             encode_len(b, binding.sources.len());
             for source in &binding.sources {
-                encode_storage_position(b, source);
+                encode_storage_source(b, source);
             }
         }
         DynGuarantee::ManageResult => {
@@ -394,7 +394,7 @@ pub(super) fn encode_dyn_result_source(b: &mut impl FingerprintSink, value: &Dyn
             b.push(3);
             encode_len(b, sources.len());
             for value in sources {
-                encode_storage_position(b, value);
+                encode_storage_source(b, value);
             }
             b.push(u8::from(*mutable));
         }

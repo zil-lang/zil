@@ -651,10 +651,11 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
                 "method receiver-after rows are not complete canonical ports",
             ));
         }
-        if !slot.receiver.mutable && row.sources.as_slice() != [position] {
+        if !slot.receiver.mutable && row.sources.as_slice() != [StorageSource::Exact(position)] {
             return Err(bad("shared receiver cannot change owning source slots"));
         }
-        for source in &row.sources {
+        for atom in &row.sources {
+            let source=crate::exact_storage_source(atom)?;
             let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
             dynamic_metadata::ty(&port.leaf, b)?;
             if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf {
@@ -677,7 +678,8 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
                 .ok_or_else(|| bad("method result class is Unknown"))?;
             let result = crate::signature_life::outer(life, StorageBase::Result)
                 .ok_or_else(|| bad("method borrowed result has no class binding"))?;
-            for source in sources {
+            for atom in sources {
+                let source=crate::exact_storage_source(atom)?;
                 let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
                 if head {
                     if result != StorageBinder::Invocation(0) {

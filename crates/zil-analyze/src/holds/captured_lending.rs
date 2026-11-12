@@ -199,7 +199,8 @@ pub(super) fn reconstruct(
                                         ));
                                     };
                                     let mut slot = Slot::default();
-                                    for source in &binding.sources {
+                                    for atom in &binding.sources {
+                                        let source=crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut slot.roots,
                                             &factory_source_roots(
