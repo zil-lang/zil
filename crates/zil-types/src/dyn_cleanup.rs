@@ -79,6 +79,12 @@ pub(super) fn prove(
                 "owned dyn cleanup resource is unknown",
             )),
         },
+        Type::BorrowedStorage { storage, .. } => {
+            prove(storage, modules, bound, left, limits, depth + 1)
+        }
+        // An external borrowed leaf has no ownership or destructor authority.
+        // Provider qualification proves its complete public port coverage.
+        Type::Address { .. } | Type::Desc(_) => Ok(()),
         Type::Package { fields, .. } | Type::Record { fields, .. } => {
             for (_, field) in fields {
                 prove(field, modules, bound, left, limits, depth + 1)?;

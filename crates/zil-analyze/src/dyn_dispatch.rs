@@ -241,6 +241,100 @@ fn valid_contract(slot: &DynSlot) -> bool {
     slot.contract == expected
 }
 
+fn contextual_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
+    let mut life = slot_life(slot);
+    life.fixed_binder_count = interface.retained_life.binder_count;
+    life.classes = (0..life.fixed_binder_count)
+        .map(|class| SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class,
+            },
+            binder: StorageBinder::Fixed(class),
+        })
+        .collect();
+    life
+}
+fn contextual_contract(
+    slot: &DynSlot,
+    interface: &DynInterface,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if interface.context.is_none() {
+        return Ok(valid_contract(slot));
+    }
+    b.spend(
+        interface
+            .retained_life
+            .ports
+            .len()
+            .saturating_mul(12)
+            .saturating_add(256),
+        WORK,
+    )?;
+    let mut expected = closed_contract(slot.receiver.mutable);
+    expected.effects = Some(vec![
+        DynEffect::Alloc,
+        DynEffect::Io,
+        DynEffect::Block,
+        DynEffect::Ffi,
+        DynEffect::Reenter,
+        DynEffect::Panic,
+    ]);
+    if borrowed_result(&slot.result) {
+        expected.result = Some(DynResultSource::Borrow {
+            sources: vec![position()],
+            mutable: false,
+        });
+    }
+    for (i, port) in interface.retained_life.ports.iter().enumerate() {
+        let p = StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(i as u32)],
+        };
+        expected
+            .requires
+            .as_mut()
+            .expect("complete")
+            .push(DynRequirement::Read(p.clone()));
+        expected
+            .guarantees
+            .as_mut()
+            .expect("complete")
+            .push(DynGuarantee::StorageSources(StorageSourceBinding {
+                position: p.clone(),
+                sources: vec![p.clone()],
+            }));
+        expected
+            .call
+            .as_mut()
+            .expect("complete")
+            .reads
+            .push(p.clone());
+        if slot.receiver.mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
+            expected
+                .requires
+                .as_mut()
+                .expect("complete")
+                .push(DynRequirement::Write(p.clone()));
+            expected
+                .call
+                .as_mut()
+                .expect("complete")
+                .writes
+                .push(p.clone());
+        }
+        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result
+            && (port.leaf == slot.result
+                || matches!((&port.leaf,&slot.result),(Type::Address {inner:a,..}|Type::Desc(a),Type::Address {mutable:false,inner:z}) if a==z))
+        {
+            sources.push(p);
+        }
+    }
+    Ok(slot.contract == expected)
+}
+
 fn receiver_life() -> StorageLifeContract {
     StorageLifeContract {
         fixed_binder_count: 0,
@@ -289,6 +383,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
+        budget.spend(declaration.parameters.len(), WORK)?;
+        for parameter in &declaration.parameters {
+            if let LifeParameterKind::Const(ty) = parameter {
+                crate::dyn_metadata::ty(ty, budget)?;
+            }
+        }
         crate::dyn_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
         crate::dyn_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
         if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
@@ -297,11 +397,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 "trait declaration cannot claim an implemented-trait recipe",
             ));
         }
-        if declaration.self_pattern.is_some() {
-            return Err(bad(
-                "dyn Self recipe requires complete implementation substitution proof",
-            ));
-        }
+        crate::dyn_provider::declaration(module, declaration, budget)?;
         budget.spend(
             declaration
                 .identity
@@ -349,11 +445,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         {
             return Err(bad("dyn declaration identity is repeated"));
         }
-        if !declaration.parameters.is_empty()
-            || declaration
-                .members
-                .iter()
-                .any(|m| !matches!(&m.kind, DynMemberKind::Method(actuals) if actuals.is_empty()))
+        if declaration
+            .members
+            .iter()
+            .any(|m| !matches!(&m.kind, DynMemberKind::Method(actuals) if actuals.is_empty()))
         {
             return Err(bad(
                 "dyn declaration is outside finite ordinary method profile",
@@ -376,6 +471,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), budget)?;
         crate::dyn_metadata::retained_shape(&interface.retained_life, budget)?;
         crate::dyn_context::validate(module, interface, budget)?;
+        crate::dyn_provider::application(module, interface, budget)?;
         budget.dyn_contexts |= interface.context.is_some();
         budget.lookup(declarations.len(), WORK)?;
         if interface.id.module != interface.application.declaration.module
@@ -387,15 +483,9 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             return Err(bad("dyn interface has no unique actual trait declaration"));
         }
         budget.spend(interface.slots.len().saturating_add(1), WORK)?;
-        if interface.context.is_some()
-            || !interface.inherited.is_empty()
+        if !interface.inherited.is_empty()
             || !interface.associated_types.is_empty()
             || !interface.associated_constants.is_empty()
-            || !interface.application.actuals.is_empty()
-            || interface.retained_life.binder_count != 0
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || !interface.retained_life.nominal_arguments.is_empty()
         {
             return Err(bad("dyn interface is outside the finite shared profile"));
         }
@@ -421,6 +511,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                     } else {
                         PassingMode::Borrow
                     }
+                || interface.context.is_some() && slot.receiver.mutable
                 || !slot.parameters.iter().all(plain_value)
                 || slot.parameter_modes.iter().any(|m| !scalar_mode(*m))
                 || slot.parameters.len() != slot.parameter_modes.len()
@@ -428,8 +519,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                     || !slot.receiver.mutable && borrowed_result(&slot.result))
                 || !scalar_mode(slot.result_mode)
                 || slot.call_kind != CallKind::Direct
-                || slot.storage_life.as_ref() != Some(&slot_life(slot))
-                || !valid_contract(slot)
+                || slot.storage_life.as_ref() != Some(&contextual_slot_life(slot, interface))
+                || !contextual_contract(slot, interface, budget)?
             {
                 return Err(bad("dyn slot lacks a body-derived closed shared contract"));
             }
@@ -580,7 +671,11 @@ fn body(
                 InstructionKind::AddressField { address, index }
                     if receiver_values.contains(address) =>
                 {
-                    let fields = match receiver {
+                    let actual_receiver = match receiver {
+                        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                        t => t,
+                    };
+                    let fields = match actual_receiver {
                         Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
                         _ => return Err(bad("dyn Self is not a finite provider")),
                     };
@@ -599,6 +694,57 @@ fn body(
                         return Err(bad("dyn field address type differs"));
                     }
                     field_values.insert(result, field.1.clone());
+                }
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode: StoredBorrowLoad::CopyShared,
+                } if receiver_values.contains(storage) => {
+                    let Type::BorrowedStorage {
+                        storage: actual_storage,
+                        life,
+                    } = receiver
+                    else {
+                        return Err(bad("dyn saved borrow lacks complete qualified Self"));
+                    };
+                    budget.spend(life.slots.len().saturating_add(path.len()), WORK)?;
+                    let actual = life.slots.iter().find(|s| s.path == *path).ok_or_else(|| {
+                        bad("dyn saved borrow is not an actual Self borrowed leaf")
+                    })?;
+                    if actual.mode != StoredBorrowMode::SharedAddress {
+                        return Err(bad("dyn saved borrow copies an exclusive or unknown leaf"));
+                    }
+                    let mut selected = actual_storage.as_ref();
+                    for p in path {
+                        if let Type::BorrowedStorage { storage, .. } = selected {
+                            selected = storage;
+                        }
+                        let (
+                            Type::Record { fields, .. } | Type::Package { fields, .. },
+                            PlaceProjection::Field(i),
+                        ) = (selected, p)
+                        else {
+                            return Err(bad("dyn saved borrow path needs actual inline fields"));
+                        };
+                        selected = &fields
+                            .get(*i as usize)
+                            .ok_or_else(|| bad("dyn saved borrow field absent"))?
+                            .1;
+                    }
+                    let Type::Address {
+                        mutable: false,
+                        inner,
+                    } = selected
+                    else {
+                        return Err(bad("dyn saved borrow leaf is not a shared address"));
+                    };
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn saved borrow has no actual result"))?;
+                    if value(f, output, budget)? != selected || !scalar(inner) {
+                        return Err(bad("dyn saved borrow changes full target type"));
+                    }
+                    field_values.insert(output, inner.as_ref().clone());
                 }
                 InstructionKind::ReadAddress { address } if field_values.contains_key(address) => {
                     let result = instruction
@@ -811,24 +957,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             module.dyn_declarations.len(),
             "actual dyn implemented trait application",
         )?;
-        let implementation = module
-            .dyn_declarations
-            .iter()
-            .find(|d| d.id == table.implementation)
-            .ok_or_else(|| bad("dyn provider implementation declaration is absent"))?;
-        if implementation
-            .implemented_trait
-            .as_ref()
-            .is_none_or(|recipe| {
-                recipe.declaration != interface.application.declaration
-                    || !recipe.arguments.is_empty()
-            })
-        {
-            return Err(bad(
-                "dyn provider lacks its complete implemented-trait application",
-            ));
-        }
-        let (name, fields, owning_package) = match &table.self_type {
+        crate::dyn_provider::prove(module, table, interface, budget)?;
+        let physical_self = match &table.self_type {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            t => t,
+        };
+        let qualified = matches!(&table.self_type, Type::BorrowedStorage { .. });
+        let (name, fields, owning_package) = match physical_self {
             Type::Record { name, fields } => (name, fields, false),
             Type::Package { name, fields } => (name, fields, true),
             _ => return Err(bad("dyn table Self is not a concrete provider")),
@@ -845,7 +980,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             budget.spend(field.len().saturating_add(1), WORK)?;
             budget.lookup(names.len(), WORK)?;
             budget.spend(module.resources.len(), WORK)?;
-            let admissible = if owning_package {
+            let admissible = if qualified {
+                true
+            } else if owning_package {
                 closed_owner_shape(ty, module, budget, 1)?.is_some()
             } else {
                 scalar(ty)
@@ -855,6 +992,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
         }
         if owning_package
+            && !qualified
             && (table.owned_storage != Some(DynOwnedStorage::Heap)
                 || closed_owner_shape(&table.self_type, module, budget, 0)?.is_none())
         {
@@ -863,16 +1001,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             ));
         }
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
-            let bound = crate::dyn_cleanup::bound(interface.owning_cleanup.as_ref(), budget)?;
+            let bound = crate::dyn_cleanup::bound(interface, budget)?;
             crate::dyn_cleanup::prove(module, &table.self_type, bound, budget)?;
         }
         if !module
             .dyn_declarations
             .iter()
             .any(|d| d.id == table.implementation && d.kind == DynDeclarationKind::Impl)
-            || !table.actuals.is_empty()
-            || !table.ports.is_empty()
-            || !table.self_classes.is_empty()
             || table.cleanup.is_some()
             || table.entries.len() != interface.slots.len()
         {

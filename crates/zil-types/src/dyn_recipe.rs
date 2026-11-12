@@ -332,10 +332,11 @@ pub(super) fn prove(
     for module in modules {
         proof.pay(module.dyn_declarations.len())?;
         for declaration in &module.dyn_declarations {
-            if declaration.id == interface.application.declaration
-                && trait_declaration.replace(declaration).is_some()
-            {
-                return Err(proof.fail());
+            if declaration.id == interface.application.declaration {
+                if trait_declaration.is_some_and(|previous| previous != declaration) {
+                    return Err(proof.fail());
+                }
+                trait_declaration = Some(declaration);
             }
         }
     }

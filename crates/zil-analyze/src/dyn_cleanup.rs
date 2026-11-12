@@ -72,16 +72,35 @@ fn position_metadata(position: &StoragePosition, budget: &mut Budget) -> Compile
 }
 
 pub(super) fn bound<'a>(
-    bound: Option<&'a DynCleanupContract>,
+    interface: &'a DynInterface,
     budget: &mut Budget,
 ) -> CompileResult<&'a DynCleanupContract> {
-    let bound = bound.ok_or_else(|| bad("owned dyn cleanup contract is Unknown"))?;
+    let bound = interface
+        .owning_cleanup
+        .as_ref()
+        .ok_or_else(|| bad("owned dyn cleanup contract is Unknown"))?;
+    budget.spend(interface.retained_life.ports.len().saturating_mul(4), WORK)?;
+    let position = |i| StoragePosition {
+        base: StorageBase::Result,
+        path: vec![ContractProjection::RetainedPort(i)],
+    };
+    let reads = (0..interface.retained_life.ports.len())
+        .map(|i| position(i as u32))
+        .collect::<Vec<_>>();
+    let writes = interface
+        .retained_life
+        .ports
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.mode == StoredBorrowMode::ExclusiveAddress)
+        .map(|(i, _)| position(i as u32))
+        .collect::<Vec<_>>();
     budget.spend(bound.effects.len().saturating_add(1), WORK)?;
     if bound.effects.len() > 6
         || !bound.environment
         || !bound.positions.is_empty()
-        || !bound.access.reads.is_empty()
-        || !bound.access.writes.is_empty()
+        || bound.access.reads != reads
+        || bound.access.writes != writes
         || bound.effects.iter().any(|e| {
             !matches!(
                 e,
@@ -112,7 +131,7 @@ pub(super) fn owner_interface(
         .iter()
         .find(|i| i.id == id)
         .ok_or_else(|| bad("owned dyn capture interface is absent"))?;
-    bound(interface.owning_cleanup.as_ref(), budget)?;
+    bound(interface, budget)?;
     if interface.context.is_some()
         || !interface.retained_life.ports.is_empty()
         || interface.retained_life.binder_count != 0
@@ -203,6 +222,8 @@ fn shape(
                 _ => Err(bad("owned dyn cleanup lacks a proved synchronous resource")),
             }
         }
+        Type::BorrowedStorage { storage, .. } => shape(module, storage, bound, budget, depth + 1),
+        Type::Address { .. } | Type::Desc(_) => Ok(()),
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (_, field) in fields {
                 shape(module, field, bound, budget, depth + 1)?;

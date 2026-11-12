@@ -142,6 +142,25 @@ fn directory<'a>(
     }
     Ok(())
 }
+pub(super) fn capture_directories(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if !b.dyn_contexts {
+        return Ok(());
+    }
+    fee(b, module.closures.len())?;
+    for definition in &module.closures {
+        fee(b, definition.captures.len())?;
+        for capture in &definition.captures {
+            let mut rows = Vec::new();
+            directory(module, capture, &mut vec![], &mut rows, b)?;
+            if !rows.is_empty() {
+                return Err(failure(
+                    "dyn Context capture requires its complete retained environment class and source transport",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
 pub(super) fn seed(
     module: &TypedModule,
     ty: &Type,
@@ -266,6 +285,113 @@ fn projection(
     }
     Ok(())
 }
+pub(super) fn admitted_value(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.dyn_contexts {
+        return Ok(false);
+    }
+    let id = match ty {
+        Type::OwnedDyn { interface } => Some(*interface),
+        Type::Address { inner, .. } => match inner.as_ref() {
+            Type::OwnedDyn { interface } | Type::Dyn { interface } => Some(*interface),
+            _ => None,
+        },
+        Type::ErrorUnion { error, result } if **error == crate::dyn_dispatch::create_error() => {
+            match result.as_ref() {
+                Type::OwnedDyn { interface } => Some(*interface),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    let Some(id) = id else {
+        return Ok(false);
+    };
+    fee(b, module.dyn_interfaces.len())?;
+    Ok(module.dyn_interfaces.iter().any(|i| i.id == id))
+}
+pub(super) fn instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !b.dyn_contexts {
+        return Ok(false);
+    }
+    if operation(&i.kind) {
+        return Ok(true);
+    }
+    let source = match &i.kind {
+        InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
+            Some(&f.locals[local.0 as usize].ty)
+        }
+        InstructionKind::TakeVariantField { local, path }
+            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(_)]) =>
+        {
+            Some(&f.locals[local.0 as usize].ty)
+        }
+        InstructionKind::DropErrorUnion { local } => Some(&f.locals[local.0 as usize].ty),
+        InstructionKind::ErrorTag { value }
+        | InstructionKind::ReadErrorUnion { value, .. }
+        | InstructionKind::TakeErrorUnion { value, .. } => Some(value_type(f, *value)?),
+        InstructionKind::MakeErrorUnion { .. } => Some(value_type(
+            f,
+            i.result
+                .ok_or_else(|| failure("dyn union constructor has no result"))?,
+        )?),
+        _ => None,
+    };
+    let Some(ty) = source else {
+        return Ok(false);
+    };
+    let Type::ErrorUnion { error, result } = ty else {
+        return Ok(false);
+    };
+    if !admitted_value(module, ty, b)? {
+        return Ok(false);
+    }
+    let expected = match &i.kind {
+        InstructionKind::PlaceTagLocal { .. } => Some(Type::I32),
+        InstructionKind::ErrorTag { .. } => Some(Type::Bool),
+        InstructionKind::TakeVariantField { path, .. } => Some(
+            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
+                error.as_ref().clone()
+            } else {
+                result.as_ref().clone()
+            },
+        ),
+        InstructionKind::ReadErrorUnion { is_error, .. }
+        | InstructionKind::TakeErrorUnion { is_error, .. } => Some(if *is_error {
+            error.as_ref().clone()
+        } else {
+            result.as_ref().clone()
+        }),
+        InstructionKind::MakeErrorUnion { value, is_error } => {
+            if value_type(f, *value)?
+                != if *is_error {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                }
+            {
+                return Err(failure("dyn union constructor changes actual arm type"));
+            }
+            Some(ty.clone())
+        }
+        InstructionKind::DropErrorUnion { .. } => None,
+        _ => unreachable!(),
+    };
+    if i.result.and_then(|v| f.values.get(v.0 as usize)) != expected.as_ref() {
+        return Err(failure(
+            "dyn union instruction changes complete selected type",
+        ));
+    }
+    Ok(true)
+}
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(
         kind,
@@ -285,7 +411,7 @@ pub(super) fn transfer(
     values: &[Value],
     b: &mut Budget,
 ) -> CompileResult<Option<Value>> {
-    if !b.dyn_contexts || !operation(&i.kind) {
+    if !instruction(module, f, i, b)? {
         return Ok(None);
     }
     let get = |id: ValueId| {
@@ -424,7 +550,43 @@ pub(super) fn transfer(
                 out.creation_complete = Some(complete);
             }
         }
-        InstructionKind::DropDynOwned { local } => {
+        InstructionKind::TakeVariantField { local, path } => {
+            let prefix = path
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .collect::<Vec<_>>();
+            fee(b, path.len())?;
+            ordered(b, state.locals.len(), 0)?;
+            let actual = state
+                .locals
+                .get_mut(local)
+                .ok_or_else(|| failure("dyn union local is not initialized"))?;
+            projection(&mut out, actual, &prefix, b)?;
+            work(actual, b)?;
+            actual
+                .dyn_ports
+                .retain(|path, _| !path.starts_with(&prefix));
+        }
+        InstructionKind::ReadErrorUnion { value, is_error }
+        | InstructionKind::TakeErrorUnion { value, is_error } => projection(
+            &mut out,
+            get(*value)?,
+            &[ContractProjection::Place(PlaceProjection::ErrorArm(
+                *is_error,
+            ))],
+            b,
+        )?,
+        InstructionKind::MakeErrorUnion { value, is_error } => copy_with_prefix(
+            &mut out,
+            get(*value)?,
+            &[ContractProjection::Place(PlaceProjection::ErrorArm(
+                *is_error,
+            ))],
+            b,
+        )?,
+        InstructionKind::PlaceTagLocal { .. } | InstructionKind::ErrorTag { .. } => {}
+        InstructionKind::DropErrorUnion { local } | InstructionKind::DropDynOwned { local } => {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
         }
@@ -435,6 +597,8 @@ pub(super) fn transfer(
 /// Enrich ordinary moves/addresses with the same actual port facts. This is
 /// additive: it never replaces a manager address, head loan or physical slot.
 pub(super) fn propagate(
+    module: &TypedModule,
+    f: &TypedFunction,
     i: &Instruction,
     state: &mut State,
     values: &[Value],
@@ -502,7 +666,15 @@ pub(super) fn propagate(
         }
         InstructionKind::MakeClosure { captures, .. } => {
             for capture in captures {
-                if !get(*capture)?.dyn_ports.is_empty() {
+                let mut directory_rows = Vec::new();
+                directory(
+                    module,
+                    value_type(f, *capture)?,
+                    &mut vec![],
+                    &mut directory_rows,
+                    b,
+                )?;
+                if !directory_rows.is_empty() || !get(*capture)?.dyn_ports.is_empty() {
                     return Err(failure(
                         "captured dyn Context needs complete environment source transport",
                     ));
@@ -548,6 +720,17 @@ mod tests {
                 loans: Loans::from([22]),
             },
         );
+        let capture_key = vec![
+            ContractProjection::Capture(2),
+            ContractProjection::RetainedPort(0),
+        ];
+        value.dyn_ports.insert(
+            capture_key,
+            Permission {
+                targets: Targets::from([target(HoldRoot::Local(LocalId(3)), None)]),
+                loans: Loans::from([33]),
+            },
+        );
         let values = vec![value];
         let arguments = vec![ValueId(0)];
         let state = State::default();
@@ -573,6 +756,21 @@ mod tests {
         );
         assert_eq!(dyn_actual.loans, Loans::from([22, 77]));
         assert_ne!(dyn_actual.targets, task_actual.targets);
+        let nested = target(
+            HoldRoot::Parameter(0),
+            Some(PortOrigin::Dyn {
+                carrier: vec![ContractProjection::Capture(2)],
+                port: 0,
+            }),
+        );
+        let nested_actual = substitute(&nested, &arguments, &values, &state, &mut b).unwrap();
+        assert!(
+            nested_actual
+                .targets
+                .contains(&target(HoldRoot::Local(LocalId(3)), None))
+        );
+        assert_eq!(nested_actual.loans, Loans::from([33, 77]));
+
         let missing = target(
             HoldRoot::Parameter(0),
             Some(PortOrigin::Dyn {

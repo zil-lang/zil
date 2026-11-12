@@ -1793,9 +1793,9 @@ impl<'a> Walker<'a> {
             CoreExprKind::Unary { .. } => self.expr_unary(e, expected, depth),
             CoreExprKind::Binary { .. } => self.expr_binary(e, expected, depth),
             CoreExprKind::Call { .. } => self.expr_call(e, expected, depth),
-            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
-                self.expr_runtime_dyn(e, depth)
-            }
+            CoreExprKind::MakeDynBorrow { .. }
+            | CoreExprKind::MakeDynOwned { .. }
+            | CoreExprKind::CallDynSlot { .. } => self.expr_runtime_dyn(e, depth),
             CoreExprKind::Array(..) => self.expr_array(e, expected, depth),
             CoreExprKind::Index { .. } => self.expr_index(e, expected, depth),
             CoreExprKind::Slice { .. } => self.expr_slice(e, expected, depth),
@@ -2421,6 +2421,17 @@ impl<'a> Walker<'a> {
                 source: Box::new(self.expr(source, None, depth + 1)?),
                 mutable: *mutable,
             },
+            CoreExprKind::MakeDynOwned {
+                interface,
+                vtable,
+                source,
+                route,
+            } => CoreExprKind::MakeDynOwned {
+                interface: *interface,
+                vtable: *vtable,
+                source: Box::new(self.expr(source, None, depth + 1)?),
+                route: *route,
+            },
             CoreExprKind::CallDynSlot {
                 callee,
                 interface,
@@ -2602,7 +2613,9 @@ impl<'a> Walker<'a> {
                 )]);
             }
             match &e.kind {
-                CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
+                CoreExprKind::MakeDynBorrow { .. }
+                | CoreExprKind::MakeDynOwned { .. }
+                | CoreExprKind::CallDynSlot { .. } => {
                     return Err(unsupported(e.span, "dynamic dispatch is runtime-only"));
                 }
                 CoreExprKind::Call { callee, .. } if matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") =>

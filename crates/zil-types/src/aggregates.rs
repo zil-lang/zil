@@ -2,6 +2,8 @@
 use super::*;
 use std::collections::BTreeSet;
 use zil_base::ModuleId;
+#[path = "aggregates_dyn_metadata.rs"]
+mod dyn_metadata;
 
 /// Visibility is checked on the actual resolved field indices. It is a source
 /// module restriction, not a runtime capability or a change to record layout.
@@ -968,6 +970,10 @@ fn resolve_indexed(
             arguments,
         });
     }
+    crate::dyn_metadata::snapshot(&core, limits, &mut resolver.remaining, 1)
+        .map_err(|e| vec![e])?;
+    let (dyn_declarations, dyn_interfaces, dyn_vtables) =
+        dyn_metadata::resolve(&core, &mut resolver).map_err(|e| vec![e])?;
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {
@@ -983,6 +989,9 @@ fn resolve_indexed(
     core.functions = functions;
     core.enums = resolved_enums;
     core.life_instances = resolved_life_instances;
+    core.dyn_declarations = dyn_declarations;
+    core.dyn_interfaces = dyn_interfaces;
+    core.dyn_vtables = dyn_vtables;
     stored::resolved_inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     Ok(core)
 }
@@ -2165,6 +2174,9 @@ impl Resolver<'_> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
             CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::MakeDynOwned {
                 source: operand, ..
             }
             | CoreExprKind::Unary { operand, .. }

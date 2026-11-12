@@ -20,6 +20,7 @@ mod dyn_context;
 mod dyn_dispatch;
 mod dyn_metadata;
 mod dyn_recipe;
+mod dyn_return_sources;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -1128,6 +1129,12 @@ impl<'a, 'c> Builder<'a, 'c> {
         for i in self.first_closure..self.closures.pending.len() {
             self.materialize_closure(ClosureId(i as u32))?;
         }
+        self.function.retained_return_sources = dyn_return_sources::propose(
+            &self.function,
+            self.dyn_interfaces,
+            self.limits,
+            &mut self.match_work_left,
+        )?;
         Ok(self.function)
     }
     fn local(&mut self, name: &str, ty: Type, mutable: bool, span: Span) -> R<LocalId> {
