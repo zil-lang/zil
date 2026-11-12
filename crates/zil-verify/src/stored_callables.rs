@@ -71,7 +71,7 @@ pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
                 .iter()
-                .any(|row| row.position.base == StorageBase::Receiver)
+                .any(|row| row.position.base == StorageBase::Result)
         })
     {
         &Type::Unit
@@ -235,8 +235,8 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
             || lending(d)
             || borrowed_owned_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
-                super::signature_life::outer(life, StorageBase::Receiver).is_some()
-            }) && matches!(d.result, Type::Address { .. })
+                super::signature_life::outer(life, StorageBase::Result).is_some()
+            }) && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
     })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
@@ -297,9 +297,10 @@ pub(super) fn captured_profile(
     }
     if !((d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
-        || d.storage_life.as_ref().is_some_and(|life| {
-            super::signature_life::outer(life, StorageBase::Receiver).is_some()
-        }) && matches!(d.result, Type::Address { .. }))
+        || d.storage_life
+            .as_ref()
+            .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())
+            && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee()))
     {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",

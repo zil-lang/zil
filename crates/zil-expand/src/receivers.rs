@@ -239,7 +239,7 @@ impl Expander<'_> {
             self.member_owner_work += 1;
             self.member_owner_nodes -= 1;
             self.callable_context_emissions
-                .push(CallableContextEmission {
+                .push(CallableContextEmission::Parameter {
                     creator: id,
                     item: self.source_item_ordinal,
                     parameter,
@@ -327,6 +327,28 @@ impl Expander<'_> {
             .as_ref()
             .and_then(|ty| self.callable_return(ty));
         if callable_return.is_some()
+            && prefix.is_none()
+            && self
+                .storage_catalog
+                .is_some_and(|catalog| catalog.source_helpers)
+        {
+            if self.member_owner_work >= self.member_owner_limit || self.member_owner_nodes == 0 {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "opaque return lowering event budget exhausted",
+                    Some(f.span),
+                ));
+            } else {
+                self.member_owner_work += 1;
+                self.member_owner_nodes -= 1;
+                self.callable_context_emissions
+                    .push(CallableContextEmission::Return {
+                        creator: id,
+                        item: self.source_item_ordinal,
+                    });
+            }
+        }
+        if callable_return.is_some()
             && ((!callable_parameters.is_empty() && !owned_factory)
                 || !state_parameters.is_empty()
                 || !type_parameters.is_empty()
@@ -379,6 +401,7 @@ impl Expander<'_> {
             source_scope: None,
             dyn_instance: None,
             retained_return_sources: None,
+            source_scope: None,
             storage_life: None,
             call_kind,
             resume_bound,

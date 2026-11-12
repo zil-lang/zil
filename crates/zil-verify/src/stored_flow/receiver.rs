@@ -18,11 +18,13 @@ pub(super) fn needs_head(module: &TypedModule, f: &TypedFunction, b: &mut Budget
         return Ok(false);
     };
     b.spend(d.captures.len().saturating_add(1))?;
-    Ok(matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-        && (declared(d)
-            || d.captures
-                .iter()
-                .any(|ty| matches!(ty, Type::Address { mutable: true, .. }))))
+    Ok(matches!(
+        d.kind,
+        CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+    ) && (declared(d)
+        || d.captures
+            .iter()
+            .any(|ty| matches!(ty, Type::Address { mutable: true, .. }))))
 }
 pub(super) fn call_site(module: &TypedModule, f: &TypedFunction, i: &Instruction) -> bool {
     stored_callables::called(module, f, &i.kind).is_some_and(|(d, _)| declared(d))
@@ -52,7 +54,10 @@ pub(super) fn add_site(
             }
     );
     let id = loans.len();
-    loans.push(Loan::default());
+    loans.push(Loan {
+        receiver_head: true,
+        ..Loan::default()
+    });
     sites.push((
         i as *const Instruction as usize,
         HEAD_SITE,
@@ -116,12 +121,9 @@ pub(super) fn read(
             "read-only invocation cannot grant an exclusive captured reborrow",
         ));
     }
-    // A consuming entry must use a unique Take to transfer an original loan.
-    if d.kind == CallableKind::FnOnce {
-        return Err(err(
-            "consuming exclusive capture requires an actual Take, not ReadCapture",
-        ));
-    }
+    // Consuming entries may read through internal children, but that child
+    // still carries this private invocation marker and cannot escape as Fixed.
+    // Only a real Take transports the original capture without this marker.
     let head = state
         .receiver
         .ok_or_else(|| err("exclusive capture has no actual invocation head"))?;
@@ -156,10 +158,14 @@ pub(super) fn receiver_result(
     let Some((d, arguments)) = stored_callables::called(module, f, &i.kind) else {
         return Ok(false);
     };
-    if !declared(d) || !matches!(d.result, Type::Address { .. }) {
+    if d.storage_life
+        .as_ref()
+        .is_none_or(|life| signature_life::outer(life, StorageBase::Result).is_none())
+        || !matches!(d.result, Type::Address { .. })
+    {
         return Ok(false);
     }
-    if !call_site(module, f, i) {
+    if declared(d) && !call_site(module, f, i) {
         return Err(err(
             "a consuming call cannot let a receiver-bounded result escape",
         ));
@@ -169,23 +175,42 @@ pub(super) fn receiver_result(
     if !summary.complete {
         return Ok(true);
     }
-    let receiver = captured_owner::receiver(f, i, values, b)?;
+    let consumed = captured_owner::consuming_value(&i.kind);
+    let receiver = if consumed.is_some() {
+        Permission::default()
+    } else {
+        captured_owner::receiver(f, i, values, b)?
+    };
     for (path, sources) in &summary.result {
         if !path.is_empty() {
             return Err(err("receiver result has unsupported nested leaf transport"));
         }
         for source in sources {
-            let actual = captured_owner::substitute(
-                module,
-                f,
-                source,
-                &d.captures,
-                &receiver,
-                arguments,
-                values,
-                state,
-                b,
-            )?;
+            let actual = if let Some(value) = consumed {
+                captured_owner::substitute_value(
+                    module,
+                    f,
+                    source,
+                    &d.captures,
+                    &values[value.0 as usize],
+                    arguments,
+                    values,
+                    state,
+                    b,
+                )?
+            } else {
+                captured_owner::substitute(
+                    module,
+                    f,
+                    source,
+                    &d.captures,
+                    &receiver,
+                    arguments,
+                    values,
+                    state,
+                    b,
+                )?
+            };
             join_permission(&mut out.address, &actual, b)?;
         }
     }
@@ -193,8 +218,9 @@ pub(super) fn receiver_result(
         .storage_life
         .as_ref()
         .ok_or_else(|| err("receiver result relation absent"))?;
-    let result_is_head = signature_life::outer(life, StorageBase::Result)
-        == signature_life::outer(life, StorageBase::Receiver);
+    let result_is_head = declared(d)
+        && signature_life::outer(life, StorageBase::Result)
+            == signature_life::outer(life, StorageBase::Receiver);
     if result_is_head || !summary.receiver_results.is_empty() {
         let retained = retain_written_slot(&receiver, i, HEAD_SITE, &Vec::new(), sites, loans, b)?;
         // Preserve the head as a non-target parent, never add it to data roots.
@@ -246,4 +272,50 @@ pub(super) fn parameter_head_result(
         }
     }
     Ok(false)
+}
+
+/// Public Hold includes the real receiver debt, while pointer sources remain
+/// the data targets. Only independently created head loans contribute here.
+pub(super) fn held_sources(p: &Payload, solution: &Solution, b: &mut Budget) -> Check<Vec<Source>> {
+    let mut starts = Vec::new();
+    for permission in std::iter::once(&p.address)
+        .chain(std::iter::once(&p.store_description))
+        .chain(p.leaves.iter().map(|(_, permission)| permission))
+        .chain(p.task_ports.iter().map(|(_, permission)| permission))
+        .chain(p.dyn_ports.0.iter().map(|(_, row)| &row.permission))
+    {
+        add_loans(&mut starts, &permission.loans, b)?;
+    }
+    let parents = ancestry(&starts, &solution.loans, b)?;
+    let mut sources = Vec::new();
+    for parent in parents {
+        b.spend(1)?;
+        let loan = solution
+            .loans
+            .get(parent)
+            .ok_or_else(|| err("receiver Hold ancestry exceeds actual loan arena"))?;
+        if loan.receiver_head {
+            add_sources(&mut sources, &loan.sources, b)?;
+        }
+    }
+    Ok(sources)
+}
+
+pub(super) fn helper_head(callee: &TypedFunction, source: &Source) -> bool {
+    let HoldRoot::Parameter(index) = source.base else {
+        return false;
+    };
+    source.leaf.is_empty()
+        && source.inline.is_empty()
+        && source.retained_port.is_none()
+        && source.heap_element.is_none()
+        && source.heap_parents.is_empty()
+        && callee
+            .parameters
+            .get(index as usize)
+            .and_then(|local| callee.locals.get(local.0 as usize))
+            .is_some_and(|local| {
+                matches!(&local.ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Closure(_)))
+            })
 }

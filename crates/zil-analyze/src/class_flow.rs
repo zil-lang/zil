@@ -829,11 +829,11 @@ fn call(
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
-    fixed: Option<&[usize]>,
+    fixed: Option<(&[usize], Option<usize>)>,
     e: &mut Equations,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let formal = if let Some(fixed) = fixed {
+    let formal = if let Some((fixed, _)) = fixed {
         crate::signature_life::charge(c, b)?;
         b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
         if fixed.len() != c.fixed_binder_count as usize {
@@ -849,6 +849,12 @@ fn call(
     } else {
         variables(c, e, false, b)?
     };
+    if let (Some((_, Some(head))), Some(binder)) = (
+        fixed,
+        super::signature_life::outer(c, StorageBase::Receiver),
+    ) {
+        e.equal(head, select(&formal, binder)?, b)?;
+    }
     for (i, arg) in args.iter().enumerate() {
         bind(
             c,
@@ -876,7 +882,7 @@ fn call_with_outer(
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
-    fixed: Option<&[usize]>,
+    fixed: Option<(&[usize], Option<usize>)>,
     context: (&mut Equations, Option<&array_outer::Flow>),
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -885,7 +891,7 @@ fn call_with_outer(
         return call(c, args, output, values, fixed, e, b);
     }
 
-    let formal = if let Some(fixed) = fixed {
+    let formal = if let Some((fixed, _)) = fixed {
         crate::signature_life::charge(c, b)?;
         b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
         if fixed.len() != c.fixed_binder_count as usize {
@@ -901,6 +907,12 @@ fn call_with_outer(
     } else {
         variables(c, e, false, b)?
     };
+    if let (Some((_, Some(head))), Some(binder)) = (
+        fixed,
+        super::signature_life::outer(c, StorageBase::Receiver),
+    ) {
+        array_outer::binding(e, head, select(&formal, binder)?, flow, b)?;
+    }
     for (i, arg) in args.iter().enumerate() {
         bind_with_outer(
             c,
@@ -961,8 +973,9 @@ pub(super) fn check_role(
             )]);
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        super::signature_life::capture_relation(
+        super::signature_life::closure_relation(
             &module.closures,
+            d.kind,
             &d.parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -1051,7 +1064,15 @@ fn check_with(
     };
     // One receiver call region; separate SSA reads get separate loans, rather
     // than distinct rigid declared lifetimes. Pointee classes stay Fixed.
-    let receiver_region = if exclusive_head {
+    let receiver_region = if let (Some(contract), Some(variables)) = (assumptions, header.as_ref())
+        && let Some(binder) = super::signature_life::outer(contract, StorageBase::Receiver)
+    {
+        Some(select(variables, binder)?)
+    } else if exclusive_head
+        || f.environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .is_some_and(super::stored_callables::lending)
+    {
         Some(e.fresh(true, b)?)
     } else {
         None
@@ -1076,6 +1097,17 @@ fn check_with(
             None
         }
     };
+    let mut capture_view_locals = BTreeSet::new();
+    if receiver_region.is_some() {
+        for block in &f.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, "actual receiver capture-view inventory")?;
+                if let InstructionKind::BindPackageCapture { local, .. } = instruction.kind {
+                    capture_view_locals.insert(local);
+                }
+            }
+        }
+    }
     let mut deferred_helpers = Vec::new();
     let mut deferred_closures = Vec::new();
     for (block_index, block) in f.blocks.iter().enumerate() {
@@ -1383,7 +1415,11 @@ fn check_with(
                 {
                     let out = out.unwrap();
                     if let Some(head) = out.outer {
-                        e.address_origin(head, b)?;
+                        if let Some(region) = receiver_region {
+                            array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                        } else {
+                            e.address_origin(head, b)?;
+                        }
                     }
                     let captured = captures
                         .get(*index as usize)
@@ -1399,16 +1435,48 @@ fn check_with(
                         e.equal(*actual, *source, b)?;
                     }
                 }
-                InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                InstructionKind::BorrowCapture { index, .. }
+                    if f.environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .and_then(|d| d.captures.get(*index as usize))
+                        .is_some_and(super::stored_callables::scalar) =>
+                {
+                    if let (Some(head), Some(region)) = (out.and_then(|p| p.outer), receiver_region)
+                    {
+                        array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::BorrowCapture { index, .. }
+                    if f.environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .and_then(|d| d.captures.get(*index as usize))
+                        .is_some_and(super::stored_callables::scalar) =>
+                {
+                    if let (Some(head), Some(region)) = (out.and_then(|p| p.outer), receiver_region)
+                    {
+                        array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+                    if !captures.is_empty()
+                        && (matches!(i.kind, InstructionKind::ReadCapture { .. })
+                            || out.is_some_and(|p| {
+                                p.outer.is_some()
+                                    || !p.classes.is_empty()
+                                    || !p.task_ports.is_empty()
+                                    || !p.array_elements.is_empty()
+                                    || p.environment
+                            })) =>
+                {
                     if let Some(out) = out {
                         let capture = captures
                             .get(*index as usize)
                             .ok_or_else(|| bad("actual capture class source is absent"))?;
-                        let mutable_head = f
-                            .environment
-                            .and_then(|id| module.closures.get(id.0 as usize))
-                            .and_then(|d| d.captures.get(*index as usize))
-                            .is_some_and(super::stored_callables::exclusive_capture);
+                        let mutable_head = matches!(i.kind, InstructionKind::ReadCapture { .. })
+                            && f.environment
+                                .and_then(|id| module.closures.get(id.0 as usize))
+                                .and_then(|d| d.captures.get(*index as usize))
+                                .is_some_and(super::stored_callables::exclusive_capture);
                         if mutable_head {
                             array_outer::copy_elements(&mut e, out, capture, outer.as_ref(), b)?;
                             b.spend(
@@ -1486,8 +1554,14 @@ fn check_with(
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {
-                        if let Some(outer) = out.outer {
-                            e.address_origin(outer, b)?;
+                        if let Some(head) = out.outer {
+                            if capture_view_locals.contains(local)
+                                && let Some(region) = receiver_region
+                            {
+                                array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                            } else {
+                                e.address_origin(head, b)?;
+                            }
                         }
                         let stored = &locals[local.0 as usize];
                         array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
@@ -1663,7 +1737,11 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode,
+                } => {
                     if !values[storage.0 as usize].array_elements.is_empty() {
                         let [PlaceProjection::Field(index)] = path.as_slice() else {
                             return Err(bad("array load has no actual constant ordinal"));
@@ -1724,7 +1802,13 @@ fn check_with(
                         .iter()
                         .find(|s| s.path == *path)
                         .ok_or_else(|| bad("stored class slot is absent"))?;
-                    let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                    let class = if matches!(mode, StoredBorrowLoad::Reborrow { .. }) {
+                        values[storage.0 as usize]
+                            .outer
+                            .ok_or_else(|| bad("stored reborrow has no actual holder head class"))?
+                    } else {
+                        values[storage.0 as usize].classes[leaf.binder as usize]
+                    };
                     array_outer::transport(
                         &mut e,
                         out.and_then(|o| o.outer)
@@ -2117,7 +2201,7 @@ fn check_with(
                             life,
                             arguments,
                             i.result,
-                            receiver.classes.as_slice(),
+                            (receiver.classes.as_slice(), receiver.outer),
                             (block_index, instruction_index),
                         ));
                     } else if let Some(life) = role {

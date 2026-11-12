@@ -910,6 +910,7 @@ pub(super) fn snapshot_context_function(
         source_scope: function.source_scope.clone(),
         dyn_instance: function.dyn_instance.clone(),
         retained_return_sources: function.retained_return_sources.clone(),
+        source_scope: function.source_scope.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         resume_bound: function.resume_bound,
@@ -1291,13 +1292,6 @@ fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
                 validate_type(ty, 0, span, budget)?;
             }
         }
-    }
-    if bound.life.is_some() || bound.source_life.is_some() {
-        return Err(Diagnostic::unsupported(
-            Phase::Types,
-            "callable return life bridge requires a checked concrete environment",
-            Some(span),
-        ));
     }
     Ok(())
 }
@@ -4108,6 +4102,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             };
             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
+                Some(Binding {
+                    term: Term::Address(variable, true),
+                    ..
+                }) => Ok(Term::Address(*variable, true)),
                 Some(Binding {
                     term: Term::Registration(environment, true, asynchronous),
                     ..

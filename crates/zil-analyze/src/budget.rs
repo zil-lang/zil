@@ -48,6 +48,7 @@ pub(super) struct Budget {
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) mutable_capture_contexts: bool,
+    pub(super) receiver_borrows: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
@@ -173,6 +174,7 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             mutable_capture_contexts: false,
+            receiver_borrows: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),
             callable_receiver_roles: BTreeMap::new(),
@@ -1539,6 +1541,10 @@ pub(super) fn preflight(
     for closure in &module.closures {
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
+            budget.receiver_borrows |= life
+                .bindings
+                .iter()
+                .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
             budget.stored_borrows = true;
             budget.capture_relations = true;
         }
@@ -1799,6 +1805,7 @@ pub(super) fn preflight(
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
         } else if invocation
+            || super::stored_callables::transferred(closure)
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
                 && matches!(
@@ -1990,9 +1997,6 @@ pub(super) fn preflight(
                 )
                 .ok_or_else(|| exhausted("callable return relation metadata"))?;
                 budget.input(work, "callable return relation")?;
-                return Err(bad(
-                    "callable return relation requires independent concrete environment proof",
-                ));
             }
             // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
             budget.input(1, "callable source presence")?;

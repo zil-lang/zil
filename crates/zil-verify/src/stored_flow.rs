@@ -529,6 +529,7 @@ struct Payload {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
+    pending_external_update: bool,
     receiver: Option<usize>,
     locals: Vec<Payload>,
     external: Vec<Payload>,
@@ -539,6 +540,7 @@ struct Frame {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
+    receiver_head: bool,
     sources: Vec<Source>,
     parents: Vec<usize>,
     exclusive: bool,
@@ -558,6 +560,7 @@ struct Summary {
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     dyn_ports: dyn_ports::Rows,
     external_after: Vec<(u32, Path, Vec<Source>)>,
+    external_stable: Vec<(u32, Path)>,
     capture_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
@@ -875,6 +878,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
+    to.pending_external_update |= from.pending_external_update;
     if let Some(head) = from.receiver {
         b.spend(1)?;
         if to.receiver.is_some_and(|previous| previous != head) {
@@ -1632,7 +1636,7 @@ pub(super) fn qualifications(
                             | InstructionKind::ScopeExit { .. }
                             | InstructionKind::LoadStoredBorrow {
                                 mode: StoredBorrowLoad::CopyShared
-                                    | StoredBorrowLoad::Reborrow { mutable: true }
+                                    | StoredBorrowLoad::Reborrow { .. }
                                     | StoredBorrowLoad::Take,
                                 ..
                             }
@@ -2297,7 +2301,12 @@ fn access_tail(
         if write || loan.exclusive {
             for a in &p.sources {
                 for z in &loan.sources {
-                    apart(a, z, requirements, b)?;
+                    apart(a, z, requirements, b).map_err(|error| {
+                        error.with_note(format!(
+                            "actual live loan {id}, parents {:?}; access loans {:?}",
+                            loan.parents, p.loans
+                        ))
+                    })?;
                 }
             }
         }
@@ -2413,6 +2422,7 @@ fn seed_payload(
         b.spend(3)?;
         let id = loans.len();
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive: *mutable,
@@ -2439,6 +2449,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: mode == StoredBorrowMode::ExclusiveAddress,
@@ -2477,6 +2488,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: false,
@@ -2505,6 +2517,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: slot.mode == StoredBorrowMode::ExclusiveAddress,
@@ -2558,6 +2571,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
     let count = captured_definition(module, f, b).map_or(0, |d| d.captures.len());
     b.spend(count)?;
     Ok(Frame {
+        pending_external_update: false,
         receiver: None,
         captures: vec![Payload::default(); count],
         locals: vec![Payload::default(); f.locals.len()],
@@ -2949,13 +2963,14 @@ fn write_sites(
                                 )?;
                             }
                         }
-                        if let Type::Address {
-                            mutable: true,
-                            inner,
-                        } = &callee.locals[local.0 as usize].ty
-                            && let Type::Closure(id) = inner.as_ref()
+                        let parameter_type = &callee.locals[local.0 as usize].ty;
+                        if let Some(id) = returned_environment::closure(parameter_type)
+                            && matches!(
+                                parameter_type,
+                                Type::Closure(_) | Type::Address { mutable: true, .. }
+                            )
                         {
-                            for (path, ty) in returned_environment::leaves(module, *id, b)? {
+                            for (path, ty) in returned_environment::leaves(module, id, b)? {
                                 add(
                                     position as u32,
                                     &path,
@@ -3283,7 +3298,14 @@ fn step(
         }
         InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
             out = copy_payload(&state.captures[*index as usize], b)?;
-            state.captures[*index as usize] = Payload::default();
+            let pointee = i.result.is_some_and(|result|
+                matches!(&f.values[result.0 as usize], Type::Address { inner, .. }
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. })));
+            if pointee {
+                // These private rows model the caller's pointee memory, not
+                // an environment field that can be read a second time.
+                state.captures[*index as usize].address = Permission::default();
+            } else { state.captures[*index as usize] = Payload::default(); }
         }
         InstructionKind::WriteCapture { index, value } if b.returned_environment_sources => {
             state.captures[*index as usize] = copy_payload(val(*value)?, b)?;
@@ -3442,7 +3464,9 @@ fn step(
             });
         }
         kind if super::stored_callables::called(module, f, kind)
-            .is_some_and(|(definition, _)| receiver::declared(definition) && matches!(definition.result, Type::Address { .. })) =>
+            .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
+                signature_life::outer(life, StorageBase::Result).is_some())
+                && matches!(definition.result, Type::Address { .. })) =>
         {
             receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
         }
@@ -3693,7 +3717,7 @@ fn step(
         InstructionKind::LoadStoredBorrow {
             storage,
             path,
-            mode: StoredBorrowLoad::Reborrow { mutable: true },
+            mode: StoredBorrowLoad::Reborrow { .. },
         } => {
             out.address = select(state, &val(*storage)?.address, path, b)?;
             let parents = if let Some(local) = projection_only_load(f, i, *storage, b)? {
@@ -3863,6 +3887,14 @@ fn step(
             if b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
                     let actual = instantiate(module, f, parent, arguments, values, state, b)?;
+                    if b.closure_receiver_borrows && receiver::helper_head(callee, parent) {
+                        b.spend(actual.loans.len())?;
+                        for id in &actual.loans {
+                            loans.get_mut(*id)
+                                .ok_or_else(|| err("actual helper head loan is absent"))?
+                                .receiver_head = true;
+                        }
+                    }
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
                 }
             }
@@ -3882,58 +3914,96 @@ fn step(
             let mut updates = Vec::new();
             for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
                 let index = *parameter as usize;
-                let local = *callee
-                    .parameters
-                    .get(index)
+                let local = *callee.parameters.get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
-                if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some())
-                {
-                    continue;
-                }
-                let actual = val(*arguments
-                    .get(index)
+                let ty = &callee.locals[local.0 as usize].ty;
+                let captured = captured_owner::external_capture_tail(module, ty, path, b)?;
+                let borrowed = matches!(ty,
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some());
+                if captured.is_none() && !borrowed { continue; }
+                let actual = val(*arguments.get(index)
                     .ok_or_else(|| err("external summary actual argument is absent"))?)?;
-                let [root] = actual.address.sources.as_slice() else {
-                    return Err(err("external update needs one exact actual carrier source"));
-                };
-                if !root.leaf.is_empty() {
-                    return Err(err("external update crosses a target boundary"));
-                }
-                let actual_path = if root.inline.is_empty() {
-                    path.clone()
-                } else {
-                    slot_position(&actual.address, path, b)?.inline
-                };
                 let mut permission = Permission::default();
                 for source in sources {
-                    join_permission(
-                        &mut permission,
-                        &instantiate(module, f, source, arguments, values, state, b)?,
-                        b,
-                    )?;
+                    join_permission(&mut permission,
+                        &instantiate(module, f, source, arguments, values, state, b)?, b)?;
                 }
                 if permission.sources.is_empty() {
-                    return Err(err("external update has no grounded replacement source"));
+                    // Bottom during the interprocedural fixed point is not an
+                    // empty after-state. Preserve an explicit unproved debt.
+                    state.pending_external_update = true;
+                    continue;
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
-                let permission =
-                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?;
-                updates.push((root.clone(), actual_path, permission));
+                let summary = &summaries[function.0 as usize];
+                b.spend(summary.external_stable.len().saturating_mul(path.len().saturating_add(1)))?;
+                let stable = summary.external_stable.iter().any(|(p, row)| p == parameter && row == path);
+                let retained = if stable {
+                    let previous = if matches!(ty, Type::Address { .. }) {
+                        select(state, &actual.address, path, b)?
+                    } else {
+                        let row = leaf(actual, path, b)?
+                            .ok_or_else(|| err("stable environment after-row is absent"))?;
+                        permission_work(row, b)?;
+                        row.clone()
+                    };
+                    permission_work(&previous, b)?;
+                    permission_work(&permission, b)?;
+                    if previous != permission {
+                        return Err(err("stable external row changed its actual targets or loan identity"));
+                    }
+                    permission
+                } else {
+                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?
+                };
+                if let Some((capture, tail)) = captured {
+                    let head = if matches!(ty, Type::Address { .. }) {
+                        select(state, &actual.address, &[PlaceProjection::Field(capture)], b)?
+                    } else {
+                        let head = leaf(actual, &[PlaceProjection::Field(capture)], b)?
+                            .ok_or_else(|| err("by-value environment lacks its actual captured pointer"))?;
+                        permission_work(head, b)?;
+                        head.clone()
+                    };
+                    if head.sources.is_empty() {
+                        return Err(err("captured pointee update has no actual target"));
+                    }
+                    for root in &head.sources {
+                        let holder = match root.base {
+                            HoldRoot::Local(local) => state.locals.get(local.0 as usize),
+                            HoldRoot::Parameter(index) => state.external.get(index as usize),
+                            HoldRoot::Capture(index) => state.captures.get(index as usize),
+                            HoldRoot::Static => None,
+                        }.ok_or_else(|| err("captured pointee update target memory is absent"))?;
+                        let complete = symbolic_slot_path(holder, root, tail, b)?
+                            .ok_or_else(|| err("captured pointee update lacks a complete actual target directory"))?;
+                        permission_work(&retained, b)?;
+                        updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
+                    }
+                }
+                if borrowed {
+                    let [root] = actual.address.sources.as_slice() else {
+                        return Err(err("external update needs one exact actual carrier source"));
+                    };
+                    if !root.leaf.is_empty() {
+                        return Err(err("external update crosses a target boundary"));
+                    }
+                    let actual_path = if root.inline.is_empty() { path.clone() }
+                        else { slot_position(&actual.address, path, b)?.inline };
+                    updates.push((root.base, actual_path, retained, true));
+                }
             }
-            for (root, path, permission) in updates {
-                let holder = match root.base {
+            for (base, path, permission, unique) in updates {
+                let holder = match base {
                     HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
                     HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
                     HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
                     HoldRoot::Static => None,
-                }
-                .ok_or_else(|| err("updated caller carrier location is absent"))?;
-                if let Some(row) = holder.leaves.position(&path, b)? {
+                }.ok_or_else(|| err("updated caller carrier location is absent"))?;
+                if unique && let Some(row) = holder.leaves.position(&path, b)? {
                     *holder.leaves.permission_mut(row) = permission;
                 } else {
-                    b.spend(path.len().saturating_add(1))?;
-                    holder.leaves.push((path, permission), b)?;
+                    add_leaf(holder, &path, &permission, b)?;
                 }
             }
             dyn_ports::publish_after(state, dyn_updates, b)?;
@@ -4105,7 +4175,7 @@ fn step(
                     | InstructionKind::BorrowLocalMut { .. }
                     | InstructionKind::ReborrowAddress { .. }
                     | InstructionKind::LoadStoredBorrow {
-                        mode: StoredBorrowLoad::Reborrow { mutable: true },
+                        mode: StoredBorrowLoad::Reborrow { .. },
                         ..
                     }
                     | InstructionKind::AddressField { .. }
@@ -5080,7 +5150,7 @@ fn windows(
                 requirements,
                 b,
             )?;
-            {
+            (|| -> Check<()> {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
                 if replacements::heads(b) {
                     let head = dynamic_store::access(&i.kind)
@@ -5789,7 +5859,9 @@ fn windows(
                     )?,
                     _ => {}
                 }
-            }
+                Ok(())
+            })()
+            .map_err(|error| error.with_note(format!("actual instruction {:?}", i.kind)))?;
             dyn_providers::observe(
                 module,
                 f,
@@ -5874,6 +5946,9 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     for (path, row) in &s.result {
         b.spend(path.len())?;
         source_work(row, b)?;
+    }
+    for (_, path) in &s.external_stable {
+        b.spend(path.len().saturating_add(2))?;
     }
     for (_, path, row) in &s.external_after {
         b.spend(path.len())?;
@@ -6091,12 +6166,41 @@ fn summarize(
             }
         }
     }
+    if b.closure_receiver_borrows {
+        for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            for (path, initial) in &payload.leaves {
+                let mut stable = true;
+                let mut returned = false;
+                for (bi, (block, live)) in f.blocks.iter().zip(&g.reachable).enumerate() {
+                    b.spend(1)?;
+                    if *live && matches!(block.terminator, Terminator::Return(_)) {
+                        returned = true;
+                        let terminal = leaf(&solution.outputs[bi].external[parameter], path, b)?;
+                        permission_work(initial, b)?;
+                        if let Some(terminal) = terminal {
+                            permission_work(terminal, b)?;
+                        }
+                        stable &= terminal == Some(initial);
+                    }
+                }
+                if returned && stable {
+                    b.spend(path.len().saturating_add(2))?;
+                    summary
+                        .external_stable
+                        .push((parameter as u32, path.clone()));
+                }
+            }
+        }
+    }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
+        if *reachable && solution.outputs[bi].pending_external_update {
+            summary.complete = false;
+        }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
         }
-        if (b.stored_slot_updates || b.replacements || b.dyn_contexts)
+        if (b.stored_slot_updates || b.replacements || b.dyn_contexts || b.closure_receiver_borrows)
             && *reachable
             && matches!(block.terminator, Terminator::Return(_))
         {
@@ -6105,12 +6209,18 @@ fn summarize(
                     .parameters
                     .get(position)
                     .ok_or_else(|| err("external output exceeds actual parameter table"))?;
-                if !matches!(&f.locals[local.0 as usize].ty,
-                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && (qualified(inner).is_some() || returned_environment::closure(inner).is_some()))
-                {
+                let ty = &f.locals[local.0 as usize].ty;
+                let borrowed = matches!(ty,
+                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && (qualified(inner).is_some() || returned_environment::closure(inner).is_some()));
+                if !borrowed && !matches!(ty, Type::Closure(_)) {
                     continue;
                 }
                 for (path, permission) in &payload.leaves {
+                    if !borrowed
+                        && captured_owner::external_capture_tail(module, ty, path, b)?.is_none()
+                    {
+                        continue;
+                    }
                     b.spend(
                         path.len()
                             .saturating_add(permission.sources.len())
@@ -6692,6 +6802,13 @@ fn solve_check(
         let mut relations = relation_index::Relations::new(f, b)?;
         let receiver_definition =
             captured_definition(module, f, b).filter(|d| receiver::declared(d));
+        let capture_result_definition = captured_definition(module, f, b).filter(|d| {
+            d.storage_life.as_ref().is_some_and(|life| {
+                life.bindings
+                    .iter()
+                    .any(|row| row.position.base == StorageBase::Result)
+            })
+        });
         for path in &s.receiver_results {
             let c = f
                 .storage_life
@@ -6707,8 +6824,14 @@ fn solve_check(
                 ));
             }
         }
-        let lender = captured_definition(module, f, b)
-            .filter(|d| super::stored_callables::lending(d) && !receiver::declared(d));
+        let lender = captured_definition(module, f, b).filter(|d| {
+            super::stored_callables::lending(d)
+                && !d.storage_life.as_ref().is_some_and(|life| {
+                    life.bindings
+                        .iter()
+                        .any(|row| row.position.base == StorageBase::Result)
+                })
+        });
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
             let mut fields = Vec::new();
@@ -6745,6 +6868,26 @@ fn solve_check(
                 ));
             }
         }
+        if let Some(definition) = capture_result_definition {
+            let mut used = Vec::new();
+            for (_, sources) in &s.result {
+                for source in sources {
+                    b.spend(used.len().saturating_add(1))?;
+                    if let HoldRoot::Capture(index) = source.base {
+                        match used.binary_search(&index) {
+                            Ok(_) => {}
+                            Err(at) => used.insert(at, index),
+                        }
+                    }
+                }
+            }
+            b.spend(used.len().saturating_add(definition.lending_captures.len()))?;
+            if used != definition.lending_captures {
+                return Err(err(
+                    "captured result source set differs from actual returned permissions",
+                ));
+            }
+        }
         for (path, sources) in &s.result {
             if sources.is_empty() {
                 return Err(err("stored/reference result has no actual input source"));
@@ -6760,7 +6903,7 @@ fn solve_check(
                     continue;
                 }
                 if let HoldRoot::Capture(_) = source.base
-                    && receiver_definition.is_some()
+                    && capture_result_definition.is_some()
                 {
                     let c = f
                         .storage_life
@@ -6945,6 +7088,11 @@ fn solve_check(
                 // and Store-element payload windows in this dual profile.
                 continue;
             }
+            let receiver_sources = if b.closure_receiver_borrows {
+                receiver::held_sources(p, solution, b)?
+            } else {
+                Vec::new()
+            };
             let mut actual = BTreeSet::new();
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
@@ -6954,6 +7102,7 @@ fn solve_check(
                 .sources
                 .iter()
                 .chain(p.store_description.sources.iter())
+                .chain(receiver_sources.iter())
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
                 .chain(

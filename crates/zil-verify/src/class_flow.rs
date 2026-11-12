@@ -1800,7 +1800,11 @@ fn check_with(
                             }
                         }
                     }
-                    InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                    InstructionKind::LoadStoredBorrow {
+                        storage,
+                        path,
+                        mode,
+                    } => {
                         if !values[storage.0 as usize].array_elements.is_empty() {
                             let [PlaceProjection::Field(index)] = path.as_slice() else {
                                 return Err(bad("array load has no actual constant ordinal"));
@@ -1861,7 +1865,13 @@ fn check_with(
                             .iter()
                             .find(|s| s.path == *path)
                             .ok_or_else(|| bad("stored class slot is absent"))?;
-                        let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                        let class = if matches!(mode, StoredBorrowLoad::Reborrow { .. }) {
+                            values[storage.0 as usize].outer.ok_or_else(|| {
+                                bad("stored child reborrow has no actual head region")
+                            })?
+                        } else {
+                            values[storage.0 as usize].classes[leaf.binder as usize]
+                        };
                         array_outer::transport(
                             &mut e,
                             out.and_then(|o| o.outer)

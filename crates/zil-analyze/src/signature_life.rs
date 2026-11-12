@@ -180,7 +180,7 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false, &[])
+    relation_inner(parameters, None, result, c, false, &[], false, &[], None)
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -279,11 +279,13 @@ fn function_relation_inner(
         closures,
         allow_byte_input,
         interfaces,
+        None,
     )
 }
 
-pub(super) fn capture_relation(
+pub(super) fn closure_relation(
     closures: &[ClosureDefinition],
+    kind: CallableKind,
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
@@ -298,6 +300,7 @@ pub(super) fn capture_relation(
         closures,
         false,
         &[],
+        Some(kind),
     )
 }
 pub(super) fn function_relation_in_module(
@@ -328,7 +331,14 @@ fn relation_inner(
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
     interfaces: &[DynInterface],
+    receiver_kind: Option<CallableKind>,
 ) -> CompileResult<()> {
+    if c.classes
+        .iter()
+        .any(|row| row.position.base == StorageBase::Receiver)
+    {
+        return Err(bad("receiver head has no persistent class directory"));
+    }
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
             "vacuous borrowed signature must use the ordinary callable type",
@@ -822,6 +832,28 @@ fn relation_inner(
             cursor.ty(capture, StorageBase::Capture(i))?;
         }
     }
+    if let Some(row) = c.bindings.get(cursor.borrow)
+        && row.position.base == StorageBase::Receiver
+    {
+        if !matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            || !row.position.path.is_empty()
+            || !matches!(row.binder, StorageBinder::Invocation(_))
+        {
+            return Err(bad(
+                "Receiver requires an actual non-consuming borrowed closure head",
+            ));
+        }
+        if receiver_kind == Some(CallableKind::Fn)
+            && matches!(result, Type::Address { mutable: true, .. })
+            && c.bindings
+                .iter()
+                .any(|r| r.position.base == StorageBase::Result && r.binder == row.binder)
+        {
+            return Err(bad("shared receiver cannot grant an exclusive result view"));
+        }
+        cursor.borrow += 1;
+        cursor.binder(row.binder, false)?;
+    }
     cursor.inputs = Some((cursor.fixed, cursor.invocation));
     cursor.ty(result, StorageBase::Result)?;
     if cursor.borrow != c.bindings.len()
@@ -852,7 +884,32 @@ fn relation_inner(
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        }) && !cursor.array_result_input
+        }) && !(matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            && (!mutable || receiver_kind == Some(CallableKind::FnMut))
+            && outer(c, StorageBase::Receiver).is_some_and(|receiver| Some(receiver) == out))
+            && !captures.is_some_and(|captures| {
+                captures.iter().enumerate().any(|(index, ty)| {
+                    matches!(ty,Type::Address{mutable:available,..}if (!mutable||*available)
+                    && outer(c,StorageBase::Capture(index as u32))==out)
+                })
+            })
+            && !c.classes.iter().any(|row| {
+                let StorageBase::Capture(index) = row.position.base else {
+                    return false;
+                };
+                Some(row.binder) == out
+                    && captures
+                        .and_then(|captures| captures.get(index as usize))
+                        .is_some_and(|ty| {
+                            !mutable
+                                || matches!(
+                                    ty,
+                                    Type::Address { mutable: true, .. }
+                                        | Type::BorrowedStorage { .. }
+                                )
+                        })
+            })
+            && !cursor.array_result_input
         {
             return Err(bad(
                 "signature Address result has no eligible declared input",
@@ -988,8 +1045,9 @@ mod tests {
             }],
         };
         assert!(
-            capture_relation(
+            closure_relation(
                 &[],
+                CallableKind::Fn,
                 &[],
                 std::slice::from_ref(&child),
                 &Type::Unit,
@@ -1000,7 +1058,7 @@ mod tests {
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        capture_relation(&[], &[], &[child], &Type::Unit, &contract).unwrap();
+        closure_relation(&[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

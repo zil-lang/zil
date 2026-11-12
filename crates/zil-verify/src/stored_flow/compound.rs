@@ -277,6 +277,7 @@ pub(super) fn seed(
         let id = loans.len();
         let exclusive = mode == StoredBorrowMode::ExclusiveAddress;
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive,
