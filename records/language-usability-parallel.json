@@ -15,17 +15,17 @@
     "task/language-integration"
   ],
   "tests_this_dispatch": 0,
-  "integration_checkpoint": "867de8609f03789beb13408916075b01b75e2150",
+  "integration_checkpoint": "6457123cacaff4eb833ab4480e94ac640aee5d1f",
   "integration_remote": "task/language-integration",
   "observations": {
     "numeric": "PR85 finite integer/native scalar baseline accepted at main42f0396f3 (same tree3829d8305 as703fb); both CI workspace6068/reference5953/text71 pass. Joint application subsequently found Shape::pod missing four integer layout cases in Store; root06a644e0b fixes it, real all10 integer/generic Record/array/Tuple Store Source/raw/Wire/four native test passes. This joint correction has not merged.",
-    "joint_integration": "Root867de8609 includes Task multi-role Vec0bc/9c, ownership through252a, compound producers1183/528/e87/fbb, trait-life Source45a, Context independent V746 and Store replacement Vfc445. Joined alltargets and new compound consumer run37 is in progress, not an acceptance. Run32 returned20/task aggregate6/task create11/thread10 genuinely passed; forwarding4/5 closedDyn remained open before new recipe/V fixes. No whole-language claim.",
-    "borrowed_environments": "Qualified and lending forwarding4/4 actual raw/Wire and four native configurations passed previously. Source/Type/A now includes mutable call-before-return, external mutable helper memory and nested qualified child F through252a; newest inline full Fixed domains and distinct formal class write rejection383f await joint V. Root independently implementing complete captured domain/slot equation proofs.",
+    "joint_integration": "Root6457123ca pushed. Run57 six actual driver suites passed: qualifiedCompound4 (16 native plus raw/Wire attacks), forwarding5, descriptions1, private module3, returned instance1, owning captures1. Run58 all workspace/alltargets check passes, ordinary application complete CLI workflow1/1, forwarding5, description1, task create24/thread10 pass. Task aggregate6 regressed at Expand generic argument before Verify; assigned async+iteration, not passed. Final whole workspace tests pending.",
+    "borrowed_environments": "Shared/owning/exclusive qualified compounds and same-type closure instances now raw/Wire/native pass at Root57. Source/A mutable captured holder with generic borrowed helpers/two instances passes at ownership branch; Root new explicit Receiver schema a045 and independent V f22 entry reborrow/head parent/actual holder update first build queued, not acceptance. Elided anonymous input tuple Source and independent V are in progress.",
     "iteration": "Nested Store original5 Source consumers and independent V raw/Wire passed in root27. Independent review confirmed112 forced-move/allocation failure/recovery processes at stdlib tree, separate from root. SE entails Value+SyncDrop and projection helper integrated. Source/A shared/owning/exclusive Tuple fixtures integrated; root independent shared Tuple ledger proof now in run37, other compound families remain in progress.",
-    "async": "Run32 joined task create11/thread10/results6 suites passed with actual both-backend success/failure. New ordered protocol role Vec0bc/9c is integrated in root5673/1d015, joint regression pending; producer branch registration70 passed. Mixed owner+borrow Failure and Task symbolic parent transport/captured ports remain under implementation.",
+    "async": "Root58 actual create24 and threaded10 pass. Aggregate6 has newly exposed Expand generic matching regression, no new passing claim. Registration+borrowed/native failure/cancel four configurations passed branch326, integrated5c45. Nonzero Task capture→FnOnce and complete carrier/parent namespace remain under implementation.",
     "stdlib": "Original complete owning hash consumers now pass jointly at unchanged default10M: Analyze9956114/Verify9899874, with N-1/fresh controls; float/buffer full Analyze2309040/Verify4019588. Root same-source hash15/integer18 passed. Bounded graph and exact parsing native branch controls pass; full joined final acceptance pending.",
-    "dynamic": "Source45a complete trait lifetime/ordered actual application integrated; dyn producer25440 frozen and awaits root. Independent V746 has passed one actual Source/Types/A raw candidate (read consumer), with full lib regressions being repaired without widening budgets. Actual Context main four native configurations are running at dyn branch; no Context native or aggregate acceptance yet.",
-    "ordinary_application": "Actual manifest inventory application A succeeds; V previously stopped at owning Map.buckets replacement. New independent replacement ledgerfc445 is integrated (183cab), isolated V615 and public raw/Wire positive plus six attacks passed at independent branch. Joint full app build/run/test/lock mutation and four backend configurations remain pending."
+    "dynamic": "Producer Context Shared read baseline4 native passed. Independent V0e36/ceb root integrated proves actual double-root create→ErrorOwner→read plus seven raw/Wire source attacks and head escape guard; prior claimed bare-keep fixture was accidentally older and explicitly corrected. Actual new bareOwner helper acd048 now passed independently in numeric pending freeze; dyn native helper not yet passed. Known-empty unused port, fresh exclusive leases, nested captures/containers and complete declaration witness schema remain in progress.",
+    "ordinary_application": "Root58 exact6457123ca complete fresh manifest/dependency lock/check/build Clang+API O0/O2 native ABC exit0/test2/run/lock-mutation workflow1/1 passes. Run57 initially regressed ordinary weak resource Desc Hold; corrected both independent public ledgers in645 with actual private provenance/loans unchanged; non-author stdlib static review Accept. Earlier independent full CLI at stdlib tree also passes; counts not aggregated."
   },
   "source_acceptance": "Only PR85 finite baseline entered main42f0396f3; its subsequently discovered generic Store layout correction is in root06a and awaits integration. Remaining scopes and whole-language gates stay open. Original failures and raw logs persist in per-worktree out/runs.",
   "accepted_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
@@ -47,5 +47,23 @@
       "/workspace/zil-stdlib-numeric-review/out/runs/pr85-703-review.json"
     ]
   },
-  "latest_goal_read": "fc16357b8beadf518b041f887bc52533d02c6ce4"
+  "latest_goal_read": "97c92087a787a19d1bceff83e806a909e38016b5",
+  "reviews": [
+    {
+      "source": "6457123cacaff4eb833ab4480e94ac640aee5d1f",
+      "reviewer": "stdlib_graph",
+      "result": "Accept",
+      "scope": "weak descriptor public Hold only; private actual target/loans/retirement unchanged"
+    },
+    {
+      "source": "8651f749c67d8264bb9b6ebe508574a841a500e8",
+      "reviewer": "stdlib_graph",
+      "result": "Accept",
+      "scope": "affine compounds; exact static source; independent driver native evidence remains separate"
+    }
+  ],
+  "latest_logs": [
+    "/workspace/zil-integration/out/runs/combined-async/root-fiftyseventh-*.log",
+    "/workspace/zil-integration/out/runs/combined-async/root-fiftyeighth-*.log"
+  ]
 }
