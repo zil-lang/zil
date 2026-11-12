@@ -13,6 +13,8 @@ pub(super) fn source(path: &[String]) -> Option<&'static str> {
             "pod_hash_map" => Some(include_str!("../../../lib/std/pod_hash_map.zil")),
             "pod_hash_set" => Some(include_str!("../../../lib/std/pod_hash_set.zil")),
             "owning_entries" => Some(include_str!("../../../lib/std/owning_entries.zil")),
+            "owning_hash_map" => Some(include_str!("../../../lib/std/owning_hash_map.zil")),
+            "owning_hash_set" => Some(include_str!("../../../lib/std/owning_hash_set.zil")),
             "owning_map" => Some(include_str!("../../../lib/std/owning_map.zil")),
             "i64_hash_map" => Some(include_str!("../../../lib/std/i64_hash_map.zil")),
             "int" => Some(include_str!("../../../lib/std/int.zil")),
