@@ -37,6 +37,7 @@ pub(super) fn owned(ty: &Type) -> bool {
             || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_) | Type::OwnedDyn { .. })
             || (matches!(error.as_ref(), Type::Enum { .. }) && !error.is_copy_value())
             || (matches!(result.as_ref(), Type::Enum { .. }) && !result.is_copy_value()))
+        || dynamic_store::managed_error_payload(ty).is_some()
         || (matches!(ty, Type::ErrorUnion { .. }) && owned_shapes::sum(ty))
 }
 
@@ -56,6 +57,7 @@ pub(super) fn supported(ty: &Type) -> bool {
             || (*error.as_ref() == super::dyn_dispatch::create_error()
                 && matches!(result.as_ref(), Type::OwnedDyn { .. }))))
         || dynamic_store::product_protocol(ty)
+        || dynamic_store::managed_error_payload(ty).is_some()
         || owned_shapes::error_union(ty)
 }
 
