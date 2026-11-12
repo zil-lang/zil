@@ -10,6 +10,13 @@ enum Stop {
 type Probe = Result<(), Stop>;
 
 pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<CompileResult<()>> {
+    validate_recording(program, limits, None)
+}
+pub(super) fn validate_recording(
+    program: &CoreProgram,
+    limits: &Limits,
+    mut costs: Option<&mut Vec<usize>>,
+) -> Option<CompileResult<()>> {
     // Check every header before reporting any speculative body error. These
     // conditions make declaration/owner/callable indexes empty, header checks
     // trivial, and all owning-mode and receiver transformations inapplicable.
@@ -50,17 +57,34 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     let result = (|| {
         for module in &program.modules {
             for function in &module.core.functions {
-                walker.ty(&function.return_type, 0, function.span)?;
-                for parameter in &function.parameters {
-                    walker.ty(&parameter.ty, 0, parameter.span)?;
+                let before = walker.remaining;
+                walker.function(function)?;
+                if let Some(costs) = costs.as_mut() {
+                    costs.push(before - walker.remaining);
                 }
-                walker.block(&function.body, 0)?;
             }
         }
         Ok(())
     })();
     match result {
         Ok(()) => Some(Ok(())),
+        Err(Stop::Error(error)) => Some(Err(vec![error])),
+        Err(Stop::Unsupported) => None,
+    }
+}
+
+/// Check one real current body using the same shape walker. Unknown syntax
+/// takes the existing complete resolver rather than trusting an old receipt.
+pub(super) fn validate_function(
+    function: &CoreFunction,
+    limits: &Limits,
+) -> Option<CompileResult<usize>> {
+    let mut walker = Walker {
+        remaining: limits.max_analysis_steps,
+        depth_limit: limits.max_call_depth,
+    };
+    match walker.function(function) {
+        Ok(()) => Some(Ok(limits.max_analysis_steps - walker.remaining)),
         Err(Stop::Error(error)) => Some(Err(vec![error])),
         Err(Stop::Unsupported) => None,
     }
@@ -91,6 +115,13 @@ struct Walker {
     depth_limit: usize,
 }
 impl Walker {
+    fn function(&mut self, function: &CoreFunction) -> Probe {
+        self.ty(&function.return_type, 0, function.span)?;
+        for parameter in &function.parameters {
+            self.ty(&parameter.ty, 0, parameter.span)?;
+        }
+        self.block(&function.body, 0)
+    }
     fn charge(&mut self, depth: usize, span: Span) -> Probe {
         if depth > self.depth_limit || self.remaining == 0 {
             return Err(Stop::Error(Diagnostic::limit(

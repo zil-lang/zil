@@ -413,7 +413,18 @@ pub(super) fn resolve_prepared_program<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<std::borrow::Cow<'a, CoreProgram>> {
-    match scalar_shapes::validate(program, limits) {
+    resolve_prepared_program_recording(program, limits, None)
+}
+pub(super) fn resolve_prepared_program_recording<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+    costs: Option<&mut Vec<usize>>,
+) -> CompileResult<std::borrow::Cow<'a, CoreProgram>> {
+    let validated = match costs {
+        Some(costs) => scalar_shapes::validate_recording(program, limits, Some(costs)),
+        None => scalar_shapes::validate(program, limits),
+    };
+    match validated {
         Some(result) => result.map(|()| std::borrow::Cow::Borrowed(program)),
         // Unsupported shapes restart with the original allowance. No partial
         // speculative work changes the existing resolver's diagnostic order.

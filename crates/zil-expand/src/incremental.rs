@@ -27,15 +27,123 @@ impl PartialEq for FunctionInputRevision {
     }
 }
 impl Eq for FunctionInputRevision {}
+/// Process-local identity of an actual declaration owner. Bodies and current
+/// diagnostic bindings may change without changing this identity. Constructors
+/// stay private: neither a source name nor a public hash can mint an owner.
+#[derive(Clone, Debug)]
+pub struct FunctionOwner(Arc<()>);
+impl PartialEq for FunctionOwner {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for FunctionOwner {}
+
+/// One successful producer epoch. It carries raw input identity only.
+#[derive(Clone, Debug)]
+pub struct ExpansionEpoch(Arc<()>);
+impl PartialEq for ExpansionEpoch {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for ExpansionEpoch {}
+
+/// Complete closed producer environment, with import diagnostic offsets kept
+/// in the current program separately. This is not type or Verify authority.
+#[derive(Clone, Debug)]
+pub struct InputContext(Arc<()>);
+impl PartialEq for InputContext {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for InputContext {}
+
+/// Sparse changes admitted by actual successful lowering. Current function
+/// references are resolved from the exact immutable ProducedProgram, never from
+/// caller supplied digests or a prior Typed result.
+#[derive(Clone, Debug)]
+pub struct FunctionInputChange {
+    epoch: ExpansionEpoch,
+    owner: FunctionOwner,
+    module: usize,
+    function: usize,
+    body_changed: bool,
+    previous_span: Option<Span>,
+}
+impl FunctionInputChange {
+    pub fn owner(&self) -> &FunctionOwner {
+        &self.owner
+    }
+    pub fn body_changed(&self) -> bool {
+        self.body_changed
+    }
+    pub fn previous_span(&self) -> Option<Span> {
+        self.previous_span
+    }
+    pub fn module_index(&self) -> usize {
+        self.module
+    }
+    pub fn function_index(&self) -> usize {
+        self.function
+    }
+}
+#[derive(Clone, Debug)]
+pub struct FunctionChangeBatch {
+    previous: Option<ExpansionEpoch>,
+    current: ExpansionEpoch,
+    context: InputContext,
+    changes: Arc<[FunctionInputChange]>,
+    modules: Arc<[usize]>,
+}
+impl FunctionChangeBatch {
+    pub fn previous_epoch(&self) -> Option<&ExpansionEpoch> {
+        self.previous.as_ref()
+    }
+    pub fn epoch(&self) -> &ExpansionEpoch {
+        &self.current
+    }
+    pub fn context(&self) -> &InputContext {
+        &self.context
+    }
+    pub fn changes(&self) -> &[FunctionInputChange] {
+        &self.changes
+    }
+    pub fn changed_modules(&self) -> &[usize] {
+        &self.modules
+    }
+}
 #[derive(Clone, Debug)]
 pub struct ProducedProgram {
     core: Arc<CoreProgram>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
-    functions: BTreeMap<(ModuleId, String), FunctionInput>,
+    functions: BTreeMap<ModuleId, Arc<BTreeMap<String, FunctionInput>>>,
+    changes: FunctionChangeBatch,
 }
 impl ProducedProgram {
     pub fn program(&self) -> &Arc<CoreProgram> {
         &self.core
+    }
+    /// The producer's complete sparse delta from its previous successful epoch.
+    /// A consumer must match both prior epoch and complete current context.
+    pub fn change_batch(&self) -> &FunctionChangeBatch {
+        &self.changes
+    }
+    pub fn changed_function(
+        &self,
+        change: &FunctionInputChange,
+    ) -> Option<(&ProgramModule, &CoreFunction)> {
+        // A change's private epoch binds these indexes to this exact immutable
+        // input, including when callers clone the read-only event.
+        if change.epoch != self.changes.current {
+            return None;
+        }
+        let module = self.core.modules.get(change.module)?;
+        Some((module, module.core.functions.get(change.function)?))
+    }
+    pub fn function_owner(&self, module: ModuleId, name: &str) -> Option<&FunctionOwner> {
+        Some(&self.functions.get(&module)?.get(name)?.owner)
     }
     pub fn module_revision(&self, module: ModuleId) -> Option<&ModuleRevision> {
         self.revisions.get(&module)
@@ -43,7 +151,7 @@ impl ProducedProgram {
     /// Sealed scalar producer evidence for this exact declaration/body binding.
     /// Context, signatures, budgets and current safety checks remain separate.
     pub fn function_revision(&self, module: ModuleId, name: &str) -> Option<&ModuleRevision> {
-        Some(&self.functions.get(&(module, name.to_owned()))?.revision)
+        Some(&self.functions.get(&module)?.get(name)?.revision)
     }
     /// Sealed source input equality with absolute positions tracked separately.
     /// Current declaration IDs, context, signature reads and budgets are still
@@ -53,23 +161,19 @@ impl ProducedProgram {
         module: ModuleId,
         name: &str,
     ) -> Option<&FunctionInputRevision> {
-        Some(
-            &self
-                .functions
-                .get(&(module, name.to_owned()))?
-                .input_revision,
-        )
+        Some(&self.functions.get(&module)?.get(name)?.input_revision)
     }
     /// Compiler-local fingerprint of current declaration bytes and absolute
     /// source binding; relocation still changes it. This is not a wire key.
     pub fn function_source_fingerprint(&self, module: ModuleId, name: &str) -> Option<Fingerprint> {
-        Some(self.functions.get(&(module, name.to_owned()))?.fingerprint)
+        Some(self.functions.get(&module)?.get(name)?.fingerprint)
     }
 }
 pub struct ExpandedProgram {
     modules: Vec<(ProgramModule, Arc<SourceMap>)>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
-    functions: BTreeMap<(ModuleId, String), FunctionInput>,
+    functions: BTreeMap<ModuleId, Arc<BTreeMap<String, FunctionInput>>>,
+    changes: FunctionChangeBatch,
 }
 impl ExpandedProgram {
     pub fn into_program(
@@ -87,6 +191,7 @@ impl ExpandedProgram {
                 }),
                 revisions: self.revisions,
                 functions: self.functions,
+                changes: self.changes,
             },
             maps,
         )
@@ -321,6 +426,7 @@ struct FunctionInput {
     // relative positions. The old Entry owns its real ParsedSource until this
     // epoch is replaced; no copied source buffer or independent history exists.
     id: zil_base::NodeId,
+    owner: FunctionOwner,
     span: Span,
     text_fingerprint: Fingerprint,
     fingerprint: Fingerprint,
@@ -338,11 +444,13 @@ struct Entry {
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
     lower: Option<(Limits, Arc<ExpandedModule>)>,
     revision: ModuleRevision,
-    functions: BTreeMap<String, FunctionInput>,
+    functions: Arc<BTreeMap<String, FunctionInput>>,
 }
 #[derive(Clone, Default)]
 pub struct ExpandSession {
     environment: Option<Environment>,
+    input_context: Option<InputContext>,
+    epoch: Option<ExpansionEpoch>,
     entries: BTreeMap<ModuleId, Entry>,
     stats: ProducerStats,
     profiling: bool,
@@ -558,7 +666,7 @@ impl ExpandSession {
                 entry.lower = None;
                 entry.revision = ModuleRevision(Arc::new(()));
                 if !preserve_function_inputs {
-                    entry.functions.clear();
+                    entry.functions = Arc::default();
                 }
             }
         }
@@ -588,8 +696,18 @@ impl ExpandSession {
         else {
             return Ok(None);
         };
+        let input_context = self
+            .environment
+            .as_ref()
+            .filter(|old| old.function_inputs_compatible(&environment))
+            .and(self.input_context.as_ref())
+            .cloned()
+            .unwrap_or_else(|| InputContext(Arc::new(())));
+        let epoch = ExpansionEpoch(Arc::new(()));
+        let mut changes = Vec::new();
+        let mut changed_modules = Vec::new();
         let mut functions = BTreeMap::new();
-        for (module, _) in &modules {
+        for (module_index, (module, _)) in modules.iter().enumerate() {
             let Some(entry) = entries.get_mut(&module.core.module_id) else {
                 return Ok(None);
             };
@@ -599,16 +717,13 @@ impl ExpandSession {
                 .is_some_and(|old| old.revision == entry.revision)
             {
                 self.stats.function_input_reuses += entry.functions.len() as u64;
-                functions.extend(
-                    entry.functions.iter().map(|(name, input)| {
-                        ((module.core.module_id, name.clone()), input.clone())
-                    }),
-                );
+                functions.insert(module.core.module_id, entry.functions.clone());
                 continue;
             }
+            changed_modules.push(module_index);
             let source = entry.parsed.source();
             let mut next_functions = BTreeMap::new();
-            for function in &module.core.functions {
+            for (function_index, function) in module.core.functions.iter().enumerate() {
                 // This closed scalar producer has rejected constants, CT,
                 // generics, traits, captures and all other rewriting domains.
                 // The compatible environment above binds current declarations,
@@ -622,6 +737,11 @@ impl ExpandSession {
                 else {
                     return Ok(None);
                 };
+                let previous_owner = entry
+                    .functions
+                    .get(&function.name)
+                    .filter(|old| old.id == function.id && old.span.file == function.span.file)
+                    .map(|old| old.owner.clone());
                 let previous = entry
                     .functions
                     .get(&function.name)
@@ -667,6 +787,7 @@ impl ExpandSession {
                     self.stats.function_input_binding_hashes += 1;
                     FunctionInput {
                         id: function.id,
+                        owner: previous_owner.unwrap_or_else(|| FunctionOwner(Arc::new(()))),
                         span: function.span,
                         text_fingerprint,
                         fingerprint: fingerprint.digest(),
@@ -677,21 +798,42 @@ impl ExpandSession {
                         ),
                     }
                 };
-                functions.insert((source.module_id, function.name.clone()), input.clone());
+                let old = entry.functions.get(&function.name);
+                if old.is_none_or(|old| old.revision != input.revision) {
+                    changes.push(FunctionInputChange {
+                        epoch: epoch.clone(),
+                        owner: input.owner.clone(),
+                        module: module_index,
+                        function: function_index,
+                        body_changed: old
+                            .is_none_or(|old| old.input_revision != input.input_revision),
+                        previous_span: old.map(|old| old.span),
+                    });
+                }
                 next_functions.insert(function.name.clone(), input);
             }
-            entry.functions = next_functions;
+            entry.functions = Arc::new(next_functions);
+            functions.insert(source.module_id, entry.functions.clone());
         }
         let revisions = entries
             .iter()
             .map(|(id, entry)| (*id, entry.revision.clone()))
             .collect();
+        let changes = FunctionChangeBatch {
+            previous: self.epoch.replace(epoch.clone()),
+            current: epoch,
+            context: input_context.clone(),
+            changes: changes.into(),
+            modules: changed_modules.into(),
+        };
         self.entries = entries;
         self.environment = Some(environment);
+        self.input_context = Some(input_context);
         Ok(Some(ExpandedProgram {
             modules,
             revisions,
             functions,
+            changes,
         }))
     }
 }

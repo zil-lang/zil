@@ -62,6 +62,10 @@ impl PreparedProgram {
     pub fn program(&self) -> &CoreProgram {
         &self.core
     }
+    pub(super) fn produced(&self) -> Option<&zil_expand::ProducedProgram> {
+        self.producer.as_ref()
+    }
+
     pub(super) fn function_input_revision(
         &self,
         module: zil_base::ModuleId,

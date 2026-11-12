@@ -40,7 +40,17 @@ pub(super) fn check_resolved_program_with_reuse(
     program: &CoreProgram,
     target: &TargetProfile,
     limits: &Limits,
+    reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<TypedProgram> {
+    check_resolved_program_recording(program, target, limits, reuse, None)
+}
+
+pub(super) fn check_resolved_program_recording(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
+    mut recording: Option<&mut push::Recording>,
 ) -> CompileResult<TypedProgram> {
     let context_started = reuse.as_ref().and_then(|reuse| reuse.start_cost());
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
@@ -130,8 +140,14 @@ pub(super) fn check_resolved_program_with_reuse(
     // Preserve the single-module entry's lexical diagnostic precedence across
     // the entire bounded input graph. Unsupported aggregate/trait headers must
     // not conceal a receiver error in this module or a later dependency.
-    names::check_modules(program.modules.iter().map(|m| m.core.as_ref()), limits)
-        .map_err(|e| vec![e])?;
+    names::check_modules_recording(
+        program.modules.iter().map(|m| m.core.as_ref()),
+        limits,
+        recording
+            .as_deref_mut()
+            .map(|recording| &mut recording.names),
+    )
+    .map_err(|e| vec![e])?;
     let mut closure_state = closures::State::new(count, limits);
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
@@ -336,6 +352,10 @@ pub(super) fn check_resolved_program_with_reuse(
         reuse.context_constructed(context_started);
         reuse.prepare(program, &signatures_by_module, target, limits);
     }
+    if let Some(recording) = &mut recording {
+        recording.tables = Some(std::sync::Arc::new(signatures_by_module.clone()));
+        recording.context_cost = closure_state.accounting();
+    }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
     let mut task_interfaces = Vec::new();
@@ -356,6 +376,7 @@ pub(super) fn check_resolved_program_with_reuse(
         }) {
             let signature = &table[&f.name];
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
+            let push_before = recording.as_ref().map(|_| closure_state.accounting());
             let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
             } else if let Some(typed) = match reuse.as_mut() {
@@ -497,6 +518,15 @@ pub(super) fn check_resolved_program_with_reuse(
             if let Some(reuse) = &mut reuse {
                 reuse.observe(core.module_id, f, &typed);
             }
+            if let Some(recording) = &mut recording {
+                recording.record(
+                    core.module_id,
+                    f,
+                    &typed,
+                    push_before.expect("recording accounting"),
+                    closure_state.accounting(),
+                );
+            }
             functions.push(typed);
         }
         exports.sort_by(|a, b| a.name.cmp(&b.name));
@@ -542,6 +572,10 @@ pub(super) fn check_resolved_program_with_reuse(
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
+    if let Some(recording) = &mut recording {
+        recording.body_cost = closure_state.accounting();
+        recording.closed_state = closure_state.push_closed_state();
+    }
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -570,7 +604,7 @@ pub(super) fn check_resolved_program_with_reuse(
         module_id: program.root,
         source_fingerprint: program.source_fingerprint,
         target: target.clone(),
-        functions,
+        functions: functions.into(),
         closures,
         unsupported: Vec::new(),
     };
@@ -582,6 +616,9 @@ pub(super) fn check_resolved_program_with_reuse(
         interface.signature_fingerprint =
             interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
     }
+    if let Some(recording) = &mut recording {
+        recording.remaining = remaining;
+    }
     Ok(TypedProgram {
         task_interfaces,
         module,
@@ -590,7 +627,7 @@ pub(super) fn check_resolved_program_with_reuse(
     })
 }
 
-fn imports_for<'a>(
+pub(super) fn imports_for<'a>(
     module: &ProgramModule,
     signatures: &'a BTreeMap<ModuleId, BTreeMap<String, Signature>>,
 ) -> CompileResult<Imports<'a>> {

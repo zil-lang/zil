@@ -45,6 +45,8 @@ mod owning_place_replace;
 mod packages;
 mod partial_patterns;
 mod preparation;
+mod push;
+pub use push::{TypedFunctionChange, TypedUpdate, TypesPushSession, TypesPushStats};
 mod product_replacement;
 mod program;
 mod sum_slots;
@@ -650,7 +652,7 @@ pub fn check(
         module_id: core.module_id,
         source_fingerprint: core.source_fingerprint,
         target: target.clone(),
-        functions,
+        functions: functions.into(),
         closures,
         unsupported: vec![],
     };

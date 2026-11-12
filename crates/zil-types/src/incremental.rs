@@ -731,7 +731,7 @@ impl FunctionSession {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: target.clone(),
-            functions: vec![],
+            functions: vec![].into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],
@@ -740,7 +740,7 @@ impl FunctionSession {
             schema_version: SCHEMA_VERSION,
             module_fingerprint: Fingerprint::ZERO,
             target_fingerprint: Fingerprint::ZERO,
-            functions: vec![],
+            functions: vec![].into(),
             origins: vec![],
             responsibilities: vec![],
             unsupported: vec![],
@@ -1480,7 +1480,7 @@ fn scalar_typed(f: &TypedFunction) -> bool {
         && f.locals.iter().all(|l| scalar(&l.ty))
         && f.values.iter().all(scalar)
 }
-fn rebase(f: &mut TypedFunction, old: Span, new: Span) -> bool {
+pub(super) fn rebase(f: &mut TypedFunction, old: Span, new: Span) -> bool {
     let convert = |span: &mut Span| -> Option<()> {
         if span.file != old.file
             || span.start < old.start
@@ -2077,7 +2077,7 @@ mod reactive_tests {
                     schema_version: SCHEMA_VERSION,
                     module_id: ModuleId(0),
                     source_fingerprint: Fingerprint::ZERO,
-                    functions: vec![leaf, caller, unrelated],
+                    functions: vec![leaf, caller, unrelated].into(),
                     aggregates: vec![],
                     aggregate_templates: vec![],
                     aggregate_applications: vec![],
@@ -2144,7 +2144,7 @@ mod reactive_tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
-            functions,
+            functions: functions.into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],
@@ -2153,7 +2153,7 @@ mod reactive_tests {
             schema_version: SCHEMA_VERSION,
             module_fingerprint: Fingerprint::ZERO,
             target_fingerprint: Fingerprint::ZERO,
-            functions: vec![],
+            functions: vec![].into(),
             origins: vec![],
             responsibilities: vec![],
             unsupported: vec![],
