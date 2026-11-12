@@ -39,10 +39,7 @@ fn zero(
         | Type::Opaque { hidden: inner, .. }
         | Type::OwnedStore { element: inner }
         | Type::Mutex { payload: inner } => child(inner),
-        Type::Registration { environment } | Type::AsyncRegistration { environment } => {
-            if !b.task_failure_carriers {
-                return zero(module, environment, active, depth + 1, b);
-            }
+        Type::Registration { .. } | Type::AsyncRegistration { .. } => {
             // This is only an executable-domain dispatch. The verifier-local
             // inventory binds the full actual closure definition and entry;
             // neither an absent contract nor a registration label means zero.

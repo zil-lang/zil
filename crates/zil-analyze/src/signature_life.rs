@@ -353,6 +353,9 @@ pub(super) fn function_relation_in_module(
     module: &TypedModule,
     allow_byte_input: bool,
 ) -> CompileResult<()> {
+    if !allow_byte_input && module.dyn_interfaces.is_empty() {
+        return function_relation(parameters, result, c, allow_callback, &module.closures);
+    }
     function_relation_inner(
         parameters,
         result,
