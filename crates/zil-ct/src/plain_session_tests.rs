@@ -215,22 +215,18 @@ fn wrong_live_context_target_or_full_limits_cannot_authorize_replay() {
     let owner = session.current.clone().unwrap();
     let other = initial.clone();
     let other_context = SourceProgramContext::new(&other, &limits).unwrap();
-    assert!(
-        session
-            .validate_program(&initial, &target, &limits, &other_context)
-            .is_none()
-    );
+    assert!(session
+        .validate_program(&initial, &target, &limits, &other_context)
+        .is_none());
     assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &owner));
     let different_limit = Limits {
         max_source_bytes: limits.max_source_bytes - 1,
         ..limits.clone()
     };
     let original_context = SourceProgramContext::new(&initial, &limits).unwrap();
-    assert!(
-        session
-            .validate_program(&initial, &target, &different_limit, &original_context)
-            .is_none()
-    );
+    assert!(session
+        .validate_program(&initial, &target, &different_limit, &original_context)
+        .is_none());
     checked(&mut session, &initial, &target, &different_limit);
     assert_eq!(session.stats.body_reuses, 0);
     let mut other_target = target.clone();
@@ -314,7 +310,7 @@ fn exact_n_and_n_minus_one_preserve_the_original_first_error_and_recovery() {
 }
 
 #[test]
-fn changed_prefix_usage_rechecks_later_module_under_its_current_allowance() {
+fn changed_prefix_usage_debits_reused_bodies_from_current_allowance() {
     let limits = Limits::default();
     let target = TargetProfile::default();
     let mut initial = program();
@@ -332,10 +328,10 @@ fn changed_prefix_usage_rechecks_later_module_under_its_current_allowance() {
     });
     checked(&mut session, &edited, &target, &limits);
     assert_eq!(
-        session.stats.body_reuses, 0,
-        "changed entry ledger must not be replaced by the old module/function allowance"
+        session.stats.body_reuses, 5,
+        "successful fees must be debited from current, never restored old, allowances"
     );
-    assert_eq!(session.stats.body_checks, 6);
+    assert_eq!(session.stats.body_checks, 1);
 }
 
 #[test]
@@ -369,4 +365,80 @@ fn checkpoint_lifetime_and_attachment_require_complete_actual_module_owners() {
         weak.upgrade().is_none(),
         "no hidden global receipt/history keeps the epoch alive"
     );
+}
+
+#[test]
+fn callee_diagnostic_positions_do_not_invalidate_unchanged_callers() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let initial = program();
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &initial, &target, &limits);
+    let mut moved = initial.clone();
+    let callee = &mut Arc::make_mut(&mut moved.modules[0].core).functions[1];
+    callee.span = Span::new(FileId(3), 400, 480);
+    callee.parameters[0].span = Span::new(FileId(3), 403, 410);
+    checked(&mut session, &moved, &target, &limits);
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_checks, 1);
+    assert_eq!(session.stats.body_reuses, 2);
+    // Names still affect the callee's local scope and declaration charges.
+    Arc::make_mut(&mut moved.modules[0].core).functions[1].parameters[0].name = "changed".into();
+    checked(&mut session, &moved, &target, &limits);
+    assert_eq!(session.stats.context_reuses, 0);
+    assert_eq!(session.stats.body_checks, 3);
+}
+
+#[test]
+fn changed_prefix_n_and_n_minus_one_replay_costs_without_renewing_budget() {
+    let initial = program();
+    let mut edited = initial.clone();
+    let first = &mut Arc::make_mut(&mut edited.modules[0].core).functions[0];
+    for n in 0..16 {
+        first.body.statements.push(CoreStatement {
+            id: NodeId(500 + n as u32),
+            span: Span::new(FileId(0), 200 + n, 201 + n),
+            kind: CoreStatementKind::Expression(expr(CoreExprKind::Integer("12345".into()))),
+        });
+    }
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let mut low = 0;
+    let mut high = defaults.max_analysis_steps;
+    while high - low > 1 {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..defaults.clone()
+        };
+        if fresh(&edited, &target, &limits).is_ok() {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    for allowance in [high, high - 1] {
+        let limits = Limits {
+            max_analysis_steps: allowance,
+            ..defaults.clone()
+        };
+        let mut session = PlainSourceSession::default();
+        checked(&mut session, &initial, &target, &limits);
+        assert_eq!(session.stats.fallbacks, 0);
+        let successful = session.current.clone().unwrap();
+        let actual = run(&mut session, &edited, &target, &limits);
+        assert_eq!(actual, fresh(&edited, &target, &limits));
+        assert_eq!(session.stats.context_reuses, 1);
+        if allowance == high {
+            assert!(actual.is_ok());
+            assert_eq!(session.stats.body_checks, 1);
+            assert_eq!(session.stats.body_reuses, 2);
+        } else {
+            assert!(actual.is_err());
+            assert_eq!(session.stats.fallbacks, 1);
+            assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &successful));
+            checked(&mut session, &initial, &target, &limits);
+            assert_eq!(session.stats.body_reuses, 3);
+        }
+    }
 }

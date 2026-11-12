@@ -26,7 +26,6 @@ struct Epoch {
 }
 #[derive(Clone)]
 struct ModuleReceipt {
-    limits: Limits,
     functions: PersistentVec<FunctionReceipt>,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -45,20 +44,50 @@ impl Ledger {
             next_node: walker.next_node,
         }
     }
-    fn install(self, walker: &mut Walker<'_>) {
-        walker.nodes = self.nodes;
-        walker.work_left = self.work_left;
-        walker.steps_left = self.steps_left;
-        walker.next_node = self.next_node;
+    fn cost_to(self, after: Self) -> Option<BodyCost> {
+        // Plain admission never runs CT or allocates rewritten node identities.
+        // Reject rather than retain a receipt if that closed-state contract grows.
+        if self.steps_left != after.steps_left
+            || self.next_node.is_some()
+            || after.next_node.is_some()
+        {
+            return None;
+        }
+        Some(BodyCost {
+            nodes: after.nodes.checked_sub(self.nodes)?,
+            work: self.work_left.checked_sub(after.work_left)?,
+        })
+    }
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct BodyCost {
+    nodes: usize,
+    work: usize,
+}
+impl BodyCost {
+    fn replay(self, walker: &mut Walker<'_>) -> Option<()> {
+        if !walker.scopes.is_empty() || walker.next_node.is_some() {
+            return None;
+        }
+        let nodes = walker.nodes.checked_add(self.nodes)?;
+        if nodes > walker.limits.max_nodes {
+            return None;
+        }
+        let work = walker.work_left.checked_sub(self.work)?;
+        // charge/text/hint_type consume only nonnegative amounts. The complete
+        // successful cost fitting here proves each original prefix also fits.
+        // Depth and non-ledger limits remain bound by the epoch's full Limits.
+        walker.nodes = nodes;
+        walker.work_left = work;
+        Some(())
     }
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct FunctionReceipt {
-    shape_before: usize,
-    shape_after: usize,
-    before: Ledger,
-    after: Ledger,
+    shape_cost: usize,
+    body_cost: BodyCost,
 }
+
 impl PlainSourceSession {
     pub fn clear(&mut self) {
         *self = Self::default();
@@ -89,8 +118,9 @@ impl PlainSourceSession {
     /// Current SourceProgramContext construction and every module's original
     /// declarations walk remain mandatory. Only successful, exact plain-body
     /// admissions can replay, with the complete current target/limit/context and
-    /// original shape/Walker entry ledgers. None asks the caller to restart its
-    /// complete original ordered path, including its first-error behavior.
+    /// successful costs debited from current shape/Walker ledgers. None asks the
+    /// caller to restart its complete original ordered path, including its
+    /// first-error behavior.
     pub fn validate_program(
         &mut self,
         program: &CoreProgram,
@@ -127,10 +157,15 @@ impl PlainSourceSession {
         let mut modules = Vec::with_capacity(program.modules.len());
         let mut usages = Vec::with_capacity(program.modules.len());
         for (index, module) in program.modules.iter().enumerate() {
-            let prior = old.and_then(|old| {
-                let receipt = old.modules.get(index)?;
-                (receipt.limits == remaining)
-                    .then_some((old.program.modules[index].core.as_ref(), receipt))
+            // Only project node/function/CT allowances change between modules;
+            // the complete original user Limits were compared above. Current
+            // declarations enforce max_functions, and all body fees are debited
+            // from the current (possibly smaller) module allowance below.
+            let prior = old.map(|old| {
+                (
+                    old.program.modules[index].core.as_ref(),
+                    &old.modules[index],
+                )
             });
             let (receipt, usage) = validate_module(
                 &module.core,
@@ -188,14 +223,14 @@ fn validate_module(
         });
         reusable.push(same_owner);
         let before = fuel;
-        if same_owner && rows[index].shape_before == fuel {
-            fuel = rows[index].shape_after;
+        if same_owner {
+            fuel = fuel.checked_sub(rows[index].shape_cost)?;
             stats.shape_reuses += 1;
         } else {
             stats.shape_checks += 1;
             unchanged_function_shape(function, limits, &mut fuel, &mut stack)?;
         }
-        shapes.push((before, fuel));
+        shapes.push(before.checked_sub(fuel)?);
     }
     if core.schema_version != SCHEMA_VERSION {
         return None;
@@ -218,8 +253,8 @@ fn validate_module(
         let before = Ledger::of(&walker);
         // Local hint scopes must not escape a function; this is the complete
         // mutable Walker state and every other input is independently bound.
-        if reusable[index] && rows[index].before == before && walker.scopes.is_empty() {
-            rows[index].after.install(&mut walker);
+        if reusable[index] {
+            rows[index].body_cost.replay(&mut walker)?;
             stats.body_reuses += 1;
         } else {
             stats.body_checks += 1;
@@ -229,10 +264,8 @@ fn validate_module(
             return None;
         }
         let row = FunctionReceipt {
-            shape_before: shapes[index].0,
-            shape_after: shapes[index].1,
-            before,
-            after: Ledger::of(&walker),
+            shape_cost: shapes[index],
+            body_cost: before.cost_to(Ledger::of(&walker))?,
         };
         if rows[index] != row {
             rows.replace(index, row);
@@ -242,13 +275,7 @@ fn validate_module(
         steps: limits.max_ct_steps.checked_sub(walker.steps_left)?,
         nodes: walker.nodes,
     };
-    Some((
-        ModuleReceipt {
-            limits: limits.clone(),
-            functions: rows,
-        },
-        usage,
-    ))
+    Some((ModuleReceipt { functions: rows }, usage))
 }
 
 fn same_program_context(previous: &CoreProgram, current: &CoreProgram) -> bool {
@@ -313,6 +340,10 @@ fn same_module_context(previous: &CoreModule, current: &CoreModule) -> bool {
                 (Some(old), Some(current)) if same_header(old, current))
             })
 }
+// Function/parameter locations are read only for declaration diagnostics (run
+// fresh) and the function's own body admission (still exact-owner bound).
+// Cross-function hints read parameter/return types using the current call span;
+// no hint reads a callee body, ID allocation state, or diagnostic location.
 fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
     let CoreFunction {
         storage_life,
@@ -331,7 +362,7 @@ fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
         result_mode,
         body: _,
         receiver,
-        span,
+        span: _,
     } = current;
     previous.storage_life == *storage_life
         && previous.call_kind == *call_kind
@@ -344,11 +375,23 @@ fn same_header(previous: &CoreFunction, current: &CoreFunction) -> bool {
         && previous.name == *name
         && previous.callable_parameters == *callable_parameters
         && previous.foreign == *foreign
-        && previous.parameters == *parameters
+        && previous.parameters.len() == parameters.len()
+        && previous
+            .parameters
+            .iter()
+            .zip(parameters)
+            .all(|(old, new)| {
+                let CoreParameter {
+                    name,
+                    ty,
+                    mode,
+                    span: _,
+                } = new;
+                old.name == *name && old.ty == *ty && old.mode == *mode
+            })
         && previous.return_type == *return_type
         && previous.result_mode == *result_mode
         && previous.receiver == *receiver
-        && previous.span == *span
 }
 
 #[cfg(test)]
