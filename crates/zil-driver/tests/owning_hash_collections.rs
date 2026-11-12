@@ -921,12 +921,27 @@ fn main()->i32{return 0}
     let target = TargetProfile::host_llvm();
     let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
-    let getter = module
+    let select = module
         .functions
         .iter()
-        .find(|function| function.name.contains("_get_"))
-        .expect("actual generic map getter")
-        .id;
+        .find(|function| function.name == "select" || function.name.ends_with("_select"))
+        .expect("actual ordinary select helper");
+    let getters = select
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| match instruction.kind {
+            InstructionKind::Call { function, .. }
+                if module.functions[function.0 as usize].return_type == select.return_type =>
+            {
+                Some(function)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(getters.len(), 1, "one actual selected borrowed-result call");
+    let getter = getters[0];
+    assert_eq!(module.functions[getter.0 as usize].parameters.len(), 2);
     let mut attacked = module;
     let function = attacked
         .functions
