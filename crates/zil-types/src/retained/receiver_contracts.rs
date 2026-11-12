@@ -261,7 +261,8 @@ fn complete_creators(module: &mut TypedModule, left: &mut usize) -> R<()> {
                 if capture_class(module, d.id, &path, 0, left, f.span)? != class {
                     continue;
                 }
-                for input in &source.sources {
+                for atom in &source.sources {
+                    let input = crate::exact_storage_source(atom)?;
                     let found = source_class(module, f, input, left)?;
                     if actual.replace(found).is_some_and(|old| old != found) {
                         return Err(unsupported(

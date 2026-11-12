@@ -910,7 +910,6 @@ pub(super) fn snapshot_context_function(
         source_scope: function.source_scope.clone(),
         dyn_instance: function.dyn_instance.clone(),
         retained_return_sources: function.retained_return_sources.clone(),
-        source_scope: function.source_scope.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         resume_bound: function.resume_bound,

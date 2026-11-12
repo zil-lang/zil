@@ -970,9 +970,6 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
-    /// Original Definition scope copied from actual Source/Origins for this owner.
-    /// This is identity/position data, never a borrowing or builtin capability.
-    pub source_scope: Option<CoreFunctionSourceScope>,
     /// Retained result upper sources; None is unknown and grants no origins.
     pub dyn_instance: Option<DynFunctionInstance>,
     pub retained_return_sources: Option<Vec<StorageSourceBinding>>,

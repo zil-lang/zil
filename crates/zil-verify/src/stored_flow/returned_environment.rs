@@ -371,3 +371,29 @@ pub(super) fn borrowed_child(
         .and_then(|d| d.captures.get(index as usize))
         .is_some_and(|ty| matches!(ty, Type::Closure(_))))
 }
+
+/// Capturing an address retains the pointer and its original parents. Its
+/// pointee slots are memory, so each invocation reads the actual current row.
+/// Already extracted SSA data pointers keep their immutable payload instead.
+pub(super) fn current_leaf(
+    definition: &ClosureDefinition,
+    environment: &Payload,
+    path: &[PlaceProjection],
+    snapshot: &Permission,
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Permission> {
+    if let Some((PlaceProjection::Field(index), tail)) = path.split_first()
+        && !tail.is_empty()
+        && matches!(
+            definition.captures.get(*index as usize),
+            Some(Type::Address { .. })
+        )
+    {
+        let head = leaf(environment, &[PlaceProjection::Field(*index)], b)?
+            .ok_or_else(|| err("captured pointee lacks its actual head"))?;
+        return select(state, head, tail, b);
+    }
+    permission_work(snapshot, b)?;
+    Ok(snapshot.clone())
+}

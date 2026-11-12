@@ -438,11 +438,13 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
     };
     let loans = vec![
         Loan {
+            receiver_head: false,
             sources: vec![data.clone()],
             parents: vec![1],
             exclusive: false,
         },
         Loan {
+            receiver_head: false,
             sources: vec![local_head],
             parents: vec![],
             exclusive: false,
