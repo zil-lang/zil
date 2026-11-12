@@ -1685,17 +1685,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if byte_signature {
         fee(b, parameters.len())?;
     }
-    let check = if byte_signature {
-        super::signature_life::function_relation_byte_inputs
-    } else {
-        super::signature_life::function_relation
-    };
-    check(
+    super::signature_life::function_relation_in_module(
         &parameters,
         &f.return_type,
         c,
         f.callable_contract.is_some(),
-        &module.closures,
+        module,
+        byte_signature,
     )?;
     Ok(())
 }

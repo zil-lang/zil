@@ -166,3 +166,17 @@ pub(super) fn ty(root: &Type, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+
+/// Pay the entire public retained directory independently of its Context type.
+/// A forged directory need not have the Context's size or paths.
+pub(super) fn retained_shape(shape: &RetainedLifeShape, b: &mut Budget) -> Check<()> {
+    let cap = b.limits.max_nodes;
+    let depth_cap = b.limits.max_call_depth.min(128);
+    let mut nodes = 0usize;
+    retained(b, &mut nodes, cap, depth_cap, shape)?;
+    b.spend(shape.ports.len())?;
+    for port in &shape.ports {
+        ty(&port.leaf, b)?;
+    }
+    Ok(())
+}
