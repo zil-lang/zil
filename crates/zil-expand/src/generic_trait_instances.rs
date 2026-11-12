@@ -262,6 +262,14 @@ pub(crate) fn validate_declaration(
     for parameter in &declaration.generics {
         budget.node(parameter.span, 0)?;
         budget.text(&parameter.name, parameter.span)?;
+        if matches!(parameter.kind, GenericParamKind::Type(_))
+            && matches!(parameter.name.as_str(), "Value" | "SyncDrop")
+        {
+            return Err(error(
+                parameter.span,
+                "Value and SyncDrop are reserved type-binder names",
+            ));
+        }
         if !variables.insert(parameter.name.clone()) {
             return Err(error(parameter.span, "duplicate trait type binder"));
         }

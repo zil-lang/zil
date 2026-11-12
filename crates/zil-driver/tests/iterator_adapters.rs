@@ -76,11 +76,17 @@ fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
         })
         .collect::<Vec<_>>();
     let limits = Limits::default();
-    let expanded = zil_expand::expand_program_with_limits(
+    let expanded = zil_expand::expand_program_with_limits_target_context(
         &p.modules,
         &asts.iter().collect::<Vec<_>>(),
         &imports,
         &limits,
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: p.root,
+            aliases: &p.paths,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
     )
     .unwrap();
     let core = CoreProgram {
@@ -636,17 +642,131 @@ fn owning_sum_values_move_and_clean_the_actual_variant_once() {
 fn qualified_borrowed_values_forward_the_complete_context() {
     let source = "struct View<life a>{value:&'a i32}fn identity<T:Value>(value:T)->T{return value}fn forward<life a>(input:&'a i32)->View<'a>{let view:View<'a>=View::<'a>{value:input};return identity(view)}fn main()->i32{var input=42;let output=forward(&input);return *output.value-42}";
     let report = compile_project(&project(source), &CompileOptions::default());
-    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     raw(source);
-    let conflict=source.replace("return *output.value-42","input=99;return *output.value-42");
-    let report=compile_project(&project(&conflict),&CompileOptions::default());
-    assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+    let conflict = source.replace(
+        "return *output.value-42",
+        "input=99;return *output.value-42",
+    );
+    let report = compile_project(&project(&conflict), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
 fn an_associated_argument_cannot_supply_its_own_missing_iterator_premise() {
-    let source="import std.iter\nfn unused<I:Value+SyncDrop,M:iter.Mapper<I.Item>+Value+SyncDrop>(input:I,callback:M){} fn main(){}";
-    let report=compile_project(&project(source),&CompileOptions::default());
-    assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
-    assert_eq!(report.phase,Phase::Expand,"{}",report.to_json());
+    let source = "import std.iter\nfn unused<I:Value+SyncDrop,M:iter.Mapper<I.Item>+Value+SyncDrop>(input:I,callback:M){} fn main(){}";
+    let report = compile_project(&project(source), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+}
+
+#[test]
+fn owning_iterator_items_are_values_and_only_collect_requires_store_elements() {
+    let source = include_str!(
+        "../../../tests/language-readiness/iterator-adapters/ordinary-value-items.zil"
+    );
+    raw(source);
+    native("value-items", source, b"AGK", false);
+    let missing = "import std.iter\nfn unused<I:iter.Iterator+Value+SyncDrop>(input:I){let result=iter.collect(input)}fn main(){}";
+    let report = compile_project(&project(missing), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+}
+
+#[test]
+fn independent_value_actual_contexts_keep_their_joint_partition() {
+    let source = r#"
+struct View<life a>{value:&'a i32}
+fn choose<T:Value,U:Value+SyncDrop>(first:T,second:U)->T{return first}
+fn combine<life a,life b>(left:&'a i32,right:&'b mut i32)->i32{
+ let first:View<'a>=View::<'a>{value:left}
+ let second:View<'b>=View::<'b>{value:&*right}
+ let selected=choose(first,second)
+ *right=100
+ let again:View<'a>=View::<'a>{value:left}
+ let same:View<'a>=View::<'a>{value:left}
+ let selected_same=choose(again,same)
+ return *selected.value+*selected_same.value
+}
+fn main()->i32{let left=41;var right=1;let other=42;var last=2;return combine(&left,&mut right)+combine(&other,&mut last)-166}
+"#;
+    let (typed, _) = raw(source);
+    assert_eq!(
+        typed
+            .functions
+            .iter()
+            .filter(|function| function.name.contains("choose"))
+            .count(),
+        2
+    );
+    native("value-context-partition", source, b"", false);
+    let wrong = source.replace(
+        "let second:View<'b>=View::<'b>{value:&*right}",
+        "let second:View<'a>=View::<'b>{value:&*right}",
+    );
+    let report = compile_project(&project(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn structural_bound_names_preserve_existing_ordinary_nominal_types() {
+    let source = "resource R{n:i32}package Value{manages mark:R;n:i32}struct SyncDrop{n:i32}fn identity<T:Value+SyncDrop>(value:T)->T{return value}fn main()->i32{let value=identity(Value{mark:R{n:1},n:42});let label:SyncDrop=SyncDrop{n:0};return value.n+label.n-42}";
+    for report in [
+        compile_project(&project(source), &CompileOptions::default()),
+        zil_driver::compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "nominal.zil", source),
+            &CompileOptions::default(),
+        ),
+    ] {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    let aliases="type Value=i32;type SyncDrop=i32;fn identity<T:Value+SyncDrop>(value:T)->T{return value}fn main()->i32{let value:Value=42;return identity(value)-42}";
+    for report in [compile_project(&project(aliases),&CompileOptions::default()),zil_driver::compile_source(&SourceUnit::new(FileId(0),ModuleId(0),"aliases.zil",aliases),&CompileOptions::default())] {
+        assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    }
+    for bad in [
+        "fn bad<Value>(value:Value)->Value{return value}",
+        "trait Value{}",
+        "trait SyncDrop{}",
+        "struct Item{n:i32}impl Value for Item{}",
+    ] {
+        let source = format!("{bad} fn main(){{}}");
+        let report = compile_project(&project(&source), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{bad}: {}",
+            report.to_json()
+        );
+    }
 }

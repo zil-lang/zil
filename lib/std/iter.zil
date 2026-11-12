@@ -91,16 +91,16 @@ pub fn next_copy<I:LendingIterator>(cursor:&mut I)->Option<I.Item> where I.Item:
 // Owning iteration. An error means exhaustion; obtaining the next element
 // transfers its complete ownership from the iterator to the caller.
 pub trait Iterator {
-    type Item:StoreElement+SyncDrop;
+    type Item:Value+SyncDrop;
     fn next(self:&mut Self)->void!Self.Item;
 }
 
 // Ordinary callback protocols keep both their input and output identities.
-pub trait Mapper<T:StoreElement+SyncDrop> {
-    type Output:StoreElement+SyncDrop;
+pub trait Mapper<T:Value+SyncDrop> {
+    type Output:Value+SyncDrop;
     fn map(self:&mut Self,value:T)->Self.Output;
 }
-pub trait Predicate<T:StoreElement+SyncDrop> {
+pub trait Predicate<T:Value+SyncDrop> {
     fn keep(self:&mut Self,value:&T)->bool;
 }
 
@@ -133,7 +133,7 @@ pub fn map<I:Iterator+Value+SyncDrop,M:Mapper<I.Item>+Value+SyncDrop>(input:I,ca
     return Map::<I,M>{input:input,callback:callback}
 }
 impl<I:Iterator+Value+SyncDrop,M:Mapper<I.Item>+Value+SyncDrop> Iterator for Map<I,M> {
-    type Item:StoreElement=M.Output;
+    type Item:Value+SyncDrop=M.Output;
     fn next(self:&mut Self)->void!M.Output {
         let value=self.input.next()?
         return self.callback.map(value)
@@ -145,7 +145,7 @@ pub fn filter<I:Iterator+Value+SyncDrop,P:Predicate<I.Item>+Value+SyncDrop>(inpu
     return Filter::<I,P>{input:input,predicate:predicate}
 }
 impl<I:Iterator+Value+SyncDrop,P:Predicate<I.Item>+Value+SyncDrop> Iterator for Filter<I,P> {
-    type Item:StoreElement=I.Item;
+    type Item:Value+SyncDrop=I.Item;
     fn next(self:&mut Self)->void!I.Item {
         while true {
             let value=self.input.next()?
@@ -159,7 +159,7 @@ pub fn next<I:Iterator>(cursor:&mut I)->void!I.Item { return cursor.next() }
 pub package Collected<T:StoreElement+SyncDrop> { manages items:Store<T> }
 // A failed allocation drops the yielded element, the partial result and the
 // remaining source exactly once. Success transfers the complete result.
-pub fn collect<I:Iterator+Value+SyncDrop>(input:I)->void!Collected<I.Item> {
+pub fn collect<I:Iterator+Value+SyncDrop>(input:I)->void!Collected<I.Item> where I.Item:StoreElement {
     var cursor=input
     let items:Store<I.Item>=store_new()
     while true {

@@ -170,6 +170,10 @@ impl Index<'_> {
                             | "bool"
                             | "u8"
                             | "u16"
+                            | "u32"
+                            | "i8"
+                            | "i16"
+                            | "isize"
                             | "i32"
                             | "i64"
                             | "u64"
@@ -257,12 +261,17 @@ impl Index<'_> {
                     return Err(error(ty.span, "recursive Value has infinite inline layout"));
                 }
                 let result = (|| {
-                    let item = self.nominals.get(&name).ok_or_else(|| {
-                        error(
-                            ty.span,
-                            format!("Value requires a complete ordinary type: {name}"),
-                        )
-                    })?;
+                    let item = self
+                        .nominals
+                        .get(&name)
+                        .copied()
+                        .or_else(|| self.instantiated_copy_shapes.get(&name))
+                        .ok_or_else(|| {
+                            error(
+                                ty.span,
+                                format!("Value requires a complete ordinary type: {name}"),
+                            )
+                        })?;
                     match &item.kind {
                         ItemKind::Aggregate(aggregate)
                             if matches!(

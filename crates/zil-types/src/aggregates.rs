@@ -1195,7 +1195,9 @@ impl Resolver<'_> {
                         | Type::Mutex { .. }
                 ) || resources::supported(ty)
             }
-            _ => false,
+            // Remaining Copy leaves include the complete scalar domain. The
+            // recursive aggregate cases above already charge their own walk.
+            other => other.is_copy_value(),
         })
     }
     fn store_element_shape(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {

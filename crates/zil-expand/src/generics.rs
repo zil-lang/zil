@@ -6,16 +6,28 @@ use zil_base::{CompileResult, Diagnostic, Limits, Phase, Span};
 use zil_syntax::ast::*;
 
 type R<T> = Result<T, Diagnostic>;
+pub(super) fn structural_value_bound(ty: &TypeRef) -> bool {
+    trait_bounds::value::is_bound(ty)
+}
 // The real lexical binding carries its creator-input origin. Ordinary binding
 // insertion clears that origin even when the spelling and type are identical.
 #[derive(Clone, Default)]
 struct Env {
     bindings: BTreeMap<String, EnvBinding>,
     closure_depth: u32,
+    domain: String,
+}
+#[derive(Clone)]
+struct SemanticActual {
+    application: Option<TypeRef>,
+    classes: Vec<crate::stored_types::LexicalLife>,
+    domain: String,
 }
 #[derive(Clone)]
 struct EnvBinding {
+    // Physical syntax is separate from the source application used by inference.
     ty: Option<TypeRef>,
+    semantic: Option<SemanticActual>,
     input: Option<u32>,
     closure_depth: u32,
 }
@@ -30,7 +42,12 @@ impl Env {
         self.bindings.contains_key(name)
     }
     fn get(&self, name: &str) -> Option<&Option<TypeRef>> {
-        self.bindings.get(name).map(|binding| &binding.ty)
+        self.bindings.get(name).map(|binding| {
+            binding
+                .semantic
+                .as_ref()
+                .map_or(&binding.ty, |actual| &actual.application)
+        })
     }
     fn values(&self) -> impl Iterator<Item = &Option<TypeRef>> {
         self.bindings.values().map(|binding| &binding.ty)
@@ -41,6 +58,7 @@ impl Env {
                 name,
                 EnvBinding {
                     ty,
+                    semantic: None,
                     input: None,
                     closure_depth: self.closure_depth,
                 },
@@ -56,6 +74,7 @@ impl Env {
                 parameter.name.clone(),
                 EnvBinding {
                     ty: Some(parameter.ty.clone()),
+                    semantic: None,
                     input: Some(input),
                     closure_depth: 0,
                 },
@@ -109,6 +128,7 @@ mod states;
 pub(super) mod store_templates;
 #[path = "generic_stored_actuals.rs"]
 mod stored_actuals;
+use stored_actuals::source_unification_key;
 #[path = "generic_stored_nominal.rs"]
 mod stored_nominal;
 #[path = "generic_store.rs"]
@@ -547,6 +567,7 @@ struct Engine<'a> {
     // Concrete source field layouts for stored physical records. Hints only;
     // storage classes and actual permissions live in the independent catalog.
     stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
+    stored_source_parameters: BTreeMap<String, Vec<Option<SemanticActual>>>,
     stored_enum_layouts: BTreeMap<String, StoredEnumLayout>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
@@ -663,6 +684,7 @@ impl<'a> Engine<'a> {
             next_nominal_capture: 0,
             nominal_source_actuals: BTreeMap::new(),
             stored_record_fields: BTreeMap::new(),
+            stored_source_parameters: BTreeMap::new(),
             stored_enum_layouts: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
@@ -853,6 +875,14 @@ impl<'a> Engine<'a> {
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
+                if matches!(parameter.kind, GenericParamKind::Type(_))
+                    && matches!(parameter.name.as_str(), "Value" | "SyncDrop")
+                {
+                    return Err(error(
+                        parameter.span,
+                        "Value and SyncDrop are reserved in type-binder and bound positions",
+                    ));
+                }
                 if engine.nominals.contains_key(&parameter.name) {
                     if callable
                         .as_ref()
@@ -916,7 +946,11 @@ impl<'a> Engine<'a> {
                             && matches!(&clause.subject, BoundSubject::Type(subject)
                                 if trait_bounds::associated::parts(subject).is_some())
                             && !clause.bounds.is_empty()
-                            && clause.bounds.iter().all(copy::is_bound)
+                            && clause.bounds.iter().all(|bound| {
+                                copy::is_bound(bound)
+                                    || stores::is_bound(bound)
+                                    || trait_bounds::value::is_bound(bound)
+                            })
                     })
                     && !engine
                         .budget
@@ -1626,7 +1660,17 @@ impl<'a> Engine<'a> {
                 anchors.relocate(&moved, &mut self.budget, span)?;
             }
         }
-        substitute_item(&mut instance, &substitution)?;
+        if let Some(source) = &runtime_substitution {
+            let (source, binders) = self.alpha_value_actuals(source, &parameters, span)?;
+            self.budget.substituted_item(item, &source)?;
+            consts::prepay_scopes(item, &source, &mut self.budget)?;
+            substitute_item(&mut instance, &source)?;
+            if let ItemKind::Function(function) = &mut instance.kind {
+                function.generics.extend(binders);
+            }
+        } else {
+            substitute_item(&mut instance, &substitution)?;
+        }
         self.runtime_materialize(
             item,
             runtime_substitution.as_ref().unwrap_or(&substitution),
@@ -1997,6 +2041,25 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
+                if let Some(source) = self.stored_source_parameters.get(&f.name) {
+                    self.budget.text(&f.name, f.span)?;
+                    env.domain = f.name.clone();
+                    for (parameter, source) in f.params.iter().zip(source) {
+                        if let Some(source) = source {
+                            self.budget
+                                .ty(source.application.as_ref().expect("semantic source"))?;
+                            self.budget.text(&source.domain, f.span)?;
+                            self.budget.identity_work(source.classes.len(), f.span)?;
+                            env.bindings
+                                .get_mut(&parameter.name)
+                                .expect("parameter binding")
+                                .semantic = Some(source.clone());
+                        }
+                    }
+                } else if self.stored_nominals {
+                    self.budget.text(&f.name, f.span)?;
+                    env.domain = f.name.clone();
+                }
                 let source_enum_result = self.source_enum_return.is_some();
                 let body_result = self
                     .source_enum_return
@@ -2366,6 +2429,13 @@ impl<'a> Engine<'a> {
                     && {
                         self.stored_lookup_fee(self.enums.len(), path[0].len(), t.span)?;
                         self.enums.contains_key(&path[0])
+                            || matches!(
+                                self.nominals.get(&path[0]),
+                                Some(Item {
+                                    kind: ItemKind::Aggregate(_),
+                                    ..
+                                })
+                            )
                     }
                     && self.stored_application(&path[0], args, t.span, depth + 1)?
                 {
@@ -2388,6 +2458,7 @@ impl<'a> Engine<'a> {
                     self.enum_pattern(pattern, actual.as_ref(), env, depth + 1)?;
                 } else {
                     bind(pattern, actual, env);
+                    self.bind_semantic_source(pattern, env)?;
                 }
             }
             StmtKind::Return(Some(e)) => {
@@ -3031,6 +3102,22 @@ impl<'a> Engine<'a> {
         for ty in env.values().flatten() {
             self.budget.ty(ty)?;
         }
+        self.budget.text(&env.domain, Span::default())?;
+        for binding in env.bindings.values() {
+            if let Some(source) = &binding.semantic {
+                self.budget
+                    .ty(source.application.as_ref().expect("semantic source"))?;
+                self.budget.text(&source.domain, Span::default())?;
+                self.budget
+                    .identity_work(source.classes.len(), Span::default())?;
+                if source.domain != env.domain {
+                    return Err(error(
+                        Span::default(),
+                        "semantic Type actual crossed its lexical domain without alpha-renaming",
+                    ));
+                }
+            }
+        }
         Ok(env.clone())
     }
     fn original_type(&mut self, ty: &TypeRef) -> R<TypeRef> {
@@ -3481,9 +3568,7 @@ fn unify(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<()> {
-    budget.ty(pattern)?;
-    budget.ty(actual)?;
-    unify_bounded(pattern, actual, variables, found, span, budget)
+    unify_scoped(pattern, actual, variables, found, span, budget, None)
 }
 fn unify_argument(
     pattern: &TypeRef,
@@ -3492,6 +3577,30 @@ fn unify_argument(
     found: &mut BTreeMap<String, TypeRef>,
     span: Span,
     budget: &mut Budget<'_>,
+) -> R<()> {
+    unify_argument_scoped(pattern, actual, variables, found, span, budget, None)
+}
+fn unify_scoped(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &mut BTreeMap<String, TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+    source: Option<&Function>,
+) -> R<()> {
+    budget.ty(pattern)?;
+    budget.ty(actual)?;
+    unify_bounded(pattern, actual, variables, found, span, budget, source)
+}
+fn unify_argument_scoped(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &mut BTreeMap<String, TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+    source: Option<&Function>,
 ) -> R<()> {
     budget.ty(pattern)?;
     budget.ty(actual)?;
@@ -3536,9 +3645,9 @@ fn unify_argument(
             budget.node(span, 0)?;
             return Ok(());
         }
-        return unify_bounded(expected, actual, variables, found, span, budget);
+        return unify_bounded(expected, actual, variables, found, span, budget, source);
     }
-    unify_bounded(pattern, actual, variables, found, span, budget)
+    unify_bounded(pattern, actual, variables, found, span, budget, source)
 }
 // Only an independently complete parameter union can select an injection.
 // Missing variables still use ordinary whole-type unification, never two
@@ -3609,12 +3718,13 @@ fn unify_bounded(
     found: &mut BTreeMap<String, TypeRef>,
     span: Span,
     budget: &mut Budget<'_>,
+    source: Option<&Function>,
 ) -> R<()> {
     if let TypeKind::Group(t) = &pattern.kind {
-        return unify_bounded(t, actual, variables, found, span, budget);
+        return unify_bounded(t, actual, variables, found, span, budget, source);
     }
     if let TypeKind::Group(t) = &actual.kind {
-        return unify_bounded(pattern, t, variables, found, span, budget);
+        return unify_bounded(pattern, t, variables, found, span, budget, source);
     }
     if let TypeKind::Named { path, args } = &pattern.kind
         && path.len() == 1
@@ -3622,7 +3732,9 @@ fn unify_bounded(
         && variables.contains(&path[0])
     {
         if let Some(prior) = found.get(&path[0]) {
-            if type_key_bounded(prior, budget)? != type_key_bounded(actual, budget)? {
+            if source_unification_key(prior, source, budget)?
+                != source_unification_key(actual, source, budget)?
+            {
                 return Err(error(span, "conflicting generic argument constraints"));
             }
         } else {
@@ -3641,8 +3753,8 @@ fn unify_bounded(
                 result: y,
             },
         ) => {
-            unify_bounded(a, b, variables, found, span, budget)?;
-            unify_bounded(x, y, variables, found, span, budget)
+            unify_bounded(a, b, variables, found, span, budget, source)?;
+            unify_bounded(x, y, variables, found, span, budget, source)
         }
         (TypeKind::Named { path: a, args: x }, TypeKind::Named { path: b, args: y })
             if a == b && x.len() == y.len() =>
@@ -3651,7 +3763,7 @@ fn unify_bounded(
                 let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b) else {
                     return Err(unsupported(span, "const generic unification"));
                 };
-                unify_bounded(a, b, variables, found, span, budget)?;
+                unify_bounded(a, b, variables, found, span, budget, source)?;
             }
             Ok(())
         }
@@ -3666,10 +3778,10 @@ fn unify_bounded(
                 inner: y,
                 ..
             },
-        ) if a == b => unify_bounded(x, y, variables, found, span, budget),
+        ) if a == b => unify_bounded(x, y, variables, found, span, budget, source),
         (TypeKind::Tuple(a), TypeKind::Tuple(b)) if a.len() == b.len() => {
             for (a, b) in a.iter().zip(b) {
-                unify_bounded(a, b, variables, found, span, budget)?;
+                unify_bounded(a, b, variables, found, span, budget, source)?;
             }
             Ok(())
         }
@@ -3683,7 +3795,7 @@ fn unify_bounded(
                 length: Some(y),
             },
         ) if consts::length_key(x, found)? == consts::length_key(y, &BTreeMap::new())? => {
-            unify_bounded(a, b, variables, found, span, budget)
+            unify_bounded(a, b, variables, found, span, budget, source)
         }
         (
             TypeKind::Array {
@@ -3694,8 +3806,12 @@ fn unify_bounded(
                 element: b,
                 length: None,
             },
-        ) => unify_bounded(a, b, variables, found, span, budget),
-        _ if type_key_bounded(pattern, budget)? == type_key_bounded(actual, budget)? => Ok(()),
+        ) => unify_bounded(a, b, variables, found, span, budget, source),
+        _ if source_unification_key(pattern, source, budget)?
+            == source_unification_key(actual, source, budget)? =>
+        {
+            Ok(())
+        }
         _ => Err(error(
             span,
             "generic parameter does not match argument type",

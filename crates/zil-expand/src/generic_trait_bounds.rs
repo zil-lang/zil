@@ -804,6 +804,14 @@ impl<'a> Index<'a> {
     ) -> R<Bounds> {
         let mut result = Bounds::new();
         for parameter in parameters {
+            if matches!(parameter.kind, GenericParamKind::Type(_))
+                && matches!(parameter.name.as_str(), "Value" | "SyncDrop")
+            {
+                return Err(error(
+                    parameter.span,
+                    "Value and SyncDrop are reserved type-binder names",
+                ));
+            }
             if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
                 continue;
             }
@@ -1519,7 +1527,9 @@ impl<'a> Index<'a> {
                         ));
                     }
                     if path.len() == 1
-                        && matches!(path[0].as_str(), "StoreElement" | "Value" | "SyncDrop")
+                        && (path[0] == "StoreElement"
+                            || matches!(path[0].as_str(), "Value" | "SyncDrop")
+                                && !self.nominals.contains_key(&path[0]))
                     {
                         return Err(error(ty.span, "StoreElement is a bound, not a value type"));
                     }

@@ -75,7 +75,7 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
-    fn capture_actual_type(
+    pub(super) fn capture_actual_type(
         &mut self,
         ty: &mut TypeRef,
         captured: &mut Vec<(String, LexicalLife)>,
@@ -428,6 +428,16 @@ impl<'a> Engine<'a> {
         if self.products.storage.functions.contains_key(&function.name) {
             return Ok(false);
         }
+        let mut source_parameters = Vec::new();
+        if !self.life_scope.is_empty() {
+            for parameter in &function.params {
+                self.budget.lineage_bytes(
+                    std::mem::size_of::<Option<SemanticActual>>(),
+                    parameter.span,
+                )?;
+                source_parameters.push(self.semantic_source_actual(&parameter.ty, &function.name)?);
+            }
+        }
         let mut occurrences = Vec::new();
         let mut stored = false;
         let mut callable_data_profile = true;
@@ -509,6 +519,11 @@ impl<'a> Engine<'a> {
         }
         if !stored {
             return Ok(false);
+        }
+        if source_parameters.iter().any(Option::is_some) {
+            self.budget.text(&function.name, function.span)?;
+            self.stored_source_parameters
+                .insert(function.name.clone(), source_parameters);
         }
         let (contract, fixed, invocation) = stored_types::contract_with_sources(
             occurrences,
@@ -782,7 +797,15 @@ impl<'a> Engine<'a> {
                 if matches!(base, zil_ir::StorageBase::Result) && type_path.is_empty() {
                     self.budget.text(&name[0], ty.span)?;
                     self.stored_lookup_fee(self.enums.len(), name[0].len(), ty.span)?;
-                    if self.enums.contains_key(&name[0]) {
+                    if self.enums.contains_key(&name[0])
+                        || matches!(
+                            self.nominals.get(&name[0]),
+                            Some(Item {
+                                kind: ItemKind::Aggregate(_),
+                                ..
+                            })
+                        )
+                    {
                         // A return body must see the actual source application,
                         // including its caller-life Type actuals. Capture it only
                         // after the stored proof is known, before name erasure.
