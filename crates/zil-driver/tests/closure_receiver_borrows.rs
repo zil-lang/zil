@@ -1333,3 +1333,13 @@ fn mixed_static_and_parameter_capture_keeps_its_actual_fixed_class() {
         ),
     );
 }
+
+#[test]
+fn consuming_static_slice_result_keeps_an_unrelated_real_argument_separate() {
+    accepted(
+        "once-static-slice-argument",
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-argument-result.zil"
+        ),
+    );
+}
