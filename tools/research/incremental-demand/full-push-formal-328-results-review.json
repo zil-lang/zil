@@ -1,0 +1,1297 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/audit, independent of compiler slice and matrix execution",
+  "status": "accepted_bounded_observations_and_summary_not_global_performance_acceptance",
+  "candidate_commit": "328eb392d8d88148a75a743d899b43aebae73587",
+  "candidate_tree": "f8cf388608f0afe700ab76a0abb156239d68ae8d",
+  "candidate_binary_sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a",
+  "baseline_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "baseline_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+  "identities_two_windows_equal": true,
+  "implementation_sha256": {
+    "matched_measure.py": "9a83219bfcc725efa6d1744fa34c34afbd2af03cebce74b8b7c44ff7e8377fbd",
+    "rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+    "native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+    "native_measure.py": "9e2a9ed2d7375171a867cd79a7600f693d952038eb3d61aae1ec961f964d8ea3",
+    "matched_validate.py": "693cac422c302d37142f26639924a5707c69c18e687a1fbf5d42f0e03dcd78f0",
+    "push_counters.py": "27da107b2cd127bafc9829c9ae96c993f0b6da8d64dbb7b10d3626730f90d7c9"
+  },
+  "runtime_binding": {
+    "schema": "per-arm-resident-llvm-v1",
+    "arms": {
+      "baseline": {
+        "environment": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+          "LLVM_CONFIG": null
+        },
+        "llvm_dsos": [
+          {
+            "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+          }
+        ]
+      },
+      "candidate": {
+        "environment": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+          "LLVM_CONFIG": null
+        },
+        "llvm_dsos": [
+          {
+            "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+          }
+        ]
+      }
+    }
+  },
+  "evidence_sha256": {
+    "/workspace/zil-push-main/out/evidence/full-push-checkpoint-13/check03-summary-projection/manifest.json": {
+      "sha256": "10d0d080636cd2f0b2d16cafa274e636cfda93b77cffec190fd3e8af8fbef55e",
+      "bytes": 14027
+    },
+    "/workspace/zil-push-main/out/evidence/full-push-checkpoint-13/check03-summary-projection/rows.jsonl": {
+      "sha256": "ba814730be134f31c4dc09d9380db324ab3222d70ed82e3996911556d686569d",
+      "bytes": 4100397
+    },
+    "/workspace/zil-push-main/out/evidence/full-push-checkpoint-13/check03-summary-projection/completion.json": {
+      "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+      "bytes": 77
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-check-03-validation.json": {
+      "sha256": "1649473a789d9ba0df978e44283547553e0859b5e926ab4ee88ea616bb97fc03",
+      "bytes": 10417
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-check-03-validation.exit": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03/manifest.json": {
+      "sha256": "8f87dc28a643d4347eef44e2383e3969ab71934775f6ace48b294ff6f50c7aad",
+      "bytes": 14011
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03/rows.jsonl": {
+      "sha256": "142ee109c5160df6caa4fa2c423781b7e3f0c6db4c775359f1911ce7aea7c751",
+      "bytes": 15459128
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03/completion.json": {
+      "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+      "bytes": 77
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03-validation.json": {
+      "sha256": "b94dc55a8282f28931670b146035d8b87ded8b74d92b4e3ff56f48ab6044bf4e",
+      "bytes": 10365
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03-validation.exit": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "/workspace/zil-push-main/tools/research/incremental-demand/full-push-matched-328.json": {
+      "sha256": "df284ca916f374df1ebcb58f046bb03a047b4aae0cc524735f0148b17f472a36",
+      "bytes": 1232689
+    },
+    "/workspace/zil-push-main/tools/research/incremental-demand/full-push-matched-328.md": {
+      "sha256": "a172c5b597bf68a95d828ebfe2e4cec9f19033b38def959673690c2b274393e9",
+      "bytes": 3099
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03-controller-argv.json": {
+      "sha256": "058fee409943358967a7fdba40a7d2fd3776553a88f6e02e6453dcecd72f480d",
+      "bytes": 1732
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03.exit": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03/blobs/99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f.build-receipt": {
+      "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f",
+      "bytes": 931
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-03/blobs/9943ee8c48e570845335cf0b406eb3443ef09d8437d5a75287f726ce81283041.build-receipt": {
+      "sha256": "9943ee8c48e570845335cf0b406eb3443ef09d8437d5a75287f726ce81283041",
+      "bytes": 1423
+    }
+  },
+  "source_data_and_calculated_statistics": {
+    "check": {
+      "cold": {
+        "wall_ms_by_block": {
+          "baseline": [
+            1631.811854,
+            673.303661,
+            707.36878,
+            1374.533493,
+            1210.246224,
+            1226.781578
+          ],
+          "candidate": [
+            1376.263994,
+            1258.600828,
+            650.026966,
+            1025.522592,
+            678.205957,
+            587.299561
+          ],
+          "rust": [
+            1250.764292,
+            991.02707,
+            1617.269006,
+            988.962845,
+            958.868172,
+            1113.610622
+          ]
+        },
+        "median_ms": {
+          "baseline": 1218.513901,
+          "candidate": 851.8642745,
+          "rust": 1052.318846
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.8433962473225175,
+            1.8692915261008807,
+            0.9189364647956332,
+            0.7460877433853844,
+            0.5603867572984058,
+            0.47873196951446234
+          ],
+          "rust": [
+            1.1003384113239458,
+            1.2699964169495392,
+            0.4019287846291664,
+            1.0369677659629366,
+            0.7072984345547764,
+            0.5273832247982995
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.8135683863699952,
+          "rust": 0.7753456548628439
+        }
+      },
+      "unchanged": {
+        "wall_ms_by_block": {
+          "baseline": [
+            104.744882,
+            97.320398,
+            96.81139,
+            102.901729,
+            86.813874,
+            93.351576
+          ],
+          "candidate": [
+            3.236374,
+            3.339689,
+            3.039979,
+            3.173599,
+            3.338176,
+            3.139289
+          ],
+          "rust": [
+            15.238539,
+            18.041483,
+            13.339567,
+            21.225002,
+            12.855068,
+            13.557072
+          ]
+        },
+        "median_ms": {
+          "baseline": 97.065894,
+          "candidate": 3.2049865,
+          "rust": 14.3978055
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.030897681473353512,
+            0.034316433847711963,
+            0.03140104692226813,
+            0.030841065848368786,
+            0.03845210271344417,
+            0.03362866632267676
+          ],
+          "rust": [
+            0.21238085882117702,
+            0.18511166737235515,
+            0.22789187984887366,
+            0.1495217291381174,
+            0.25967781734021167,
+            0.23156098898051145
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.03315292727395194,
+          "rust": 0.2078166927881881
+        }
+      },
+      "private": {
+        "wall_ms_by_block": {
+          "baseline": [
+            587.174231,
+            991.040098,
+            670.585694,
+            475.953177,
+            512.520075,
+            583.88532
+          ],
+          "candidate": [
+            75.26568,
+            63.211623,
+            77.30215,
+            53.266377,
+            52.379208,
+            80.49544
+          ],
+          "rust": [
+            339.844885,
+            209.180809,
+            728.206633,
+            194.40352,
+            503.328849,
+            736.406398
+          ]
+        },
+        "median_ms": {
+          "baseline": 585.5297754999999,
+          "candidate": 69.2386515,
+          "rust": 421.586867
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.1281828732024175,
+            0.06378311344572862,
+            0.11527557281888569,
+            0.11191516219251962,
+            0.10219932946041187,
+            0.13786172942316824
+          ],
+          "rust": [
+            0.2214706865457163,
+            0.3021865308877355,
+            0.10615414155393994,
+            0.27399903561416994,
+            0.10406557880412692,
+            0.10930844737174596
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.1068256679738563,
+          "rust": 0.1675738934382991
+        }
+      },
+      "multi": {
+        "wall_ms_by_block": {
+          "baseline": [
+            586.511106,
+            490.57482,
+            873.082022,
+            765.967987,
+            650.067242,
+            1012.505744
+          ],
+          "candidate": [
+            89.362278,
+            81.074042,
+            103.418123,
+            110.066423,
+            100.359198,
+            101.031234
+          ],
+          "rust": [
+            333.657157,
+            183.693588,
+            257.240501,
+            192.355384,
+            208.632445,
+            211.396707
+          ]
+        },
+        "median_ms": {
+          "baseline": 708.0176145,
+          "candidate": 100.695216,
+          "rust": 210.01457599999998
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.15236246523863778,
+            0.165263357789134,
+            0.11845178390352881,
+            0.14369585265709023,
+            0.1543827953724209,
+            0.09978336873514072
+          ],
+          "rust": [
+            0.2678266481782676,
+            0.4413547739075139,
+            0.4020289285628471,
+            0.5722034949643001,
+            0.481033513267795,
+            0.4779224588394369
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.13696709482884212,
+          "rust": 0.4292039398501435
+        }
+      },
+      "broad": {
+        "wall_ms_by_block": {
+          "baseline": [
+            1189.40876,
+            696.506551,
+            701.331169,
+            892.741184,
+            1061.007548,
+            739.643684
+          ],
+          "candidate": [
+            1150.084744,
+            774.272952,
+            748.0646,
+            520.96232,
+            623.595747,
+            543.566371
+          ],
+          "rust": [
+            1158.273759,
+            1136.805834,
+            1129.978962,
+            1004.397352,
+            855.656186,
+            1254.175964
+          ]
+        },
+        "median_ms": {
+          "baseline": 816.192434,
+          "candidate": 685.8301735,
+          "rust": 1133.392398
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.9669381819585724,
+            1.1116520740377072,
+            1.0666353258855374,
+            0.5835535867918467,
+            0.5877392184207156,
+            0.734903011758835
+          ],
+          "rust": [
+            0.9929299831439936,
+            0.6810951605302898,
+            0.6620163960185306,
+            0.5186814948910777,
+            0.7287924252790944,
+            0.43340518922590354
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.8131047523750566,
+          "rust": 0.6469921022905014
+        }
+      },
+      "restore": {
+        "wall_ms_by_block": {
+          "baseline": [
+            116.414665,
+            124.550147,
+            86.568381,
+            91.067329,
+            85.327198,
+            88.242918
+          ],
+          "candidate": [
+            25.852203,
+            30.100954,
+            23.029874,
+            25.514982,
+            58.859463,
+            24.57371
+          ],
+          "rust": [
+            233.181788,
+            261.680186,
+            187.177643,
+            202.490573,
+            451.566115,
+            188.221166
+          ]
+        },
+        "median_ms": {
+          "baseline": 89.6551235,
+          "candidate": 25.6835925,
+          "rust": 217.8361805
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.22206998577026357,
+            0.24167738637835573,
+            0.2660310119464981,
+            0.2801771203808997,
+            0.6898089282153622,
+            0.27847798505484594
+          ],
+          "rust": [
+            0.11086716171847863,
+            0.11502954984906653,
+            0.12303752537369006,
+            0.1260057770689404,
+            0.13034517215712696,
+            0.13055763345977783
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.3026461002694678,
+          "rust": 0.12241170178385556
+        }
+      },
+      "error": {
+        "wall_ms_by_block": {
+          "baseline": [
+            487.197963,
+            384.535819,
+            338.912174,
+            498.957056,
+            425.366216,
+            353.823704
+          ],
+          "candidate": [
+            54.282171,
+            45.50649,
+            45.501218,
+            51.449533,
+            47.621555,
+            41.879048
+          ],
+          "rust": [
+            221.655382,
+            206.676552,
+            174.832715,
+            371.451919,
+            190.705338,
+            176.750672
+          ]
+        },
+        "median_ms": {
+          "baseline": 404.95101750000003,
+          "candidate": 46.5640225,
+          "rust": 198.690945
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.11141707298148124,
+            0.11834135534718548,
+            0.13425666438290884,
+            0.1031141505693027,
+            0.11195424838346824,
+            0.1183613407653434
+          ],
+          "rust": [
+            0.24489444158860982,
+            0.22018216173840563,
+            0.26025574218189085,
+            0.13850926692883772,
+            0.24971275318995004,
+            0.23693855036658643
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.1158596316261716,
+          "rust": 0.22052243369880398
+        }
+      },
+      "recovery": {
+        "wall_ms_by_block": {
+          "baseline": [
+            680.026516,
+            693.269204,
+            998.528351,
+            679.205244,
+            908.000179,
+            675.179695
+          ],
+          "candidate": [
+            58.87607,
+            58.545755,
+            59.229446,
+            60.916315,
+            53.428829,
+            53.231223
+          ],
+          "rust": [
+            226.984284,
+            240.755563,
+            198.386879,
+            229.08893,
+            194.479287,
+            203.05993
+          ]
+        },
+        "median_ms": {
+          "baseline": 686.64786,
+          "candidate": 58.7109125,
+          "rust": 215.022107
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.08657907980752914,
+            0.08444880381560985,
+            0.05931673942025107,
+            0.08968763939637663,
+            0.05884231108725365,
+            0.07884008271309166
+          ],
+          "rust": [
+            0.25938390518702165,
+            0.2431750870903033,
+            0.2985552587880573,
+            0.2659068467428784,
+            0.2747276063388694,
+            0.2621453824001614
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.07517247582990275,
+          "rust": 0.26679446216476327
+        }
+      }
+    },
+    "o2": {
+      "cold": {
+        "wall_ms_by_block": {
+          "baseline": [
+            6099.93254,
+            5518.407982,
+            6184.10746,
+            7813.90625,
+            7914.330186,
+            6318.366683
+          ],
+          "candidate": [
+            8271.266388,
+            6802.59561,
+            8191.666957,
+            6869.562465,
+            7539.870499,
+            8423.503613
+          ],
+          "rust": [
+            6285.349333,
+            7051.684583,
+            7111.416471,
+            6710.519724,
+            8707.537935,
+            6598.08711
+          ]
+        },
+        "median_ms": {
+          "baseline": 6251.2370715,
+          "candidate": 7865.768728,
+          "rust": 6881.1021535
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            1.3559603050954396,
+            1.2327098018466154,
+            1.3246320523996846,
+            0.8791457492851287,
+            0.9526858649816761,
+            1.333177391502778
+          ],
+          "rust": [
+            1.315959694487199,
+            0.9646766712169038,
+            1.1519037016612947,
+            1.0237005101752683,
+            0.8659015390209723,
+            1.2766584424496936
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 1.1628319015874817,
+          "rust": 1.0875755822294104
+        }
+      },
+      "unchanged": {
+        "wall_ms_by_block": {
+          "baseline": [
+            503.043121,
+            829.500733,
+            492.301889,
+            542.680565,
+            924.452718,
+            478.157327
+          ],
+          "candidate": [
+            59.973458,
+            62.066306,
+            149.446123,
+            63.443306,
+            85.155467,
+            58.107386
+          ],
+          "rust": [
+            15.853852,
+            13.300697,
+            66.441058,
+            13.680629,
+            14.975679,
+            31.849346
+          ]
+        },
+        "median_ms": {
+          "baseline": 522.861843,
+          "candidate": 62.754806,
+          "rust": 15.4147655
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.11922130627843334,
+            0.07482369036074137,
+            0.30356601577045744,
+            0.11690727490858273,
+            0.09211446441980173,
+            0.12152357125754135
+          ],
+          "rust": [
+            3.7828950339639857,
+            4.66639500170555,
+            2.249303781405769,
+            4.637455339224534,
+            5.6862508204135525,
+            1.824445186409793
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.12347508691353001,
+          "rust": 3.5224789989241
+        }
+      },
+      "private": {
+        "wall_ms_by_block": {
+          "baseline": [
+            1521.59709,
+            1791.426765,
+            1461.38736,
+            1601.444741,
+            1875.514227,
+            1446.683498
+          ],
+          "candidate": [
+            472.332405,
+            593.832862,
+            801.536939,
+            451.031662,
+            516.892388,
+            739.554241
+          ],
+          "rust": [
+            600.915177,
+            782.043647,
+            892.346439,
+            873.432202,
+            629.224531,
+            464.57799
+          ]
+        },
+        "median_ms": {
+          "baseline": 1561.5209155,
+          "candidate": 555.362625,
+          "rust": 705.6340889999999
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.3104188409035404,
+            0.33148598290592135,
+            0.5484767153042845,
+            0.2816404777840536,
+            0.27560035565648633,
+            0.5112066613204708
+          ],
+          "rust": [
+            0.7860217599396728,
+            0.7593346794363768,
+            0.8982351516953831,
+            0.5163900082538977,
+            0.8214752644473742,
+            1.591883939658872
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.36170718120617296,
+          "rust": 0.8442225120595596
+        }
+      },
+      "multi": {
+        "wall_ms_by_block": {
+          "baseline": [
+            1905.96075,
+            1638.310296,
+            1776.031933,
+            2200.346707,
+            1710.270235,
+            1865.912411
+          ],
+          "candidate": [
+            690.438941,
+            729.247174,
+            728.42393,
+            763.216159,
+            835.98839,
+            697.68675
+          ],
+          "rust": [
+            1239.861066,
+            1037.855686,
+            1089.96796,
+            992.249566,
+            907.468342,
+            1006.845025
+          ]
+        },
+        "median_ms": {
+          "baseline": 1820.972172,
+          "candidate": 728.835552,
+          "rust": 1022.3503555
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.36225244460044626,
+            0.44512152293767915,
+            0.4101412347747466,
+            0.34686177254337575,
+            0.48880485252671196,
+            0.37391184381805365
+          ],
+          "rust": [
+            0.5568679910463452,
+            0.7026479536963292,
+            0.6682984791589655,
+            0.7691776193732293,
+            0.921231464843762,
+            0.6929435341849158
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.4015572030045791,
+          "rust": 0.7102735253231843
+        }
+      },
+      "broad": {
+        "wall_ms_by_block": {
+          "baseline": [
+            5690.175969,
+            5272.317909,
+            6202.386985,
+            5396.170364,
+            4970.132193,
+            5629.069683
+          ],
+          "candidate": [
+            7140.817461,
+            6647.676117,
+            6998.098595,
+            7026.809857,
+            7030.43821,
+            6030.113322
+          ],
+          "rust": [
+            5855.75119,
+            6291.786966,
+            5787.202758,
+            5654.693876,
+            5651.119064,
+            6002.653862
+          ]
+        },
+        "median_ms": {
+          "baseline": 5512.6200235,
+          "candidate": 7012.454226,
+          "rust": 5821.476974
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            1.2549378964557643,
+            1.2608640510186655,
+            1.1282911904601194,
+            1.3021845833257315,
+            1.4145374684202086,
+            1.0712451011596404
+          ],
+          "rust": [
+            1.2194537010374582,
+            1.0565640815436343,
+            1.2092368088064835,
+            1.242650797919162,
+            1.2440789391231981,
+            1.004574553294474
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 1.2335249115075877,
+          "rust": 1.1586669569266739
+        }
+      },
+      "restore": {
+        "wall_ms_by_block": {
+          "baseline": [
+            496.882796,
+            544.749012,
+            518.577104,
+            555.296083,
+            502.10507,
+            596.842038
+          ],
+          "candidate": [
+            202.356844,
+            173.987905,
+            191.860193,
+            178.978654,
+            175.167663,
+            180.731041
+          ],
+          "rust": [
+            545.293069,
+            466.317822,
+            535.267569,
+            707.696325,
+            495.215153,
+            781.631548
+          ]
+        },
+        "median_ms": {
+          "baseline": 531.663058,
+          "candidate": 179.8548475,
+          "rust": 540.280319
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.40725266728695514,
+            0.31939095100185333,
+            0.36997428447978686,
+            0.32231211326588816,
+            0.348866548987446,
+            0.30281218395008563
+          ],
+          "rust": [
+            0.3710974070715724,
+            0.3731101338863262,
+            0.3584379179901333,
+            0.25290318414469654,
+            0.35372032123580843,
+            0.2312228075522868
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.34335593947891174,
+          "rust": 0.3176123015116153
+        }
+      },
+      "error": {
+        "wall_ms_by_block": {
+          "baseline": [
+            344.008137,
+            418.868197,
+            383.002818,
+            322.847557,
+            434.237306,
+            341.007286
+          ],
+          "candidate": [
+            46.49545,
+            54.114074,
+            56.414965,
+            46.9974,
+            53.303312,
+            50.808976
+          ],
+          "rust": [
+            227.794208,
+            182.917042,
+            219.405667,
+            245.089503,
+            258.809709,
+            291.214344
+          ]
+        },
+        "median_ms": {
+          "baseline": 363.5054775,
+          "candidate": 52.056144,
+          "rust": 236.4418555
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.13515799482382593,
+            0.1291911737094712,
+            0.14729647498311618,
+            0.14557149026219826,
+            0.12275157215534126,
+            0.14899674606952532
+          ],
+          "rust": [
+            0.20411164273325158,
+            0.29583943304746857,
+            0.2571262892676332,
+            0.19175607043439963,
+            0.20595561196662834,
+            0.17447277940402553
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.13780273973572113,
+          "rust": 0.2178813841131816
+        }
+      },
+      "recovery": {
+        "wall_ms_by_block": {
+          "baseline": [
+            1971.241056,
+            2136.386564,
+            1777.046365,
+            1805.995059,
+            1893.524138,
+            1579.515957
+          ],
+          "candidate": [
+            514.146186,
+            794.16382,
+            518.5628,
+            742.430955,
+            536.253374,
+            435.89986
+          ],
+          "rust": [
+            544.982994,
+            592.994095,
+            588.776316,
+            403.027566,
+            584.22515,
+            483.686839
+          ]
+        },
+        "median_ms": {
+          "baseline": 1849.7595985,
+          "candidate": 527.408087,
+          "rust": 564.604072
+        },
+        "candidate_over_other_paired_ratios": {
+          "baseline": [
+            0.2608235986334895,
+            0.37173226670788967,
+            0.2918116320504671,
+            0.4110924619091109,
+            0.28320387537621133,
+            0.2759705326611018
+          ],
+          "rust": [
+            0.9434169353181688,
+            1.3392440611065444,
+            0.8807467044921014,
+            1.8421344285914183,
+            0.9178882045731855,
+            0.9012026477735111
+          ]
+        },
+        "candidate_over_other_paired_geomean": {
+          "baseline": 0.31124104146368303,
+          "rust": 1.092005096400828
+        }
+      }
+    }
+  },
+  "method": {
+    "performed": "First tool actually read new O2 manifest/all270 rows/validation/completion. Independently recomputed full six-value arrays, all48 mode/request/arm cells and medians against summary and validators; six arm permutations per measured scenario; source/binary/implementation identity across both windows; native outcomes, Zil Verify/publication and pair grouping. Read actual representative16-per-arm nm text and hash-verified48 small symbol files, and current action-key/session reuse observations. Read summary MD/JSON and small build/controller/exit evidence.",
+    "not_performed": "No Cargo/compiler/native execution, full validator rerun, all object/ELF/LLVM/DSO/compiler blob rehash, compression or remote restore. Root validator reports479 O2 blobs. Check full raw has been archived/retired; this review used exact retained summary projection and original check validation.",
+    "disclosure": "Reviewer authored early argv/counter helper6eb and later independently reviewed resolved-path delta3913; did not author these compiler slices or run this matrix. This is not blanket independent tool correctness proof."
+  },
+  "independent_counts": {
+    "per_mode_rows": 270,
+    "per_mode_measured": 144,
+    "per_mode_preparations": 126,
+    "all_rows_valid": true,
+    "all48_cells_exact_six_values_equal_summary_and_validation": true,
+    "all8_scenarios_in_both_modes_have_six_distinct_orders": true,
+    "o2_native_executions": 2808,
+    "o2_native_mismatches": 0,
+    "o2_quality_pairs": 78,
+    "quality_measured_pairs": 42,
+    "quality_preparation_pairs": 36,
+    "ELF_digest_equal_pairs": 78,
+    "strict_LLVM_comparison_equal_pairs": 78,
+    "all_Zil_success_Verify1_error_Verify0_both_modes": true,
+    "all_error_publication_preserved_o2": true
+  },
+  "actual_unit_observations": {
+    "success_current_objects_all_arms": 16,
+    "representative_block0_cold_defined_nm_rows": {
+      "baseline": [
+        23,
+        23,
+        42,
+        42,
+        42,
+        42,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21
+      ],
+      "candidate": [
+        23,
+        23,
+        42,
+        42,
+        42,
+        42,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21,
+        21
+      ],
+      "rust": [
+        1,
+        2,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        3,
+        1,
+        2,
+        2,
+        2,
+        5,
+        2
+      ]
+    },
+    "defined_nm_row_sums": {
+      "baseline": 424,
+      "candidate": 424,
+      "rust": 28
+    },
+    "reuse_six_values_by_scenario": {
+      "cold": {
+        "baseline": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "candidate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rust": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "unchanged": {
+        "baseline": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "candidate": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "rust": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "private": {
+        "baseline": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ],
+        "candidate": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ],
+        "rust": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ]
+      },
+      "multi": {
+        "baseline": [
+          14,
+          14,
+          14,
+          14,
+          14,
+          14
+        ],
+        "candidate": [
+          14,
+          14,
+          14,
+          14,
+          14,
+          14
+        ],
+        "rust": [
+          13,
+          13,
+          13,
+          13,
+          13,
+          13
+        ]
+      },
+      "broad": {
+        "baseline": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "candidate": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rust": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "restore": {
+        "baseline": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "candidate": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "rust": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ]
+      },
+      "error": {},
+      "recovery": {
+        "baseline": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ],
+        "candidate": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ],
+        "rust": [
+          15,
+          15,
+          15,
+          15,
+          15,
+          15
+        ]
+      }
+    },
+    "reuse_scope": "Zil values are current action-key object-cache hit receipts. Rust values are same inode/device/mtime/content physical carry-forward versus immediate parent, not query or optimizer counts. Current committed Rust session separately selected from historical sessions. nm definitions describe optimized outputs, not complete source call graph; same16 does not establish equal partitions/work."
+  },
+  "assessment": [
+    "MD median table and JSON six observations match actual raw/projection values. MD explicitly reports cold/broad losses against main and Rust and noop loss against Rust; no significance/universal superiority language found.",
+    "O2 private median555.36 vs Rust705.63 is21.3% lower descriptively; paired candidate/Rust geomean0.8442 is a different statistic. Six sequential balanced samples do not establish statistical significance or population superiority.",
+    "Recovery candidate median527.41 vs Rust564.60 looks favorable, but paired candidate/Rust geomean1.0920 is slower, driven by unequal block behavior. Report should retain this discordance when discussing relative performance rather than cherry-picking median.",
+    "Cold7865.77 vs main6251.24/Rust6881.10, broad7012.45 vs5512.62/5821.48, and noop62.75 vs Rust15.41 remain material negatives. Check-mode advantages do not cancel native negatives or prove identical checking guarantees.",
+    "78 paired quality comparisons include36 parent preparations and42 measured requests. They establish observed complete Zil ELF equality and strict LLVM comparison equality, not78 independent performance samples; raw LLVM text is not all equal because fingerprint comments differ."
+  ],
+  "limits": [
+    "Separate check/native windows use exactly same328/e7d8 and baseline3ec identities; do not retarget timing to later qualifier, CT variants or future source.",
+    "Resident Zil excludes startup while Rust invokes fresh Cargo; cached request and CPU/RSS scopes differ. OS caches not flushed, six stdin inputs each twice are not exhaustive semantic equivalence, and cross-language work/overflow/safety guarantees differ.",
+    "Root validator counters479blobs/check115 are read receipts, not reviewer-recomputed full corpus hashes. Metadata and48small nm files were independently checked.",
+    "Controller exit0 is independently read, not an inferred zero-work/controller-activity metric. No timing collected by reviewer.",
+    "Full global minimality, complete push termination, broad program representativeness and language/compiler parity remain outside scope. No isolated-slice causal speedup or pre328 comparison accepted.",
+    "Check03 fixed57bafe archive projection status and O2v18 pending remote durability are reported by storage receipts/summary; this reviewer has not independently repeated remote recovery."
+  ]
+}

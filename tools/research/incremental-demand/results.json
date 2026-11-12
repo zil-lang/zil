@@ -6706,13 +6706,13 @@
   },
   "latest_full_push_checkpoint": {
     "compiler": "328eb392d8d88148a75a743d899b43aebae73587",
-    "measured_compiler": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+    "measured_compiler": "328eb392d8d88148a75a743d899b43aebae73587",
     "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
-    "full_results": "full-push-matched-1e260.json",
+    "full_results": "full-push-matched-328.json",
     "panorama": "full-push-checkpoint-328.md",
     "status": "in_progress_not_complete_not_globally_faster_than_Rust",
     "latest_compiler_verification": "25c CT74/Expand102/Types103/driver210/strictClippy/fmt/release12 pass; subsequentonlywork_products.cpp,328native72/backend242/mixed3/strictClippy13/release13pass. Original208/1 anddiagnostic/infra failures retained. No new current fullworkspace claim.",
-    "raw_recovery": "Formal1e checkv14 fullfreshrestore+capturedvalidator; O2v15 all19data+index20@0070154 fixedremote fullfile/modes+21669originalunionverified,no assembledfreshvalidatorclaim. Current328profiles/gates v16archiveinprogress.",
+    "raw_recovery": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json",
     "historical_identity_above_is_not_current": true,
     "formal_comparison_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
     "latest_profile": "full-push-checkpoint-328.json",
@@ -6724,14 +6724,105 @@
       "measured_pairs": 42,
       "named_parent_pairs": 36,
       "elf_sha256_equal": true,
-      "strict_llvm_equal": true,
+      "strict_llvm_equal_except_verified_fingerprint_comment": true,
+      "raw_llvm_byte_equal_all_pairs": false,
       "native_executions": 2808,
-      "verified_blobs": 476
+      "verified_blobs": 479
     },
     "current_next_components": [
-      "Complete v16 verified raw recovery/index and matched main/Rust fixed-source windows",
-      "Investigate retained native owner/MC symbol-state closure against actualLLVM; no implemented/nativequalityclaim",
-      "Wholephase/global andaffectedCGU/LLVM costs remain; no globallyminimal claim"
-    ]
+      "Integrate complete DenseMap capture scratch slice and batch native/backend/mixed/strict/release gates",
+      "Retained native owner with scoped symbol binding and current providers: owner lifetime reviewed, full prototype still open",
+      "Whole-phase/global work and affected-CGU LLVM work remain; universal lead not achieved"
+    ],
+    "formal_o2_paired_geometric_ratios": {
+      "private": 0.8442225120595596,
+      "recovery": 1.092005096400828
+    },
+    "formal_medians_ms": {
+      "check": {
+        "cold": {
+          "baseline": 1218.513901,
+          "candidate": 851.8642745,
+          "rust": 1052.318846
+        },
+        "unchanged": {
+          "baseline": 97.065894,
+          "candidate": 3.2049865,
+          "rust": 14.3978055
+        },
+        "private": {
+          "baseline": 585.5297754999999,
+          "candidate": 69.2386515,
+          "rust": 421.586867
+        },
+        "multi": {
+          "baseline": 708.0176145,
+          "candidate": 100.695216,
+          "rust": 210.01457599999998
+        },
+        "broad": {
+          "baseline": 816.192434,
+          "candidate": 685.8301735,
+          "rust": 1133.392398
+        },
+        "restore": {
+          "baseline": 89.6551235,
+          "candidate": 25.6835925,
+          "rust": 217.8361805
+        },
+        "error": {
+          "baseline": 404.95101750000003,
+          "candidate": 46.5640225,
+          "rust": 198.690945
+        },
+        "recovery": {
+          "baseline": 686.64786,
+          "candidate": 58.7109125,
+          "rust": 215.022107
+        }
+      },
+      "o2": {
+        "cold": {
+          "baseline": 6251.2370715,
+          "candidate": 7865.768728,
+          "rust": 6881.1021535
+        },
+        "unchanged": {
+          "baseline": 522.861843,
+          "candidate": 62.754806,
+          "rust": 15.4147655
+        },
+        "private": {
+          "baseline": 1561.5209155,
+          "candidate": 555.362625,
+          "rust": 705.6340889999999
+        },
+        "multi": {
+          "baseline": 1820.972172,
+          "candidate": 728.835552,
+          "rust": 1022.3503555
+        },
+        "broad": {
+          "baseline": 5512.6200235,
+          "candidate": 7012.454226,
+          "rust": 5821.476974
+        },
+        "restore": {
+          "baseline": 531.663058,
+          "candidate": 179.8548475,
+          "rust": 540.280319
+        },
+        "error": {
+          "baseline": 363.5054775,
+          "candidate": 52.056144,
+          "rust": 236.4418555
+        },
+        "recovery": {
+          "baseline": 1849.7595985,
+          "candidate": 527.408087,
+          "rust": 564.604072
+        }
+      }
+    }
   }
 }

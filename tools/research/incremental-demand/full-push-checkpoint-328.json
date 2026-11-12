@@ -829,9 +829,10 @@
   "earlier_unchanged_scope": "Native72/backend242 exact328 latest; complete CT74/Expand102/Types103/driver210 and fmt12 at25c, subsequentproductionchangeonlywork_products.cpp. No new fullworkspace claim; overlapping scopes notsummed.",
   "prior_formal": "full-push-matched-1e260.json",
   "raw_custody": {
-    "formal_check": "fixedv14/8d10022 completefreshrestore+capturedvalidator passed",
-    "formal_o2": "fixedv15/data19@099153 andsmallindex20@0070154, full21669-file originalunion verified; nowholeassembledfreshvalidator claim",
-    "current_profiles_and_gates": "v16 actual shardedpush/freshrestore inprogress; not yet all durable, no retirement beforefullmaster+currentqualifiers+verifiedpiece"
+    "current_profiles_and_gates": "full-push-recovery-v16.json; fixed301c7f680207dbd115ebf895e6b07126d1615fe1, exact1480-file original union and all piece fresh hashes/modes verified; no assembled qualifier rerun",
+    "formal_check": "full-push-recovery-v17.json",
+    "formal_o2": "full-push-recovery-v18.json",
+    "scope": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json"
   },
   "remaining": [
     "wholeprojectphaseentry andglobalinventories/fingerprints",
@@ -839,5 +840,16 @@
     "MIR key/capture andwarmrestore/validation; fullLLVM global/affectedCGU work",
     "Expand laterCore leaf rebuilds andgap fullcurrentfunctiontable scan",
     "CentralReactiveGraph is not whole-pipeline scheduler; no unused signal-read pull removal gain claimed"
-  ]
+  ],
+  "formal_comparison": {
+    "summary": "full-push-matched-328.json",
+    "review": "full-push-formal-328-results-review.json",
+    "rows_per_mode": 270,
+    "measured_rows_per_mode": 144,
+    "parent_rows_per_mode": 126,
+    "paired_o2_candidate_rust_geometric_ratios": {
+      "private": 0.8442225120595596,
+      "recovery": 1.092005096400828
+    }
+  }
 }
