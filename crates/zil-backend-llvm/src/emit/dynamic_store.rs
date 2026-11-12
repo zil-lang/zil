@@ -229,7 +229,7 @@ pub(super) fn runtime(
             continue;
         };
         let pod = protocols.get(&index);
-        if !matches!(element.as_ref(), Type::Package { .. }) && pod.is_none() {
+        if !matches!(element.as_ref(), Type::Package { .. } | Type::Managed(_)) && pod.is_none() {
             return invalid(
                 "E-CODEGEN-CFG",
                 "Store runtime element lacks its verified representation plan",
