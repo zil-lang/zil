@@ -364,3 +364,55 @@ fn trait_object_definition_is_verified_without_a_local_provider() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn error_only_factory_releases_inactive_success_dependencies() {
+    let text = r#"
+struct Context<life a>{leaf:&'a i32}
+trait Read{fn read(self:&Self)->i32;}
+fn failed_create<life a>(value:&'a i32)->DynCreateError!OwnedDyn<dyn Read,Context<'a>>{
+    return error_err::<DynCreateError,OwnedDyn<dyn Read,Context<'a>>>(DynCreateError.Allocation)
+}
+fn main()->i32{
+    var value=1;
+    match failed_create(&value){
+        .err(_)=>{value=42;return value-42},
+        .ok(owner)=>{return owner.read()-1}
+    }
+}
+"#;
+    let (project, module, candidate, dir) = context_candidate(text, "error-only");
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (module, candidate) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    zil_verify::verify_module(module, candidate, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
+
+#[test]
+fn scalar_field_address_keeps_its_actual_parameter_occurrence() {
+    let text = r#"
+struct Pair{left:i32,right:i32}
+struct Context<life a>{leaf:&'a i32}
+struct Provider<life a>{pointer:&'a i32}
+trait Read{fn read(self:&Self)->i32;}
+impl<life a> Read for Provider<'a>{fn read(self:&Self)->i32{return *self.pointer}}
+fn create<life a>(value:&'a Pair)->DynCreateError!OwnedDyn<dyn Read,Context<'a>>{
+    return owned_dyn::<dyn Read,Context<'a>>(Provider::<'a>{pointer:&value.left})
+}
+fn run<life a>(value:&'a Pair)->i32{
+    match create(value){.err(_)=>{return 99},.ok(owner)=>{return owner.read()}}
+}
+fn main()->i32{let value=Pair{left:42,right:99};return run(&value)-42}
+"#;
+    let (project, module, candidate, dir) = context_candidate(text, "field-address");
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (module, candidate) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    zil_verify::verify_module(module, candidate, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
