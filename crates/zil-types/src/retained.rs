@@ -706,6 +706,7 @@ impl Builder<'_, '_> {
             };
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::capture_supported(&ty)
+                || matches!(&ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 || matches!(ty, Type::Closure(_))
                 || (moved
                     && !borrowed
@@ -731,6 +732,16 @@ impl Builder<'_, '_> {
                     span,
                     "returned closure captures must be self-contained Copy snapshots or owned Managed/Package values; escaping Address/Desc captures are not implemented",
                 ));
+            }
+        }
+        for index in 0..self.closures.pending[id.0 as usize].captures.len() {
+            if let Type::BorrowedStorage { life, .. } = &self.closures.pending[id.0 as usize].captures[index].ty
+                && !life.slots.is_empty()
+            {
+                hold.push(index as u32);
+                if life.slots.iter().any(|slot|matches!(slot.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription)) {
+                    writes.push(index as u32);
+                }
             }
         }
         // A moved child owns its environment and can separately retain input

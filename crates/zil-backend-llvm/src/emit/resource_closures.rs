@@ -6,8 +6,8 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
     definition.captures.iter().any(|ty| {
         matches!(
             ty,
-            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-        ) || drop_plan::owned_sum(ty)
+            Type::Managed(_) | Type::Closure(_)
+        ) || packages::physical_package(ty).is_some() || drop_plan::owned_sum(ty)
     })
 }
 
@@ -20,14 +20,14 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 /// Flags are appended after all data fields, grouped by capture order.
 /// Package groups are shell followed by direct Managed/complete child fields.
 pub(super) fn flag_count(ty: &Type) -> usize {
-    match ty {
+    match packages::physical_package(ty).unwrap_or(ty) {
         Type::Managed(_) | Type::Closure(_) => 1,
         ty if drop_plan::owned_sum(ty) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
                 .filter(|(_, ty)| {
-                    matches!(ty, Type::Managed(_) | Type::Package { .. })
+                    matches!(ty, Type::Managed(_)) || packages::physical_package(ty).is_some()
                         || drop_plan::owned_sum(ty)
                 })
                 .count()
@@ -118,7 +118,7 @@ pub(super) fn drop_functions(
                     },
                 )),
             ]));
-            match ty {
+            match packages::physical_package(ty).unwrap_or(ty) {
                 Type::Managed(payload) => {
                     let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                         Some(dynamic_store::helper(payload, resources, "drop")?)
@@ -227,7 +227,7 @@ pub(super) fn drop_functions(
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_) | Type::Package { .. })
+                        if !matches!(ty, Type::Managed(_)) && packages::physical_package(ty).is_none()
                             && !drop_plan::owned_sum(ty)
                         {
                             continue;
@@ -402,7 +402,7 @@ impl FunctionEmitter<'_> {
             .expect("verified Package environment");
         let definition = self.closure_definition(environment)?;
         let flag = flag_index(definition, index);
-        let Type::Package { fields, .. } = &definition.captures[index as usize] else {
+        let Some(Type::Package { fields, .. }) = packages::physical_package(&definition.captures[index as usize]) else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "Package view has no matching capture",
@@ -413,7 +413,7 @@ impl FunctionEmitter<'_> {
             .iter()
             .enumerate()
             .filter_map(|(field, (_, ty))| {
-                (matches!(ty, Type::Managed(_) | Type::Package { .. }) || drop_plan::owned_sum(ty))
+                (matches!(ty, Type::Managed(_)) || packages::physical_package(ty).is_some() || drop_plan::owned_sum(ty))
                     .then_some(field)
             })
             .collect::<Vec<_>>();

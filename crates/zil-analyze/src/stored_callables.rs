@@ -241,6 +241,12 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
+            if matches!(t, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                && b.returned_borrowed_environments.contains(&d.id)
+            {
+                super::resources::product::admit_owned(module, t, b)?;
+                continue;
+            }
             admitted &= if d.storage_life.is_some() {
                 capture(t) || owned_capture(t, b)?
             } else {

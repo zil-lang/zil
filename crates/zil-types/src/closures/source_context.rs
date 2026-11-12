@@ -541,7 +541,8 @@ fn positions(
         (ty, false)
     };
     if let Type::BorrowedStorage { storage, life } = inner {
-        if !matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+        if !(matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+            || capture && matches!(storage.as_ref(), Type::Package { .. }))
             || !life.retained.is_empty()
         {
             return Err(unsupported(
