@@ -3,6 +3,8 @@
 //! original emitter, including its budget and diagnostic behavior.
 use super::*;
 use std::sync::Arc;
+mod whole;
+pub(super) use whole::WholeOptions;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Session {
@@ -17,6 +19,9 @@ pub(crate) struct Session {
     pub(crate) products: Vec<(Arc<()>, Arc<()>)>,
     pub(crate) eligible: bool,
     admitted: BTreeMap<FunctionId, Vec<FunctionId>>,
+    whole_machine: Option<Arc<whole::MachineProduct>>,
+    pub(crate) reused_machine_module: bool,
+    pub(crate) whole_machine_input_functions_compared: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Context {
@@ -214,6 +219,8 @@ impl Session {
         scalar_policy: bool,
         copy_plans: &large_copy_abi::Plans,
     ) -> bool {
+        // Any rebuilding of the per-function identity starts a new epoch.
+        self.whole_machine = None;
         self.hits = 0;
         self.misses = 0;
         self.source_projection_traversals = 0;

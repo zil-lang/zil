@@ -9,6 +9,11 @@ mod emission_work_tests;
 #[cfg(test)]
 mod max_plan_reference;
 
+#[cfg(test)]
+pub(super) fn reference_planner_enabled() -> bool {
+    max_plan_reference::enabled()
+}
+
 const MIN_BYTES: u64 = 4096;
 
 #[derive(Clone)]

@@ -21,6 +21,8 @@ pub struct BackendSession {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendSessionSummary {
+    pub reused_machine_module: bool,
+    pub whole_machine_input_functions_compared: usize,
     pub lowered_functions: usize,
     pub reused_functions: usize,
     pub reused_partition: bool,
