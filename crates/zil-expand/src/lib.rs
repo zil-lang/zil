@@ -746,7 +746,18 @@ fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         else {
             return Ok(None);
         };
-        modules
+        match modules {
+            modules::SpecializedModules::Ordinary(modules) => modules,
+            modules::SpecializedModules::SharedScalar(modules) => {
+                return item_lowering::expand_shared_scalar(
+                    sources,
+                    &modules,
+                    limits,
+                    &mut products,
+                    reuse,
+                );
+            }
+        }
     } else if let Some(runtime_ct) = runtime_ct {
         modules::specialize_with_runtime(
             sources,
@@ -847,85 +858,13 @@ fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
             }
             expanded?
         };
-        // New member constraints share the project's actual remaining allowance.
-        remaining.max_analysis_steps = remaining
-            .max_analysis_steps
-            .checked_sub(expanded.member_owner_work)
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project member owner work budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
-        remaining.max_nodes = remaining
-            .max_nodes
-            .checked_sub(expanded.member_owner_nodes)
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project member owner node budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
-        // New project trait work shares the project's remaining allowance; a
-        // later implementation module does not receive those steps again.
-        remaining.max_analysis_steps = remaining
-            .max_analysis_steps
-            .checked_sub(expanded.project_trait_work)
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project trait work budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
-        remaining.max_nodes = remaining
-            .max_nodes
-            .checked_sub(expanded.project_trait_nodes)
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project trait instance node budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
-        remaining.max_nodes = remaining
-            .max_nodes
-            .checked_sub(expanded.source_map.entries.len())
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project source-map node budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
-        // Raw/fresh paths retain the original checked map walk at this exact
-        // position. A sealed hit carries the same already validated sum.
-        let map_work = expanded.source_map_work.or_else(|| {
-            expanded
-                .source_map
-                .entries
-                .iter()
-                .try_fold(sources.len(), |work, entry| {
-                    work.checked_add(entry.related.len().saturating_add(1))
-                })
-        });
-        remaining.max_analysis_steps = map_work
-            .and_then(|work| remaining.max_analysis_steps.checked_sub(work))
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Expand,
-                    "project source-map work budget exceeded",
-                    Some(module.span),
-                )]
-            })?;
+        let map_work =
+            item_lowering::debit_expanded(&expanded, &mut remaining, sources.len(), module.span)?;
         if fresh_lower && let Some(reuse) = reuse.as_deref_mut() {
             // Only the sealed scalar caller supplies reuse: there are no
             // dynamic/callable/closure products or later semantic fixups. Save
             // after the current ordered map debits, with the original Lower
             // entry allowance, never the already debited project remainder.
-            let map_work = map_work.expect("successful checked source-map debit");
             expanded.source_map_work = Some(map_work);
             expanded.lowering_demand.work = expanded.lowering_demand.work.max(map_work);
             reuse.save_lower(
@@ -1191,6 +1130,16 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
             (project_defaults, capture_lower_bindings, None),
         );
     }
+    finish_lowering(source, module.id, sources, limits, owner_limits, e)
+}
+fn finish_lowering<S: std::borrow::Borrow<SourceUnit>>(
+    source: &SourceUnit,
+    module_id: zil_base::ModuleId,
+    sources: &[S],
+    limits: &Limits,
+    owner_limits: &Limits,
+    e: Expander<'_>,
+) -> CompileResult<ExpandedModule> {
     e.source_map
         .validate_iter(sources.iter().map(|source| source.borrow()), limits)?;
     let owner_nodes = owner_limits.max_nodes - e.member_owner_nodes;
@@ -1213,7 +1162,7 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
-        module_id: module.id,
+        module_id: module_id,
         source_fingerprint: source.fingerprint(),
         functions: e.functions,
         aggregates: e.aggregates,

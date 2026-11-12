@@ -44,6 +44,48 @@ pub(super) fn owned_products(
         .collect()
 }
 type ModuleProducts = Vec<(ModuleProduct, Vec<CoreImport>)>;
+/// Complete real scalar items, shared through the actual Lower consumer. No
+/// declaration-only Module is substituted for bodies and no implicit flattening
+/// occurs in this representation.
+#[derive(Clone, Debug)]
+pub(super) struct SharedScalarModule {
+    pub(super) id: ModuleId,
+    pub(super) span: Span,
+    pub(super) items: Arc<[Arc<Item>]>,
+    pub(super) imports: Vec<CoreImport>,
+}
+pub(super) enum SpecializedModules {
+    Ordinary(ModuleProducts),
+    SharedScalar(Vec<Arc<SharedScalarModule>>),
+}
+impl SpecializedModules {
+    fn into_ordinary(self) -> ModuleProducts {
+        match self {
+            Self::Ordinary(modules) => modules,
+            // Explicit compatibility materialization for the standalone API.
+            // Actual cached expansion dispatches SharedScalar to borrowed items.
+            Self::SharedScalar(modules) => modules
+                .into_iter()
+                .map(|module| {
+                    let full = Module {
+                        id: module.id,
+                        span: module.span,
+                        items: module
+                            .items
+                            .iter()
+                            .map(|item| item.as_ref().clone())
+                            .collect(),
+                    };
+                    (
+                        ModuleProduct::Retained(Arc::new((full, module.imports.clone()))),
+                        module.imports.clone(),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
 type R<T> = Result<T, Diagnostic>;
 type Names = BTreeSet<String>;
 // The flag distinguishes source declarations from actual specialization output;
@@ -328,7 +370,11 @@ pub(super) fn specialize_with_runtime<S: std::borrow::Borrow<zil_base::SourceUni
     normalize(
         sources, modules, imports, limits, products, context, runtime_ct, None,
     )
-    .map(|modules| modules.expect("raw normalizer owns its output"))
+    .map(|modules| {
+        modules
+            .expect("raw normalizer owns its output")
+            .into_ordinary()
+    })
     .map_err(|e| vec![e])
 }
 pub(super) fn specialize_cached<S: std::borrow::Borrow<zil_base::SourceUnit>>(
@@ -339,7 +385,7 @@ pub(super) fn specialize_cached<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     reuse: &mut crate::incremental::Reuse<'_>,
-) -> CompileResult<Option<ModuleProducts>> {
+) -> CompileResult<Option<SpecializedModules>> {
     normalize(
         sources,
         modules,
@@ -362,7 +408,7 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> R<Option<ModuleProducts>> {
+) -> R<Option<SpecializedModules>> {
     let mut budget = Budget::new(limits);
     if runtime_ct.is_some() {
         budget.note_source_identity();
@@ -998,7 +1044,7 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         products.allowance = Some(budget.remaining_limits());
     }
     products.restore_owners(&functions)?;
-    Ok(Some(owned_products(output)))
+    Ok(Some(SpecializedModules::Ordinary(owned_products(output))))
 }
 
 /// Scalar orchestration changes ownership only. All body operations below are
@@ -1015,7 +1061,7 @@ fn normalize_scalar(
     mut functions: Functions,
     mut budget: Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
-) -> R<Option<ModuleProducts>> {
+) -> R<Option<SpecializedModules>> {
     use crate::incremental::Stage;
     let mut normalized = Vec::<Arc<Item>>::new();
     for module in modules {
@@ -1090,52 +1136,73 @@ fn normalize_scalar(
     }
     let mut output = Vec::with_capacity(modules.len());
     for ((module, edges), items) in modules.iter().zip(imports).zip(positions) {
-        if let Some(restored) = reuse.restored(module.span.file)
+        if let Some(restored) = reuse.shared_restored(module.span.file)
             && reuse.replay(Stage::Restore, module.span, &mut budget)
         {
             reuse.retain_restored();
-            let edges = restored.1.clone();
-            output.push((ModuleProduct::Retained(restored), edges));
+            output.push(restored);
             continue;
         }
         let before = budget.remaining_limits();
-        let clock = reuse.clock();
-        reuse.restored_input_cloned();
-        let mut restored = Module {
+        let mut current_epoch = reuse.restore_base(module.span.file);
+        let mut edges = edges.clone();
+        let mut restored = Vec::with_capacity(items.len());
+        for input in items {
+            if let Some(item) = reuse.restored_item(input.span, &current_epoch)
+                && reuse.replay(Stage::RestoreItem, input.span, &mut budget)
+            {
+                edges.extend(item.added.iter().cloned());
+                current_epoch = item.after.clone();
+                reuse.retain_restored_item();
+                restored.push(item.item);
+                continue;
+            }
+            let item_before = budget.remaining_limits();
+            let edge_start = edges.len();
+            let clock = reuse.clock();
+            let mut item = input.as_ref().clone();
+            reuse.restored_item_cloned();
+            reuse.assembly(clock);
+            let clock = reuse.clock();
+            let mut visitor = Visitor {
+                default_nominal: None,
+                const_scope: Names::new(),
+                mode: Mode::Restore {
+                    functions: &functions,
+                    edges: &mut edges,
+                },
+                module: module.id,
+                budget: &mut budget,
+            };
+            let result = visitor.item(&mut item, &Names::new(), true, 0);
+            reuse.production(clock);
+            result?;
+            reuse.record(Stage::RestoreItem, input.span, item_before, &budget);
+            reuse.cloned(input.span, Stage::RestoreItem);
+            let item = Arc::new(item);
+            current_epoch = reuse.save_restored_item(
+                input.span,
+                item.clone(),
+                current_epoch,
+                &edges[edge_start..],
+            );
+            restored.push(item);
+        }
+        reuse.record_restore_module(module.span, before, &budget);
+        let restored = Arc::new(SharedScalarModule {
             id: module.id,
             span: module.span,
-            items: items.iter().map(|item| item.as_ref().clone()).collect(),
-        };
-        let mut edges = edges.clone();
-        reuse.assembly(clock);
-        let clock = reuse.clock();
-        let mut visitor = Visitor {
-            default_nominal: None,
-            const_scope: Names::new(),
-            mode: Mode::Restore {
-                functions: &functions,
-                edges: &mut edges,
-            },
-            module: module.id,
-            budget: &mut budget,
-        };
-        let result = restored
-            .items
-            .iter_mut()
-            .try_for_each(|item| visitor.item(item, &Names::new(), true, 0));
-        reuse.production(clock);
-        result?;
-        reuse.record(Stage::Restore, module.span, before, &budget);
-        reuse.cloned(module.span, Stage::Restore);
-        let restored = reuse.save_restored_owned(module.span.file, restored, edges);
-        let edges = restored.1.clone();
-        output.push((ModuleProduct::Retained(restored), edges));
+            items: restored.into(),
+            imports: edges,
+        });
+        reuse.save_shared_restored(module.span.file, restored.clone());
+        output.push(restored);
     }
     products
         .storage
         .restore_functions(&functions, &mut budget)?;
     products.restore_owners(&functions)?;
-    Ok(Some(output))
+    Ok(Some(SpecializedModules::SharedScalar(output)))
 }
 
 /// Re-enter the actual module normalizer for syntax produced by the CT
