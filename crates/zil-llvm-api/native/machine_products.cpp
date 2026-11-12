@@ -2,6 +2,7 @@
 #include "machine_products.h"
 #include "machine_frame_products.h"
 #include "X86MachineFunctionInfo.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -178,16 +179,29 @@ struct BodyOperand {
 static_assert(sizeof(BodyOperand) == 16, "machine operand product must remain compact");
 static_assert(sizeof(unsigned) == sizeof(uint32_t), "LLVM register fields must fit their full encoding");
 static_assert(std::is_trivially_copyable_v<BodyOperand>, "operand records must contain values only");
+// Each range is a checked ordinal partition of a single owned side pool.
+// No pointer, per-instruction allocation or truncated operand encoding escapes.
+struct BodyRange {
+  uint32_t first = 0, count = 0;
+  bool operator==(const BodyRange &O) const { return first == O.first && count == O.count; }
+  bool fits(size_t Size) const { return first <= Size && count <= Size - first; }
+};
+template<class T>
+llvm::ArrayRef<T> bodySlice(const std::vector<T> &Pool, BodyRange R) {
+  assert(R.fits(Pool.size()) && "body range must be checked before slicing");
+  return llvm::ArrayRef<T>(Pool).slice(R.first, R.count);
+}
+using BodyTie = std::pair<unsigned, unsigned>;
 struct BodyInstruction {
   unsigned opcode = 0, flags = 0, asmFlags = 0, cfiType = 0;
-  std::vector<BodyOperand> operands;
-  std::vector<frame::Memory> memory;
-  std::vector<std::pair<unsigned, unsigned>> ties;
+  BodyRange operands, memory, ties;
   bool operator==(const BodyInstruction &O) const {
     return std::tie(opcode, flags, asmFlags, cfiType, operands, memory, ties) ==
            std::tie(O.opcode, O.flags, O.asmFlags, O.cfiType, O.operands, O.memory, O.ties);
   }
 };
+static_assert(sizeof(BodyInstruction) == 40, "MI product headers must not contain per-MI containers");
+static_assert(std::is_trivially_copyable_v<BodyInstruction>);
 struct BodyBlock {
   // -1 denotes a synthetic block, otherwise a CURRENT IR block's layout index.
   int64_t irBlock = -1;
@@ -195,7 +209,7 @@ struct BodyBlock {
   bool probabilities = false;
   std::vector<std::pair<unsigned, uint32_t>> successors;
   std::vector<llvm::MachineBasicBlock::RegisterMaskPair> liveins;
-  std::vector<BodyInstruction> instructions;
+  BodyRange instructions;
   bool operator==(const BodyBlock &O) const {
     return std::tie(irBlock, alignment, probabilities, successors, liveins, instructions) ==
            std::tie(O.irBlock, O.alignment, O.probabilities, O.successors, O.liveins, O.instructions);
@@ -203,6 +217,10 @@ struct BodyBlock {
 };
 struct BodyState {
   std::vector<BodyBlock> blocks;
+  std::vector<BodyInstruction> instructions;
+  std::vector<BodyOperand> operands;
+  std::vector<frame::Memory> memory;
+  std::vector<BodyTie> ties;
   std::vector<llvm::APInt> integers;
   // Physical register -> original ordered (global MI ordinal, operand index).
   std::map<unsigned, std::vector<std::pair<unsigned, unsigned>>> registerUses;
@@ -213,7 +231,9 @@ struct BodyState {
     for (size_t I = 0; I < integers.size(); ++I)
       if (integers[I].getBitWidth() != O.integers[I].getBitWidth() ||
           integers[I] != O.integers[I]) return false;
-    return blocks == O.blocks && registerUses == O.registerUses &&
+    return blocks == O.blocks && instructions == O.instructions &&
+           operands == O.operands && memory == O.memory && ties == O.ties &&
+           registerUses == O.registerUses &&
            usedRegisters == O.usedRegisters && reservedRegisters == O.reservedRegisters &&
            reservedFrozen == O.reservedFrozen && subRegLiveness == O.subRegLiveness;
   }
@@ -266,13 +286,11 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
     N = boundedAdd(N, sizeof(BodyBlock));
     N = boundedAdd(N, BB.successors.size() * sizeof(BB.successors.front()));
     N = boundedAdd(N, BB.liveins.size() * sizeof(BB.liveins.front()));
-    for (const auto &MI : BB.instructions) {
-      N = boundedAdd(N, sizeof(BodyInstruction));
-      N = boundedAdd(N, MI.ties.size() * sizeof(MI.ties.front()));
-      N = boundedAdd(N, MI.operands.size() * sizeof(BodyOperand));
-      N = boundedAdd(N, MI.memory.size() * sizeof(frame::Memory));
-    }
   }
+  N = boundedAdd(N, S.body.instructions.size() * sizeof(BodyInstruction));
+  N = boundedAdd(N, S.body.operands.size() * sizeof(BodyOperand));
+  N = boundedAdd(N, S.body.memory.size() * sizeof(frame::Memory));
+  N = boundedAdd(N, S.body.ties.size() * sizeof(BodyTie));
   N = boundedAdd(N, S.frame.chargedBytes);
   for (const auto &I : S.body.integers) N = boundedAdd(N, integerPayload(I));
   for (const auto &Uses : S.body.registerUses) {
@@ -440,7 +458,12 @@ enum OperandFlags : unsigned {
 };
 
 bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
-  if (!targetInfoAPI().readBlockProbabilities) return false;
+  if (!targetInfoAPI().readBlockProbabilities || !Out.blocks.empty() ||
+      !Out.instructions.empty() || !Out.operands.empty() || !Out.memory.empty() ||
+      !Out.ties.empty() || !Out.integers.empty() || !Out.registerUses.empty()) return false;
+  // Every append is charged against the existing 64MiB payload bound first.
+  // Consequently all four record-pool ordinals fit their full uint32 encoding.
+  static_assert(MaxMachinePayload < std::numeric_limits<uint32_t>::max());
   const auto &MRI = MF.getRegInfo();
   // VirtRegRewriter clears the final vreg domain. Do not infer that fact from
   // NoVRegs (which only describes instructions), or ignore unused vreg state.
@@ -464,6 +487,7 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   for (const auto &BB : MF) {
     if (!Charge(sizeof(BodyBlock))) return false;
     BodyBlock B;
+    B.instructions.first = Out.instructions.size();
     if (const auto *IR = BB.getBasicBlock()) {
       auto It = IRBlocks.find(IR);
       if (It == IRBlocks.end()) return false;
@@ -497,8 +521,12 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
       BodyInstruction I;
       I.opcode = MI.getOpcode(); I.flags = MI.getFlags();
       I.asmFlags = MI.getAsmPrinterFlags(); I.cfiType = MI.getCFIType();
+      I.operands.first = Out.operands.size();
+      I.memory.first = Out.memory.size();
+      I.ties.first = Out.ties.size();
       for (const auto *M : MI.memoperands()) {
-        if (!Charge(sizeof(frame::Memory)) || !frame::captureMemory(MF, *M, &I.memory)) return false;
+        if (!Charge(sizeof(frame::Memory)) || !frame::captureMemory(MF, *M, &Out.memory)) return false;
+        ++I.memory.count;
       }
       bool Implicits = false;
       for (const auto &MO : MI.operands()) {
@@ -520,10 +548,11 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
                     (MO.isDebug() ? Debug : 0) | (MO.isInternalRead() ? Internal : 0) |
                     (MO.getReg().isPhysical() && Detached.isRenamable() ? Renamable : 0);
           if (MO.isUse() && MO.isTied()) {
-            if (!Charge(sizeof(I.ties.front()))) return false;
-            I.ties.emplace_back(MI.findTiedOperandIdx(I.operands.size()), I.operands.size());
+            if (!Charge(sizeof(BodyTie))) return false;
+            Out.ties.emplace_back(MI.findTiedOperandIdx(I.operands.count), I.operands.count);
+            ++I.ties.count;
           }
-          Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.size()));
+          Operands.emplace(&MO, std::make_pair(InstructionIndex, I.operands.count));
           Out.registerUses.try_emplace(O.reg());
         } else if (MO.isImm()) {
           O.kind = BodyOperand::Imm; O.setImmediate(MO.getImm());
@@ -548,9 +577,9 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
         const bool IsImplicit = MO.isReg() && MO.isImplicit();
         if (Implicits && !IsImplicit) return false;
         Implicits |= IsImplicit;
-        I.operands.push_back(std::move(O));
+        Out.operands.push_back(O); ++I.operands.count;
       }
-      B.instructions.push_back(std::move(I));
+      Out.instructions.push_back(I); ++B.instructions.count;
       ++InstructionIndex;
     }
     if (PreviousBundledSucc) return false;
@@ -568,18 +597,47 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
   return UseCount == Operands.size();
 }
 
+// Prove exact encounter-order partitions BEFORE creating any current owners.
+// Bounds alone would permit aliases/gaps/reordered rows or an unused pool tail.
+bool canonicalBodyRanges(const BodyState &S) {
+  size_t Instruction = 0, Operand = 0, Memory = 0, Tie = 0;
+  auto Consume = [](BodyRange R, size_t Size, size_t &Next) {
+    if (R.first != Next || !R.fits(Size)) return false;
+    Next += R.count; return true;
+  };
+  for (const auto &B : S.blocks)
+    if (!Consume(B.instructions, S.instructions.size(), Instruction)) return false;
+  if (Instruction != S.instructions.size()) return false;
+  for (const auto &I : S.instructions) {
+    if (!Consume(I.operands, S.operands.size(), Operand) ||
+        !Consume(I.memory, S.memory.size(), Memory) ||
+        !Consume(I.ties, S.ties.size(), Tie)) return false;
+    auto Operands = bodySlice(S.operands, I.operands);
+    auto Ties = bodySlice(S.ties, I.ties);
+    for (size_t TI = 0; TI != Ties.size(); ++TI) {
+      const auto T = Ties[TI];
+      if (T.first >= Operands.size() || T.second >= Operands.size() ||
+          Operands[T.first].kind != BodyOperand::Reg || !(Operands[T.first].extra & Def) ||
+          Operands[T.second].kind != BodyOperand::Reg || (Operands[T.second].extra & Def) ||
+          (TI && T.second <= Ties[TI - 1].second)) return false;
+      for (size_t Prior = 0; Prior != TI; ++Prior)
+        if (Ties[Prior].first == T.first) return false;
+    }
+  }
+  return Operand == S.operands.size() && Memory == S.memory.size() && Tie == S.ties.size();
+}
+
 bool restoreBody(llvm::MachineFunction &MF, const BodyState &S, const frame::State *Frame = nullptr) {
   // Pool indices are a lossless local encoding, not independent authority.
   // Prove the canonical one-to-one encounter order before allocating current
   // instructions; reject dangling, aliased, reordered, or unused pool entries.
+  if (!canonicalBodyRanges(S)) return false;
   size_t IntegerIndex = 0;
-  for (const auto &B : S.blocks)
-    for (const auto &I : B.instructions)
-      for (const auto &O : I.operands)
-        if (O.kind == BodyOperand::CImm) {
-          if (O.payload != IntegerIndex || IntegerIndex >= S.integers.size()) return false;
-          ++IntegerIndex;
-        }
+  for (const auto &O : S.operands)
+    if (O.kind == BodyOperand::CImm) {
+      if (O.payload != IntegerIndex || IntegerIndex >= S.integers.size()) return false;
+      ++IntegerIndex;
+    }
   if (IntegerIndex != S.integers.size()) return false;
   if (!MF.empty() || MF.getRegInfo().getNumVirtRegs() ||
       !MF.getRegInfo().getPendingVirtRegMapEntries().empty()) return false;
@@ -608,11 +666,11 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S, const frame::Sta
       if (B.probabilities) BB->addSuccessor(Blocks[Edge.first], llvm::BranchProbability::getRaw(Edge.second));
       else BB->addSuccessorWithoutProb(Blocks[Edge.first]);
     }
-    for (const auto &I : B.instructions) {
+    for (const auto &I : bodySlice(S.instructions, B.instructions)) {
       if (I.opcode >= TII->getNumOpcodes()) return false;
       auto *MI = MF.CreateMachineInstr(TII->get(I.opcode), llvm::DebugLoc(), true);
       BB->push_back(MI); Instructions.push_back(MI);
-      for (const auto &O : I.operands) {
+      for (const auto &O : bodySlice(S.operands, I.operands)) {
         llvm::MachineOperand MO = llvm::MachineOperand::CreateImm(0);
         switch (O.kind) {
         case BodyOperand::Reg:
@@ -647,12 +705,12 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S, const frame::Sta
       // with the exact captured relation, which may also contain implicit ties.
       for (unsigned OI = 0; OI < MI->getNumOperands(); ++OI)
         if (MI->getOperand(OI).isReg()) MI->untieRegOperand(OI);
-      for (auto Tie : I.ties) MI->tieOperands(Tie.first, Tie.second);
+      for (auto Tie : bodySlice(S.ties, I.ties)) MI->tieOperands(Tie.first, Tie.second);
       MI->setFlags(I.flags);
       MI->setAsmPrinterFlag(I.asmFlags);
       if (I.cfiType) MI->setCFIType(MF, I.cfiType);
       llvm::SmallVector<llvm::MachineMemOperand *, 2> Memory;
-      for (const auto &M : I.memory) {
+      for (const auto &M : bodySlice(S.memory, I.memory)) {
         auto *Current = frame::restoreMemory(MF, M);
         if (!Current) return false;
         Memory.push_back(Current);
@@ -662,7 +720,7 @@ bool restoreBody(llvm::MachineFunction &MF, const BodyState &S, const frame::Sta
     // Bundling is restored only after insertion, so list insertion cannot
     // accidentally treat a partly reconstructed bundle as an existing bundle.
     auto II = BB->instr_begin();
-    for (const auto &I : B.instructions) {
+    for (const auto &I : bodySlice(S.instructions, B.instructions)) {
       if (I.flags & llvm::MachineInstr::BundledPred) II->setFlag(llvm::MachineInstr::BundledPred);
       if (I.flags & llvm::MachineInstr::BundledSucc) II->setFlag(llvm::MachineInstr::BundledSucc);
       ++II;
@@ -782,6 +840,12 @@ void testTypedBody(llvm::MachineFunction &Current) {
   MI->tieOperands(0, 1);
   MI->setFlag(llvm::MachineInstr::NoUWrap);
   MI->setAsmPrinterFlag(1);
+  auto *Second = Source->CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  B->push_back(Second);
+  Second->addOperand(*Source, llvm::MachineOperand::CreateReg(llvm::Register(1), false));
+  Second->addOperand(*Source, llvm::MachineOperand::CreateImm(7));
+  auto *Third = Source->CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  C->push_back(Third); Third->addOperand(*Source, llvm::MachineOperand::CreateImm(-9));
   const auto ReadProbabilities = targetInfoAPI().readBlockProbabilities;
   uint32_t Untouched[] = {123, 456};
   if (!ReadProbabilities || ReadProbabilities(nullptr, nullptr, 0) ||
@@ -791,7 +855,11 @@ void testTypedBody(llvm::MachineFunction &Current) {
   BodyState Saved;
   if (!captureBody(*Source, Saved) ||
       Saved.blocks[0].successors[0].second != llvm::BranchProbability::getUnknown().getNumerator() ||
-      Saved.blocks[1].probabilities || Saved.blocks[1].successors.size() != 1) return;
+      Saved.blocks[1].probabilities || Saved.blocks[1].successors.size() != 1 ||
+      Saved.instructions.size() != 3 || Saved.operands.size() != 15 ||
+      Saved.blocks[0].instructions.first != 0 || Saved.blocks[1].instructions.first != 1 ||
+      Saved.blocks[2].instructions.first != 2 || Saved.instructions[1].operands.first != 12 ||
+      Saved.instructions[2].operands.first != 14) return;
   MachineTypedBodyTestBits |= 1;
   auto Restored = Make();
   BodyState Again;
@@ -813,30 +881,72 @@ void testTypedBody(llvm::MachineFunction &Current) {
       MachineTypedBodyTestBits |= 4;
   }
   auto Changed = Saved;
-  Changed.blocks[0].instructions[0].operands[1].extra ^= Undef;
+  Changed.operands[Changed.instructions[0].operands.first + 1].extra ^= Undef;
   bool EncodingChecks = !(Changed == Saved);
   Changed = Saved; Changed.integers[0] = Saved.integers[0].zext(129);
   EncodingChecks &= !(Changed == Saved); // Distinct width, same numeric value.
   Changed = Saved; Changed.integers.back().flipBit(256);
   EncodingChecks &= !(Changed == Saved); // High bits must not be truncated.
-  Changed = Saved; Changed.blocks[0].instructions[0].operands[4].payload = Saved.integers.size();
+  Changed = Saved; Changed.operands[Changed.instructions[0].operands.first + 4].payload = Saved.integers.size();
   auto InvalidInteger = Make();
   EncodingChecks &= !restoreBody(*InvalidInteger, Changed) && InvalidInteger->empty();
   Changed = Saved; Changed.integers.push_back(llvm::APInt(1, 1));
   auto UnusedInteger = Make();
   EncodingChecks &= !restoreBody(*UnusedInteger, Changed) && UnusedInteger->empty();
-  Changed = Saved; Changed.blocks[0].instructions[0].operands[8].payload = 0;
+  Changed = Saved; Changed.operands[Changed.instructions[0].operands.first + 8].payload = 0;
   auto AliasedInteger = Make();
   EncodingChecks &= !restoreBody(*AliasedInteger, Changed) && AliasedInteger->empty();
   // Exercise the real capacity ledger: a non-CImm operand no longer reserves
   // a dummy APInt or an imaginary heap word. The wide pool is still charged.
   Snapshot Accounted; Accounted.body = Saved;
   const size_t BeforeOperand = snapshotPayload(Accounted, 0);
-  Accounted.body.blocks[0].instructions[0].operands.push_back(BodyOperand{});
+  Accounted.body.operands.push_back(BodyOperand{});
   EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeOperand + sizeof(BodyOperand);
   const size_t BeforeInteger = snapshotPayload(Accounted, 0);
   Accounted.body.integers.push_back(llvm::APInt(257, WideWords));
   EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeInteger + sizeof(llvm::APInt) + 5 * sizeof(uint64_t);
+  const size_t BeforeInstruction = snapshotPayload(Accounted, 0);
+  Accounted.body.instructions.push_back(BodyInstruction{});
+  EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeInstruction + sizeof(BodyInstruction);
+  const size_t BeforeTie = snapshotPayload(Accounted, 0);
+  Accounted.body.ties.emplace_back(0, 1);
+  EncodingChecks &= snapshotPayload(Accounted, 0) == BeforeTie + sizeof(BodyTie);
+  // Each flat pool is an exact ordered partition, not just in-bounds views.
+  // Every malformed range must fail before allocating any current MBB/MI.
+  auto RejectRanges = [&](const BodyState &Bad) {
+    auto Empty = Make();
+    return !restoreBody(*Empty, Bad) && Empty->empty();
+  };
+  Changed = Saved; Changed.blocks[1].instructions.first = 0;
+  EncodingChecks &= RejectRanges(Changed); // bounded instruction alias
+  Changed = Saved; ++Changed.blocks[0].instructions.first;
+  EncodingChecks &= RejectRanges(Changed); // instruction gap
+  Changed = Saved; Changed.blocks.back().instructions.count = std::numeric_limits<uint32_t>::max();
+  EncodingChecks &= RejectRanges(Changed); // count/endpoint overflow
+  Changed = Saved; Changed.instructions[1].operands = Changed.instructions[0].operands;
+  EncodingChecks &= RejectRanges(Changed); // bounded operand alias
+  Changed = Saved; ++Changed.instructions[0].operands.first;
+  EncodingChecks &= RejectRanges(Changed); // operand gap
+  Changed = Saved; Changed.instructions[0].operands.count = std::numeric_limits<uint32_t>::max();
+  EncodingChecks &= RejectRanges(Changed);
+  Changed = Saved; Changed.operands.push_back(BodyOperand{});
+  EncodingChecks &= RejectRanges(Changed); // unused operand tail is still charged
+  Changed = Saved; Changed.instructions.push_back(BodyInstruction{});
+  EncodingChecks &= RejectRanges(Changed); // unused instruction tail
+  Changed = Saved; Changed.instructions[1].ties = Changed.instructions[0].ties;
+  EncodingChecks &= RejectRanges(Changed); // bounded nonempty tie alias
+  Changed = Saved; ++Changed.instructions[0].ties.first;
+  EncodingChecks &= RejectRanges(Changed);
+  Changed = Saved; Changed.ties[0].first = std::numeric_limits<unsigned>::max();
+  EncodingChecks &= RejectRanges(Changed); // invalid tied operand index
+  Changed = Saved; Changed.ties[0].first = 3;
+  EncodingChecks &= RejectRanges(Changed); // an immediate cannot be a tied def
+  Changed = Saved; Changed.ties.emplace_back(0, 1);
+  EncodingChecks &= RejectRanges(Changed); // unused tie tail
+  Changed = Saved; Changed.instructions[0].memory.first = 1;
+  EncodingChecks &= RejectRanges(Changed); // even empty ranges must be canonical
+  Changed = Saved; Changed.instructions[0].memory.count = std::numeric_limits<uint32_t>::max();
+  EncodingChecks &= RejectRanges(Changed);
   if (EncodingChecks) MachineTypedBodyTestBits |= 8;
   Changed = Saved; Changed.blocks[0].irBlock = Current.getFunction().size();
   auto InvalidIR = Make();
@@ -943,17 +1053,17 @@ void testFrameProducts(llvm::MachineFunction &Current) {
   std::vector<frame::Memory> NewMemory;
   bool CurrentMemory = true;
   for (const auto *M : NewMI.memoperands()) CurrentMemory &= frame::captureMemory(*Restored, *M, &NewMemory);
-  const auto &OldMemory = Body.blocks.front().instructions.front().memory;
-  if (CurrentMemory && NewMemory == OldMemory && NewMemory.size() == 2 &&
+  const auto OldMemory = bodySlice(Body.memory, Body.instructions.front().memory);
+  if (CurrentMemory && llvm::ArrayRef<frame::Memory>(NewMemory) == OldMemory && NewMemory.size() == 2 &&
       NewMI.memoperands()[0]->getPseudoValue() == Restored->getPSVManager().getFixedStack(Slot) &&
       NewMI.memoperands()[1]->getPseudoValue() == Restored->getPSVManager().getStack() &&
       NewMI.memoperands()[0]->getPointerInfo().StackID == 9 &&
       NewMI.memoperands()[0]->getPointerInfo().Offset == -3 && NewMI.memoperands()[0]->getBaseAlign() == llvm::Align(16))
     MachineFrameTestBits |= 32;
-  auto BadBody = Body; BadBody.blocks.front().instructions.front().operands[0].setImmediate(99);
+  auto BadBody = Body; BadBody.operands[BadBody.instructions.front().operands.first].setImmediate(99);
   auto InvalidFI = Make();
   bool Rejected = !restoreBody(*InvalidFI, BadBody, &Saved);
-  BadBody = Body; BadBody.blocks.front().instructions.front().operands[2].payload = Saved.cfi.size();
+  BadBody = Body; BadBody.operands[BadBody.instructions.front().operands.first + 2].payload = Saved.cfi.size();
   auto InvalidCFI = Make(); Rejected &= !restoreBody(*InvalidCFI, BadBody, &Saved);
   auto BadFrame = Saved; BadFrame.saves.clear(); BadFrame.saves.emplace(2, std::vector<llvm::CalleeSavedInfo>{CSI});
   auto InvalidPoints = Make();
@@ -962,6 +1072,26 @@ void testFrameProducts(llvm::MachineFunction &Current) {
       InvalidPoints->getFrameInfo().getNumObjects() == 0;
   frame::State Uncharged;
   Rejected &= !frame::capture(*Restored, Uncharged, 1);
+  auto RejectMemoryRanges = [&](const BodyState &Bad) {
+    auto Empty = Make();
+    return !restoreBody(*Empty, Bad, &Saved) && Empty->empty();
+  };
+  BadBody = Body; BadBody.instructions.front().memory.first = 1;
+  Rejected &= RejectMemoryRanges(BadBody);
+  BadBody = Body; BadBody.instructions.front().memory.count = std::numeric_limits<uint32_t>::max();
+  Rejected &= RejectMemoryRanges(BadBody);
+  BadBody = Body; BadBody.memory.push_back(Body.memory.front());
+  Rejected &= RejectMemoryRanges(BadBody); // unused MMO tail
+  BadBody = Body;
+  BodyInstruction Alias;
+  Alias.operands.first = Body.operands.size(); Alias.ties.first = Body.ties.size();
+  Alias.memory = Body.instructions.front().memory;
+  BadBody.instructions.push_back(Alias); BadBody.blocks.back().instructions.count = 1;
+  Rejected &= RejectMemoryRanges(BadBody); // bounded overlapping MMO range
+  Snapshot Ledger; Ledger.body = Body;
+  const auto MemoryBytes = snapshotPayload(Ledger, 0);
+  Ledger.body.memory.push_back(Body.memory.front());
+  Rejected &= snapshotPayload(Ledger, 0) == MemoryBytes + sizeof(frame::Memory);
   if (Rejected) MachineFrameTestBits |= 64;
 
   auto HasOwner = Make();
