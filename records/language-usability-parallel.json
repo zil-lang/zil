@@ -14,5 +14,15 @@
     "task/language-stdlib",
     "task/language-integration"
   ],
-  "tests_this_dispatch": 0
+  "tests_this_dispatch": 0,
+  "integration_checkpoint": "a3689c175887f735f8e08af91ef583783a0d0058",
+  "integration_remote": "task/language-integration",
+  "observations": {
+    "numeric": "12 targeted tests passed with 84 actual native executions on numeric candidate; extended regressions pending; not accepted",
+    "public_identity": "14 identity controls passed before codec extension; added codec case first failed on test fixture missing contract, fixture corrected, rerun pending",
+    "abi": "ordinary opaque owning callback first consumer passed all four native configurations; generic borrowed-helper consumer exposed old rejection, Types/Analyze/Verify extension implemented, rerun pending",
+    "independent_schema_review": "async reviewer withheld acceptance for prehash metadata budget and CT version; capture preflight and CT8 fixed in root, dyn implementing independent owner cleanup inventory",
+    "other_lanes": "owned hash/float/buffer/graph, Task aggregate and generic/lending/retained closure composition implementation and validation continue"
+  },
+  "source_acceptance": "No complete candidate independently accepted or merged yet; implementation and test failures remain open"
 }
