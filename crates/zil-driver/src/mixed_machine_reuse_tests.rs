@@ -55,7 +55,13 @@ fn successful_native_build_without_reuse_releases_old_backend_history() {
     assert_eq!(failure.status, ResultCategory::SafeReject);
     let after_failure = session.compile_project(&project, &options);
     successful(&after_failure);
-    assert!(after_failure.backend_work.as_ref().unwrap().reused_machine_module);
+    assert!(
+        after_failure
+            .backend_work
+            .as_ref()
+            .unwrap()
+            .reused_machine_module
+    );
 
     let fresh = session.compile_project(&project, &disabled);
     oracle(&session, &fresh, &project, &disabled, &[b""]);

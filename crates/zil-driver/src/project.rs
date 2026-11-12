@@ -1246,6 +1246,7 @@ impl CompilationSession {
         let plain_checkpoint = plain_source.clone();
         let mut plain_published = false;
         let mut inference_work = None;
+        let mut ct_plain_work = None;
         let ct_result = self.query(
             key(Phase::Ct, true),
             std::slice::from_ref(&expand_snapshot),
@@ -1296,14 +1297,19 @@ impl CompilationSession {
                         })?;
                 }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
-                if options.push_reuse
-                    && let Some(usages) = plain_source.validate_program(
+                let plain_result = if options.push_reuse {
+                    let result = plain_source.validate_program(
                         inferred,
                         &options.target,
                         &remaining,
                         &context,
-                    )
-                {
+                    );
+                    ct_plain_work = Some(Box::new(plain_source.last_stats().clone()));
+                    result
+                } else {
+                    None
+                };
+                if let Some(usages) = plain_result {
                     // Retain the actual ordered project allowance consumer;
                     // plain receipts only replace fully bound function bodies.
                     for (module, usage) in inferred.modules.iter().zip(usages) {
@@ -1384,6 +1390,7 @@ impl CompilationSession {
             zil_ct::PlainSourceSession::default()
         };
         report.raw_inference_work = inference_work;
+        report.ct_plain_work = ct_plain_work;
         let (raw, ct_snapshot) = ct_result?;
         if options.push_reuse
             && let Some(epoch) = &expanded.producer_epoch

@@ -210,6 +210,9 @@ pub struct CompileAttempt {
     /// Actual sparse Types work for this attempt; None means not executed.
     pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
     pub raw_inference_work: Option<Box<zil_types::RawInferenceStats>>,
+    /// Work in the speculative plain CT admission only. None is unknown/not run;
+    /// after fallback, additional original evaluator work is not counted here.
+    pub ct_plain_work: Option<Box<zil_ct::PlainSourceStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -220,7 +223,7 @@ pub struct CompileAttempt {
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -254,6 +257,7 @@ impl CompileAttempt {
             self.raw_inference_work
                 .as_ref()
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
+            ct_plain_stats_json(self.ct_plain_work.as_deref()),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -302,6 +306,9 @@ pub struct CompileReport {
     /// Actual sparse Types work for this attempt; None means not executed.
     pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
     pub raw_inference_work: Option<Box<zil_types::RawInferenceStats>>,
+    /// Work in the speculative plain CT admission only. None is unknown/not run;
+    /// after fallback, additional original evaluator work is not counted here.
+    pub ct_plain_work: Option<Box<zil_ct::PlainSourceStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -345,6 +352,7 @@ impl CompileReport {
             function_type_work: None,
             types_push_work: None,
             raw_inference_work: None,
+            ct_plain_work: None,
             producer_work: None,
             materialization_work: None,
             initialization_work: None,
@@ -357,7 +365,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -426,6 +434,7 @@ impl CompileReport {
             self.lowering_work.map_or_else(|| "null".into(), |stats| stats.to_json()),
             self.types_push_work.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
             self.raw_inference_work.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
+            ct_plain_stats_json(self.ct_plain_work.as_deref()),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -466,6 +475,7 @@ impl CompileReport {
             function_type_work: self.function_type_work.clone(),
             types_push_work: self.types_push_work.clone(),
             raw_inference_work: self.raw_inference_work.clone(),
+            ct_plain_work: self.ct_plain_work.clone(),
             producer_work: self.producer_work.clone(),
             materialization_work: self.materialization_work,
             initialization_work: self.initialization_work,
@@ -488,6 +498,7 @@ impl CompileReport {
         next.function_type_work = None;
         next.types_push_work = None;
         next.raw_inference_work = None;
+        next.ct_plain_work = None;
         next.producer_work = None;
         next.materialization_work = None;
         next.initialization_work = None;
@@ -712,6 +723,14 @@ fn named_timings_json(timings: &BTreeMap<&'static str, u128>) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+fn ct_plain_stats_json(stats: Option<&zil_ct::PlainSourceStats>) -> String {
+    stats.map_or_else(|| "null".into(), |stats| format!(
+    "{{\"observer_schema\":1,\"scope\":\"plain admission attempt; extra fallback work unknown\",\"shape_checks\":{},\"shape_reuses\":{},\"body_checks\":{},\"body_reuses\":{},\"declaration_modules\":{},\"receipt_context_matches\":{},\"fallbacks\":{}}}",
+    stats.shape_checks, stats.shape_reuses, stats.body_checks, stats.body_reuses,
+    stats.declaration_modules, stats.context_reuses, stats.fallbacks,
+))
+}
+
 fn frontend_stats_json(
     types: Option<&zil_types::FunctionStats>,
     analysis: Option<zil_analyze::AnalysisStats>,
