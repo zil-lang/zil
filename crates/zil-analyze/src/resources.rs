@@ -3410,7 +3410,7 @@ impl Flow<'_> {
                                     || (matches!(package_storage(local_ty), Type::Package { .. })
                                         && budget.ordinary_pod_store_type(local_ty)?);
                                 let zero_environment = !new_store_sum
-                                    && zero_debt_environment(module, local_ty, budget)?;
+                                    && zero_debt_environment(self.module, local_ty, budget)?;
                                 if !(new_store_sum || zero_environment)
                                     || !state.sums.no_live_owner(*local, budget)? {
                                     return Err(error(&format!(
