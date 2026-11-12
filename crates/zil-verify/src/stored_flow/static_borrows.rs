@@ -181,11 +181,13 @@ pub(super) fn validate(
     b: &mut Budget,
 ) -> Check<()> {
     let mut nodes = BTreeMap::<Node, Obligation>::new();
+    let mut has_constant_results = false;
     b.spend(module.closures.len())?;
     for definition in &module.closures {
         if let Some(life) = &definition.storage_life {
             b.spend(life.static_bindings.len())?;
             for position in &life.static_bindings {
+                has_constant_results |= position.base == StorageBase::Result;
                 if matches!(position.base, StorageBase::Capture(_)) {
                     b.spend(
                         position
@@ -199,7 +201,7 @@ pub(super) fn validate(
             }
         }
     }
-    if nodes.is_empty() {
+    if nodes.is_empty() && !has_constant_results {
         return Ok(());
     }
     if mask.is_some_and(|mask| mask.iter().any(|selected| !selected)) {
@@ -269,6 +271,30 @@ pub(super) fn validate(
                     obligation.literal_root |= literal;
                     b.spend(dependencies.len())?;
                     obligation.dependencies.extend(dependencies);
+                }
+            }
+            // Result Static is a separate actual-body obligation. It cannot
+            // be inferred from a constant capture declaration or an empty
+            // class directory, and may retain no activation/head ancestry.
+            if let Terminator::Return(Some(value)) = block.terminator
+                && let Some(definition) = function
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                && let Some(life) = &definition.storage_life
+            {
+                b.spend(life.static_bindings.len())?;
+                for position in &life.static_bindings {
+                    if position.base != StorageBase::Result {
+                        continue;
+                    }
+                    let path = physical(position, b)?;
+                    let payload = solution
+                        .values
+                        .get(value.0 as usize)
+                        .ok_or_else(|| err("constant result has no actual return payload"))?;
+                    let permission = leaf(payload, &path, b)?
+                        .ok_or_else(|| err("constant result has no actual return occurrence"))?;
+                    observe(permission, solution, &nodes, b)?;
                 }
             }
         }

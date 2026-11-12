@@ -174,6 +174,14 @@ pub(super) fn validate(
     if !b.dyn_contexts {
         return Ok(());
     }
+    // A closure's explicit Static address result has its own whole-module
+    // actual Return/ancestry proof. It is not a Dyn retained-port proposal.
+    if f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .is_some_and(stored_callables::static_result)
+    {
+        return Ok(());
+    }
     let expected = dyn_ports::shape(module, &f.return_type, b)?;
     let claim = f.retained_return_sources.as_ref();
     if expected.is_empty() {
