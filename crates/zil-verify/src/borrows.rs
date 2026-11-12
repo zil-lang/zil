@@ -2026,7 +2026,7 @@ fn check_callback_return(
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
         crate::signature_life::charge(life, budget)?;
-        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
+        crate::signature_life::role_relation(module, d, life, None, budget)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
         return Ok(());
