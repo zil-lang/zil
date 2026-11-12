@@ -5727,9 +5727,13 @@ fn windows(
                         };
                         if let Some(receiver) = receiver {
                             b.spend(receiver.leaves.len())?;
-                            for (_, p) in &receiver.leaves {
-                                permission_work(p, b)?;
-                                all.push((p.clone(), false));
+                            let (definition, _) = stored_callables::called(module, f, &i.kind)
+                                .ok_or_else(|| err("actual captured call lacks its entry"))?;
+                            for (path, p) in &receiver.leaves {
+                                let current = returned_environment::current_leaf(
+                                    definition, receiver, path, p, &state, b,
+                                )?;
+                                all.push((current, false));
                             }
                         }
                         if let InstructionKind::CallClosureBorrowed { callee, .. } = &i.kind
