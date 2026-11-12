@@ -72,6 +72,9 @@ bool ownedUseSequence(const Function &F, std::vector<uint32_t> *Out) {
   };
   for (const Argument &A : F.args()) if (!Add(&A)) return false;
   for (const BasicBlock &B : F) {
+    // LLVM 23 BlockAddress stores its BB as a private pointer with zero Use
+    // operands. It is observable hidden state outside this owned-use schema.
+    if (B.hasAddressTaken()) return false;
     if (!Add(&B)) return false;
     for (const Instruction &I : B) if (!Add(&I)) return false;
   }
