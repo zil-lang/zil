@@ -1003,6 +1003,9 @@ fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
                 .map(|at| (block, at))
         })
         .unwrap();
+    // This counterfactual grants ordinary local write permission, so the
+    // rejection must come from the live stored loan after the weak update.
+    function.locals[local.0 as usize].mutable = true;
     let span = function.blocks[block].instructions[at].span;
     let value = ValueId(function.values.len() as u32);
     function.values.push(Type::I32);
