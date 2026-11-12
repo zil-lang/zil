@@ -349,3 +349,64 @@ fn rich_global_contracts_remain_complete_and_exact_whole_products_can_reuse_them
     run(&mut session, &edit(&rich, 14), &limits);
     assert_eq!(session.last_stats().product_global_obligations_executed, 1);
 }
+
+#[test]
+fn later_malformed_callee_metadata_is_admitted_before_any_current_caller_solve() {
+    let mut input = (*program()).clone();
+    input.module.functions[0].blocks[0].instructions[0].kind = InstructionKind::Call {
+        function: FunctionId(2),
+        arguments: vec![],
+    };
+    input.module.functions[1].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(0));
+    let input = Arc::new(input);
+    let limits = Limits::default();
+    let mut session = AnalysisSession::default();
+    let before = run(&mut session, &input, &limits);
+    let mut invalid = (*input).clone();
+    invalid.module.functions[2].parameters.push(LocalId(999));
+    let invalid = Arc::new(invalid);
+    let actual = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        session.analyze_product(&invalid, &limits)
+    }))
+    .expect("unadmitted callee must not be indexed by an early caller");
+    assert_eq!(
+        actual.map(|plan| (*plan).clone()),
+        expected(&invalid, &limits)
+    );
+    assert!(Arc::ptr_eq(&before, &run(&mut session, &input, &limits)));
+}
+#[test]
+fn shared_provisional_allowance_never_gives_each_item_a_full_work_limit() {
+    let input = program();
+    let limits = Limits::default();
+    let full = admit(
+        &input.module,
+        0,
+        &input.module.functions[0],
+        &limits,
+        limits.max_analysis_steps,
+    )
+    .unwrap();
+    assert!(full.cost > 0);
+    assert!(
+        admit(
+            &input.module,
+            0,
+            &input.module.functions[0],
+            &limits,
+            full.cost - 1
+        )
+        .is_err()
+    );
+    let remaining = limits.max_analysis_steps - full.cost;
+    let mut scoped = full.budget;
+    scoped.restrict_product_balance(remaining - 1);
+    let before = scoped.remaining();
+    scoped.restrict_product_balance(limits.max_analysis_steps);
+    assert_eq!(
+        scoped.remaining(),
+        before,
+        "a later item cannot replenish the shared allowance"
+    );
+}

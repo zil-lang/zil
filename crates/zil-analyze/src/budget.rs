@@ -295,6 +295,10 @@ impl Budget {
         }
     }
 
+    pub(super) fn restrict_product_balance(&mut self, available: usize) {
+        self.remaining = self.remaining.min(available);
+    }
+
     pub(super) fn remaining(&self) -> usize {
         self.remaining
     }

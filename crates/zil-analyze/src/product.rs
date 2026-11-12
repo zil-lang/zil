@@ -22,6 +22,7 @@ struct Row {
     function: Arc<TypedFunction>,
     callees: Vec<FunctionId>,
     output: Fingerprint,
+    admission_cost: usize,
 }
 #[derive(Clone, Copy, Default)]
 struct Total {
@@ -52,6 +53,12 @@ impl Total {
             locals: self.locals.checked_add(other.locals)?,
             values: self.values.checked_add(other.values)?,
         })
+    }
+    fn counts_fit(self, limits: &Limits) -> bool {
+        self.blocks <= limits.max_blocks
+            && self.instructions <= limits.max_instructions
+            && self.locals <= limits.max_locals
+            && self.values <= limits.max_values
     }
     fn fits(self, limits: &Limits, global: usize) -> bool {
         self.cost
@@ -86,6 +93,16 @@ impl Sum {
             len: values.len(),
             children: Some((left, right)),
         }))
+    }
+    fn get(&self, index: usize) -> Option<Total> {
+        if index >= self.len {
+            return None;
+        }
+        match &self.children {
+            None => Some(self.total),
+            Some((left, right)) if index < left.len => left.get(index),
+            Some((left, right)) => right.get(index - left.len),
+        }
     }
     fn replace(node: &Arc<Self>, index: usize, value: Total) -> Option<Arc<Self>> {
         if index >= node.len {
@@ -165,6 +182,15 @@ fn closed(function: &TypedFunction) -> Option<Vec<FunctionId>> {
     }
     Some(callees.into_iter().collect())
 }
+// Only bounded raw collections may be traversed by eligibility projection.
+// A rejected projection returns to the original preflight to choose its error.
+fn projection_bounded(function: &TypedFunction, limits: &Limits) -> bool {
+    function.blocks.len() <= limits.max_blocks
+        && function.locals.len() <= limits.max_locals
+        && function.values.len() <= limits.max_values
+        && function.parameters.len() <= limits.max_locals
+}
+
 fn global(module: &TypedModule, program: &TypedProgram) -> bool {
     module.closures.is_empty()
         && module.resources.is_empty()
@@ -272,6 +298,7 @@ impl Epoch {
                 function: program.module.functions.owner(index)?.clone(),
                 callees,
                 output: candidate.functions.item_fingerprint(index)?,
+                admission_cost: recording.costs[index][0].checked_add(recording.costs[index][1])?,
             });
             totals.push(Total::function(function, cost)?);
         }
@@ -297,6 +324,47 @@ impl Epoch {
             .module
             .functions
             .changed_indices(&self.program.module.functions);
+        let mut next = self.clone();
+        // Check current aggregate inventories before projecting a single body.
+        // Persistent totals update only changed leaves. No per-item quota is
+        // multiplied by the number of changed items.
+        for &index in &dirty {
+            let function = program.module.functions.get(index)?;
+            if !projection_bounded(function, limits) {
+                return None;
+            }
+            let old = next.total.get(index)?;
+            let value = Total {
+                blocks: function.blocks.len(),
+                locals: function.locals.len(),
+                values: function.values.len(),
+                ..old
+            };
+            next.total = Sum::replace(&next.total, index, value)?;
+        }
+        if !next.total.total.counts_fit(limits) {
+            return None;
+        }
+        for &index in &dirty {
+            let old = next.total.get(index)?;
+            next.total = Sum::replace(
+                &next.total,
+                index,
+                Total::function(&program.module.functions[index], old.cost)?,
+            )?;
+        }
+        let inventory = next.total.total;
+        let projection = program
+            .module
+            .functions
+            .len()
+            .checked_add(inventory.blocks)?
+            .checked_add(inventory.instructions)?
+            .checked_add(inventory.locals)?
+            .checked_add(inventory.values)?;
+        if !inventory.counts_fit(limits) || projection > limits.max_analysis_steps {
+            return None;
+        }
         let mut work: BTreeSet<_> = dirty.iter().copied().collect();
         let mut eligibility = BTreeMap::new();
         for &index in &dirty {
@@ -307,7 +375,40 @@ impl Epoch {
                 work.extend(self.readers.get(index)?.iter().copied());
             }
         }
-        let mut next = self.clone();
+        let old_work = work.iter().try_fold(0usize, |total, index| {
+            total.checked_add(self.total.get(*index)?.cost)
+        })?;
+        let unchanged = self.total.total.cost.checked_sub(old_work)?;
+        let mut available = limits
+            .max_analysis_steps
+            .checked_sub(self.global_cost)?
+            .checked_sub(unchanged)?;
+        let mut admissions = BTreeMap::new();
+        // All changed raw metadata is admitted before any caller may inspect
+        // it. A malformed later callee cannot cause an early caller to index an
+        // unvalidated parameter. The provisional allowance is shared, bounded,
+        // and never supplies a diagnostic: failure uses the original traversal.
+        for &index in &work {
+            let function = &program.module.functions[index];
+            let admission = if eligibility.contains_key(&index) {
+                admit(&program.module, index, function, limits, available).ok()?
+            } else {
+                let prior = self.rows.get(index)?;
+                if !Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?) {
+                    return None;
+                }
+                if prior.admission_cost > available {
+                    return None;
+                }
+                Admission {
+                    budget: Budget::new(limits),
+                    cost: prior.admission_cost,
+                    package: false,
+                }
+            };
+            available = available.checked_sub(admission.cost)?;
+            admissions.insert(index, admission);
+        }
         let mut candidate = (*self.candidate).clone();
         let mut changes = Vec::new();
         let mut stats = AnalysisStats::default();
@@ -333,7 +434,11 @@ impl Epoch {
             }
             // A local failure or insufficient total allowance returns to the
             // original complete traversal; it must emit the original first error.
-            let (result, cost) = execute(&program.module, index, function, limits).ok()?;
+            let admission = admissions.remove(&index)?;
+            let admission_cost = admission.cost;
+            let (result, cost, remaining) =
+                execute(&program.module, function, limits, admission, available).ok()?;
+            available = remaining;
             for id in &prior.callees {
                 if !callees.contains(id) {
                     next.readers.get_mut(id.0 as usize)?.remove(&index);
@@ -367,9 +472,10 @@ impl Epoch {
                     function: program.module.functions.owner(index)?.clone(),
                     callees,
                     output,
+                    admission_cost,
                 },
             );
-            stats.product_admission_functions_checked += 1;
+            stats.executed_functions += usize::from(function.foreign.is_none());
             stats.product_function_queries_executed += 1;
         }
         if !next.total.total.fits(limits, next.global_cost) {
@@ -380,6 +486,7 @@ impl Epoch {
         next.candidate = Arc::new(candidate);
         let count = program.module.functions.len();
         let executed = stats.product_function_queries_executed;
+        stats.product_admission_functions_checked = dirty.len();
         stats.product_function_queries_reused = count - executed;
         stats.product_global_obligations_reused = 1;
         stats.candidate_executed_functions = executed;
@@ -390,13 +497,16 @@ impl Epoch {
         Some((next, stats, changes))
     }
 }
-fn execute(
+fn admit(
     module: &TypedModule,
     index: usize,
     function: &TypedFunction,
     limits: &Limits,
-) -> CompileResult<(FunctionPlan, usize)> {
+    available: usize,
+) -> CompileResult<Admission> {
     let mut budget = Budget::new(limits);
+    budget.restrict_product_balance(available);
+    let before = budget.remaining();
     // The successful closed vocabulary has one scalar node per root; use the
     // same original ledger operation, including the reserved identity traversal.
     let mut roots = 1usize
@@ -424,6 +534,32 @@ fn execute(
         &mut budget,
         &mut budget::AdmissionCounts::default(),
     )?;
+    let cost = before - budget.remaining();
+    Ok(Admission {
+        budget,
+        cost,
+        package,
+    })
+}
+struct Admission {
+    budget: Budget,
+    cost: usize,
+    package: bool,
+}
+fn execute(
+    module: &TypedModule,
+    function: &TypedFunction,
+    limits: &Limits,
+    admission: Admission,
+    available: usize,
+) -> CompileResult<(FunctionPlan, usize, usize)> {
+    let Admission {
+        mut budget,
+        cost: admission_cost,
+        package,
+    } = admission;
+    budget.restrict_product_balance(available);
+    let before = budget.remaining();
     budget.spend(1, "function analysis")?;
     let (blocks, graph) = if function.foreign.is_some() {
         retained::check_function(module, function, &[], &mut budget)?;
@@ -465,7 +601,8 @@ fn execute(
             blocks,
             holds,
         },
-        limits.max_analysis_steps - budget.remaining(),
+        admission_cost + before - budget.remaining(),
+        budget.remaining(),
     ))
 }
 impl AnalysisSession {
@@ -482,6 +619,7 @@ impl AnalysisSession {
         {
             self.stats = AnalysisStats {
                 shared_program_reuses: 1,
+                retained_queries: self.retained_initializations(),
                 product_function_queries_reused: program.module.functions.len(),
                 product_global_obligations_reused: 1,
                 candidate_reused_functions: program.module.functions.len(),
@@ -505,6 +643,7 @@ impl AnalysisSession {
             }));
             self.product = Some(next);
             self.stats = stats;
+            self.stats.retained_queries = self.retained_initializations();
             self.product_changes = changes;
             // This specialized entry exports a patch; it does not pretend an old
             // complete legacy result list was recomputed for the new raw input.
