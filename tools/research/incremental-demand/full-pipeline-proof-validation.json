@@ -1,0 +1,88 @@
+{
+  "schema": "full-pipeline-proof-validation-v1",
+  "source": "532e01141b644d13c6e350a7dd310c50226d19d3",
+  "tree": "a380a742003ff011cf4670b2c9997baff4f45f3f",
+  "full_workspace": {
+    "command": [
+      "cargo",
+      "test",
+      "--workspace",
+      "--features",
+      "llvm-api",
+      "--no-fail-fast"
+    ],
+    "passed": 6229,
+    "failed": 0,
+    "ignored": 0,
+    "test_and_doctest_binaries": 430,
+    "exit_code": 0,
+    "controller_boundary": "Environment reconnect lost the tool session handle but retained original processes/files; no second cargo was started. Original orphaned shell kernel wait status was observed as zero, with its PID/start-time/command hash in the raw recovery receipt."
+  },
+  "targeted_overlap_not_additive": {
+    "verify": 623,
+    "backend": 222,
+    "driver": 196,
+    "llvm_api": 43
+  },
+  "strict_workspace_all_targets_llvm_api_clippy": "passed02 after retained01 lint failures",
+  "fmt": "passed02",
+  "retained_failures": [
+    "empty-borrows01 compiler borrow error and unused test variable",
+    "projection-integration01 incomplete SourceProjection representation conversion",
+    "proof-projection-clippy01 specific Verify argument-count and final Option borrow lints"
+  ],
+  "raw": {
+    "full-pipeline-workspace-03.log": {
+      "path": "out/runs/full-pipeline-workspace-03.log",
+      "sha256": "902d3642607989ec522e5cc080c74f3ca5178b17b67a5010a493c2192f3209a5",
+      "bytes": 628366
+    },
+    "full-pipeline-workspace-03-controller-recovery.json": {
+      "path": "out/runs/full-pipeline-workspace-03-controller-recovery.json",
+      "sha256": "d85008af3ead5f8a19b7f28ec9c4722b830e26ea64146536c5dedf2bcb701b47",
+      "bytes": 602
+    },
+    "full-pipeline-empty-borrows-01.log": {
+      "path": "out/runs/full-pipeline-empty-borrows-01.log",
+      "sha256": "0b1f238518de2b000a20a9ec342bc6f02db55ae99a582edb64b930a6048c0d07",
+      "bytes": 1427
+    },
+    "full-pipeline-empty-borrows-02.log": {
+      "path": "out/runs/full-pipeline-empty-borrows-02.log",
+      "sha256": "02fb92a1ca7585593eece734ad69bca8b66917f01977e3192b04740356436072",
+      "bytes": 62223
+    },
+    "full-pipeline-projection-integration-01.log": {
+      "path": "out/runs/full-pipeline-projection-integration-01.log",
+      "sha256": "429692984e655827dd2fd0af3c368c3a69316a7bce1942c4289b90fa880c3152",
+      "bytes": 3024
+    },
+    "full-pipeline-projection-integration-02.log": {
+      "path": "out/runs/full-pipeline-projection-integration-02.log",
+      "sha256": "fa151a0c2527924a6f442c04e2069272a6c3eca6b7919d22d831d344e5c44287",
+      "bytes": 50187
+    },
+    "full-pipeline-proof-projection-clippy-01.log": {
+      "path": "out/runs/full-pipeline-proof-projection-clippy-01.log",
+      "sha256": "e1cba969cdefe9f2f7ea100d23efa21f1e33ab3de96d8f3eda14e136e06cbd33",
+      "bytes": 1637
+    },
+    "full-pipeline-proof-projection-clippy-02.log": {
+      "path": "out/runs/full-pipeline-proof-projection-clippy-02.log",
+      "sha256": "ebd2cf01cb8874a5eae16f9b9fadd3d362ffc37b8b06d041f82e6f558356a686",
+      "bytes": 562
+    },
+    "full-pipeline-proof-projection-fmt-02.log": {
+      "path": "out/runs/full-pipeline-proof-projection-fmt-02.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "full-pipeline-workspace-03-controller.procstat": {
+      "path": "out/runs/full-pipeline-workspace-03-controller.procstat",
+      "sha256": "a8634f1761c6993e72a5e5811423c8a5172e535928701f66df6db9c20de320b6",
+      "bytes": 186
+    }
+  },
+  "durability": "These logs after history196 are local pending next checkpoint; v2 archive explicitly ends before this scope.",
+  "limits": "Correctness/test scope, not a performance measurement or proof of complete minimal scheduling; exact source reviews retain conservative-domain/global-work limitations."
+}

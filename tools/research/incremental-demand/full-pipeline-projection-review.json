@@ -1,0 +1,154 @@
+{
+  "schema": "full-pipeline-projection-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "532e01141b644d13c6e350a7dd310c50226d19d3",
+  "candidate_tree": "a380a742003ff011cf4670b2c9997baff4f45f3f",
+  "delta_base": "609a782700901b599181a4d1fe00838471cbeb97",
+  "verdict": "ACCEPT bounded source correctness for the lowering-projection and pure item-formatter delta at 532e01141b644d13c6e350a7dd310c50226d19d3. No remaining blocking dependency or authority issue was established after the missing SourceProjection representation was repaired. This is not performance acceptance, general mixed-project reuse approval, full task completion or main-merge/default-enable approval.",
+  "source_scope": {
+    "method": "Read actual live diff and consumers during construction; checked exact final commit/tree and frozen Git blob hashes, including the repaired representation and two Verify lint-only changes. No unrelated next mixed-project backend audit is included.",
+    "changed_crate_files_sha256": {
+      "crates/zil-backend-llvm/src/build.rs": "94ee632ca314cc4b837a356076834f8993ae47c28e21c758f427affbbde7fbcb",
+      "crates/zil-backend-llvm/src/emit/incremental.rs": "f58e56040bce06e22a123239df7e99be5239ff3e4032a2bc76b23379899740f1",
+      "crates/zil-backend-llvm/src/incremental.rs": "6cca3b8718b49a6469c4f4fbe4df47a087ac37c7a68fd188087d1e2d42c827a7",
+      "crates/zil-backend-llvm/src/tests.rs": "bec6a4e1b2c9fc752d608a3157413da08d72a9951dc7f10b8693ef681cc00467",
+      "crates/zil-driver/src/lib.rs": "a717562e3a3a10d452c2e6599258341e9c7cf18eb2d784ed0987ec40b048c78f",
+      "crates/zil-llvm-api/src/model.rs": "b0bb33e23de474da4b106948b7f8a929d5b658010ebd63ccdf5aa25a05448b2e",
+      "crates/zil-verify/src/borrows/loans.rs": "2a5918f0b2b70f91b4973cd39533cb4cf3e66cf46c658f87fa92b7156eab10ea",
+      "crates/zil-verify/src/lib.rs": "ce5fc487c25ca74b16739574fec64b9f342cd1e78ddc9f131b0ca0073f26b116"
+    },
+    "unchanged_consumer_context_read_sha256": {
+      "crates/zil-backend-llvm/src/emit.rs": "3fc6796e9da1f5cc2829e13ea0b63b4edcd0bbc2905cda3d3f4cbd2025d2f848",
+      "crates/zil-backend-llvm/src/machine_cgu.rs": "28524b7c46fef63d10b004c3fe3d51a6feb1f9f50ea937c454d6d7c96c0cc42a",
+      "crates/zil-backend-llvm/src/machine_cgu/recipe.rs": "5f9892acc079686e482e295f6145cc3caa06fa38040c90857426d2f322241653",
+      "crates/zil-backend-llvm/src/machine_cgu/layout.rs": "aaae0ac64f15591a272bf2432016cc363952e950fa90627ef3a836504b3f14f4"
+    },
+    "previous_verify_review": {
+      "source_commit": "50709457daaf4676069c0b91931d9cf6368798e0",
+      "path": "tools/research/incremental-demand/full-pipeline-empty-borrows-review.json",
+      "sha256": "f2db04ef6612404093d64adb26facc63b8bd02be3633cc44b98a80c46e3d59dd"
+    },
+    "scope_separation": "The prior empty-borrow implementation was reviewed separately on exact507. This receipt covers its two lint corrections and the new backend/API/reporting delta, not a new blanket Verify optimization claim."
+  },
+  "boundary_assessments": [
+    {
+      "area": "Projection consumer boundary",
+      "assessment": "No projection is built only when summaries=None and the current lowering context scalar_policy=false. In that path the ordinary planner consumes ordered ABI/header/FileId/name/entry inventory and actual machine definitions/references. The ordinary no-import planner does not consume LIR call slots; O0 source splitting groups by file/ordinal and also has no complete-call import consumer. Lowering context binds the full current target/Limits/header order; PartitionInput binds complete normalized options and the actual output identities. Unsupported domains retain their original raw/full binding."
+    },
+    {
+      "area": "Conservative disk layout identity is distinct from a planner dependency",
+      "assessment": "The disk layout action_key still hashes LIR instruction/call slots, but those extra fields conservatively identify an optional cached layout; they are not inputs used by ordinary no-import planner output decisions. Skipping a whole partition when the actual required machine/header/context result is equal does not let this overconservative key authorize a different layout or native result. Explicit scalar policies continue to retain source slots."
+    },
+    {
+      "area": "Summary Option boundary and complete observed facts",
+      "assessment": "If summaries is Some or scalar_policy is true, SourceProjection records every instruction slot and every direct callee plus the function itself in one traversal. Facts preserve each observed callee as (id, summaries.get(id)), including None rather than filtering it out. A previously absent summary becoming Some changes these actual facts and invalidates the unchanged caller. A policy/context change clears entries. Even the defensive None versus Some(empty map) transition changes fact shape conservatively instead of inventing a proof."
+    },
+    {
+      "area": "Shared projection identity and hidden fields",
+      "assessment": "Entry retains Option<Arc<SourceProjection>> and the exact old immutable function. Reuse of projection requires current blocks.ptr_eq(old blocks); safe COW mutations allocate privately and old strong ownership prevents ABA. Projection depends only on block instructions, so changing unrelated local/value fields does not require rebuilding it, while the later actual lower hit still requires exhaustive same_input, current summary facts and collection status. When separately rebuilt slots compare equal, observed IDs are necessarily the same set of those slots plus current function ID; context binds that ID, so source_identity may safely ignore redundant observed-list equality."
+    },
+    {
+      "area": "Actual machine output and budgets",
+      "assessment": "Changed raw inputs still run original lower() and its meter. A successful machine output equal to the prior result can retain output identity as before. Removing an unused source scan does not remove current Verify/LIR binding, lowering eligibility, ABI checks, native preflight/object integrity or acceptance-budget debits. Warm lowering still replays recorded original meter cost and keeps original failure behavior. Projection caching and its counters confer no verification authority."
+    },
+    {
+      "area": "Pure formatter extraction",
+      "assessment": "Compared every original NamedType/Global/Function match arm and helper call to new render_item. Order, spelling, whitespace, attrs, parameter names, variadic suffix, global initializer/alignment and instruction rendering are unchanged. Module::to_text retains its original header and calls this same body helper in order. item_to_text only returns that body without a temporary Module/header or substring body copy. Backend retains and streams the same shared fragments; full sidecar output I/O remains."
+    },
+    {
+      "area": "Stats binding and finite work evidence",
+      "assessment": "Projection traversals, instruction visits and Arc projection reuses reset at prepare, count the actual branches/walk and are copied into BackendSessionSummary and driver JSON. A projection reuse is distinct from a successful function lowering hit. Ordinary policy test asserts zero traversals/visits against fresh lower output; explicit policy asserts actual traversal and reuse counts. These counters are not whole-request CPU/allocation or measured speedup."
+    },
+    {
+      "area": "Verify lint-only changes",
+      "assessment": "The private eight-argument check_with_empty_proof receives the same local too_many_arguments allowance as the old explicit checker entry; it changes no inputs or checks. Final borrowing calls move the existing reuse Option directly rather than reborrowing with as_deref_mut after its last use. The same branch gets the same Attempt and subsequent global checks do not use it. No gate, charge, first-error order or proof publication behavior changes."
+    }
+  ],
+  "findings": [
+    {
+      "id": "P1",
+      "status": "CLOSED before this freeze",
+      "severity": "compile blocker in initial construction",
+      "evidence": "Independent live review found Entry.source still the old Vec and no SourceProjection definition while new lower code used Option<Arc<SourceProjection>>. projection-integration-01 preserves the resulting compile failure. Final frozen Entry source type and slots/observed struct are complete; emit/incremental.rs frozen SHA256 is f58e56040bce06e22a123239df7e99be5239ff3e4032a2bc76b23379899740f1."
+    },
+    {
+      "id": "F2",
+      "status": "OPEN prior objective limitation",
+      "assessment": "Explicit incremental_o2/stable-name unchanged-body COW work is not resolved by eliminating unused source projections or formatter copies."
+    },
+    {
+      "id": "EB1",
+      "status": "OPEN prior measurement qualification",
+      "assessment": "Completed empty-borrow proof values remain a scoped counter and can undercount avoided vectors on partial failures. No revised allocator-event claim is made here."
+    }
+  ],
+  "validation": {
+    "logs_independently_read": [
+      {
+        "path": "out/runs/full-pipeline-projection-integration-01.log",
+        "sha256": "429692984e655827dd2fd0af3c368c3a69316a7bce1942c4289b90fa880c3152",
+        "bytes": 3024,
+        "suites": []
+      },
+      {
+        "path": "out/runs/full-pipeline-projection-integration-02.log",
+        "sha256": "fa151a0c2527924a6f442c04e2069272a6c3eca6b7919d22d831d344e5c44287",
+        "bytes": 50187,
+        "suites": [
+          {
+            "status": "ok",
+            "passed": 222,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "status": "ok",
+            "passed": 196,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "status": "ok",
+            "passed": 43,
+            "failed": 0,
+            "ignored": 0
+          }
+        ]
+      },
+      {
+        "path": "out/runs/full-pipeline-proof-projection-clippy-01.log",
+        "sha256": "e1cba969cdefe9f2f7ea100d23efa21f1e33ab3de96d8f3eda14e136e06cbd33",
+        "bytes": 1637,
+        "suites": []
+      },
+      {
+        "path": "out/runs/full-pipeline-proof-projection-clippy-02.log",
+        "sha256": "ebd2cf01cb8874a5eae16f9b9fadd3d362ffc37b8b06d041f82e6f558356a686",
+        "bytes": 562,
+        "suites": []
+      },
+      {
+        "path": "out/runs/full-pipeline-proof-projection-fmt-02.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "suites": []
+      }
+    ],
+    "passing_targeted": "projection-integration-02: Backend222, Driver196, LLVM API43; each zero failed/ignored. Includes current summary None->Some invalidation of an unchanged actual caller and exact item spelling/composition, prior real sidecar/native cases and actual large history regression.",
+    "new_regression": "A callee Divide body deliberately yields no scalar summary; changing it to a literal creates the first Some fact. Current independent Verify precedes both lowerings; the unchanged caller must relower, its machine Call disappears and both functions miss. Repeated identical inputs separately demonstrate zero projection walks and two Arc reuses. This is finite actual consumer evidence, not a general optimizer speed claim.",
+    "preserved_failures": "integration-01 completed no tests because the source representation was incomplete. proof-projection-clippy-01 failed the two Verify lints described above; those failed logs are preserved. Clippy02 subsequently ends Finished dev profile.",
+    "lint_and_fmt": "Root reports strict workspace/all-targets LLVM-api -D warnings pass in proof-projection-clippy-02. fmt02 output is empty, with successful exit supplied by root; reviewer did not execute formatting.",
+    "full_workspace": "Full-workspace03 was still running at receipt creation and is not claimed successful or included in this evidence.",
+    "execution_attribution": "All compiler/native/test/lint/fmt execution by root. Reviewer performed read-only source/git/hash/log processing and wrote only this JSON. Invocation/source-window/exit attribution supplied by root because Cargo raw logs do not embed Git identity. No production/helper edits, new build or commit by reviewer."
+  },
+  "remaining_limits": [
+    "No statistical matched main/candidate/Rust timing, peak-memory/allocation or full workload profile on this SHA is independently accepted. Parent release measurements belong to their own frozen sources.",
+    "The context classifier, actual function equality, required summary facts, whole-project aggregation/partition admission, object integrity, external link discovery and complete output writes still cost work.",
+    "Explicit policy still visits and stores complete source slots, by design; some unrelated context changes conservatively clear otherwise reusable projections. No minimal recomputation across all domains is established.",
+    "Only a pure formatter was extracted; this is not a new machine checker, native target/configuration proof, LLVM verification receipt or authority to consume unverified input.",
+    "General mixed-project backend reuse and any later edits are outside this exact-source review. Existing conservative fallback, complete Limits and independent Verify boundaries remain.",
+    "Task remains under construction and default-off research scope persists."
+  ]
+}
