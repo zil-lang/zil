@@ -1,0 +1,17 @@
+{
+  "archive_sha256": "d2672d41531b96aa64459a6c4b3adb8c3b001914664b7615882f14d0bff84e3a",
+  "limits": "Notremotelypushed or freshHTTPSverified due currentGithub401. Originalpayload pieces01..19 alreadyverified; this supplementalproof index is localonly until ordinarypush succeeds.",
+  "manifest": {
+    "bytes": 2159,
+    "sha256": "8ec0b16ca8a2fb64a980d5d5c3844edce0a5b94db021e115747d2b1835ad288f"
+  },
+  "schema": 1,
+  "scope": "V15 local-only supplemental index20 pending GitHub authentication recovery. Exactunion original21669files/2313436984B against masterSHA6e9fff647c5974991092dc93ae4173e86629058b33ece54d126502a2f721f015; all19originalpayload pieces remotelypushed and freshHTTPS hash/modeverified. Includes completefixedpiece refs, restoreguide and firstwrapper countassert correction. No wholeassembledfreshmatchedvalidator rerun. Formalcompiler1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393; newfunctionalgates excluded.",
+  "source_commits": {
+    "formal": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}

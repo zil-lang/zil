@@ -1,0 +1,50 @@
+{
+  "archive": {
+    "bytes": 5430,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 5430,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "d2672d41531b96aa64459a6c4b3adb8c3b001914664b7615882f14d0bff84e3a"
+      }
+    ],
+    "sha256": "d2672d41531b96aa64459a6c4b3adb8c3b001914664b7615882f14d0bff84e3a",
+    "tar_bytes": 20480
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 972,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-11/final-index/RESTORE.md",
+        "sha256": "11b007e8ff869b3081dc61e84cf092b4ba843826d7c6df010b7f369b4b63219c"
+      },
+      {
+        "bytes": 13504,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-11/final-index/V15-UNION.json",
+        "sha256": "7a29405c1134dde203af88e064decea21fce976688f3f422bce300a8114c155f"
+      },
+      {
+        "bytes": 669,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-11/final-index/WRAPPER-COUNT-CORRECTION.json",
+        "sha256": "a3bc3c922f0c54d9ef0464ed8c44183a06150514bbb0520a1b7c5ae66671a0cb"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V15 local-only supplemental index20 pending GitHub authentication recovery. Exactunion original21669files/2313436984B against masterSHA6e9fff647c5974991092dc93ae4173e86629058b33ece54d126502a2f721f015; all19originalpayload pieces remotelypushed and freshHTTPS hash/modeverified. Includes completefixedpiece refs, restoreguide and firstwrapper countassert correction. No wholeassembledfreshmatchedvalidator rerun. Formalcompiler1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393; newfunctionalgates excluded.",
+    "source_commits": {
+      "formal": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+    }
+  },
+  "inventory_sha256": "cc9125addf057fdb4585665571674603b37768091c2d2687a6c00e7658d622c9",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/evidence/full-push-checkpoint-11/final-index/**"
+  ],
+  "source_root": "/workspace"
+}
