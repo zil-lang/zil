@@ -104,6 +104,7 @@ fn fixture() -> TypedModule {
     };
     module.dyn_declarations = vec![trait_decl, impl_decl.clone()];
     module.dyn_interfaces = vec![DynInterface {
+        owning_cleanup: None,
         id: interface_id,
         application,
         inherited: vec![],

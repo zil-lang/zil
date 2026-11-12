@@ -3390,6 +3390,7 @@ mod tests {
             }],
         });
         core.dyn_interfaces.push(DynInterface {
+            owning_cleanup: None,
             id: interface,
             application: application.clone(),
             inherited: vec![],

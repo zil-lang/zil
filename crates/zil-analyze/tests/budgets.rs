@@ -485,6 +485,7 @@ fn unsupported_metadata_does_not_allocate_unbounded_diagnostics() {
 fn callable_return_metadata_is_reserved_before_fingerprinting_or_validation() {
     let mut raw = module(1, 0, false);
     raw.functions[0].callable_return_contract = Some(CallableReturnContract {
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),
         closure: ClosureId(0),

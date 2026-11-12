@@ -92,6 +92,11 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_interface(&mut self, value: &DynInterface) -> WireResult<()> {
+        self.boolean(value.owning_cleanup.is_some())?;
+        if let Some(cleanup) = &value.owning_cleanup {
+            self.dyn_cleanup_contract(cleanup)?;
+        }
+
         self.dyn_interface_id(&value.id)?;
         self.dyn_trait_application(&value.application)?;
         self.count(value.inherited.len(), self.limits.max_nodes)?;
@@ -558,6 +563,11 @@ impl Reader<'_> {
     }
     pub(super) fn dyn_interface(&mut self) -> WireResult<DynInterface> {
         Ok(DynInterface {
+            owning_cleanup: if self.boolean()? {
+                Some(self.dyn_cleanup_contract()?)
+            } else {
+                None
+            },
             id: self.dyn_interface_id()?,
             application: self.dyn_trait_application()?,
             inherited: {

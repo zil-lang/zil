@@ -1066,6 +1066,7 @@ mod tests {
                 },
             ],
             dyn_interfaces: vec![DynInterface {
+                owning_cleanup: None,
                 id: interface_id,
                 application: application.clone(),
                 inherited: vec![],
