@@ -112,7 +112,12 @@ fn zero(
             let Some(entry) = module.functions.get(d.function.0 as usize) else {
                 return Ok(false);
             };
+            crate::signature_life::charge(life, b)?;
+            if let Some(entry_life) = &entry.storage_life {
+                crate::signature_life::charge(entry_life, b)?;
+            }
             if d.id != *id
+                || entry.id != d.function
                 || entry.environment != Some(*id)
                 || entry.storage_life.as_ref() != Some(life)
                 || life.fixed_binder_count != 0
