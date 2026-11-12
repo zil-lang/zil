@@ -91,86 +91,76 @@ pub(super) fn from_core(
     };
     let mut result = CtDynamicCatalogue::default();
     builder.rows(core.modules.len(), 0, 0)?;
+    let mut counts = [0usize; 7];
     for module in &core.modules {
-        let core = &module.core;
-        macro_rules! copy_rows {
-            ($field:ident,$convert:ident,$ty:ty) => {{
-                builder.rows(core.$field.len(), std::mem::size_of::<$ty>(), 1)?;
-                result
-                    .$field
-                    .try_reserve_exact(core.$field.len())
-                    .map_err(|_| limit())?;
-                for value in &core.$field {
-                    result.$field.push($convert(value, &mut builder, 2)?);
-                }
-            }};
+        builder.node(1)?;
+        let module = &module.core;
+        for (count, length) in counts.iter_mut().zip([
+            module.life_declarations.len(),
+            module.life_instances.len(),
+            module.dyn_declarations.len(),
+            module.dyn_interfaces.len(),
+            module.dyn_vtables.len(),
+            0,
+            0,
+        ]) {
+            *count = count.checked_add(length).ok_or_else(limit)?;
         }
-        copy_rows!(
-            life_declarations,
-            reify_life_nominal_declaration,
-            CtLifeNominalDeclaration
-        );
-        copy_rows!(
-            life_instances,
-            reify_life_nominal_instance,
-            CtLifeNominalInstance
-        );
-        builder.rows(
-            core.dyn_declarations.len(),
-            std::mem::size_of::<CtDynDeclaration>(),
-            1,
-        )?;
-        result
-            .declarations
-            .try_reserve_exact(core.dyn_declarations.len())
-            .map_err(|_| limit())?;
+        builder.rows(module.functions.len(), 0, 1)?;
+        for function in &module.functions {
+            counts[5] = counts[5]
+                .checked_add(usize::from(function.dyn_instance.is_some()))
+                .ok_or_else(limit)?;
+            counts[6] = counts[6]
+                .checked_add(usize::from(function.retained_return_sources.is_some()))
+                .ok_or_else(limit)?;
+        }
+    }
+    macro_rules! reserve_rows {
+        ($field:ident, $index:expr, $ty:ty) => {{
+            builder.rows(counts[$index], std::mem::size_of::<$ty>(), 1)?;
+            result
+                .$field
+                .try_reserve_exact(counts[$index])
+                .map_err(|_| limit())?;
+        }};
+    }
+    reserve_rows!(life_declarations, 0, CtLifeNominalDeclaration);
+    reserve_rows!(life_instances, 1, CtLifeNominalInstance);
+    reserve_rows!(declarations, 2, CtDynDeclaration);
+    reserve_rows!(interfaces, 3, CtDynInterface);
+    reserve_rows!(vtables, 4, CtCoreDynVtable);
+    reserve_rows!(function_instances, 5, CtDynFunctionInstanceRecord);
+    reserve_rows!(function_sources, 6, CtFunctionSourceBindings);
+    for module in &core.modules {
+        builder.node(1)?;
+        let core = &module.core;
+        for row in &core.life_declarations {
+            result
+                .life_declarations
+                .push(reify_life_nominal_declaration(row, &mut builder, 2)?);
+        }
+        for row in &core.life_instances {
+            result
+                .life_instances
+                .push(reify_life_nominal_instance(row, &mut builder, 2)?);
+        }
         for row in &core.dyn_declarations {
             result
                 .declarations
                 .push(reify_dyn_declaration(row, &mut builder, 2)?);
         }
-        builder.rows(
-            core.dyn_interfaces.len(),
-            std::mem::size_of::<CtDynInterface>(),
-            1,
-        )?;
-        result
-            .interfaces
-            .try_reserve_exact(core.dyn_interfaces.len())
-            .map_err(|_| limit())?;
         for row in &core.dyn_interfaces {
             result
                 .interfaces
                 .push(reify_dyn_interface(row, &mut builder, 2)?);
         }
-        builder.rows(
-            core.dyn_vtables.len(),
-            std::mem::size_of::<CtCoreDynVtable>(),
-            1,
-        )?;
-        result
-            .vtables
-            .try_reserve_exact(core.dyn_vtables.len())
-            .map_err(|_| limit())?;
         for row in &core.dyn_vtables {
             result
                 .vtables
                 .push(reify_core_dyn_vtable(row, &mut builder, 2)?);
         }
-        builder.rows(
-            core.functions.len(),
-            std::mem::size_of::<CtDynFunctionInstanceRecord>()
-                + std::mem::size_of::<CtFunctionSourceBindings>(),
-            1,
-        )?;
-        result
-            .function_instances
-            .try_reserve_exact(core.functions.len())
-            .map_err(|_| limit())?;
-        result
-            .function_sources
-            .try_reserve_exact(core.functions.len())
-            .map_err(|_| limit())?;
+        builder.rows(core.functions.len(), 0, 1)?;
         for function in &core.functions {
             if let Some(instance) = &function.dyn_instance {
                 result.function_instances.push(CtDynFunctionInstanceRecord {
@@ -179,16 +169,16 @@ pub(super) fn from_core(
                     instance: reify_dyn_function_instance(instance, &mut builder, 2)?,
                 });
             }
-            if function.retained_return_sources.is_some() {
-                let mut sources=|rows:Option<&Vec<zil_ir::StorageSourceBinding>>|->CompileResult<Option<Vec<CtStorageSourceBinding>>>{
-                    let Some(rows)=rows else{return Ok(None)};
-                    builder.rows(rows.len(),std::mem::size_of::<CtStorageSourceBinding>(),2)?;
-                    rows.iter().map(|row|reify_storage_source_binding(row,&mut builder,3)).collect::<CompileResult<Vec<_>>>().map(Some)
-                };
+            if let Some(rows) = &function.retained_return_sources {
+                builder.rows(rows.len(), std::mem::size_of::<CtStorageSourceBinding>(), 2)?;
+                let rows = rows
+                    .iter()
+                    .map(|row| reify_storage_source_binding(row, &mut builder, 3))
+                    .collect::<CompileResult<Vec<_>>>()?;
                 result.function_sources.push(CtFunctionSourceBindings {
                     module: core.module_id,
                     source: function.id,
-                    retained_return_sources: sources(function.retained_return_sources.as_ref())?,
+                    retained_return_sources: Some(rows),
                 });
             }
         }
@@ -253,7 +243,7 @@ pub(super) fn copy_cost(
     let mut cost = CopyCost {
         budget,
         max_depth: remaining.max_call_depth as usize,
-        max_nodes: remaining.max_generated_nodes.min(usize::MAX as u64) as usize,
+        max_nodes: remaining.max_analysis_work.min(usize::MAX as u64) as usize,
         bytes: 0,
     };
     catalogue.visit_ct_dynamic(&mut cost, 0)?;

@@ -70,7 +70,7 @@ impl CtDynamicVisitor for Inventory<'_, '_> {
         self.height = 1;
         node.visit_ct_dynamic(self, depth)?;
         if self.height
-            >= self
+            > self
                 .limits
                 .max_call_depth
                 .min(self.raw.budget.max_call_depth as usize)
