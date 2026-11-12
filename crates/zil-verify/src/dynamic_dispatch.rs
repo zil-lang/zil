@@ -296,24 +296,14 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             ));
         }
     }
+    budget.dyn_contexts |= module
+        .dyn_interfaces
+        .iter()
+        .any(|item| item.context.is_some());
     let mut ids = BTreeSet::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
-        crate::dynamic_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
-        crate::dynamic_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
-        if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
-        {
-            return Err(bad(
-                "trait declaration cannot claim an implemented-trait recipe",
-                None,
-            ));
-        }
-        if declaration.self_pattern.is_some() {
-            return Err(bad(
-                "dyn Self recipe requires complete implementation substitution proof",
-                None,
-            ));
-        }
+        crate::dynamic_metadata::declaration(declaration, budget)?;
         budget.spend(
             declaration
                 .members
@@ -338,7 +328,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             budget.spend(member.name.len().saturating_add(1))?;
             if member.name.is_empty()
                 || !member_names.insert(&member.name)
-                || !matches!(member.kind, DynMemberKind::Method(_))
+                || matches!(&member.kind, DynMemberKind::Method(kinds) if kinds.len() > budget.limits.max_nodes)
             {
                 return Err(bad(
                     "finite dyn declarations require named ordinary methods",
@@ -349,6 +339,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     }
     let mut interfaces = BTreeSet::new();
     for item in &module.dyn_interfaces {
+        crate::dynamic_metadata::interface(module, item, budget)?;
         budget.spend(1)?;
         if let Some(context) = &item.context {
             crate::dynamic_metadata::ty(context, budget)?;
@@ -367,8 +358,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         if !interfaces.insert(item.id) {
             return Err(bad("duplicate dyn interface identity", None));
         }
-        if item.context.is_some()
-            || item.slots.is_empty()
+        if item.context.is_some() {
+            crate::dynamic_ports::validate_interface(module, item, budget)?;
+            continue;
+        }
+        if item.slots.is_empty()
             || !item.inherited.is_empty()
             || !item.associated_types.is_empty()
             || !item.associated_constants.is_empty()
@@ -399,7 +393,6 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         }
         let mut members = BTreeSet::new();
         for slot in &item.slots {
-            crate::dynamic_metadata::guarantees(slot.contract.guarantees.as_deref(), budget)?;
             for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
                 if !ty.is_b0_scalar() {
                     check_type_shape(ty, &module.target, &budget.limits.clone(), budget)?;
@@ -475,17 +468,19 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     }
     let mut tables = BTreeSet::new();
     for item in &module.dyn_vtables {
-        if item.self_classes.len() > budget.limits.max_nodes {
-            return Err(limit("dyn Self class inventory exceeds node limit"));
-        }
-        budget.spend(item.self_classes.len().saturating_add(1))?;
         budget.spend(
             item.entries
                 .len()
                 .saturating_mul(8)
                 .saturating_add(item.actuals.len())
-                .saturating_add(item.ports.len()),
+                .saturating_add(item.ports.len())
+                .saturating_add(item.self_classes.len()),
         )?;
+        if item.self_classes.len() > budget.limits.max_nodes {
+            return Err(limit(
+                "dyn Self class witness count exceeds selected node bound",
+            ));
+        }
         if !tables.insert(item.id) {
             return Err(bad("duplicate dyn table identity", None));
         }
@@ -501,6 +496,24 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .iter()
             .find(|d| d.id == item.implementation)
             .ok_or_else(|| bad("dyn implementation declaration absent", None))?;
+        if iface.context.is_some() {
+            crate::dynamic_ports::validate_table(module, item, budget)?;
+            if item.id.module != implementation.id.module
+                || implementation.kind != DynDeclarationKind::Impl
+                || item.owned_storage != Some(DynOwnedStorage::Heap)
+                || item.cleanup.is_some()
+                || item.entries.len() != iface.slots.len()
+            {
+                return Err(bad(
+                    "Context provider table has an inconsistent implementation or storage route",
+                    None,
+                ));
+            }
+            crate::dynamic_ports::validate_entries(module, item, iface, budget)?;
+            budget.spend(budget.pending_dyn_tables.len().saturating_add(1))?;
+            budget.pending_dyn_tables.insert(item.id);
+            continue;
+        }
         if implementation
             .implemented_trait
             .as_ref()
@@ -952,7 +965,11 @@ pub(super) fn type_owned(
 ) -> Check<()> {
     budget.spend(module.dyn_interfaces.len().saturating_add(1))?;
     let iface = interface(module, interface_id)?;
-    crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
+    if iface.context.is_some() {
+        crate::dynamic_ports::validate_cleanup(iface, budget)?;
+    } else {
+        crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
+    }
     Ok(())
 }
 
@@ -984,7 +1001,12 @@ pub(super) fn instruction(
                 || selected.interface != *id
                 || selected.owned_storage != Some(*route)
                 || value_type(function, *source, span)? != &selected.self_type
-                || !owned_provider(module, &selected.self_type, budget)?
+                || if interface(module, *id)?.context.is_some() {
+                    crate::dynamic_ports::validate_table(module, selected, budget)?;
+                    false
+                } else {
+                    !owned_provider(module, &selected.self_type, budget)?
+                }
             {
                 return Err(bad(
                     "owned dyn construction lacks exact complete provider and Heap route",

@@ -106,6 +106,23 @@ pub(super) fn check_type_for(
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if let Type::ErrorUnion { error, result } = ty
+            && let Type::OwnedDyn { interface } = result.as_ref()
+        {
+            // Borrowing the allocation outcome for tag inspection uses the
+            // same exact erased-owner route as the owning value itself.
+            // Authenticate this route directly: recursively redispatching an
+            // arbitrary owning error through errors::needs_shape could loop.
+            budget.spend(2)?;
+            if error.as_ref() != &dynamic_dispatch::create_error() {
+                return Err(bad(
+                    span,
+                    "erased-owner allocation outcome has a different error route",
+                ));
+            }
+            dynamic_dispatch::type_owned(module, *interface, budget)?;
+            continue;
+        }
         if owning_container {
             dynamic_store::check_owner_field(ty, span)?;
         }
