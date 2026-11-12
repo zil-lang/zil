@@ -892,11 +892,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
                                 && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
                     }) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "captured Fixed helper exclusive arguments need capture target summary substitution",
-                            None,
-                        )]);
+                        // Header equality above authenticates the actual role;
+                        // it does not prove an exclusive argument disjoint from
+                        // that role's captures. Keep a mandatory CFG obligation.
+                        budget.lookup(
+                            budget.pending_exclusive_helpers.len(),
+                            "exclusive helper actual CFG obligation",
+                        )?;
+                        budget.pending_exclusive_helpers.insert(function.id);
                     }
                 } else {
                     super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
@@ -992,6 +995,81 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         flow::check(module, function, claim, &candidates, &checked, budget)?;
         checked[index] = true;
     }
+    Ok(())
+}
+
+/// A finite helper envelope cannot replace actual captured target/argument
+/// substitution. Every deferred helper, its real callback entry, and each
+/// caller must have completed the independent stored CFG solve in this request.
+pub(super) fn finish_deferred(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    if budget.pending_exclusive_helpers.is_empty() {
+        return Ok(());
+    }
+    let completed = budget
+        .stored_completed_functions
+        .take()
+        .ok_or_else(|| bad("exclusive captured helper has no completed stored CFG proof"))?;
+    let selected = |id: FunctionId| completed.get(id.0 as usize) == Some(&true);
+    budget.spend(
+        budget.pending_exclusive_helpers.len(),
+        "exclusive helper completed body coverage",
+    )?;
+    for id in &budget.pending_exclusive_helpers {
+        let helper = module
+            .functions
+            .get(id.0 as usize)
+            .ok_or_else(|| bad("exclusive helper actual function is absent"))?;
+        if helper.id != *id || !selected(*id) {
+            return Err(bad(
+                "exclusive helper body has no completed stored CFG proof",
+            ));
+        }
+        let claim = helper
+            .callable_contract
+            .as_ref()
+            .ok_or_else(|| bad("exclusive helper actual role directory is absent"))?;
+        budget.spend(
+            claim.roles.len(),
+            "exclusive helper actual callback coverage",
+        )?;
+        for role in &claim.roles {
+            let definition = module
+                .closures
+                .get(role.closure.0 as usize)
+                .ok_or_else(|| bad("exclusive helper actual callback definition is absent"))?;
+            if !selected(definition.function) {
+                return Err(bad(
+                    "exclusive helper callback lacks completed target proof",
+                ));
+            }
+        }
+    }
+    for function in &module.functions {
+        for block in &function.blocks {
+            budget.spend(
+                block.instructions.len(),
+                "exclusive helper actual caller coverage",
+            )?;
+            for instruction in &block.instructions {
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    budget.lookup(
+                        budget.pending_exclusive_helpers.len(),
+                        "exclusive helper call membership",
+                    )?;
+                    if budget.pending_exclusive_helpers.contains(&callee) && !selected(function.id)
+                    {
+                        return Err(bad(
+                            "exclusive helper caller lacks actual capture substitution proof",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    budget.stored_completed_functions = Some(completed);
     Ok(())
 }
 

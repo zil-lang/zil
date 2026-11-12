@@ -114,6 +114,10 @@ pub(super) struct Budget {
     /// A false row is an unselected ordinary function, not an empty proof.
     pub(super) task_stored_coverage: Vec<bool>,
     pub(super) stored_borrows: bool,
+    // Scheduling obligations only. Actual permission substitution is proved
+    // by the stored CFG solver, never by the presence of a role header.
+    pub(super) pending_exclusive_helpers: BTreeSet<zil_ir::FunctionId>,
+    pub(super) stored_completed_functions: Option<Vec<bool>>,
     pub(super) ordinary_input_head_candidates: bool,
     pub(super) stored_slot_updates: bool,
     // Current function's actual loan arena, including reserved exclusive sites.
@@ -231,6 +235,8 @@ impl Budget {
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
             stored_borrows: false,
+            pending_exclusive_helpers: BTreeSet::new(),
+            stored_completed_functions: None,
             ordinary_input_head_candidates: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,

@@ -125,6 +125,12 @@ pub(super) fn shared_enum_observation(
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    // A concrete callback may carry captured Fixed classes entirely outside
+    // its physical parameter types. Select its actual header/CFG proof even
+    // for Unit/scalar results; selection itself grants no captured permission.
+    if f.environment.is_some() && f.storage_life.is_some() {
+        return Ok(true);
+    }
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
     if matches!(f.return_type, Type::Address { .. }) {
@@ -7630,6 +7636,7 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    b.stored_completed_functions = None;
     byte_queries::authenticate(module, b)?;
     dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
@@ -7897,6 +7904,12 @@ pub(super) fn infer(
         result.push(rows);
     }
     b.store_option_targets = option_targets;
+    // Publish coverage only after complete actual instruction, header,
+    // source/loan, summary substitution and required responsibility checks.
+    fee(b, module.functions.len())?;
+    b.stored_completed_functions = Some((0..module.functions.len()).map(|index| {
+        b.composition_stored.is_empty() || b.composition_stored[index]
+    }).collect());
     Ok(result)
 }
 

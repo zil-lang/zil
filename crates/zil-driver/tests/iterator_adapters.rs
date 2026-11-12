@@ -944,3 +944,19 @@ fn local_borrowed_callback_with_owning_item_keeps_real_complete_scopes() {
         (typed, plan)
     );
 }
+
+#[test]
+fn captured_callback_exclusive_companion_uses_actual_caller_targets() {
+    let limits = Limits::default();
+    zil_analyze::analyze(&typed(BORROWED), &limits).unwrap();
+    let conflict = BORROWED.replace(
+        "var visit=(item:&Item)=>{total+=item.value}",
+        "var visit=(item:&Item)=>{cursor.index+=1;total+=item.value}",
+    );
+    assert_ne!(conflict, BORROWED);
+    let errors = zil_analyze::analyze(&typed(&conflict), &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
+        "{errors:#?}"
+    );
+}
