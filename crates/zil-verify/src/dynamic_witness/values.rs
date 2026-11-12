@@ -32,7 +32,7 @@ impl Inventory<'_> {
         result
     }
     fn node(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
-        let closed = Domain {
+        let mut closed = Domain {
             count: 0,
             pending_sources: false,
         };
@@ -114,7 +114,7 @@ impl Inventory<'_> {
                         .chain(&d.parameters)
                         .chain(std::iter::once(&d.result))
                     {
-                        self.zero(child, b)?;
+                        closed.pending_sources |= self.zero(child, b)?.pending_sources;
                     }
                 } else {
                     signature_life::closure_relation(
@@ -247,42 +247,42 @@ impl Inventory<'_> {
             }
             Type::Tuple(fields) => {
                 for child in fields {
-                    self.zero(child, b)?;
+                    closed.pending_sources |= self.zero(child, b)?.pending_sources;
                 }
                 Ok(closed)
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, child) in fields {
-                    self.zero(child, b)?;
+                    closed.pending_sources |= self.zero(child, b)?.pending_sources;
                 }
                 Ok(closed)
             }
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
                     for child in fields {
-                        self.zero(child, b)?;
+                        closed.pending_sources |= self.zero(child, b)?.pending_sources;
                     }
                 }
                 Ok(closed)
             }
             Type::ErrorUnion { error, result } => {
-                self.zero(error, b)?;
-                self.zero(result, b)?;
+                closed.pending_sources |= self.zero(error, b)?.pending_sources;
+                closed.pending_sources |= self.zero(result, b)?.pending_sources;
                 Ok(closed)
             }
             Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Mutex { payload: element } => {
-                self.zero(element, b)?;
+                closed.pending_sources |= self.zero(element, b)?.pending_sources;
                 Ok(closed)
             }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for child in parameters {
-                    self.zero(child, b)?;
+                    closed.pending_sources |= self.zero(child, b)?.pending_sources;
                 }
-                self.zero(result, b)?;
+                closed.pending_sources |= self.zero(result, b)?.pending_sources;
                 Ok(closed)
             }
             Type::BorrowedFunctionPointer {
@@ -309,13 +309,14 @@ impl Inventory<'_> {
             )),
         }
     }
-    fn zero(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
-        if self.domain(ty, b)?.count != 0 {
+    fn zero(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
+        let domain = self.domain(ty, b)?;
+        if domain.count != 0 {
             return Err(bad(
                 "unqualified container omits its child class occurrences",
             ));
         }
-        Ok(())
+        Ok(domain)
     }
     // Outer borrows are represented by their enclosing complete contract. This
     // traversal validates the nested semantic domains without counting them a
@@ -344,7 +345,9 @@ impl Inventory<'_> {
                 DynGenericActual::QualifiedType(value) => {
                     self.value(value, scope, b)?;
                 }
-                DynGenericActual::Type(ty) => self.zero(ty, b)?,
+                DynGenericActual::Type(ty) => {
+                    self.zero(ty, b)?;
+                }
                 DynGenericActual::Life(class) => scopes::class(scope, *class, b)?,
                 DynGenericActual::Const(_) => {}
             }
@@ -505,12 +508,14 @@ pub(super) fn intrinsic(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
     }
     .domain(ty, b)
 }
+/// Proves only a zero class domain, never ClosedEnvironment or static sources.
 pub(super) fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<()> {
     Inventory {
         module,
         active: vec![],
     }
     .zero(ty, b)
+    .map(|_| ())
 }
 
 #[cfg(test)]
