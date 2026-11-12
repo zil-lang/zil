@@ -218,6 +218,7 @@ struct Request {
   ZilNativeProductStats Stats{};
   bool Failed = false;
   unsigned Phase = 0;
+  size_t ProductBytes = 0;
   std::vector<std::pair<unsigned, unsigned>> Path;
   std::map<std::string, unsigned> Occurrences;
   ZilLLVMFunctionProductHooks Hooks{};
@@ -226,6 +227,24 @@ struct Request {
   Request(Module &M, TargetMachine &TM, std::string C, const Products *P)
       : M(M), TM(TM), Config(std::move(C)), Prior(P) { Next.Config = Config; }
 };
+// Optional resident products have a bounded encoded payload and slot count.
+// Reaching either cap only discards a candidate; it never changes compilation,
+// verification, optimization policy or the compiler's existing work budget.
+constexpr size_t MaxStageProductBytes = 64 * 1024 * 1024;
+constexpr size_t MaxStageProductSlots = 4096;
+void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stage> P) {
+  if (R.Next.Stages.size() >= MaxStageProductSlots) return;
+  size_t Bytes = sizeof(Stage);
+  for (size_t N : {Slot.size(), P->Input.size(), P->World.size(), P->Path.size(),
+                   P->Pipeline.size(), P->Output.size(), P->OutputText.size(),
+                   P->EntryKeys.size() * sizeof(void *), P->ExitKeys.size() * sizeof(void *)}) {
+    if (N > MaxStageProductBytes - Bytes) return;
+    Bytes += N;
+  }
+  if (Bytes > MaxStageProductBytes - R.ProductBytes) return;
+  R.ProductBytes += Bytes;
+  R.Next.Stages.emplace(Slot, std::move(P));
+}
 std::string pipeline(FunctionPassManager &PM) {
   std::string S; raw_string_ostream OS(S);
   PM.printPipeline(OS, [](StringRef N) { return N; }); return S;
@@ -331,7 +350,7 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
       if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys) {
         if (!replay(R, F, AM, Old)) { R.Failed = true; ++R.Stats.failed_replays; return 0; }
         *static_cast<PreservedAnalyses *>(PA) = Old.PA;
-        R.Next.Stages[Slot] = It->second; ++R.Stats.optimizer_function_stage_reuses; return 1;
+        retainStage(R, Slot, It->second); ++R.Stats.optimizer_function_stage_reuses; return 1;
       }
     }
   }
@@ -349,7 +368,7 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
   P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   R.Stats.ir_snapshot_bytes += P->Product->Output.size() + P->Product->OutputText.size();
-  R.Next.Stages[P->Slot] = std::move(P->Product);
+  retainStage(R, P->Slot, std::move(P->Product));
 }
 void enterPass(void *C, unsigned Kind, unsigned Index) {
   auto &R = *static_cast<Request *>(C); R.Path.emplace_back(Kind, Index);
@@ -391,7 +410,7 @@ extern "C" void *ZilNativeProductsFinish(void *P, ZilNativeProductStats *S, int 
     if (!R->Stats.failed_replays) ++R->Stats.failed_replays;
     copyStats(*R, S); return nullptr;
   }
-  for (const auto &E : R->Next.Stages) R->Stats.retained_bytes += E.first.size() + E.second->Input.size() + E.second->World.size() + E.second->Output.size() + E.second->OutputText.size() + E.second->Pipeline.size();
+  R->Stats.retained_bytes += R->ProductBytes;
   copyStats(*R, S);
   auto *Result = new Products(std::move(R->Next));
   if (Failed) *Failed = 0;
