@@ -614,6 +614,28 @@ fn closed(ty: &Type, fuel: &mut Fuel<'_>, depth: usize) -> Result<()> {
     }
 }
 
+/// Query only a candidate class boundary after bounded full snapshots.
+/// `Some(0)` is an explicit empty domain; `None` means this Type has no
+/// standalone boundary and never proves that its children are closed.
+/// Missing callable/interface definitions remain `UnknownScope`. The result
+/// grants no initialization, ClosedEnvironment, state, Drop or access proof.
+pub fn scope_with_candidates(
+    ty: &Type,
+    scopes: ScopeCandidates<'_>,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> Result<Option<u32>> {
+    let mut fuel = Fuel {
+        limits,
+        remaining,
+        nodes: 0,
+        scopes,
+    };
+    fuel.ty(ty, 0)?;
+    fuel.scopes()?;
+    scope(ty, &mut fuel, 0)
+}
+
 /// Construct an untrusted physical subvalue view and complete child->parent
 /// relation. `prefix` never dereferences an address or owning manager. Empty
 /// explicit class domains are preserved; unresolved scopes are errors.
@@ -1052,6 +1074,51 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn scope_queries_keep_unknown_separate_from_explicit_empty_at_exact_budgets() {
+        let ty = Type::Closure(ClosureId(0));
+        let limits = Limits::default();
+        assert_eq!(
+            scope_with_candidates(&ty, ScopeCandidates::default(), &limits, &mut 10000),
+            Err(ProjectionError::UnknownScope)
+        );
+        let definitions = [closure(0, vec![Type::I32], None)];
+        let scopes = ScopeCandidates {
+            closures: &definitions,
+            interfaces: &[],
+        };
+        let mut left = 10000;
+        assert_eq!(
+            scope_with_candidates(&ty, scopes, &limits, &mut left),
+            Ok(Some(0))
+        );
+        let needed = 10000 - left;
+        assert_eq!(
+            scope_with_candidates(&ty, scopes, &limits, &mut needed.clone()),
+            Ok(Some(0))
+        );
+        assert_eq!(
+            scope_with_candidates(&ty, scopes, &limits, &mut (needed - 1)),
+            Err(ProjectionError::Limit)
+        );
+        assert_eq!(
+            scope_with_candidates(&ty, scopes, &limits, &mut needed.clone()),
+            Ok(Some(0))
+        );
+        assert_eq!(
+            scope_with_candidates(
+                &Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32)
+                },
+                ScopeCandidates::default(),
+                &limits,
+                &mut 10000
+            ),
+            Ok(None)
+        );
+    }
+
     #[test]
     fn actual_closed_closure_snapshot_supplies_empty_registration_scope() {
         let parent = registration_parent();
