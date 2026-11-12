@@ -154,7 +154,7 @@ impl Inventory<'_> {
                         ));
                     }
                 } else {
-                    signature_life::closure_relation(
+                    signature_life::closure_structural_relation(
                         self.module,
                         &d.parameters,
                         &d.captures,
@@ -367,6 +367,11 @@ impl Inventory<'_> {
             this.static_occurrences(ty, next, expected, depth + 1, b)
         };
         match ty {
+            Type::Address { mutable: true, .. } => {
+                return Err(bad(
+                    "constant static borrow cannot manufacture exclusive mutable storage",
+                ));
+            }
             Type::Address { inner, .. } | Type::Desc(inner) => {
                 // Even a constant outer borrow cannot erase the complete inner
                 // nominal/phantom domain. The actual origin stays pending.
