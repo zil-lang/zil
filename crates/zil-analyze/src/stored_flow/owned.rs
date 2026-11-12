@@ -383,6 +383,34 @@ fn capture<'a>(
     Ok((d, t))
 }
 
+// Describing an actual addressed scalar resource preserves the head loan but
+// grants no pointer stored inside its payload.
+pub(super) fn scalar_description(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DescribeAddress { address } = i.kind else {
+        return Ok(false);
+    };
+    let Type::Address { inner, .. } = value_type(f, address)? else {
+        return Ok(false);
+    };
+    let Type::Managed(payload) = inner.as_ref() else {
+        return Ok(false);
+    };
+    if !super::super::stored_callables::resource_payload(payload, b)? {
+        return Ok(false);
+    }
+    b.type_work(
+        payload,
+        false,
+        "actual addressed scalar resource description",
+    )?;
+    result(f, i, &Type::Desc(payload.clone()), b)?;
+    Ok(true)
+}
+
 pub(super) fn instruction(
     module: &TypedModule,
     f: &TypedFunction,
