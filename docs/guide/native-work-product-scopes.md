@@ -11,7 +11,7 @@ Schema 3 requires all six nonnegative integer observations.
 
 | Field | Actual scope |
 |---|---|
-| `ir_key_ns` | After supported entry-key admission: eligibility, current analysis facts, complete Input/World, path and pipeline key construction, including early-return failure cleanup. Stops before prior-slot lookup, unpack or replay. |
+| `ir_key_ns` | After supported entry-key admission: eligibility, current analysis facts, complete Input/World, path and pipeline key construction, including early-return failure cleanup. Stops before prior-slot lookup, unpack or replay. A later selected-slot negative-filter digest construction/comparison is also charged here. |
 | `ir_unpack_ns` | Complete decoding of a selected prior Slot, including lossless frame/decompression checks and typed metadata reconstruction. |
 | `ir_replay_ns` | Entire replay function: parsing, cloning, complete validation, analysis-manager work and owned local cleanup, including parsed Module destruction and failure returns. |
 | `ir_parse_ns` | MemoryBuffer and `parseBitcodeFile` construction only. Stops before subsequent Module/Buffer destruction. **Already included in `ir_replay_ns`.** |
@@ -30,3 +30,12 @@ ordinary work has no hook observations; its per-pass counts are unavailable.
 Native receipt totals include that fallback, and request wall also includes
 all driver retries. Counter hits and scoped costs do not by themselves establish
 net latency savings. Compare exact timer definitions at each frozen source.
+
+A packed Stage may retain a complete-entry **negative** summary: four ordered
+text lengths and fast digests, plus the unchanged full typed entry-key list.
+An unequal summary can avoid decoding a stale packet; an equal summary always
+continues through complete decode and the original Input/World/Pipeline/
+EntryFacts/ordered typed-key equality. Digest collisions cannot authorize reuse.
+Summary metadata remains inside the existing admission caps. This removes
+unnecessary miss decoding, not the current key projection or any LLVM check;
+net wall effects still require measurement at the exact frozen source.
