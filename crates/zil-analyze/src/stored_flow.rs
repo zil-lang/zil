@@ -2468,6 +2468,12 @@ fn seed(
     Ok(state)
 }
 
+fn local_capture_base(state:&State,local:LocalId,b:&mut Budget)->CompileResult<HoldRoot> {
+    if state.capture_views.is_empty() {return Ok(HoldRoot::Local(local));}
+    ordered(b,state.capture_views.len(),0)?;
+    Ok(state.capture_views.get(&local).copied().map_or(HoldRoot::Local(local),HoldRoot::Capture))
+}
+
 fn captured_view_local(state: &State, base: HoldRoot, b: &mut Budget) -> CompileResult<Option<LocalId>> {
     let HoldRoot::Capture(index) = base else { return Ok(None); };
     if state.capture_views.is_empty() { return Ok(None); }
@@ -4142,8 +4148,11 @@ fn active(
             }
         }
     }
-    for value in state.captures.values() {
+    for (index,original) in &state.captures {
+        let view=captured_view_local(state,HoldRoot::Capture(*index),b)?;
+        let value=if let Some(local)=view {state.locals.get(&local).ok_or_else(||failure("active captured view unavailable"))?} else {original};
         active_loans_union(&mut direct, &value.pointer, b)?;
+        if !value.environment.is_empty() {active_loans_union(&mut direct,&value.held,b)?;}
         for leaf in value.slots.values() {
             active_loans_union(&mut direct, leaf, b)?;
         }
@@ -4201,8 +4210,11 @@ fn active_by_permission(
             }
         }
     }
-    for value in state.captures.values() {
+    for (index,original) in &state.captures {
+        let view=captured_view_local(state,HoldRoot::Capture(*index),b)?;
+        let value=if let Some(local)=view {state.locals.get(&local).ok_or_else(||failure("active captured view unavailable"))?} else {original};
         union(&mut direct, &value.pointer, b)?;
+        if !value.environment.is_empty() {union(&mut direct,&value.held,b)?;}
         for leaf in value.slots.values() {
             union(&mut direct, leaf, b)?;
         }
@@ -4609,7 +4621,7 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state,*local,b)?,
                                 stored: Vec::new(),
                                 place: path.clone(),
                                 heap_element: None,
@@ -4623,7 +4635,7 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state,*local,b)?,
                                 stored: Vec::new(),
                                 place: Vec::new(),
                                 heap_element: None,
@@ -4639,7 +4651,7 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state,*local,b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
                                 heap_element: None,
@@ -4663,7 +4675,7 @@ fn windows(
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
                                 retained_port: None,
-                                base: HoldRoot::Local(*local),
+                                base: local_capture_base(&state,*local,b)?,
                                 stored: Vec::new(),
                                 place: vec![PlaceProjection::Field(*index)],
                                 heap_element: None,
@@ -4713,7 +4725,7 @@ fn windows(
                         let mut actual = Permission::default();
                         actual.targets.insert(Target {
                             retained_port: None,
-                            base: HoldRoot::Local(*local),
+                            base: local_capture_base(&state,*local,b)?,
                             stored: Vec::new(),
                             place: Vec::new(),
                             heap_element: None,
