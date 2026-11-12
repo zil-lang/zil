@@ -14,6 +14,41 @@ fn pure_nominal_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
 }
 
+// Each qualified child of an ordinary Tuple has its own local class domain.
+// The enclosing signature must name every domain at its physical Field path.
+// Admission of the actual nominal instances and all stored leaves is a
+// separate module/body proof; this only selects the shared value directory.
+fn shared_compound(ty: &Type) -> bool {
+    shared_compound_inner(ty, false)
+}
+fn shared_compound_inner(ty: &Type, qualified: bool) -> bool {
+    match ty {
+        Type::BorrowedStorage { storage, life } => {
+            life.slots
+                .iter()
+                .all(|slot| slot.mode == StoredBorrowMode::SharedAddress)
+                && shared_compound_inner(storage, true)
+        }
+        Type::Address { mutable: false, .. } => qualified,
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|field| shared_compound_inner(field, qualified)),
+        Type::Record { fields, .. } => fields
+            .iter()
+            .all(|(_, field)| shared_compound_inner(field, qualified)),
+        Type::Array { element, .. } => shared_compound_inner(element, qualified),
+        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
+            fields
+                .iter()
+                .all(|field| shared_compound_inner(field, qualified))
+        }),
+        Type::ErrorUnion { error, result } => {
+            shared_compound_inner(error, qualified) && shared_compound_inner(result, qualified)
+        }
+        other => other.is_copy_value(),
+    }
+}
+
 fn pure_value_tree(ty: &Type) -> bool {
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
@@ -535,9 +570,10 @@ fn relation_inner(
                     )?;
                 }
             }
-            Type::Array { .. } | Type::ErrorUnion { .. }
+            Type::Array { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
                 if pure_array_value(actual)
-                    || super::stored_flow::enum_address::signature(actual) =>
+                    || super::stored_flow::enum_address::signature(actual)
+                    || matches!(actual, Type::Tuple(_)) && shared_compound(actual) =>
             {
                 let mut path = if pointee {
                     vec![LifeTypeProjection::Pointee]
