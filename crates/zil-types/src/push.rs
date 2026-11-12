@@ -57,6 +57,15 @@ impl TypesPushSession {
     pub fn clear(&mut self) {
         self.current = None;
     }
+    /// Retain raw acceleration state only for the exact successful program
+    /// owner returned by this session. Structural equality, a public hash or
+    /// a separately decoded program cannot attach an old context checkpoint.
+    /// The caller still binds its complete current query receipt and key.
+    pub fn checkpoint_for(&self, program: &Arc<TypedProgram>) -> Option<Self> {
+        let current = self.current.as_ref()?;
+        Arc::ptr_eq(&current.program, program).then(|| self.clone())
+    }
+
     /// Stage the complete request before replacing the successful raw owner.
     /// Wrong history, target, quotas or declaration contexts rebuild current
     /// inputs. Errors leave the prior owner intact, including its shared CFGs.
@@ -1620,5 +1629,63 @@ mod tests {
             rebound.program.as_ref(),
             &fresh(&actual_source, &limits).unwrap()
         );
+    }
+    #[test]
+    fn checkpoint_requires_exact_program_owner_and_reactivates_only_its_raw_epoch() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, scalar_module(), &limits)], &limits);
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let mut checkpoint = session
+            .checkpoint_for(&cold.program)
+            .expect("exact successful raw owner");
+        let weak = Arc::downgrade(checkpoint.current.as_ref().unwrap());
+        let same_bytes = Arc::new(cold.program.as_ref().clone());
+        assert_eq!(same_bytes, cold.program);
+        assert!(
+            session.checkpoint_for(&same_bytes).is_none(),
+            "equal decoded/COW program cannot retarget a private epoch"
+        );
+        let producer_checkpoint = expand.checkpoint();
+        let broad_text = scalar_module()
+            .replace("x+1", "x+7")
+            .replace("x+2", "x+8")
+            .replace("x+3", "x+9");
+        let broad = produced(&mut expand, &[parse(0, &broad_text, &limits)], &limits);
+        let broad = prepared(&broad, &limits);
+        let broad = apply(&mut session, &broad, &limits).unwrap();
+        assert!(
+            session.checkpoint_for(&cold.program).is_none(),
+            "current different successful epoch cannot own an old program"
+        );
+        assert!(session.checkpoint_for(&broad.program).is_some());
+        expand = producer_checkpoint;
+        let private = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &scalar_module().replacen("x+1", "x+7", 1),
+                &limits,
+            )],
+            &limits,
+        );
+        let private = prepared(&private, &limits);
+        let current = apply(&mut checkpoint, &private, &limits).unwrap();
+        assert_eq!(current.stats.context_rebuilds, 0);
+        assert_eq!(current.stats.body_checks, 1);
+        assert_eq!(current.program.as_ref(), &fresh(&private, &limits).unwrap());
+        for index in [1, 2] {
+            assert!(Arc::ptr_eq(
+                cold.program.module.functions.owner(index).unwrap(),
+                current.program.module.functions.owner(index).unwrap()
+            ));
+        }
+        assert!(
+            weak.upgrade().is_none(),
+            "reactivation does not create an independent context history"
+        );
+        checkpoint.clear();
+        assert!(checkpoint.current.is_none());
     }
 }
