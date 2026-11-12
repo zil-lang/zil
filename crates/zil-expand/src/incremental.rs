@@ -634,7 +634,11 @@ impl ExpandSession {
                 Entry {
                     parsed: parsed.clone(),
                     headers: {
-                        let current = if scalar { module_headers(module) } else { Vec::new() };
+                        let current = if scalar {
+                            module_headers(module)
+                        } else {
+                            Vec::new()
+                        };
                         self.entries
                             .get(&module.id)
                             .map(|old| &old.headers)

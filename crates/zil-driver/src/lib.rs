@@ -572,8 +572,12 @@ impl CompileReport {
                 total.product_plan_rows_replaced = total
                     .product_plan_rows_replaced
                     .saturating_add(work.product_plan_rows_replaced);
-                total.product_semantic_functions_compared = total.product_semantic_functions_compared.saturating_add(work.product_semantic_functions_compared);
-                total.product_relocated_function_bindings = total.product_relocated_function_bindings.saturating_add(work.product_relocated_function_bindings);
+                total.product_semantic_functions_compared = total
+                    .product_semantic_functions_compared
+                    .saturating_add(work.product_semantic_functions_compared);
+                total.product_relocated_function_bindings = total
+                    .product_relocated_function_bindings
+                    .saturating_add(work.product_relocated_function_bindings);
             }
             for (phase, nanos) in &attempt.phase_timings_ns {
                 *self.phase_timings_ns.entry(*phase).or_default() += nanos;

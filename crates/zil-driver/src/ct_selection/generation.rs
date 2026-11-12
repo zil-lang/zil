@@ -121,7 +121,8 @@ impl materialize::Materializer<'_, '_> {
                         }),
                     }],
                 },
-            }].into(),
+            }]
+            .into(),
             aggregates: Vec::new(),
             enums: Vec::new(),
             unsupported: Vec::new(),

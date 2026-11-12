@@ -84,7 +84,8 @@ fn program() -> CoreProgram {
                             CoreExprKind::Integer("1".into()),
                         ))))],
                     },
-                }].into(),
+                }]
+                .into(),
             }
             .into(),
         }],

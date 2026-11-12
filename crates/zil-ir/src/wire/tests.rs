@@ -610,7 +610,8 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
             .into(),
             entry: BlockId(0),
             span,
-        }].into(),
+        }]
+        .into(),
         unsupported: vec![],
     };
     let mut plan = CandidatePlan::empty_for(&module);

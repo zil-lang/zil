@@ -61,6 +61,15 @@ def build(sdk, prefix, receipt):
         run(f'source-download-{index}', ['curl', '--fail', '--location', '--retry', '3', '--max-time', '120', url, '-o', path])
         if sha(path) != expected:
             raise ValueError('upstream source hash mismatch')
+    for index, header in enumerate(manifest.get('private_headers', [])):
+        path = (source_root / header['destination']).resolve()
+        path.relative_to(source_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        url = f'https://raw.githubusercontent.com/llvm/llvm-project/{manifest["llvm_commit"]}/{header["source"]}'
+        run(f'private-header-download-{index}', ['curl', '--fail', '--location', '--retry', '3',
+                                               '--max-time', '120', url, '-o', path])
+        if sha(path) != header['sha256']:
+            raise ValueError('private header hash mismatch')
     run('apply-patch', ['patch', '--batch', '--fuzz=0', '-p1', '-i', patch], source_root)
     config = sdk / 'bin/llvm-config'
     cxxflags = shlex.split(run('cxxflags', [config, '--cxxflags']))
@@ -93,8 +102,8 @@ def build(sdk, prefix, receipt):
             include_path = (source_root / include).resolve()
             include_path.relative_to(source_root)
             includes.extend(['-I', include_path])
-        run(f'compile-extension-{index}', [sdk / 'bin/clang++', *cxxflags, '-O3', '-DNDEBUG', '-fPIC',
-                                          '-I', NATIVE, *includes, *unit.get('flags', []),
+        run(f'compile-extension-{index}', [sdk / 'bin/clang++', '-I', NATIVE, *includes,
+                                          *cxxflags, '-O3', '-DNDEBUG', '-fPIC', *unit.get('flags', []),
                                           '-c', source, '-o', obj])
         replacement = lib / archive
         if archive not in replacements:

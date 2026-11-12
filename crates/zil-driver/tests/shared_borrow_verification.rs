@@ -128,10 +128,7 @@ fn owned_and_shared_real_source_results_and_lowering_are_equal() {
             assert_eq!(checked.fingerprint(), owned.fingerprint());
             assert_eq!(format!("{checked:#?}"), format!("{owned:#?}"));
             let view = zil_lower::lower_view(checked).unwrap();
-            assert!(std::ptr::eq(
-                view.functions,
-                &checked.module().functions
-            ));
+            assert!(std::ptr::eq(view.functions, &checked.module().functions));
             assert_eq!(view.to_owned(), zil_lower::lower(checked).unwrap());
             assert_eq!(format!("{view:#?}"), format!("{:#?}", view.to_owned()));
             assert_eq!(

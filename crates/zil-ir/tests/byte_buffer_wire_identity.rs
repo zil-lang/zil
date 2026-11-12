@@ -109,7 +109,8 @@ fn candidate() -> TypedModule {
             .into(),
             entry: BlockId(0),
             span,
-        }].into(),
+        }]
+        .into(),
     }
 }
 
