@@ -253,6 +253,7 @@ fn representatives_preserve_complete_fullscan_ancestry_flags_and_excluded_aliase
                             &solution, &state, &live, definition, None, &mut old_b,
                         );
                         let new = live_loans(
+                            None,
                             &solution,
                             &state,
                             &live,
@@ -279,7 +280,7 @@ fn representatives_preserve_complete_fullscan_ancestry_flags_and_excluded_aliase
             let mut b = Budget::new(&Limits::default());
             assert!(sources.select(&live, None, &mut b).unwrap().is_none());
             assert_eq!(
-                live_loans(&solution, &state, &live, None, None, &mut b),
+                live_loans(None, &solution, &state, &live, None, None, &mut b),
                 live_loans_full_scan(
                     &solution,
                     &state,
@@ -332,6 +333,7 @@ fn contribution_inventory_falls_back_and_rebuilds_without_caching_dynamic_loan_m
             assert_eq!(selected.as_slice(), &[1]);
             assert_eq!(
                 live_loans(
+                    None,
                     &solution,
                     &Frame::default(),
                     &live,
@@ -396,6 +398,7 @@ fn indexed_sequence(steps: usize) -> Check<usize> {
         let live = WordRow::from_bools(&flags);
         let selected = sources.select(&live, definition, &mut b)?.unwrap();
         live_loans(
+            None,
             &solution,
             &Frame::default(),
             &live,
