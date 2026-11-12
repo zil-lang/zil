@@ -34,6 +34,13 @@
 //! }
 //! ```
 
+pub(crate) fn exact_storage_source(source: &zil_ir::StorageSource) -> Result<&zil_ir::StoragePosition, zil_base::Diagnostic> {
+    match source {
+        zil_ir::StorageSource::Exact(position) => Ok(position),
+        _ => Err(zil_base::Diagnostic::unsupported(zil_base::Phase::Verify, "source atom requires an independent region consumer", None)),
+    }
+}
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,

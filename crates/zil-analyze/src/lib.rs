@@ -59,6 +59,13 @@ use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
 use zil_ir::*;
 
+pub(crate) fn exact_storage_source(source: &StorageSource) -> CompileResult<&StoragePosition> {
+    match source {
+        StorageSource::Exact(position) => Ok(position),
+        _ => Err(vec![Diagnostic::unsupported(Phase::Analyze, "source atom requires an independent region consumer", None)]),
+    }
+}
+
 use budget::{Budget, preflight};
 pub use incremental::{AnalysisSession, AnalysisStats};
 

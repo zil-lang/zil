@@ -16,6 +16,22 @@ struct Walk<'a> {
     work: usize,
 }
 impl Walk<'_> {
+    fn source(&mut self, source: &StorageSource, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        match source {
+            StorageSource::Exact(position) => self.position(position, depth + 1),
+            StorageSource::PlaceAddress { place, .. } => self.position(place, depth + 1),
+            StorageSource::OwnedView { head, leaf, .. } => {
+                self.position(head, depth + 1)?;
+                self.ty(leaf, depth + 1)
+            }
+            StorageSource::ReborrowedLeaf { source, head } => {
+                self.position(source, depth + 1)?;
+                self.position(head, depth + 1)
+            }
+            StorageSource::Static { leaf, .. } => self.ty(leaf, depth + 1),
+        }
+    }
     fn node(&mut self, depth: usize) -> CompileResult<()> {
         // Type trees are cloned recursively by Core. Keep the transport depth
         // below a fixed stack-safe ceiling even when a caller raises its limit.
@@ -192,7 +208,7 @@ impl Walk<'_> {
             DynGuarantee::StorageSources(binding) => {
                 self.position(&binding.position, depth + 1)?;
                 for source in &binding.sources {
-                    self.position(source, depth + 1)?;
+                    self.source(source, depth + 1)?;
                 }
             }
             DynGuarantee::ManageResult => {}
@@ -218,7 +234,7 @@ impl Walk<'_> {
         self.node(depth)?;
         if let DynResultSource::Borrow { sources, .. } = r {
             for p in sources {
-                self.position(p, depth + 1)?;
+                self.source(p, depth + 1)?;
             }
         }
         Ok(())
@@ -292,7 +308,7 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
                 w.node(1)?;
                 w.position(&binding.position, 2)?;
                 for source in &binding.sources {
-                    w.position(source, 2)?;
+                    w.source(source, 2)?;
                 }
             }
         }
@@ -378,7 +394,7 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         for port in &table.ports {
             w.node(1)?;
             for source in &port.sources {
-                w.position(source, 2)?;
+                w.source(source, 2)?;
             }
         }
         w.path(table.entries.len(), 1)?;

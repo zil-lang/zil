@@ -290,6 +290,22 @@ struct Writer<'a> {
     nodes: usize,
 }
 impl<'a> Writer<'a> {
+    pub(super) fn storage_source(&mut self, source: &StorageSource) -> WireResult<()> {
+        self.charge(1)?;
+        match source {
+            StorageSource::Exact(position) => { self.u8(0)?; self.storage_position(position) }
+            StorageSource::PlaceAddress { place, mode } => {
+                self.u8(1)?; self.storage_position(place)?; self.u8(*mode as u8)
+            }
+            StorageSource::OwnedView { head, leaf, mode } => {
+                self.u8(2)?; self.storage_position(head)?; self.ty(leaf, 0)?; self.u8(*mode as u8)
+            }
+            StorageSource::ReborrowedLeaf { source, head } => {
+                self.u8(3)?; self.storage_position(source)?; self.storage_position(head)
+            }
+            StorageSource::Static { leaf, mode } => { self.u8(4)?; self.ty(leaf, 0)?; self.u8(*mode as u8) }
+        }
+    }
     fn new(limits: &'a Limits) -> Self {
         Self {
             output: Vec::new(),
@@ -1113,7 +1129,7 @@ impl<'a> Writer<'a> {
                 self.storage_position(&binding.position)?;
                 self.count(binding.sources.len(), self.limits.max_nodes)?;
                 for source in &binding.sources {
-                    self.storage_position(source)?;
+                    self.storage_source(source)?;
                 }
             }
         }
@@ -1137,7 +1153,7 @@ impl<'a> Writer<'a> {
                     self.storage_position(&binding.position)?;
                     self.count(binding.sources.len(), self.limits.max_nodes)?;
                     for source in &binding.sources {
-                        self.storage_position(source)?;
+                        self.storage_source(source)?;
                     }
                 }
             }
@@ -2402,6 +2418,17 @@ struct Reader<'a> {
     nodes: usize,
 }
 impl<'a> Reader<'a> {
+    pub(super) fn storage_source(&mut self) -> WireResult<StorageSource> {
+        self.charge(1)?;
+        Ok(match self.u8()? {
+            0 => StorageSource::Exact(self.storage_position()?),
+            1 => StorageSource::PlaceAddress { place:self.storage_position()?, mode:self.stored_borrow_mode()? },
+            2 => StorageSource::OwnedView { head:self.storage_position()?, leaf:self.ty(0)?, mode:self.stored_borrow_mode()? },
+            3 => StorageSource::ReborrowedLeaf { source:self.storage_position()?, head:self.storage_position()? },
+            4 => StorageSource::Static { leaf:self.ty(0)?, mode:self.stored_borrow_mode()? },
+            _ => return Err(malformed("E-WIRE-TAG", "unknown storage source atom")),
+        })
+    }
     fn new(input: &'a [u8], limits: &'a Limits) -> WireResult<Self> {
         if input.len() > limits.max_source_bytes {
             return Err(quota("candidate wire byte quota exceeded"));
@@ -3551,7 +3578,7 @@ impl<'a> Reader<'a> {
                 let count = self.count(self.limits.max_nodes, 5)?;
                 let mut sources = Vec::with_capacity(count);
                 for _ in 0..count {
-                    sources.push(self.storage_position()?);
+                    sources.push(self.storage_source()?);
                 }
                 bindings.push(StorageSourceBinding { position, sources });
             }
@@ -3586,7 +3613,7 @@ impl<'a> Reader<'a> {
                         let count = self.count(self.limits.max_nodes, 5)?;
                         let mut sources = Vec::with_capacity(count);
                         for _ in 0..count {
-                            sources.push(self.storage_position()?);
+                            sources.push(self.storage_source()?);
                         }
                         bindings.push(StorageSourceBinding { position, sources });
                     }

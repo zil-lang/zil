@@ -136,7 +136,7 @@ impl Work<'_, '_> {
                         self.position(&binding.position)?;
                         self.rows(binding.sources.len())?;
                         for source in &binding.sources {
-                            self.position(source)?;
+                            self.position(crate::exact_storage_source(source)?)?;
                         }
                     }
                     DynGuarantee::ManageResult => {}
@@ -155,7 +155,7 @@ impl Work<'_, '_> {
         if let Some(DynResultSource::Borrow { sources, .. }) = &c.result {
             self.rows(sources.len())?;
             for p in sources {
-                self.position(p)?;
+                self.position(crate::exact_storage_source(p)?)?;
             }
         }
         if let Some(c) = &c.cleanup {

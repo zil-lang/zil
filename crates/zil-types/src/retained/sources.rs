@@ -991,7 +991,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                     base: StorageBase::Capture(*index),
                     path: tail.to_vec(),
                 },
-                sources: origins.inputs.iter().cloned().collect(),
+                sources: origins.inputs.iter().cloned().map(StorageSource::Exact).collect(),
             });
         }
         contract.capture_sources = Some(bindings);

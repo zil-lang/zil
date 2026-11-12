@@ -226,7 +226,7 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
             .expect("finite guarantee")
             .push(DynGuarantee::StorageSources(StorageSourceBinding {
                 position: position.clone(),
-                sources: vec![position.clone()],
+                sources: vec![StorageSource::Exact(position.clone())],
             }));
         expected
             .requires

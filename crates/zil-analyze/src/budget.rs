@@ -1937,7 +1937,8 @@ pub(super) fn preflight(
                         .saturating_add(1),
                     "retained result positions",
                 )?;
-                for source in &binding.sources {
+                for atom in &binding.sources {
+                    let source = crate::exact_storage_source(atom)?;
                     count(
                         0,
                         source.path.len(),
@@ -2005,7 +2006,8 @@ pub(super) fn preflight(
                             .saturating_add(4),
                         "callable source paths",
                     )?;
-                    for source in &binding.sources {
+                    for atom in &binding.sources {
+                    let source = crate::exact_storage_source(atom)?;
                         count(
                             0,
                             source.path.len(),

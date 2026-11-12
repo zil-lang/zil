@@ -275,7 +275,8 @@ pub(super) fn guarantees(values: Option<&[DynGuarantee]>, b: &mut Budget) -> Com
                 DynGuarantee::StorageSources(binding) => {
                     path(b, &mut nodes, cap, depth, binding.position.path.len())?;
                     pay(b, &mut nodes, cap, binding.sources.len())?;
-                    for source in &binding.sources {
+                    for atom in &binding.sources {
+                        let source = crate::exact_storage_source(atom)?;
                         path(b, &mut nodes, cap, depth, source.path.len())?;
                     }
                 }
