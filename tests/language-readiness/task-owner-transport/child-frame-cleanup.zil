@@ -15,9 +15,9 @@ fn make_async_child()->TaskCreateError!Managed<Task<i32>> {unsafe{
   .err(failure)=>{let reason=failure.reason;let (input,)=failure.inputs;var remaining=give input;
    async_registration_request_close(&mut remaining);
    loop{match async_registration_poll_close(&mut remaining){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
-   async_registration_finish_destroy_checked(give remaining);return .err(reason);
+   async_registration_finish_destroy_checked(give remaining);return reason;
   },
-  .ok(input)=>{return .ok(give input);}
+  .ok(input)=>{return give input;}
  }
 }}
 fn close(give original:Task<i32>)->i32 {
