@@ -161,7 +161,7 @@
 +#include "llvm/IR/IntrinsicInst.h"
 @@ -15,0 +29 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +180,147 @@
+@@ -165,0 +180,148 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -280,7 +280,8 @@
 +  auto *FP = MAM.getCachedResult<llvm::FunctionAnalysisManagerModuleProxy>(M);
 +  if (!FP || &FP->getManager() != &AM) return -1;
 +  auto *PSI = MAM.getCachedResult<llvm::ProfileSummaryAnalysis>(M);
-+  if (PSI && PSI->hasProfileSummary()) return -1;
++  if ((PSI && !PSI->zilEmptyProductState(&M)) ||
++      M.getProfileSummary(true) || M.getProfileSummary(false)) return -1;
 +  struct State { unsigned Code = 1; bool Valid = true; } S;
 +  MAM.zilVisitCachedAnalysisIDs(M, [](void *Context, const void *Key) {
 +    auto &S = *static_cast<State *>(Context);
@@ -530,3 +531,10 @@
 +           ResultGetters[3] == &getModuleAAResultImpl<G>;
 +  }
 +
+--- a/llvm/include/llvm/Analysis/ProfileSummaryInfo.h
++++ b/llvm/include/llvm/Analysis/ProfileSummaryInfo.h
+@@ -63,0 +64,4 @@
++  bool zilEmptyProductState(const Module *Current) const {
++    return M == Current && !Summary && !HotCountThreshold && !ColdCountThreshold &&
++           !HasHugeWorkingSetSize && !HasLargeWorkingSetSize && ThresholdCache.empty();
++  }
