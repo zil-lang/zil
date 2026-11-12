@@ -16,6 +16,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
+#include <chrono>
 #include <dlfcn.h>
 #include <map>
 #include <mutex>
@@ -26,6 +27,22 @@
 namespace zil {
 namespace {
 using ID = const void *;
+using Clock = std::chrono::steady_clock;
+uint64_t elapsedNS(Clock::time_point Start) {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - Start).count();
+}
+class ScopedNS {
+  uint64_t &Total;
+  Clock::time_point Start = Clock::now();
+  bool Active = true;
+public:
+  explicit ScopedNS(uint64_t &Out) : Total(Out) {}
+  ScopedNS(const ScopedNS &) = delete;
+  ScopedNS &operator=(const ScopedNS &) = delete;
+  void pause() { if (Active) { Total += elapsedNS(Start); Active = false; } }
+  void resume() { Start = Clock::now(); Active = true; }
+  ~ScopedNS() { pause(); }
+};
 thread_local bool MachineDiagnostics = false;
 thread_local int MachineAlignmentTestMax = -1;
 thread_local bool MachineNumberingTests = false;
@@ -503,6 +520,8 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     return 1;
   }
   if (New) {
+    const auto KeyStart = Clock::now();
+    bool KeyRecorded = false;
     const auto &Triple = R.machine.getTargetTriple();
     if (Triple.getArch() == llvm::Triple::x86_64 && Triple.isOSLinux() &&
         R.reservedSlots < MaxMachineSlots && R.reservedBytes < MaxMachinePayload &&
@@ -534,51 +553,62 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           // Current keys have proved the complete binding. Retain the shared
           // sealed snapshot, not a second copy of its identical input/world.
           C.recording.reset();
-          auto Parser = llvm::createMIRParser(
-              llvm::MemoryBuffer::getMemBufferCopy(C.replay->mir, "zil-current-machine"),
-              R.module.getContext());
-          // Required to initialize the YAML cursor. This header is empty;
-          // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
-          auto EmptyHeader = Parser->parseIRModule();
-          if (!EmptyHeader) {
-            diagnose(F, "parse-header");
-            R.fail();
-          } else if (Parser->parseMachineFunctions(R.module, MMI)) {
-            diagnose(F, "parse-machine");
-            R.fail();
-          } else {
-            auto *MF = MMI.getMachineFunction(F);
-            if (!MF) {
-              diagnose(F, "missing-current-machine-function");
+          R.stats.mir_key_ns += elapsedNS(KeyStart);
+          KeyRecorded = true;
+          {
+            // Pause around restoration, then resume for the original parser and
+            // empty-header destruction, so parse/restore timings do not overlap.
+            ScopedNS ParseTime(R.stats.mir_parse_ns);
+            auto Parser = llvm::createMIRParser(
+                llvm::MemoryBuffer::getMemBufferCopy(C.replay->mir, "zil-current-machine"),
+                R.module.getContext());
+            // Required to initialize the YAML cursor. This header is empty;
+            // parseMachineFunctions explicitly receives the CURRENT Module/MMI.
+            auto EmptyHeader = Parser->parseIRModule();
+            const bool ParseFailed = EmptyHeader && Parser->parseMachineFunctions(R.module, MMI);
+            ParseTime.pause();
+            if (!EmptyHeader) {
+              diagnose(F, "parse-header");
               R.fail();
-            } else if (!targetInfoAPI().restore(MF, C.replay->targetInfo.get())) {
-              diagnose(F, "restore-target-info");
-              R.fail();
-            } else if (!targetInfoAPI().restoreBlockNumbers(
-                           MF, C.replay->blockIDCapacity, C.replay->nextAnalysisNumber,
-                           C.replay->analysisEpoch, C.replay->blockNumbers.data(),
-                           C.replay->analysisNumbers.data(), C.replay->blockNumbers.size())) {
-              diagnose(F, "restore-machine-number-state");
-              R.fail();
-            } else if (!restoreBlockEmission(*MF, *C.replay)) {
-              diagnose(F, "restore-block-emission-state");
+            } else if (ParseFailed) {
+              diagnose(F, "parse-machine");
               R.fail();
             } else {
-              MF->getProperties() = C.replay->properties;
-              if (!snapshotDomain(*MF)) {
-                diagnose(F, "restored-snapshot-domain");
+              ScopedNS RestoreTime(R.stats.mir_restore_validate_ns);
+              auto *MF = MMI.getMachineFunction(F);
+              if (!MF) {
+                diagnose(F, "missing-current-machine-function");
                 R.fail();
-              } else if (!MF->verify(nullptr, "ZIL current MIR replay", nullptr, false)) {
-                diagnose(F, "current-machine-verifier");
+              } else if (!targetInfoAPI().restore(MF, C.replay->targetInfo.get())) {
+                diagnose(F, "restore-target-info");
+                R.fail();
+              } else if (!targetInfoAPI().restoreBlockNumbers(
+                             MF, C.replay->blockIDCapacity, C.replay->nextAnalysisNumber,
+                             C.replay->analysisEpoch, C.replay->blockNumbers.data(),
+                             C.replay->analysisNumbers.data(), C.replay->blockNumbers.size())) {
+                diagnose(F, "restore-machine-number-state");
+                R.fail();
+              } else if (!restoreBlockEmission(*MF, *C.replay)) {
+                diagnose(F, "restore-block-emission-state");
                 R.fail();
               } else {
-                auto CurrentText = machineText(MMI, *MF);
-                if (CurrentText != C.replay->mir) {
-                  diagnoseDifference(F, C.replay->mir, CurrentText);
+                MF->getProperties() = C.replay->properties;
+                if (!snapshotDomain(*MF)) {
+                  diagnose(F, "restored-snapshot-domain");
                   R.fail();
+                } else if (!MF->verify(nullptr, "ZIL current MIR replay", nullptr, false)) {
+                  diagnose(F, "current-machine-verifier");
+                  R.fail();
+                } else {
+                  auto CurrentText = machineText(MMI, *MF);
+                  if (CurrentText != C.replay->mir) {
+                    diagnoseDifference(F, C.replay->mir, CurrentText);
+                    R.fail();
+                  }
                 }
               }
             }
+            ParseTime.resume();
           }
           if (!R.failed) {
             ++R.stats.machine_function_reuses;
@@ -587,6 +617,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         }
       }
     }
+    if (!KeyRecorded) R.stats.mir_key_ns += elapsedNS(KeyStart);
     if (!C.replay) ++R.stats.machine_function_executions;
   }
   if (C.replay &&
@@ -611,6 +642,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     ++R.stats.asm_printer_runs;
     C.emitted = true;
     if (!C.replay && C.recording) {
+      ScopedNS CaptureTime(R.stats.mir_capture_ns);
       auto *MF = MMI.getMachineFunction(F);
       if (!MF || !snapshotDomain(*MF) ||
           C.recording->input != functionText(F) ||
@@ -697,6 +729,7 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       // is publication only; an incomplete observed tail discards the product.
       if (C.emitted && C.replayPosition == C.replay->sequence.size()) S = C.replay;
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
+      ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
       bool Complete = C.recording->firstMachine + C.recording->sequence.size() ==
                       C.recording->pipeline.size();
