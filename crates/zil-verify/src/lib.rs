@@ -1516,6 +1516,9 @@ fn check_type_shape(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                if errors::direct_owner_failure(ty) {
+                    budget.mark_sum(budget.current_function)?;
+                }
                 // Record the gate while visiting the existing paid nodes;
                 // do not scan an as-yet-unbounded raw Package field list here.
                 let context = context

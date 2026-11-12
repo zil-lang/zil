@@ -138,8 +138,58 @@ pub(super) fn store_element_roots(
     let mut output = Vec::with_capacity(source.len());
     let mut width = None;
     for root in source {
-        output.push(match *root {
-            Root::Window(origin, header_start, header_end) => {
+        let normalized = if budget.nested_store_windows {
+            match *root {
+                Root::Local(local) if matches!(local_type(function, local, None)?, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
+                {
+                    let (start, end) =
+                        mixed_interval(local_type(function, local, None)?, &[], false, budget)?;
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                Root::Parameter(position) => {
+                    let local = *function.parameters.get(position as usize).ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-STORE-WINDOW",
+                            None,
+                            "Store manager parameter is absent",
+                        )
+                    })?;
+                    let ty = local_type(function, local, None)?;
+                    let ty = if let Type::Address { inner, .. } = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
+                    if matches!(ty,Type::Managed(payload)|Type::Desc(payload) if matches!(payload.as_ref(),Type::OwnedStore {..}))
+                    {
+                        let (start, end) = mixed_interval(ty, &[], false, budget)?;
+                        Root::Window(HoldRoot::Parameter(position), start, end)
+                    } else {
+                        *root
+                    }
+                }
+                Root::Field(local, index) => {
+                    let (start, end) = mixed_interval(
+                        local_type(function, local, None)?,
+                        &[zil_ir::PlaceProjection::Field(index)],
+                        false,
+                        budget,
+                    )?;
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                Root::Projection(local, start, end) => {
+                    Root::Window(HoldRoot::Local(local), start, end)
+                }
+                _ => *root,
+            }
+        } else {
+            *root
+        };
+        output.push(match normalized {
+            Root::Window(origin, header_start, header_end)
+            | Root::StoreElementWindow(origin, header_start, header_end, _, _)
+                if budget.nested_store_windows || matches!(normalized, Root::Window(..)) =>
+            {
                 let payload_end = if let Some(width) = width {
                     width
                 } else {

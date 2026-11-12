@@ -5,6 +5,8 @@ mod carrier_cache;
 mod owned_elements;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod nested_windows_tests;
 pub(super) use carrier_cache::{Cache as CarrierCache, register_actual_carrier_root};
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";

@@ -1,5 +1,5 @@
-//! Complete raw candidates and handwritten Holds. No producer or Analyze
-//! helper is used to construct the two independently owned prefix domains.
+// Complete raw candidates and handwritten Holds. No producer or Analyze
+// helper is used to construct the two independently owned prefix domains.
 use zil_base::{FileId, Fingerprint, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 
