@@ -116,7 +116,7 @@ pub(super) fn check(
                     .len()
                     .saturating_mul(source.path.len().saturating_add(1)),
             )?;
-            if !crate::exact_storage_sources_contain(&row.sources,&source)? {
+            if !crate::exact_storage_sources_contain(&row.sources, &source)? {
                 return Err(failure(
                     "actual terminal capture source exceeds its declared upper",
                 ));

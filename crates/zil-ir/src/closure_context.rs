@@ -74,6 +74,76 @@ pub struct CoreCallableLifeContext {
     pub inputs: Vec<CoreClosureInputAnchor>,
 }
 
+/// The real function owner's original Definition scope. Instances preserve the
+/// original declaration and full mixed formals through their actual elaboration
+/// ledger. `inputs` is the complete inverse map of original input occurrences;
+/// it is formed independently of a returned-callable bound proposal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreFunctionSourceScope {
+    pub declaration: LifeDeclarationId,
+    pub identity: LifeDeclarationIdentity,
+    pub parameters: Vec<LifeParameterKind>,
+    pub inputs: Vec<CoreClosureInputAnchor>,
+}
+
+/// Structural transport reservation, excluding recursive Const type carriers.
+/// Consumers must independently bound those types before any deep snapshot.
+pub fn core_function_scope_metadata_cost(
+    scope: &CoreFunctionSourceScope,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<(usize, usize)> {
+    let mut nodes = 1usize;
+    let mut work = 4usize;
+    if work > remaining_work || nodes > max_nodes {
+        return None;
+    }
+    for count in [
+        scope.parameters.len(),
+        scope.inputs.len(),
+        scope.identity.module_path.len(),
+        scope.identity.declaration_path.len(),
+        scope.identity.generation_path.len(),
+    ] {
+        nodes = nodes.checked_add(count)?;
+        work = work.checked_add(count.checked_mul(8)?)?;
+        if nodes > max_nodes || work > remaining_work {
+            return None;
+        }
+    }
+    work = work.checked_add(scope.identity.package.len())?;
+    if work > remaining_work {
+        return None;
+    }
+    for text in scope
+        .identity
+        .module_path
+        .iter()
+        .chain(&scope.identity.declaration_path)
+    {
+        work = work.checked_add(text.len())?;
+        if work > remaining_work {
+            return None;
+        }
+    }
+    for input in &scope.inputs {
+        let depth = match &input.position {
+            CoreClosureHeaderPosition::Borrow(p) => p.path.len(),
+            CoreClosureHeaderPosition::Class(p) => p.path.len(),
+        };
+        if depth > max_depth {
+            return None;
+        }
+        nodes = nodes.checked_add(depth)?;
+        work = work.checked_add(depth.checked_mul(2)?)?;
+        if nodes > max_nodes || work > remaining_work {
+            return None;
+        }
+    }
+    Some((nodes, work))
+}
+
 /// A bound-local Fixed class selected from the real creator header.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableReturnFixed {

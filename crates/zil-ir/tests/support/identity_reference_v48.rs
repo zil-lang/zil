@@ -271,6 +271,22 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     if v32 {
+        assert!(f.dyn_instance.is_none(), "dynamic instances require the separate complete recipe oracle");
+        b.push(0);
+        b.push(u8::from(f.retained_return_sources.is_some()));
+        if let Some(rows) = &f.retained_return_sources {
+            encode_len(b, rows.len());
+            for row in rows {
+                encode_source_position(b, &row.position);
+                encode_len(b, row.sources.len());
+                for source in &row.sources { encode_source_atom(b, source); }
+            }
+        }
+    } else {
+        assert!(f.dyn_instance.is_none());
+        assert!(f.retained_return_sources.is_none());
+    }
+    if v32 {
         b.push(match f.call_kind {
             CallKind::Direct => 0,
             CallKind::Suspend => 1,
@@ -317,6 +333,11 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
+    assert!(f.protocol_contracts.is_empty(), "state protocols are outside this retained legacy oracle");
+    if v32 {
+        encode_text(b, "ZIL-FUNCTION-PROTOCOLS-2");
+        encode_len(b, 0);
+    }
     b.push(u8::from(f.foreign.is_some()));
     if let Some(foreign) = &f.foreign {
         encode_text(b, &foreign.abi);
@@ -1375,6 +1396,37 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
         }
     }
 }
+// The old type encoder keeps its historical type domain. This extension only
+// makes the current source atom discriminants explicit for that same domain.
+fn encode_source_atom(b: &mut Vec<u8>, source: &StorageSource) {
+    match source {
+        StorageSource::Exact(position) => {
+            b.push(0);
+            encode_source_position(b, position);
+        }
+        StorageSource::PlaceAddress { place, mode } => {
+            b.push(1);
+            encode_source_position(b, place);
+            b.push(*mode as u8);
+        }
+        StorageSource::OwnedView { head, leaf, mode } => {
+            b.push(2);
+            encode_source_position(b, head);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            b.push(3);
+            encode_source_position(b, source);
+            encode_source_position(b, head);
+        }
+        StorageSource::Static { leaf, mode } => {
+            b.push(4);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
+        }
+    }
+}
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
     b.push(u8::from(c.life.is_some()));
     if let Some(life) = &c.life {
@@ -1387,7 +1439,7 @@ fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) 
             encode_source_position(b, &row.position);
             encode_len(b, row.sources.len());
             for source in &row.sources {
-                encode_source_position(b, source)
+                encode_source_atom(b, source)
             }
         }
     }

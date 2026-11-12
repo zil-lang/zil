@@ -834,6 +834,7 @@ mod tests {
         let mut source = lir();
         for id in 0..600 {
             source.functions.push(zil_ir::TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
@@ -1554,6 +1555,7 @@ mod tests {
         module.functions = ids
             .iter()
             .map(|&id| zil_ir::TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,

@@ -758,6 +758,7 @@ mod snapshot_budget {
     use super::*;
     fn function(ty: Type) -> TypedFunction {
         TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,

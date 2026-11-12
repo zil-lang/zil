@@ -382,6 +382,7 @@ fn clone_function(
 ) -> CompileResult<TypedFunction> {
     // Exhaustive destructuring makes new retained fields explicit consumers.
     let TypedFunction {
+        dyn_instance,
         retained_return_sources,
         storage_life,
         call_kind,
@@ -433,6 +434,7 @@ fn clone_function(
         })
         .collect::<CompileResult<_>>()?;
     Ok(TypedFunction {
+        dyn_instance: dyn_instance.clone(),
         retained_return_sources: retained_return_sources.clone(),
         storage_life: storage_life.clone(),
         call_kind: *call_kind,
@@ -818,6 +820,7 @@ mod tests {
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
@@ -983,6 +986,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

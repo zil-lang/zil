@@ -497,6 +497,7 @@ mod tests {
     // Source/Verify/native controls live in the driver's integration test.
     fn fixture() -> (TypedFunction, m::Function) {
         let source = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,

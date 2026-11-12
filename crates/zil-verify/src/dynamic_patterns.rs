@@ -54,7 +54,10 @@ impl Match<'_> {
             .enumerate()
         {
             match (recipe, actual) {
-                (DynPatternActual::LifeParameter(formal), LifeNominalActual::Lifetime(_)) => {
+                (
+                    DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(formal)),
+                    LifeNominalActual::Lifetime(_),
+                ) => {
                     b.spend(
                         self.root
                             .nominal_arguments
@@ -165,6 +168,17 @@ impl Match<'_> {
 fn const_value(recipe: &DynConstPattern, table: &DynVtable, b: &mut Budget) -> Check<Constant> {
     b.spend(1)?;
     let value = match recipe {
+        DynConstPattern::IntegerLiteral(_)
+        | DynConstPattern::FloatLiteral(_)
+        | DynConstPattern::MethodParameter(_)
+        | DynConstPattern::Unary { .. }
+        | DynConstPattern::Binary { .. }
+        | DynConstPattern::Convert { .. }
+        | DynConstPattern::AssociatedProjection { .. } => {
+            return Err(bad(
+                "constant declaration recipe requires its checked specialization",
+            ));
+        }
         DynConstPattern::Value(value) => value,
         DynConstPattern::Parameter(index) => match table.actuals.get(*index as usize) {
             Some(DynGenericActual::Const(value)) => value,
@@ -189,6 +203,13 @@ fn type_value(
     }
     let child = |r: &DynTypePattern, b: &mut Budget| type_value(r, table, module, depth + 1, b);
     Ok(match recipe {
+        DynTypePattern::SelfType
+        | DynTypePattern::MethodParameter(_)
+        | DynTypePattern::AssociatedProjection { .. } => {
+            return Err(bad(
+                "type declaration recipe requires its checked receiver specialization",
+            ));
+        }
         DynTypePattern::Concrete(ty) => {
             dynamic_metadata::ty(ty, b)?;
             if !crate::dynamic_ports::closed_targets(module, ty, b)? {
@@ -268,7 +289,7 @@ pub(super) fn provider(
     b: &mut Budget,
 ) -> Check<()> {
     match &declaration.self_pattern {
-        Some(pattern) => {
+        Some(DynTypePattern::Nominal(pattern)) => {
             let Type::BorrowedStorage { life, .. } = &table.self_type else {
                 return Err(bad(
                     "Self recipe has no actual nominal instance class domain",
@@ -280,6 +301,11 @@ pub(super) fn provider(
                 root: life,
             }
             .nominal(pattern, &table.self_type, &[], 0, b)?;
+        }
+        Some(_) => {
+            return Err(bad(
+                "non-nominal Self recipe needs its complete type-domain witness",
+            ));
         }
         None if declaration.parameters.is_empty() && table.self_classes.is_empty() => {}
         None => return Err(bad("generic provider Self pattern is Unknown")),
@@ -298,10 +324,21 @@ pub(super) fn provider(
     for (recipe, actual) in pattern.arguments.iter().zip(&iface.application.actuals) {
         b.spend(1)?;
         let expected = match recipe {
-            DynPatternActual::LifeParameter(index) => match table.actuals.get(*index as usize) {
-                Some(DynGenericActual::Life(class)) => DynGenericActual::Life(*class),
-                _ => return Err(bad("trait life recipe selects a non-life formal actual")),
-            },
+            DynPatternActual::Life(
+                zil_ir::DynLifePattern::MethodParameter(_)
+                | zil_ir::DynLifePattern::Bound { .. }
+                | zil_ir::DynLifePattern::Invocation(_),
+            ) => {
+                return Err(bad(
+                    "persistent impl trait recipe cannot use a method or invocation lifetime",
+                ));
+            }
+            DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(index)) => {
+                match table.actuals.get(*index as usize) {
+                    Some(DynGenericActual::Life(class)) => DynGenericActual::Life(*class),
+                    _ => return Err(bad("trait life recipe selects a non-life formal actual")),
+                }
+            }
             DynPatternActual::Const(recipe) => {
                 DynGenericActual::Const(const_value(recipe, table, b)?)
             }

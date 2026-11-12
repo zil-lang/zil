@@ -85,55 +85,14 @@ impl Walk<'_> {
         }
         Ok(())
     }
-    fn self_pattern(&mut self, pattern: &DynSelfPattern, depth: usize) -> CompileResult<()> {
-        self.node(depth)?;
-        for actual in &pattern.arguments {
-            self.node(depth + 1)?;
-            match actual {
-                DynPatternActual::Type(ty) => self.pattern_type(ty, depth + 2)?,
-                DynPatternActual::Const(value) => self.pattern_const(value, depth + 2)?,
-                DynPatternActual::LifeParameter(_) => {}
-            }
-        }
-        Ok(())
+    fn self_pattern(&mut self, value: &DynSelfPattern, depth: usize) -> CompileResult<()> {
+        value.visit_dyn_metadata(self, depth)
     }
-    fn pattern_const(&mut self, value: &DynConstPattern, depth: usize) -> CompileResult<()> {
-        self.node(depth)?;
-        if let DynConstPattern::Value(value) = value {
-            self.constant(value, depth + 1)?;
-        }
-        Ok(())
-    }
-    fn pattern_type(&mut self, value: &DynTypePattern, depth: usize) -> CompileResult<()> {
-        self.node(depth)?;
-        match value {
-            DynTypePattern::Concrete(value) => self.ty(value, depth + 1)?,
-            DynTypePattern::Nominal(value) => self.self_pattern(value, depth + 1)?,
-            DynTypePattern::Parameter(_) => {}
-            DynTypePattern::Address { inner, .. }
-            | DynTypePattern::Slice(inner)
-            | DynTypePattern::Managed(inner)
-            | DynTypePattern::Desc(inner)
-            | DynTypePattern::OwnedStore(inner) => self.pattern_type(inner, depth + 1)?,
-            DynTypePattern::Array { element, length } => {
-                self.pattern_const(length, depth + 1)?;
-                self.pattern_type(element, depth + 1)?;
-            }
-            DynTypePattern::Tuple(values) => {
-                for value in values {
-                    self.pattern_type(value, depth + 1)?;
-                }
-            }
-            DynTypePattern::ErrorUnion { error, result } => {
-                self.pattern_type(error, depth + 1)?;
-                self.pattern_type(result, depth + 1)?;
-            }
-        }
-        Ok(())
-    }
+
     fn actual(&mut self, a: &DynGenericActual, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
         match a {
+            DynGenericActual::QualifiedType(value) => value.visit_dyn_metadata(self, depth + 1),
             DynGenericActual::Type(ty) => self.ty(ty, depth + 1),
             DynGenericActual::Const(c) => self.constant(c, depth + 1),
             DynGenericActual::Life(_) => Ok(()),
@@ -303,6 +262,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     };
     for function in &core.functions {
         w.node(0)?;
+        w.node(1)?;
+        if let Some(instance) = &function.dyn_instance {
+            instance.visit_dyn_metadata(&mut w, 2)?;
+        }
         if let Some(bindings) = &function.retained_return_sources {
             for binding in bindings {
                 w.node(1)?;
@@ -315,8 +278,43 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     }
     for declaration in &core.dyn_declarations {
         w.node(1)?;
+        if let Some(values) = &declaration.method_definitions {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
+        w.node(1)?;
+        if let Some(values) = &declaration.method_signatures {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
+        w.node(1)?;
+        if let Some(values) = &declaration.associated_definitions {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
+        w.node(1)?;
+        if let Some(values) = &declaration.requirements {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
+        w.node(1)?;
+        if let Some(values) = &declaration.direct_supertraits {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
+        w.node(1)?;
         if let Some(pattern) = &declaration.self_pattern {
-            w.self_pattern(pattern, 2)?;
+            pattern.visit_dyn_metadata(&mut w, 2)?;
         }
         w.node(1)?;
         if let Some(pattern) = &declaration.implemented_trait {
@@ -332,7 +330,7 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
             w.text(&m.name)?;
             match &m.kind {
                 DynMemberKind::Type => {}
-                DynMemberKind::Constant(ty) => w.ty(ty, 2)?,
+                DynMemberKind::Constant => {}
                 DynMemberKind::Method(parameters) => {
                     for p in parameters {
                         w.parameter(p, 2)?;
@@ -359,6 +357,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
             w.node(1)?;
             w.member(&assoc.member, 2)?;
             w.ty(&assoc.ty, 2)?;
+            DynRecipeVisitor::life(&mut w, &assoc.life, 2)?;
+            for _ in &assoc.classes {
+                w.node(2)?;
+            }
         }
         for assoc in &interface.associated_constants {
             w.node(1)?;
@@ -385,6 +387,17 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         }
     }
     for table in &core.dyn_vtables {
+        w.node(1)?;
+        if let Some(shape) = &table.self_life {
+            DynRecipeVisitor::life(&mut w, shape, 2)?;
+        }
+        w.node(1)?;
+        if let Some(values) = &table.implementation_witnesses {
+            w.rows(values.len(), 2)?;
+            for value in values {
+                value.visit_dyn_metadata(&mut w, 3)?;
+            }
+        }
         w.node(0)?;
         w.ty(&table.self_type, 1)?;
         w.path(table.self_classes.len(), 1)?;
@@ -403,4 +416,61 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         }
     }
     Ok((w.nodes, limits.max_analysis_steps - w.work))
+}
+
+impl DynRecipeVisitor for Walk<'_> {
+    type Error = Vec<Diagnostic>;
+    fn node(&mut self, depth: usize) -> CompileResult<()> {
+        Walk::node(self, depth)
+    }
+    fn rows(&mut self, n: usize, depth: usize) -> CompileResult<()> {
+        if depth > self.limits.max_call_depth.min(128) {
+            return Err(quota());
+        }
+        let n = n.checked_add(1).ok_or_else(quota)?;
+        self.nodes = self
+            .nodes
+            .checked_add(n)
+            .filter(|n| *n <= self.limits.max_nodes)
+            .ok_or_else(quota)?;
+        self.work = self.work.checked_sub(n).ok_or_else(quota)?;
+        Ok(())
+    }
+    fn ty(&mut self, value: &Type, depth: usize) -> CompileResult<()> {
+        Walk::ty(self, value, depth)
+    }
+    fn life(&mut self, value: &StorageLifeShape, depth: usize) -> CompileResult<()> {
+        self.rows(value.binder_count as usize, depth)?;
+        self.rows(
+            value
+                .slots
+                .len()
+                .saturating_add(value.retained.len())
+                .saturating_add(value.nominal_arguments.len()),
+            depth,
+        )?;
+        for row in &value.slots {
+            self.path(row.path.len(), depth)?;
+        }
+        for row in &value.retained {
+            self.path(row.path.len(), depth)?;
+        }
+        for row in &value.nominal_arguments {
+            self.path(row.path.len(), depth)?;
+        }
+        Ok(())
+    }
+    fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> CompileResult<()> {
+        Walk::identity(self, value, depth)
+    }
+    fn position(&mut self, value: &StoragePosition, depth: usize) -> CompileResult<()> {
+        Walk::position(self, value, depth)
+    }
+    fn constant(&mut self, value: &Constant, depth: usize) -> CompileResult<()> {
+        Walk::constant(self, value, depth)
+    }
+    fn text(&mut self, value: &str, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        Walk::text(self, value)
+    }
 }

@@ -1907,6 +1907,13 @@ pub(super) fn preflight(
         }
         budget.input(1, "function preflight")?;
         budget.input(1, "retained return source discriminant")?;
+        budget.input(1, "dynamic definition instance presence")?;
+        if let Some(instance) = &function.dyn_instance {
+            super::dyn_metadata::recipe(instance, budget)?;
+            return Err(super::bad(
+                "dynamic function instance requires its complete definition proof",
+            ));
+        }
         if let Some(bindings) = &function.retained_return_sources {
             count(
                 0,
@@ -2008,7 +2015,7 @@ pub(super) fn preflight(
                         "callable source paths",
                     )?;
                     for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom)?;
+                        let source = crate::exact_storage_source(atom)?;
                         count(
                             0,
                             source.path.len(),

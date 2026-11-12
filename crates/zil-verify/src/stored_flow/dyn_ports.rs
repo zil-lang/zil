@@ -852,7 +852,7 @@ pub(super) fn transfer(
                 Some(DynResultSource::Value) => {}
                 Some(DynResultSource::Borrow { sources, .. }) => {
                     for atom in sources {
-                        let source=crate::exact_storage_source(atom)?;
+                        let source = crate::exact_storage_source(atom)?;
                         join_permission(
                             &mut out.address,
                             &slot_source(module, f, source, &args, values, state, b)?,

@@ -156,7 +156,7 @@ pub(super) fn published_sources(
     let mut result = Vec::new();
     if let Some(row) = claim.iter().find(|row| row.position.path == path) {
         for atom in &row.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             let (_, source) = input(module, f, source, b)?;
             add_sources(&mut result, &[source], b)?;
         }
@@ -237,7 +237,7 @@ pub(super) fn validate(
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for atom in &declared.sources {
-                let source=crate::exact_storage_source(atom)?;
+                let source = crate::exact_storage_source(atom)?;
                 let (leaf, symbolic) = input(module, f, source, b)?;
                 dynamic_metadata::ty(&output.leaf, b)?;
                 let HoldRoot::Parameter(parameter) = symbolic.base else {

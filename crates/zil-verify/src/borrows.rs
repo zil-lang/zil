@@ -2164,6 +2164,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
