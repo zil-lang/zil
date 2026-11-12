@@ -1,5 +1,5 @@
 fn make()->impl Fn()->u8{let text="abc";return move()=>text[0];}
-fn worker<F:Fn()->u8 + ClosedEnvironment>(give callback:F)->i32 {
+fn worker<F:Fn()->u8 + ClosedEnvironment>(callback:F)->i32 {
  task_yield();return i32(callback());
 }
 fn main()->TaskCreateError!i32 {
