@@ -118,6 +118,7 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     let stats = session.stats();
     assert_eq!(stats.raw_result_modes_checked, 1);
     assert_eq!(stats.raw_result_modes_reused, 15);
+    assert_eq!(stats.raw_function_headers_reused, 16);
     assert_eq!(stats.raw_shape_functions_aggregated, 15);
     assert_eq!(stats.raw_shape_functions_reused, 1);
     assert_eq!(stats.raw_inventory_functions_reused, 15);
@@ -1079,4 +1080,46 @@ fn complete_persistent_delta_avoids_rebuilding_boolean_binding_maps() {
     }
     assert_eq!(call.bound_functions.len(), 1);
     assert!(call.bound_plans.is_empty());
+}
+
+#[test]
+fn complete_symbol_header_proof_is_invalidated_by_names_ids_and_failed_epochs() {
+    let (module, plan) = pair();
+    let limits = Limits {
+        max_analysis_steps: 4096,
+        ..Limits::default()
+    };
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    for case in 0..4 {
+        let mut invalid = module.clone();
+        match case {
+            0 => invalid.functions[0].id = FunctionId(7),
+            1 => invalid.functions[0].name = invalid.functions[1].name.clone(),
+            2 => invalid.functions[0].name.clear(),
+            _ => invalid.functions[0].name = "x".repeat(limits.max_analysis_steps + 1),
+        }
+        // Leave the old digest: raw header errors must still precede identity.
+        let expected =
+            verify_module(invalid.clone(), plan.clone(), &invalid.target, &limits).unwrap_err();
+        assert_eq!(
+            verify(&mut session, &invalid, &plan, &limits).unwrap_err(),
+            expected
+        );
+        assert_eq!(session.stats().raw_function_headers_reused, 0);
+    }
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().raw_function_headers_reused, 2);
+    let mut renamed = module.clone();
+    renamed.functions[0].name = "new_unique_name".into();
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = renamed.fingerprint();
+    verify_module(renamed.clone(), candidate.clone(), &renamed.target, &limits).unwrap();
+    verify(&mut session, &renamed, &candidate, &limits).unwrap();
+    assert_eq!(session.stats().raw_function_headers_reused, 0);
+    renamed.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(41));
+    candidate.module_fingerprint = renamed.fingerprint();
+    verify(&mut session, &renamed, &candidate, &limits).unwrap();
+    assert_eq!(session.stats().raw_function_headers_reused, 2);
 }
