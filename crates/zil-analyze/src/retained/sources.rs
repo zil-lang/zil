@@ -513,6 +513,28 @@ fn compatible(expected: &Type, source: &Type, indirect: Option<bool>) -> bool {
     }
 }
 
+fn mutable_calls(module:&TypedModule,root:&TypedFunction,b:&mut Budget)->CompileResult<bool> {
+    let mut seen=BTreeSet::new();let mut pending=vec![root.id];
+    while let Some(id)=pending.pop() {
+        pay(b,seen.len().saturating_add(1))?;
+        if !seen.insert(id) {continue;}
+        let f=module.functions.get(id.0 as usize).ok_or_else(||err("source call target absent"))?;
+        pay(b,f.blocks.len())?;
+        for block in &f.blocks {
+            pay(b,block.instructions.len())?;
+            for instruction in &block.instructions {
+                match instruction.kind {
+                    InstructionKind::StoreStoredBorrow{..}|InstructionKind::CallClosureMut{..}
+                        |InstructionKind::CallClosureBorrowed{kind:CallableKind::FnMut,..}=>return Ok(true),
+                    InstructionKind::Call{function,..}=>pending.push(function),
+                    _=>{},
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     let contract = f
         .callable_return_contract
@@ -528,6 +550,12 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
         return Err(err(
             "source relation does not cover every actual external capture leaf",
         ));
+    }
+    let memory=mutable_calls(module,f,b)?;
+    if memory && !paths.is_empty() {
+        pay(b,b.pending_returned_source_proofs.len().saturating_add(1))?;
+        b.pending_returned_source_proofs.insert(f.id);
+        b.stored_borrows=true;
     }
     let c = context(module, f, b)?;
     for path in paths {
@@ -579,6 +607,7 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                 ));
             }
         }
+        if memory {continue;}
         for returned in &c.returned {
             let actual = resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b)?;
             if actual.is_empty() || actual.iter().any(|s| !claim.sources.contains(s)) {

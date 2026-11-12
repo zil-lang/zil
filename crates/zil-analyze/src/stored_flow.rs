@@ -6,6 +6,7 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod capture_after;
+mod returned_upper;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
@@ -6384,6 +6385,7 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
+        returned_upper::check(module,f,facts,b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
