@@ -462,3 +462,33 @@ pub(super) fn apply(
     }
     Ok(())
 }
+
+/// A physical pointee slot of a captured exclusive address. These private
+/// after-rows are distinct from the public environment's retained head row.
+pub(super) fn external_capture_tail<'a>(
+    module: &TypedModule,
+    ty: &Type,
+    path: &'a [PlaceProjection],
+    b: &mut Budget,
+) -> Check<Option<(u32, &'a [PlaceProjection])>> {
+    let ty = match ty {
+        Type::Address { inner, .. } => inner.as_ref(),
+        ty => ty,
+    };
+    let Type::Closure(id) = ty else { return Ok(None) };
+    let Some((PlaceProjection::Field(capture), tail)) = path.split_first() else {
+        return Ok(None);
+    };
+    if tail.is_empty() { return Ok(None); }
+    let definition = module.closures.get(id.0 as usize)
+        .ok_or_else(|| err("external capture update has no concrete environment"))?;
+    let Some(Type::Address { mutable: true, inner }) = definition.captures.get(*capture as usize) else {
+        return Ok(None);
+    };
+    let Some((_, shape)) = qualified(inner) else { return Ok(None) };
+    b.spend(shape.slots.len().saturating_mul(tail.len().saturating_add(1)))?;
+    if !shape.slots.iter().any(|slot| slot.path == tail) {
+        return Err(err("external capture update selects no actual pointee slot"));
+    }
+    Ok(Some((*capture, tail)))
+}

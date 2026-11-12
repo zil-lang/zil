@@ -3829,58 +3829,74 @@ fn step(
             let mut updates = Vec::new();
             for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
                 let index = *parameter as usize;
-                let local = *callee
-                    .parameters
-                    .get(index)
+                let local = *callee.parameters.get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
-                if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some())
-                {
-                    continue;
-                }
-                let actual = val(*arguments
-                    .get(index)
+                let ty = &callee.locals[local.0 as usize].ty;
+                let captured = captured_owner::external_capture_tail(module, ty, path, b)?;
+                let borrowed = matches!(ty,
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some());
+                if captured.is_none() && !borrowed { continue; }
+                let actual = val(*arguments.get(index)
                     .ok_or_else(|| err("external summary actual argument is absent"))?)?;
-                let [root] = actual.address.sources.as_slice() else {
-                    return Err(err("external update needs one exact actual carrier source"));
-                };
-                if !root.leaf.is_empty() {
-                    return Err(err("external update crosses a target boundary"));
-                }
-                let actual_path = if root.inline.is_empty() {
-                    path.clone()
-                } else {
-                    slot_position(&actual.address, path, b)?.inline
-                };
                 let mut permission = Permission::default();
                 for source in sources {
-                    join_permission(
-                        &mut permission,
-                        &instantiate(module, f, source, arguments, values, state, b)?,
-                        b,
-                    )?;
+                    join_permission(&mut permission,
+                        &instantiate(module, f, source, arguments, values, state, b)?, b)?;
                 }
                 if permission.sources.is_empty() {
                     return Err(err("external update has no grounded replacement source"));
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
-                let permission =
-                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?;
-                updates.push((root.clone(), actual_path, permission));
+                let retained = retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?;
+                if let Some((capture, tail)) = captured {
+                    let head = if matches!(ty, Type::Address { .. }) {
+                        select(state, &actual.address, &[PlaceProjection::Field(capture)], b)?
+                    } else {
+                        let head = leaf(actual, &[PlaceProjection::Field(capture)], b)?
+                            .ok_or_else(|| err("by-value environment lacks its actual captured pointer"))?;
+                        permission_work(head, b)?;
+                        head.clone()
+                    };
+                    if head.sources.is_empty() {
+                        return Err(err("captured pointee update has no actual target"));
+                    }
+                    for root in &head.sources {
+                        let holder = match root.base {
+                            HoldRoot::Local(local) => state.locals.get(local.0 as usize),
+                            HoldRoot::Parameter(index) => state.external.get(index as usize),
+                            HoldRoot::Capture(index) => state.captures.get(index as usize),
+                            HoldRoot::Static => None,
+                        }.ok_or_else(|| err("captured pointee update target memory is absent"))?;
+                        let Some(complete) = symbolic_slot_path(holder, root, tail, b)? else {
+                            continue;
+                        };
+                        permission_work(&retained, b)?;
+                        updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
+                    }
+                }
+                if borrowed {
+                    let [root] = actual.address.sources.as_slice() else {
+                        return Err(err("external update needs one exact actual carrier source"));
+                    };
+                    if !root.leaf.is_empty() {
+                        return Err(err("external update crosses a target boundary"));
+                    }
+                    let actual_path = if root.inline.is_empty() { path.clone() }
+                        else { slot_position(&actual.address, path, b)?.inline };
+                    updates.push((root.base, actual_path, retained, true));
+                }
             }
-            for (root, path, permission) in updates {
-                let holder = match root.base {
+            for (base, path, permission, unique) in updates {
+                let holder = match base {
                     HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
                     HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
                     HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
                     HoldRoot::Static => None,
-                }
-                .ok_or_else(|| err("updated caller carrier location is absent"))?;
-                if let Some(row) = holder.leaves.position(&path, b)? {
+                }.ok_or_else(|| err("updated caller carrier location is absent"))?;
+                if unique && let Some(row) = holder.leaves.position(&path, b)? {
                     *holder.leaves.permission_mut(row) = permission;
                 } else {
-                    b.spend(path.len().saturating_add(1))?;
-                    holder.leaves.push((path, permission), b)?;
+                    add_leaf(holder, &path, &permission, b)?;
                 }
             }
             dyn_ports::publish_after(state, dyn_updates, b)?;
@@ -6020,7 +6036,7 @@ fn summarize(
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
         }
-        if (b.stored_slot_updates || b.replacements || b.dyn_contexts)
+        if (b.stored_slot_updates || b.replacements || b.dyn_contexts || b.closure_receiver_borrows)
             && *reachable
             && matches!(block.terminator, Terminator::Return(_))
         {
@@ -6029,12 +6045,14 @@ fn summarize(
                     .parameters
                     .get(position)
                     .ok_or_else(|| err("external output exceeds actual parameter table"))?;
-                if !matches!(&f.locals[local.0 as usize].ty,
-                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && (qualified(inner).is_some() || returned_environment::closure(inner).is_some()))
-                {
-                    continue;
-                }
+                let ty = &f.locals[local.0 as usize].ty;
+                let borrowed = matches!(ty,
+                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && (qualified(inner).is_some() || returned_environment::closure(inner).is_some()));
+                if !borrowed && !matches!(ty, Type::Closure(_)) { continue; }
                 for (path, permission) in &payload.leaves {
+                    if !borrowed && captured_owner::external_capture_tail(module, ty, path, b)?.is_none() {
+                        continue;
+                    }
                     b.spend(
                         path.len()
                             .saturating_add(permission.sources.len())
