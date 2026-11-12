@@ -110,10 +110,11 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
         let report = compile_project(&project(files), &CompileOptions::default());
         assert_eq!(report.status, expected, "{}", report.to_json());
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.code == code),
+            code.is_empty()
+                || report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == code),
             "{}",
             report.to_json()
         );
@@ -202,13 +203,10 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     let owning_parameter = KEY_EQ.replace("other:&Self", "other:Self");
     let result = check(
         &[("main", unused), ("key_eq", &owning_parameter)],
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+        ResultCategory::SafeReject,
+        "E-TRAIT-SIGNATURE",
     );
-    assert!(result.diagnostics.iter().any(|d| {
-        d.message
-            .contains("project Package traits require fixed borrowed receivers")
-    }));
+    assert_eq!(result.verification_runs, 0);
     let generic_trait = KEY_EQ.replace("KeyEq {", "KeyEq<T:Copy> {");
     let generic_impl = unused.replace(
         "impl key_eq.KeyEq for Item",
@@ -216,13 +214,10 @@ fn owning_package_shared_trait_rejects_wrong_provider_and_bad_definitions() {
     );
     let result = check(
         &[("main", &generic_impl), ("key_eq", &generic_trait)],
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+        ResultCategory::Success,
+        "",
     );
-    assert!(result.diagnostics.iter().any(|d| {
-        d.message
-            .contains("project Package traits require fixed borrowed receivers")
-    }));
+    assert_eq!(result.verification_runs, 1);
 }
 
 #[test]

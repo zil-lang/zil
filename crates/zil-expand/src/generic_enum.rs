@@ -883,6 +883,12 @@ impl Engine<'_> {
                         &field.ty,
                         &mut self.budget,
                     )?;
+                    let semantic_hint = if self.qualified_actual_syntax(&hint, depth + 1)? {
+                        self.budget.ty(&hint)?;
+                        Some(hint.clone())
+                    } else {
+                        None
+                    };
                     self.ty(&mut hint, depth + 1)?;
                     let actual = if let Some(actual) =
                         self.expr_expected(&mut value.value, env, Some(&hint), depth + 1)?
@@ -894,7 +900,26 @@ impl Engine<'_> {
                                 error(value.span, "stored enum payload type cannot be inferred")
                             })?
                     };
-                    let actual = self.original_type(&actual)?;
+                    let mut actual = self.original_type(&actual)?;
+                    if let Some(semantic_hint) = semantic_hint.as_ref()
+                        && self
+                            .semantic_source_actual(&actual, &env.domain)?
+                            .is_some_and(|actual| !actual.classes.is_empty())
+                    {
+                        let scope = self.source_unification_scope(env, value.span)?;
+                        if source_unification_key(semantic_hint, scope.as_ref(), &mut self.budget)?
+                            != source_unification_key(&actual, scope.as_ref(), &mut self.budget)?
+                        {
+                            return Err(error(
+                                value.span,
+                                "stored enum payload differs from source lifetime application",
+                            ));
+                        }
+                    }
+                    // The complete source application above still selects the
+                    // Enum's class map. Compare machine payload layouts only
+                    // after materializing this independent copy of its hint.
+                    self.ty(&mut actual, depth + 1)?;
                     let expected = self.original_type(&hint)?;
                     if type_key(&actual, &mut self.budget)?
                         != type_key(&expected, &mut self.budget)?
@@ -1645,6 +1670,9 @@ pub(super) struct CallHints {
     found: BTreeMap<String, TypeRef>,
 }
 impl CallHints {
+    pub(super) fn parameter(&self, index: usize) -> Option<&TypeRef> {
+        self.parameters.get(index)
+    }
     pub(super) fn independent_input(
         &self,
         index: usize,
