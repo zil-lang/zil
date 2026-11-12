@@ -273,7 +273,9 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
         match ty {
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::ByteBuffer) =>
+            {
                 resources::check_type_for(module, ty, None, b)?;
             }
             Type::Tuple(fields) => {
@@ -390,6 +392,10 @@ fn package_helper_with_store_input(
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
             Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
                 if ty == endpoint => {}
+            Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                if f.environment.is_none()
+                    && f.call_kind == zil_ir::CallKind::Direct
+                    && helper_owned_result(module, ty, b)? => {}
             Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
             Type::Desc(payload) | Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
