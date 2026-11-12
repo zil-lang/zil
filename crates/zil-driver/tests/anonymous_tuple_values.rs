@@ -563,3 +563,159 @@ fn elided_inputs_preserve_independent_domains_and_reject_ambiguous_results() {
         );
     }
 }
+
+#[test]
+fn nested_anonymous_headers_preserve_each_actual_child_boundary() {
+    use zil_ir::{InstructionKind as I, LifeTypeProjection, PlaceProjection, Type};
+    let (original, candidate) = prepare(NESTED);
+    for attack in 0..4 {
+        let mut changed = original.clone();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "sum")
+            .unwrap();
+        let result = function.blocks.iter().flat_map(|b| &b.instructions).find_map(|i| {
+            let result=i.result?;
+            (matches!(i.kind,I::MakeAggregate{..}) && matches!(&function.values[result.0 as usize],Type::BorrowedStorage{life,..} if life.retained.len()==2)).then_some(result)
+        }).unwrap();
+        let Type::BorrowedStorage { storage, life } = &mut function.values[result.0 as usize]
+        else {
+            unreachable!()
+        };
+        match attack {
+            0 => {
+                life.retained.pop();
+            }
+            1 => {
+                life.retained[1].path = vec![LifeTypeProjection::Place(PlaceProjection::Field(1))];
+            }
+            2 => {
+                life.retained[1].binder = 0;
+            }
+            3 => {
+                let Type::Tuple(fields) = storage.as_mut() else {
+                    unreachable!()
+                };
+                let Type::BorrowedStorage { life: child, .. } = &mut fields[0] else {
+                    unreachable!()
+                };
+                assert_eq!(child.binder_count, 2);
+                child.binder_count = 1;
+            }
+            _ => unreachable!(),
+        }
+        assert_raw_wire_reject(
+            changed,
+            candidate.clone(),
+            &format!("nested-boundary-{attack}"),
+            match attack {
+                0 => "omits actual address or child-domain slots",
+                1 => "differs from complete actual retained boundary",
+                2 => "changes its invariant semantic class",
+                3 => "class partition is not complete and canonical",
+                _ => unreachable!(),
+            },
+        );
+    }
+}
+
+#[test]
+fn nested_affine_children_cannot_alias_and_byte_views_keep_the_owner_alive() {
+    use zil_ir::{InstructionKind as I, Type};
+    let (mut module, candidate) = prepare(NESTED_EXCLUSIVE);
+    let fields = module
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| {
+            if let I::UnpackTuple { fields, .. } = &mut i.kind {
+                Some(fields)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(fields.len(), 2);
+    assert_ne!(fields[0], fields[1]);
+    fields[1] = fields[0];
+    assert_raw_wire_reject(
+        module,
+        candidate,
+        "nested-exclusive-duplicate-child",
+        "unpack aliases or retags an actual child",
+    );
+
+    let (mut module, candidate) = prepare(BUFFER);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "read")
+        .unwrap();
+    let bytes = function
+        .locals
+        .iter()
+        .find(|l| l.name == "bytes" && l.ty == Type::Managed(Box::new(Type::ByteBuffer)))
+        .unwrap()
+        .id;
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::ByteBufferBorrow { .. }))
+        })
+        .unwrap();
+    let drop_index = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind,I::DropManaged{local} if local==bytes))
+        .unwrap();
+    let drop = block.instructions.remove(drop_index);
+    let borrowed = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::ByteBufferBorrow { .. }))
+        .unwrap();
+    // Same initialized local and same cleanup count; only move its real cleanup
+    // before the borrowed bytes' last read. StorageDead still clears the same
+    // initialization claim, so this tests actual parent-loan retirement.
+    block.instructions.insert(borrowed + 1, drop);
+    assert_raw_wire_reject(
+        module,
+        candidate,
+        "byte-view-parent-retired",
+        "intersects a live incompatible loan",
+    );
+}
+
+fn assert_raw_wire_reject(
+    module: TypedModule,
+    mut candidate: CandidatePlan,
+    label: &str,
+    reason: &str,
+) {
+    candidate.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for decoded in [false, true] {
+        let (raw, plan) = if decoded {
+            let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+        } else {
+            (module.clone(), candidate.clone())
+        };
+        let errors = zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject
+                    && e.code == "E-VERIFY-STORED"
+                    && e.message.contains(reason)),
+            "{label} Wire={decoded}: {errors:?}"
+        );
+        eprintln!("{label} Wire={decoded}: {errors:?}");
+    }
+}
