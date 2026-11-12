@@ -1172,7 +1172,7 @@ fn relative_scalar_versions_never_admit_constants_ct_generics_or_capture_rewrite
                     successful(&report);
                 } else {
                     assert_eq!(report.status, ResultCategory::Unsupported);
-                    assert_eq!(report.phase, Phase::Expand);
+                    assert_eq!(report.phase, Phase::Types);
                     assert_eq!(report.verification_runs, 0);
                 }
                 if let Some(work) = &report.function_type_work {

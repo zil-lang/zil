@@ -448,6 +448,21 @@ impl FunctionSession {
         checkpoint.producer_memo = self.producer_memo.clone();
         checkpoint
     }
+    /// Identity of one successful raw acceleration epoch, not structural
+    /// equality or verification authority. A closed owner may avoid resetting
+    /// the still-current graph only when all immutable content, current product
+    /// bindings and producer-read memo owners are exactly the retained ones.
+    /// Rollbacks with an already-cleared graph remain conservative; no graph
+    /// state is reconstructed by this comparison.
+    pub fn shares_raw_epoch(&self, checkpoint: &Self) -> bool {
+        Arc::ptr_eq(&self.entries, &checkpoint.entries)
+            && Arc::ptr_eq(&self.products, &checkpoint.products)
+            && Arc::ptr_eq(
+                &self.producer_memo.entries,
+                &checkpoint.producer_memo.entries,
+            )
+            && Arc::ptr_eq(&self.publication_guard, &checkpoint.publication_guard)
+    }
     pub fn last_products(&self) -> &[FunctionProduct] {
         &self.products
     }
