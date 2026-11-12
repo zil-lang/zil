@@ -513,7 +513,11 @@ pub(super) fn check_definitions(
                     check_type(ty, None)?;
                 }
             }
-            if lending_result(&closure.result) || invocation || explicit_result_relation {
+            if lending_result(&closure.result)
+                || invocation
+                || explicit_result_relation
+                || stored_callables::task_result(closure)
+            {
                 check_local_type(&closure.result, None, module, budget)?;
             } else {
                 check_type(&closure.result, None)?;
