@@ -12,6 +12,11 @@ pub(super) fn present(module: &TypedModule) -> bool {
         || !module.dyn_vtables.is_empty()
 }
 
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar() || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+}
+
 fn bad(message: &str, span: Option<Span>) -> Diagnostic {
     reject("E-VERIFY-DYN", span, message)
 }
@@ -54,7 +59,7 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
                 && v.access.writes.is_empty()
                 && v.effects.is_empty()
         })
-        && c.effects.as_ref().is_some_and(Vec::is_empty);
+        && c.effects.as_ref().is_some_and(|v| v.is_empty() || v.as_slice() == [DynEffect::Panic]);
     if !finite {
         return Err(bad(
             "dyn contract has an unknown or unbounded component",
@@ -89,7 +94,7 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
             },
             effects: vec![],
         }),
-        effects: Some(vec![]),
+        effects: c.effects.clone(),
         resume: Some(DynResumeBound::Local),
         threads: Some(DynThreadRequirements {
             transfer: false,
@@ -139,6 +144,15 @@ fn closed_owner_shape(
                         && r.teardown.is_none()
                 })
                 .then_some(1));
+        }
+        Type::Managed(payload) => {
+            budget.spend(module.resources.len())?;
+            if !module.resources.iter().any(|r| r.payload == **payload) { return Ok(None); }
+            match payload.as_ref() {
+                Type::Record { .. } if closed_owner_shape(payload, module, budget, depth + 1)? == Some(0) => return Ok(Some(1)),
+                Type::OwnedStore { element } if closed_owner_shape(element, module, budget, depth + 1)?.is_some() => return Ok(Some(1)),
+                _ => return Ok(None),
+            }
         }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
@@ -364,12 +378,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                         PassingMode::Borrow
                     }
                 || slot.parameters.len() != slot.parameter_modes.len()
-                || !slot.parameters.iter().all(scalar)
+                || !slot.parameters.iter().all(plain_value)
                 || !slot
                     .parameter_modes
                     .iter()
                     .all(|mode| *mode == PassingMode::Infer)
-                || !scalar(&slot.result)
+                || !plain_value(&slot.result)
                 || slot.result_mode != PassingMode::Infer
                 || slot.call_kind != CallKind::Direct
                 || slot.storage_life.as_ref() != Some(&expected_life)
@@ -508,8 +522,8 @@ fn entry_body(
         }
     }
     if function.locals.iter().enumerate().any(|(index, local)| {
-        (index != function.parameters[0].0 as usize && !scalar(&local.ty))
-            || local.mutable && !scalar(&local.ty)
+        (index != function.parameters[0].0 as usize && !plain_value(&local.ty))
+            || local.mutable && !plain_value(&local.ty)
     }) {
         return Err(bad(
             "dyn entry retains a non-scalar local or mutable receiver",
@@ -596,6 +610,33 @@ fn entry_body(
                     }
                     saw_write = true;
                 }
+                InstructionKind::MakeAggregate { fields } => {
+                    budget.spend(fields.len().saturating_add(1))?;
+                    if !fields.iter().all(|id| function.values.get(id.0 as usize).is_some_and(plain_value))
+                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(plain_value)) {
+                        return Err(bad("dyn aggregate has nonvalue fields or result", Some(instruction.span)));
+                    }
+                }
+                InstructionKind::ExtractField { aggregate, .. } => {
+                    if !function.values.get(aggregate.0 as usize).is_some_and(plain_value)
+                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(plain_value)) {
+                        return Err(bad("dyn aggregate projection has nonvalue result", Some(instruction.span)));
+                    }
+                }
+                InstructionKind::Binary { left, right, .. } => {
+                    if !slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic))
+                        || ![*left, *right].iter().all(|id| function.values.get(id.0 as usize).is_some_and(scalar))
+                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(scalar)) {
+                        return Err(bad("dyn arithmetic lacks proved Panic upper bound or scalar operands", Some(instruction.span)));
+                    }
+                }
+                InstructionKind::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } => {
+                    if !slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic))
+                        || !function.values.get(operand.0 as usize).is_some_and(scalar)
+                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(scalar)) {
+                        return Err(bad("dyn unary operation lacks proved Panic upper bound", Some(instruction.span)));
+                    }
+                }
                 InstructionKind::Call {
                     function: target,
                     arguments,
@@ -641,7 +682,7 @@ fn entry_body(
                         && !function
                             .locals
                             .get(local.0 as usize)
-                            .is_some_and(|l| scalar(&l.ty))
+                            .is_some_and(|l| plain_value(&l.ty))
                     {
                         return Err(bad(
                             "dyn entry has an unproved local address access",
@@ -653,7 +694,7 @@ fn entry_body(
                     if !function
                         .locals
                         .get(local.0 as usize)
-                        .is_some_and(|l| scalar(&l.ty))
+                        .is_some_and(|l| plain_value(&l.ty))
                     {
                         return Err(bad(
                             "dyn entry writes a borrowed or owning local",

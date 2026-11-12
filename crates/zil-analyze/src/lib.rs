@@ -18,6 +18,7 @@ mod composition;
 mod defer_tests;
 mod defers;
 mod dyn_dispatch;
+mod dyn_cleanup;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;

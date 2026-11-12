@@ -1338,17 +1338,54 @@ fn shared_dyn_cannot_call_mutable_slot_or_create_exclusive_dyn() {
 }
 
 #[test]
-fn arithmetic_provider_cannot_claim_an_empty_dyn_effect_set() {
+fn arithmetic_provider_proves_panic_and_preserves_checked_execution() {
     let source = "trait Change{fn step(self:&mut Self)->();}struct A{n:i32}impl Change for A{fn step(self:&mut Self)->(){self.n+=1;return ()}}fn main()->i32{var a=A{n:1};let d:&mut dyn Change=&mut a;d.step();return a.n}";
-    let report = compile(source, &CompileOptions::default());
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-    assert_eq!(report.verification_runs, 0);
+    let (module, plan) = source_candidate_for(source);
+    assert_eq!(module.dyn_interfaces[0].slots[0].contract.effects, Some(vec![zil_ir::DynEffect::Panic]));
+    let target = module.target.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap();
+    rejected(module.clone(), plan.clone(), |m| { m.dyn_interfaces[0].slots[0].contract.effects = Some(vec![]); });
+    rejected(module.clone(), plan.clone(), |m| { m.dyn_interfaces[0].slots[0].contract.effects = None; });
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for overflow in [false, true] {
+                let text = if overflow { source.replace("n:1}", "n:2147483647}") } else { source.to_string() };
+                let dir = directory("arithmetic-provider");
+                let executable = dir.join("program");
+                let report = compile(&text, &CompileOptions { backend, optimization, stop_after: Stage::Build, entry: Some("main".into()), output: Some(executable.clone()), ..CompileOptions::default() });
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                assert_eq!(report.verification_runs, 1);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let output = Command::new(&executable).output().unwrap();
+                if overflow { assert!(!output.status.success(), "{output:?}"); assert_ne!(output.status.code(), Some(0)); }
+                else { assert_eq!(output.status.code(), Some(0), "{output:?}"); assert_eq!(output.stdout, b"2\n"); }
+            }
+        }
+    }
+}
+
+#[test]
+fn tuple_slot_arguments_and_results_preserve_selected_provider_values() {
+    let source = "trait Pair{fn pack(self:&Self,n:i32)->(i32,i32);fn echo(self:&Self,p:(i32,i32))->(i32,i32);}struct A{n:i32}struct B{n:i32}impl Pair for A{fn pack(self:&Self,n:i32)->(i32,i32){return (self.n,n)}fn echo(self:&Self,p:(i32,i32))->(i32,i32){return p}}impl Pair for B{fn pack(self:&Self,n:i32)->(i32,i32){return (n,self.n)}fn echo(self:&Self,p:(i32,i32))->(i32,i32){return p}}fn apply(d:&dyn Pair)->i32{let p=d.pack(11);let q=d.echo(p);return q.0*3+q.1}fn main()->i32{let a=A{n:7};let b=B{n:13};return apply(&a)+apply(&b)}";
+    let (module, plan) = source_candidate_for(source);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("tuple-provider");
+            let executable = dir.join("program");
+            let report = compile(source, &CompileOptions { backend, optimization, stop_after: Stage::Build, entry: Some("main".into()), output: Some(executable.clone()), ..CompileOptions::default() });
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}"); assert_eq!(output.stdout, b"78\n");
+        }
+    }
+    rejected(module, plan, |m| {
+        m.dyn_interfaces[0].slots[0].result = Type::Tuple(vec![Type::Address { mutable: false, inner: Box::new(Type::I32) }, Type::I32]);
+    });
 }
 
 #[test]

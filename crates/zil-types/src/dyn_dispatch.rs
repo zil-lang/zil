@@ -15,6 +15,11 @@ pub(super) fn owned_result(interface: DynInterfaceId) -> Type {
     }
 }
 
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar() || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+}
+
 fn closed_owner_shape(
     ty: &Type,
     left: &mut usize,
@@ -37,6 +42,11 @@ fn closed_owner_shape(
     let mut count = 0usize;
     match ty {
         Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => return Ok(Some(1)),
+        Type::Managed(payload) => match payload.as_ref() {
+            Type::Record { .. } if closed_owner_shape(payload, left, depth + 1, limits)? == Some(0) => return Ok(Some(1)),
+            Type::OwnedStore { element } if closed_owner_shape(element, left, depth + 1, limits)?.is_some() => return Ok(Some(1)),
+            _ => return Ok(None),
+        },
         Type::Record { fields, .. } => {
             for (_, field) in fields {
                 let Some(n) = closed_owner_shape(field, left, depth + 1, limits)? else {
@@ -140,6 +150,32 @@ pub(super) fn scalar_contract(mutable: bool) -> DynContract {
     }
 }
 
+fn valid_scalar_contract(slot: &DynSlot) -> bool {
+    let mut expected = scalar_contract(slot.receiver.mutable);
+    if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
+        expected.effects = Some(vec![DynEffect::Panic]);
+    }
+    slot.contract == expected
+}
+
+fn scalar_expression(expr: &CoreExpr, function: &CoreFunction, fields: &[(String, Type)], panic: bool, left: &mut usize, depth: usize) -> R<bool> {
+    *left = left.checked_sub(1 + fields.len() + function.parameters.len()).ok_or_else(|| Diagnostic::limit(Phase::Types, "dyn expression budget exceeded", Some(expr.span)))?;
+    // Depth is independently bounded even when a raw producer supplies a deep tree.
+    if depth > 128 { return Err(Diagnostic::limit(Phase::Types, "dyn expression depth exceeded", Some(expr.span))); }
+    Ok(match &expr.kind {
+        CoreExprKind::Integer(_) | CoreExprKind::Float(_) | CoreExprKind::Bool(_) | CoreExprKind::Literal(_) => true,
+        CoreExprKind::Name(name) => function.parameters.iter().skip(1).any(|p| p.name == *name && plain_value(&p.ty)),
+        CoreExprKind::Member { object, member, owner: None } => matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name) && fields.iter().any(|(name, ty)| name == member && ty.is_b0_scalar()),
+        CoreExprKind::Tuple(values) => {
+            for value in values { if !scalar_expression(value, function, fields, panic, left, depth + 1)? { return Ok(false); } }
+            true
+        }
+        CoreExprKind::Binary { left: a, right: b, .. } if panic => scalar_expression(a, function, fields, panic, left, depth + 1)? && scalar_expression(b, function, fields, panic, left, depth + 1)?,
+        CoreExprKind::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } if panic => scalar_expression(operand, function, fields, panic, left, depth + 1)?,
+        _ => false,
+    })
+}
+
 pub(super) fn shared_slot_life() -> StorageLifeContract {
     StorageLifeContract {
         fixed_binder_count: 0,
@@ -241,7 +277,7 @@ fn inventory_in_modules(
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
             spend(&mut left, 256 + slot.parameters.len())?;
-            if slot.contract != scalar_contract(slot.receiver.mutable)
+            if !valid_scalar_contract(slot)
                 || slot.receiver.mode
                     != if slot.receiver.mutable {
                         PassingMode::BorrowMut
@@ -249,8 +285,8 @@ fn inventory_in_modules(
                         PassingMode::Borrow
                     }
                 || !slot.actuals.is_empty()
-                || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
+                || slot.parameters.iter().any(|ty| !plain_value(ty))
+                || !plain_value(&slot.result)
                 || slot
                     .parameter_modes
                     .iter()
@@ -398,6 +434,7 @@ fn inventory_in_modules(
                     fields,
                     slot.receiver.mutable,
                     &slot.result,
+                    slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic)),
                     &mut left,
                 )?
             {
@@ -539,11 +576,11 @@ pub(super) fn inventory_program(
                         + slot.actuals.len()
                         + slot.member.application.actuals.len(),
                 )?;
-                if slot.contract != scalar_contract(slot.receiver.mutable)
+                if !valid_scalar_contract(slot)
                     || !slot.actuals.is_empty()
                     || !slot.member.application.actuals.is_empty()
-                    || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                    || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
+                    || slot.parameters.iter().any(|ty| !plain_value(ty))
+                    || !plain_value(&slot.result)
                 {
                     return Err(unsupported(
                         Span::default(),
@@ -668,6 +705,7 @@ fn scalar_body(
     fields: &[(String, Type)],
     mutable: bool,
     result: &Type,
+    panic: bool,
     left: &mut usize,
 ) -> R<bool> {
     let ScalarBodyContext {
@@ -722,10 +760,7 @@ fn scalar_body(
                 return Ok(false);
             };
             if !matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                || !matches!(
-                    &value.kind,
-                    CoreExprKind::Integer(_) | CoreExprKind::Bool(_) | CoreExprKind::Name(_)
-                )
+                || !scalar_expression(value, current, fields, panic, left, 0)?
                 || !fields
                     .iter()
                     .any(|(name, ty)| name == member && ty.is_b0_scalar())
@@ -903,6 +938,7 @@ fn scalar_body(
     if mutable {
         return Ok(false);
     }
+    if scalar_expression(value, current, fields, panic, left, 0)? { return Ok(true); }
     Ok(match &value.kind {
         CoreExprKind::Member {
             object,

@@ -22,6 +22,11 @@ pub(super) struct Target {
     function: zil_base::NodeId,
 }
 
+fn plain_value(ty: &zil_ir::Type) -> bool {
+    ty.is_b0_scalar() || *ty == zil_ir::Type::Unit
+        || matches!(ty, zil_ir::Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == zil_ir::Type::Unit))
+}
+
 fn receiver_position() -> zil_ir::StoragePosition {
     zil_ir::StoragePosition {
         base: zil_ir::StorageBase::Parameter(0),
@@ -62,13 +67,55 @@ fn scalar_read_contract(mutable: bool) -> zil_ir::DynContract {
     }
 }
 
+fn scalar_expression(
+    expr: &zil_ir::CoreExpr,
+    function: &zil_ir::CoreFunction,
+    owner: &zil_ir::CoreModule,
+    self_name: &str,
+    budget: &mut Budget<'_>,
+    panic: &mut bool,
+    depth: usize,
+) -> R<bool> {
+    budget.node(expr.span, depth)?;
+    use zil_ir::{CoreExprKind as E, UnaryOp};
+    Ok(match &expr.kind {
+        E::Integer(_) | E::Float(_) | E::Bool(_) | E::Literal(_) => true,
+        E::Name(name) => {
+            for p in &function.parameters { budget.node(p.span, depth)?; }
+            function.parameters.iter().skip(1).any(|p| p.name == *name && plain_value(&p.ty))
+        }
+        E::Member { object, member, owner: None } => {
+            for a in &owner.aggregates { budget.node(a.span, depth)?; }
+            let Some(a) = owner.aggregates.iter().find(|a| a.name == self_name) else { return Ok(false); };
+            for f in &a.fields { budget.node(f.span, depth)?; }
+            matches!(&object.kind, E::Name(name) if name == &function.parameters[0].name)
+                && a.fields.iter().any(|f| f.name == *member && f.ty.is_b0_scalar())
+        }
+        E::Tuple(values) => {
+            for value in values { if !scalar_expression(value, function, owner, self_name, budget, panic, depth + 1)? { return Ok(false); } }
+            true
+        }
+        E::Binary { left, right, .. } => {
+            *panic = true;
+            scalar_expression(left, function, owner, self_name, budget, panic, depth + 1)?
+                && scalar_expression(right, function, owner, self_name, budget, panic, depth + 1)?
+        }
+        E::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } => {
+            *panic = true;
+            scalar_expression(operand, function, owner, self_name, budget, panic, depth + 1)?
+        }
+        _ => false,
+    })
+}
+
 fn prove_scalar_read(
     provider: &zil_ir::CoreFunction,
     table: &zil_ir::CoreDynVtable,
     slot: &zil_ir::DynSlot,
     modules: &[&zil_ir::CoreModule],
     budget: &mut Budget<'_>,
-) -> R<()> {
+) -> R<bool> {
+    let mut panic = false;
     budget.node(provider.span, 0)?;
     let zil_ir::Type::Named(self_name) = &table.self_type else {
         return Err(unsupported(
@@ -84,7 +131,7 @@ fn prove_scalar_read(
         || provider.parameters.len() != slot.parameters.len() + 1
         || provider.return_type != slot.result
         || provider.result_mode != slot.result_mode
-        || !(slot.result.is_b0_scalar() || slot.result == zil_ir::Type::Unit)
+        || !plain_value(&slot.result)
         || provider.parameters[0].mode != slot.receiver.mode
         || provider.parameters[0].ty
             != (zil_ir::Type::Address {
@@ -155,12 +202,7 @@ fn prove_scalar_read(
                 ));
             };
             if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                || !matches!(
-                    &value.kind,
-                    zil_ir::CoreExprKind::Integer(_)
-                        | zil_ir::CoreExprKind::Bool(_)
-                        | zil_ir::CoreExprKind::Name(_)
-                )
+                || !scalar_expression(value, current, owner, self_name, budget, &mut panic, 0)?
             {
                 return Err(unsupported(
                     assignment.span,
@@ -216,7 +258,7 @@ fn prove_scalar_read(
                     "mutable dyn result lacks actual Self source",
                 ));
             }
-            return Ok(());
+            return Ok(panic);
         }
 
         let [statement] = current.body.statements.as_slice() else {
@@ -236,7 +278,7 @@ fn prove_scalar_read(
                     }))
             )
         {
-            return Ok(());
+            return Ok(panic);
         }
         let zil_ir::CoreStatementKind::Return(Some(value)) = &statement.kind else {
             return Err(unsupported(
@@ -398,6 +440,9 @@ fn prove_scalar_read(
             "mutable dyn provider chain has no proven receiver write",
         ));
     }
+    if matches!(&value.kind, zil_ir::CoreExprKind::Binary { .. } | zil_ir::CoreExprKind::Unary { .. } | zil_ir::CoreExprKind::Name(_) | zil_ir::CoreExprKind::Tuple(_))
+        && scalar_expression(value, current, owner, self_name, budget, &mut panic, 0)?
+    { return Ok(panic); }
     if matches!(
         &value.kind,
         zil_ir::CoreExprKind::Integer(_)
@@ -407,7 +452,7 @@ fn prove_scalar_read(
     ) {
         // Ordinary Types still checks the exact literal's value and result
         // type. Its syntax has no receiver access or reachable call.
-        return Ok(());
+        return Ok(panic);
     }
     let zil_ir::CoreExprKind::Member {
         object,
@@ -472,7 +517,7 @@ fn prove_scalar_read(
             "dyn provider field read lacks finite Copy proof",
         ));
     }
-    Ok(())
+    Ok(panic)
 }
 
 fn parameters(parameters: &[GenericParam], budget: &mut Budget<'_>) -> R<Vec<LifeParameterKind>> {
@@ -819,6 +864,7 @@ impl Catalog {
                     budget.node(span, 0)?;
                     let mut found = false;
                     let mut proven = true;
+                    let mut panic = false;
                     for module in &snapshot {
                         for table in &module.dyn_vtables {
                             budget.node(span, 0)?;
@@ -848,7 +894,7 @@ impl Catalog {
                                 })
                                 .ok_or_else(|| unsupported(span, "dyn entry target body absent"))?;
                             match prove_scalar_read(provider, table, slot, &snapshot, budget) {
-                                Ok(()) => {}
+                                Ok(provider_panic) => { panic |= provider_panic; }
                                 Err(diagnostic)
                                     if diagnostic.category
                                         == zil_base::ResultCategory::Unsupported =>
@@ -862,6 +908,7 @@ impl Catalog {
                     decisions.push((
                         interface.id,
                         ordinal,
+                        panic,
                         found
                             && proven
                             && interface.application.actuals.is_empty()
@@ -873,11 +920,12 @@ impl Catalog {
         drop(snapshot);
         for (core, _) in cores.iter_mut() {
             for interface in &mut core.dyn_interfaces {
-                for (id, ordinal, proven) in &decisions {
+                for (id, ordinal, panic, proven) in &decisions {
                     budget.node(span, 0)?;
                     if *proven && *id == interface.id {
                         interface.slots[*ordinal].contract =
                             scalar_read_contract(interface.slots[*ordinal].receiver.mutable);
+                        if *panic { interface.slots[*ordinal].contract.effects = Some(vec![zil_ir::DynEffect::Panic]); }
                     }
                 }
             }
@@ -1119,7 +1167,7 @@ impl Catalog {
                 let mut parameter_modes = Vec::new();
                 for parameter in slot.signature.params.iter().skip(1) {
                     let lowered = lower_type(&parameter.ty, budget)?;
-                    if !lowered.is_b0_scalar() && lowered != zil_ir::Type::Unit {
+                    if !plain_value(&lowered) {
                         return Err(unsupported(
                             parameter.span,
                             "dyn parameter needs its complete retained/lending source contract",
@@ -1132,7 +1180,7 @@ impl Catalog {
                     Some(ty) => lower_type(ty, budget)?,
                     None => zil_ir::Type::Unit,
                 };
-                if !result_type.is_b0_scalar() && result_type != zil_ir::Type::Unit {
+                if !plain_value(&result_type) {
                     return Err(unsupported(
                         slot.signature.span,
                         "dyn result needs its complete retained/lending source contract",
@@ -1216,7 +1264,7 @@ impl Catalog {
         for actual in &reference.arguments {
             budget.node(actual.span, 0)?;
             let lowered = lower_type(actual, budget)?;
-            if !lowered.is_b0_scalar() && lowered != zil_ir::Type::Unit {
+            if !plain_value(&lowered) {
                 return Err(unsupported(
                     actual.span,
                     "dyn trait actual needs its full retained type-class context",
