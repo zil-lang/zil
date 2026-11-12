@@ -178,7 +178,7 @@
 @@ -127,0 +143,2 @@
 +    if (ZilLLVMProductRequestFailed(ZilLLVMGetFunctionProductHooks()))
 +      return PreservedAnalyses::none();
-@@ -165,0 +183,183 @@
+@@ -165,0 +183,193 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -361,6 +361,16 @@
 +  if (bool(Table) != bool(Present) || !zilCurrentLocalNameMap(F, Table)) return 0;
 +  if (!Table) return Counter == 0 && MaxNameSize == 0;
 +  return Table->zilRestoreProductLastUnique(Counter, MaxNameSize);
++}
++
++extern "C" LLVM_ABI const void *ZilLLVMTargetLibraryImmutableBasis(
++    void *Manager, void *IR) {
++  if (!Manager || !IR) return nullptr;
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  const auto *Info = AM.getCachedResult<llvm::TargetLibraryAnalysis>(F);
++  const auto *Factory = AM.zilRegisteredAnalysisPass<llvm::TargetLibraryAnalysis>();
++  return Info && Factory ? Factory->zilProductImmutableBasis(*Info) : nullptr;
 +}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
@@ -545,6 +555,15 @@
 @@ -277,0 +278,4 @@
 +  const std::bitset<NumLibFuncs> &zilProductOverrides() const {
 +    return OverrideAsUnavailable;
++  }
++
+@@ -618,0 +623,8 @@
++  // A resident memo may borrow this token only while this registered factory
++  // and its immutable baseline remain alive. Never expose a Result address:
++  // clearing the FAM can destroy and reuse Result storage.
++  const void *zilProductImmutableBasis(const TargetLibraryInfo &Info) const {
++    return BaselineInfoImpl && Info.Impl == &*BaselineInfoImpl
++               ? &*BaselineInfoImpl : nullptr;
 +  }
 +
 --- a/llvm/include/llvm/Analysis/BasicAliasAnalysis.h
