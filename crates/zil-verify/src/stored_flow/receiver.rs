@@ -71,6 +71,15 @@ pub(super) fn read(
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<bool> {
+    if let InstructionKind::BorrowCapture { .. } = i.kind
+        && entry(module, f).is_some_and(declared)
+    {
+        let head = state
+            .receiver
+            .ok_or_else(|| err("inline environment borrow lacks its invocation head"))?;
+        add_loans(&mut out.address.loans, &[head], b)?;
+        return Ok(false);
+    }
     let InstructionKind::ReadCapture { index } = i.kind else {
         return Ok(false);
     };
@@ -192,4 +201,49 @@ pub(super) fn receiver_result(
         add_loans(&mut out.address.loans, &retained.loans, b)?;
     }
     Ok(true)
+}
+
+/// A borrowed concrete F parameter supplies a real head parent for a short
+/// result. A data target/class row alone cannot establish this obligation.
+pub(super) fn parameter_head_result(
+    f: &TypedFunction,
+    summary: &Summary,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> Check<bool> {
+    if !path.is_empty() {
+        return Ok(false);
+    }
+    let Some(life) = &f.storage_life else {
+        return Ok(false);
+    };
+    let Some(StorageBinder::Invocation(bound)) = signature_life::outer(life, StorageBase::Result)
+    else {
+        return Ok(false);
+    };
+    source_work(&summary.dyn_result_parents, b)?;
+    for parent in &summary.dyn_result_parents {
+        let HoldRoot::Parameter(index) = parent.base else {
+            continue;
+        };
+        if parent.retained_port.is_some()
+            || !parent.leaf.is_empty()
+            || !parent.inline.is_empty()
+            || parent.heap_element.is_some()
+            || !parent.heap_parents.is_empty()
+        {
+            continue;
+        }
+        let actual = f
+            .parameters
+            .get(index as usize)
+            .and_then(|id| f.locals.get(id.0 as usize));
+        if matches!(actual.map(|local| &local.ty), Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::Closure(_)))
+            && signature_life::outer(life, StorageBase::Parameter(index))
+                == Some(StorageBinder::Invocation(bound))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

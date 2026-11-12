@@ -3761,7 +3761,7 @@ fn step(
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
-            if b.dyn_contexts {
+            if b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
                     let actual = instantiate(module, f, parent, arguments, values, state, b)?;
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
@@ -6068,7 +6068,9 @@ fn summarize(
             }
             task_address::summarize(f, payload, &mut summary, b)?;
             dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
-            if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
+            if (b.dyn_contexts || b.closure_receiver_borrows)
+                && matches!(f.return_type, Type::Address { .. })
+            {
                 let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
                 dyn_returns::check_parent_escape(f, &parents, b)?;
                 add_sources(&mut summary.dyn_result_parents, &parents, b)?;
@@ -6663,6 +6665,8 @@ fn solve_check(
                 }
                 if f.storage_life.is_some()
                     && f.callable_return_contract.is_none()
+                    && !(b.closure_receiver_borrows
+                        && receiver::parameter_head_result(f, s, path, b)?)
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             match &source.retained_port {

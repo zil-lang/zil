@@ -216,6 +216,12 @@ pub(super) fn check_definitions(
             .storage_life
             .as_ref()
             .is_some_and(|life| signature_life::outer(life, StorageBase::Receiver).is_some());
+        if receiver_relation {
+            // Scheduling is derived from the fully checked actual definition;
+            // the stored kernel still reconstructs every body and actual loan.
+            budget.closure_receiver_borrows = true;
+            budget.nested_callable_sources = true;
+        }
         let invocation = if matches!(closure.result, Type::Address { .. })
             && !receiver_relation
             && closure.lending_captures.is_empty()
