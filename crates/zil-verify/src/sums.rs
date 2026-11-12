@@ -402,13 +402,15 @@ pub(super) fn check_instruction(
             resources::charge_payload(root, budget)?;
             if root.is_copy_value()
                 || !match i.kind {
-                    InstructionKind::TakeTupleField { .. } => matches!(root, Type::Tuple(_)),
+                    InstructionKind::TakeTupleField { .. } => {
+                            matches!(root, Type::Tuple(_) | Type::Package { .. })
+                        },
                     _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
                 }
             {
                 return Err(bad(
                     span,
-                    "selective transfer requires the exact owning Tuple or Enum root",
+                    "selective transfer requires the exact owning Product or Enum root",
                 ));
             }
             let endpoint = place_type(f, *local, path, span, budget)?;
