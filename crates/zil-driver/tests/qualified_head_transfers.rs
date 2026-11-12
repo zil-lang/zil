@@ -386,6 +386,7 @@ fn mutable_static_capture_publishes_only_real_static_replacements() {
             path: vec![]
         }]
     );
+    assert!(module.functions[definition.function.0 as usize].blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::WriteCapture{index:0,..})), "replacement must publish to the actual environment");
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
 
@@ -424,7 +425,7 @@ fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
                 .then_some(instruction.result)
                 .flatten()
         })
-        .unwrap_or_else(|| panic!("actual callback parameter instructions: {entry:#?}"));
+        .expect("actual loaded shared Slice parameter");
     let write = entry
         .blocks
         .iter_mut()
