@@ -209,6 +209,7 @@ mod tests {
     use zil_ir::{BasicBlock, BlockId, LocalDecl, PassingMode};
     fn input(sequences: &[Vec<u32>]) -> TypedFunction {
         TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

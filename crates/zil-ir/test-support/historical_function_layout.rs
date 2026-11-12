@@ -214,8 +214,9 @@ impl Walk<'_> {
         Ok(())
     }
     fn function(&mut self) -> R<Vec<(usize, &'static [u8])>> {
+        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Unknown retained result sources.
         self.absent()?; // Direct CallKind.
-        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Local resume bound.
+        insertions.push((self.pos, &[0])); // Local resume bound.
         self.absent()?; // StorageLifeContract.
         if self.tag(1)? == 1 {
             self.words()?;
@@ -322,7 +323,7 @@ pub fn transport(
         }
     }
     let count = w.count()?;
-    let capacity = count.checked_mul(4).ok_or("fixture insertion overflow")?;
+    let capacity = count.checked_mul(5).ok_or("fixture insertion overflow")?;
     w.work = w
         .work
         .checked_sub(capacity)

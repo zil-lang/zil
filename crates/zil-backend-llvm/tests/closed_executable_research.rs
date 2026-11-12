@@ -45,6 +45,7 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
         .into_iter()
         .enumerate()
         .map(|(id, name)| TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

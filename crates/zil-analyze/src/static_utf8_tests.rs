@@ -34,6 +34,7 @@ fn module() -> TypedModule {
         dyn_interfaces: vec![],
         dyn_vtables: vec![],
         functions: vec![TypedFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
             resume_bound: zil_ir::TaskResumeBound::Local,

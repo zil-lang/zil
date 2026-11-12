@@ -307,6 +307,7 @@ fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || !function.callable_parameters.is_empty()
         || !function.state_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -337,6 +338,7 @@ fn state_template_shape(function: &CoreFunction) -> CompileResult<()> {
         || !function.type_parameters.is_empty()
         || !function.callable_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -379,6 +381,7 @@ fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
         || function.callable_parameters.len() != 1
         || !function.type_parameters.is_empty()
         || function.callable_return.is_some()
+        || function.retained_return_sources.is_some()
         || function.receiver.is_some()
         || function.foreign.is_some()
     {
@@ -817,6 +820,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
             || !f.state_parameters.is_empty()
             || !f.callable_parameters.is_empty()
             || f.callable_return.is_some()
+            || f.retained_return_sources.is_some()
             || f.receiver.is_some()
             || !scalar(&f.return_type)
             || !f.parameters.iter().all(|p| scalar(&p.ty))
@@ -966,6 +970,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            retained_return_sources: f.retained_return_sources.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
             resume_bound: f.resume_bound,
@@ -3363,6 +3368,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3438,6 +3444,7 @@ mod tests {
             }],
         });
         core.dyn_interfaces.push(DynInterface {
+            context: None,
             owning_cleanup: None,
             id: interface,
             application: application.clone(),

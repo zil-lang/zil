@@ -97,6 +97,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         binder: StorageBinder::Fixed(0),
     });
     let f = TypedFunction {
+        retained_return_sources: None,
         storage_life: Some(contract.clone()),
         call_kind: CallKind::Direct,
         resume_bound: crate::TaskResumeBound::Local,
@@ -266,6 +267,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         contract: contract_dyn,
     };
     let interface = DynInterface {
+        context: None,
         owning_cleanup: None,
         id: dyn_id,
         application,
@@ -318,15 +320,15 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             compiler: false,
         },
         actuals: vec![],
-        ports: vec![RetainedPortBinding {
+        ports: vec![DynRetainedPortBinding {
             port: 0,
-            source: StoragePosition {
+            sources: vec![StoragePosition {
                 base: StorageBase::Parameter(0),
                 path: vec![
                     ContractProjection::Place(PlaceProjection::Field(0)),
                     ContractProjection::RetainedPort(0),
                 ],
-            },
+            }],
         }],
         entries: vec![DynEntry {
             slot: 0,
@@ -361,6 +363,41 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     };
 
     let mut module = module;
+    module.dyn_interfaces[0].context = Some(stored.clone());
+    module.dyn_interfaces[0]
+        .retained_life
+        .ports
+        .push(RetainedBorrowPort {
+            leaf: Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            mode: StoredBorrowMode::SharedAddress,
+            binder: 0,
+        });
+    module.dyn_vtables[0].ports[0]
+        .sources
+        .push(StoragePosition {
+            base: StorageBase::Parameter(1),
+            path: vec![],
+        });
+    module.dyn_vtables[0].ports.push(DynRetainedPortBinding {
+        port: 1,
+        sources: vec![],
+    });
+    module.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
+        position: StoragePosition {
+            base: StorageBase::Result,
+            path: vec![ContractProjection::RetainedPort(0)],
+        },
+        sources: vec![StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![
+                ContractProjection::Capture(0),
+                ContractProjection::Place(PlaceProjection::Field(0)),
+            ],
+        }],
+    }]);
     let retained = RetainedLifeShape {
         binder_count: 1,
         ports: vec![RetainedBorrowPort {
@@ -513,7 +550,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             }
             1 => changed.dyn_interfaces[0].retained_life.retained[0].class = 1,
             _ => {
-                changed.dyn_vtables[0].ports[0].source.path =
+                changed.dyn_vtables[0].ports[0].sources[0].path =
                     vec![ContractProjection::RetainedClass(0)]
             }
         };
@@ -541,6 +578,31 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         wire::encode_module_candidate(&copy, &p, &Limits::default()).unwrap(),
         bytes
     );
+
+    for n in 0..5 {
+        let mut changed = module.clone();
+        match n {
+            0 => changed.dyn_interfaces[0].context = None,
+            1 => changed.dyn_vtables[0].ports[0]
+                .sources
+                .pop()
+                .map(|_| ())
+                .unwrap(),
+            2 => {
+                changed.dyn_vtables[0].ports.pop();
+            }
+            3 => changed.functions[0].retained_return_sources = Some(vec![]),
+            _ => changed.functions[0].retained_return_sources = None,
+        }
+        assert_ne!(changed.fingerprint(), module.fingerprint());
+        let bytes = wire::encode_module_candidate(&changed, &plan, &Limits::default()).unwrap();
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &Limits::default())
+                .unwrap()
+                .0,
+            changed
+        );
+    }
 
     for n in 0..5 {
         let mut changed = module.clone();

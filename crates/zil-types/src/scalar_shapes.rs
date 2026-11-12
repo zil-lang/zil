@@ -301,6 +301,7 @@ mod tests {
                     enums: vec![],
                     unsupported: vec![],
                     functions: vec![CoreFunction {
+                        retained_return_sources: None,
                         storage_life: None,
                         call_kind: None,
                         resume_bound: zil_ir::TaskResumeBound::Local,

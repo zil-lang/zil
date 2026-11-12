@@ -504,6 +504,7 @@ mod tests {
     }
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
+            retained_return_sources: None,
             storage_life: None,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,

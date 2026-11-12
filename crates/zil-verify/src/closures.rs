@@ -193,7 +193,7 @@ pub(super) fn check_definitions(
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
             if let Type::OwnedDyn { interface } = ty {
-                dynamic_dispatch::type_owned(module, *interface, budget)?;
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
                 continue;
             }
             if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
@@ -744,7 +744,7 @@ pub(super) fn self_contained(
             }
             Type::Closure(child) => closures.push(*child),
             Type::OwnedDyn { interface } => {
-                dynamic_dispatch::type_owned(module, *interface, budget)?;
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
             }
             Type::Managed(payload) => pending.push(payload),
             Type::Package { fields, .. } | Type::Record { fields, .. } => {

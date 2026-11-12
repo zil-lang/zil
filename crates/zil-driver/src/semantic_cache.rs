@@ -148,7 +148,11 @@ impl Writer {
     }
     fn signature(&mut self, s: &ScalarFunction, module: &TypedModule) -> Option<()> {
         let f = module.functions.get(s.function.0 as usize)?;
-        if f.storage_life.is_some() || s.storage_life.is_some() {
+        if f.storage_life.is_some()
+            || s.storage_life.is_some()
+            || f.retained_return_sources.is_some()
+            || s.retained_return_sources.is_some()
+        {
             // This cache record does not serialize contextual function classes.
             // Rebuild Types rather than replacing the exported relation by None.
             return None;
@@ -161,6 +165,7 @@ impl Writer {
                 != f.parameters.len()
             || f.return_type != s.result
             || f.reference_return_bound != s.reference_return_bound
+            || f.retained_return_sources != s.retained_return_sources
             || f.parameters.len() != s.parameters.len()
             || f.result_mode != s.result_mode
             || f.parameters
@@ -276,7 +281,7 @@ impl<'a> Reader<'a> {
     fn signature(&mut self, module: &TypedModule, limits: &Limits) -> Option<ScalarFunction> {
         let function = FunctionId(u32::try_from(self.number()?).ok()?);
         let f = module.functions.get(function.0 as usize)?;
-        if f.storage_life.is_some() {
+        if f.storage_life.is_some() || f.retained_return_sources.is_some() {
             return None;
         }
         if f.id != function {
@@ -342,6 +347,7 @@ impl<'a> Reader<'a> {
             0,
         )?;
         Some(ScalarFunction {
+            retained_return_sources: f.retained_return_sources.clone(),
             storage_life: None,
             reference_return_bound,
             name,

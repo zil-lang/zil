@@ -431,6 +431,7 @@ pub(super) fn check_resolved_program_with_reuse(
                     .map_err(|e| vec![e])?;
             }
             let export = ScalarFunction {
+                retained_return_sources: typed.retained_return_sources.clone(),
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: typed.reference_return_bound.clone(),
                 result_mode: f.result_mode,
@@ -704,6 +705,36 @@ fn interface_fingerprint(
             remaining,
         )
         .map_err(|e| vec![e])?;
+        *remaining = remaining.checked_sub(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "retained result export presence budget exceeded",
+                None,
+            )]
+        })?;
+        bytes.push(u8::from(export.retained_return_sources.is_some()));
+        if let Some(bindings) = &export.retained_return_sources {
+            let mut work = bindings.len().saturating_add(1);
+            for binding in bindings {
+                work = work
+                    .saturating_add(binding.position.path.len())
+                    .saturating_add(binding.sources.len())
+                    .saturating_add(1);
+                for source in &binding.sources {
+                    work = work.saturating_add(source.path.len()).saturating_add(1);
+                }
+            }
+            *remaining = remaining
+                .checked_sub(work.saturating_mul(64))
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "retained result export source budget exceeded",
+                        None,
+                    )]
+                })?;
+            bytes.extend_from_slice(&retained_return_sources_fingerprint(bindings).0);
+        }
         bytes.push(u8::from(export.reference_return_bound.is_some()));
         if let Some(bound) = &export.reference_return_bound {
             bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());

@@ -1,0 +1,181 @@
+//! Bounded raw dyn metadata traversal before hashing or recursive comparisons.
+//! This grants no Context, port, cleanup or return-source authority.
+use super::*;
+fn limit_error(message: &str) -> Vec<zil_base::Diagnostic> {
+    vec![zil_base::Diagnostic::limit(
+        zil_base::Phase::Analyze,
+        message,
+        None,
+    )]
+}
+fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> CompileResult<()> {
+    *nodes = nodes
+        .checked_add(n)
+        .ok_or_else(|| limit_error("dyn metadata node count overflow"))?;
+    if *nodes > cap {
+        return Err(limit_error("dyn metadata node count exceeded"));
+    }
+    b.spend(n, "dyn raw metadata")
+}
+fn path(
+    b: &mut Budget,
+    nodes: &mut usize,
+    cap: usize,
+    depth_cap: usize,
+    n: usize,
+) -> CompileResult<()> {
+    if n > depth_cap || n > cap {
+        return Err(limit_error("dyn metadata path limit exceeded"));
+    }
+    pay(b, nodes, cap, n.saturating_add(1))
+}
+fn storage(
+    b: &mut Budget,
+    nodes: &mut usize,
+    cap: usize,
+    depth_cap: usize,
+    c: &StorageLifeContract,
+) -> CompileResult<()> {
+    pay(b, nodes, cap, 2)?;
+    for row in &c.bindings {
+        path(b, nodes, cap, depth_cap, row.position.path.len())?;
+    }
+    for row in &c.classes {
+        path(b, nodes, cap, depth_cap, row.position.path.len())?;
+    }
+    Ok(())
+}
+fn retained(
+    b: &mut Budget,
+    nodes: &mut usize,
+    cap: usize,
+    depth_cap: usize,
+    c: &RetainedLifeShape,
+) -> CompileResult<()> {
+    pay(b, nodes, cap, c.ports.len().saturating_add(2))?;
+    for row in &c.retained {
+        path(b, nodes, cap, depth_cap, row.path.len())?;
+    }
+    for row in &c.nominal_arguments {
+        path(b, nodes, cap, depth_cap, row.path.len())?;
+    }
+    Ok(())
+}
+pub(super) fn ty(root: &Type, b: &mut Budget) -> CompileResult<()> {
+    let cap = b.helper_nodes;
+    let depth_cap = b.partial_depth;
+    pay(b, &mut 0usize, cap, 1)?;
+    let mut nodes = 0usize;
+    let mut pending = Vec::new();
+    pending.push((root, 0usize));
+    while let Some((ty, depth)) = pending.pop() {
+        pay(b, &mut nodes, cap, 1)?;
+        if depth > depth_cap {
+            return Err(limit_error("dyn metadata type depth exceeded"));
+        }
+        let mut children = Vec::new();
+        match ty {
+            Type::BorrowedStorage { storage, life } => {
+                pay(b, &mut nodes, cap, life.slots.len().saturating_add(1))?;
+                for row in &life.slots {
+                    path(b, &mut nodes, cap, depth_cap, row.path.len())?;
+                }
+                for row in &life.retained {
+                    path(b, &mut nodes, cap, depth_cap, row.path.len())?;
+                }
+                for row in &life.nominal_arguments {
+                    path(b, &mut nodes, cap, depth_cap, row.path.len())?;
+                }
+                children.push(storage.as_ref());
+            }
+            Type::Address { inner, .. }
+            | Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Slice { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::OwnedStore { element: inner }
+            | Type::Mutex { payload: inner }
+            | Type::Registration { environment: inner }
+            | Type::AsyncRegistration { environment: inner }
+            | Type::Opaque { hidden: inner, .. } => children.push(inner.as_ref()),
+            Type::Task {
+                result,
+                retained_life,
+            }
+            | Type::MutexGuard {
+                payload: result,
+                retained_life,
+            } => {
+                retained(b, &mut nodes, cap, depth_cap, retained_life)?;
+                if retained_life.ports.len() > cap {
+                    return Err(limit_error("dyn metadata port count exceeded"));
+                }
+                b.spend(retained_life.ports.len(), "dyn raw metadata")?;
+                children.extend(retained_life.ports.iter().map(|p| &p.leaf));
+                children.push(result.as_ref());
+            }
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                b.spend(name.len(), "dyn raw metadata")?;
+                pay(b, &mut nodes, cap, fields.len())?;
+                for (name, ty) in fields {
+                    b.spend(name.len(), "dyn raw metadata")?;
+                    children.push(ty);
+                }
+            }
+            Type::Tuple(fields) => {
+                pay(b, &mut nodes, cap, fields.len())?;
+                children.extend(fields);
+            }
+            Type::Enum { name, variants } => {
+                b.spend(name.len(), "dyn raw metadata")?;
+                pay(b, &mut nodes, cap, variants.len())?;
+                for (name, fields) in variants {
+                    b.spend(name.len(), "dyn raw metadata")?;
+                    pay(b, &mut nodes, cap, fields.len())?;
+                    children.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                children.push(error.as_ref());
+                children.push(result.as_ref());
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                pay(b, &mut nodes, cap, parameters.len())?;
+                children.extend(parameters);
+                children.push(result.as_ref());
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                storage(b, &mut nodes, cap, depth_cap, life)?;
+                pay(b, &mut nodes, cap, parameters.len())?;
+                children.extend(parameters);
+                children.push(result.as_ref());
+            }
+            Type::Named(name) | Type::Unsupported(name) => {
+                b.spend(name.len(), "dyn raw metadata")?;
+            }
+            Type::ByteBuffer
+            | Type::ForeignHandle
+            | Type::SyncCell(_)
+            | Type::TaskI32
+            | Type::CWideString
+            | Type::Closure(_)
+            | Type::Dyn { .. }
+            | Type::OwnedDyn { .. } => {}
+            ty if ty.is_b0_scalar() => {}
+            _ => return Err(limit_error("unrecognized dyn metadata type")),
+        }
+        if children.len() > cap.saturating_sub(nodes).saturating_sub(pending.len()) {
+            return Err(limit_error("dyn metadata pending type count exceeded"));
+        }
+        b.spend(children.len(), "dyn raw metadata")?;
+        for child in children {
+            pending.push((child, depth + 1));
+        }
+    }
+    Ok(())
+}

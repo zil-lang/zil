@@ -953,6 +953,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
@@ -1642,6 +1644,8 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
@@ -3342,6 +3346,17 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.retained_return_sources.is_some()));
+    if let Some(bindings) = &f.retained_return_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_position(b, source);
+            }
+        }
+    }
     b.push(f.call_kind as u8);
     b.push(f.resume_bound as u8);
     encode_storage_contract(b, &f.storage_life);
@@ -4574,6 +4589,20 @@ pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fi
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
+pub fn retained_return_sources_fingerprint(bindings: &[StorageSourceBinding]) -> Fingerprint {
+    let mut bytes = FingerprintStream::new();
+    bytes.extend_from_slice(b"ZIL-RETAINED-RETURN-SOURCES-1\0");
+    encode_len(&mut bytes, bindings.len());
+    for binding in bindings {
+        encode_storage_position(&mut bytes, &binding.position);
+        encode_len(&mut bytes, binding.sources.len());
+        for source in &binding.sources {
+            encode_storage_position(&mut bytes, source);
+        }
+    }
+    bytes.finish()
+}
+
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
     let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-4\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);

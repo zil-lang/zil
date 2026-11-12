@@ -375,7 +375,8 @@ fn dyn_type(
         .iter()
         .find(|candidate| candidate.id == interface.application.declaration)
         .ok_or_else(|| invalid("exported dyn declaration is absent"))?;
-    if declaration.kind != DynDeclarationKind::Trait
+    if interface.context.is_some()
+        || declaration.kind != DynDeclarationKind::Trait
         || !declaration.parameters.is_empty()
         || !interface.application.actuals.is_empty()
         || !interface.inherited.is_empty()
@@ -391,8 +392,9 @@ fn dyn_type(
             "exported dyn interface has unresolved semantic context",
         ));
     }
-    bytes.extend_from_slice(b"DYNSHARED-INTERFACE-1\0");
-    fee(left, 2)?;
+    bytes.extend_from_slice(b"DYNSHARED-INTERFACE-2\0");
+    fee(left, 3)?;
+    bytes.push(u8::from(interface.context.is_some()));
     bytes.push(u8::from(interface.owning_cleanup.is_some()));
     if let Some(cleanup) = &interface.owning_cleanup {
         fee(left, cleanup.effects.len().saturating_add(9))?;
@@ -488,12 +490,24 @@ fn dyn_type(
         bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
         bytes.push(u8::from(slot.receiver.mutable));
         bytes.push(u8::from(dyn_dispatch::borrowed_result(&slot.result)));
-        bytes.push(u8::from(
-            slot.contract
-                .effects
-                .as_ref()
-                .is_some_and(|e| e.contains(&DynEffect::Panic)),
-        ));
+        let effects = slot
+            .contract
+            .effects
+            .as_ref()
+            .expect("checked effect bound");
+        fee(left, effects.len().saturating_add(8))?;
+        bytes.extend_from_slice(&(effects.len() as u64).to_le_bytes());
+        for effect in effects {
+            bytes.push(match effect {
+                DynEffect::Alloc => 0,
+                DynEffect::Io => 1,
+                DynEffect::Block => 2,
+                DynEffect::Ffi => 3,
+                DynEffect::Reenter => 4,
+                DynEffect::Panic => 5,
+                _ => return Err(invalid("exported dyn method has an unproved effect")),
+            });
+        }
         let life = slot.storage_life.as_ref().expect("checked slot relation");
         bytes.extend_from_slice(&life.fingerprint().0);
     }
@@ -657,6 +671,7 @@ mod tests {
                 actuals: Vec::new(),
             };
             let interface = DynInterface {
+                context: None,
                 owning_cleanup: None,
                 id: DynInterfaceId {
                     module: zil_base::ModuleId(module),

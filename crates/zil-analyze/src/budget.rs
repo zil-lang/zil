@@ -1546,7 +1546,8 @@ pub(super) fn preflight(
                 }
                 continue;
             }
-            if matches!(ty, Type::OwnedDyn { .. }) {
+            if let Type::OwnedDyn { interface } = ty {
+                crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }
@@ -1794,6 +1795,54 @@ pub(super) fn preflight(
             }
         }
         budget.input(1, "function preflight")?;
+        budget.input(1, "retained return source discriminant")?;
+        if let Some(bindings) = &function.retained_return_sources {
+            count(
+                0,
+                bindings.len(),
+                limits.max_nodes,
+                "retained return bindings",
+            )?;
+            budget.input(bindings.len(), "retained return binding rows")?;
+            for binding in bindings {
+                count(
+                    0,
+                    binding.sources.len(),
+                    limits.max_nodes,
+                    "retained return sources",
+                )?;
+                count(
+                    0,
+                    binding.position.path.len(),
+                    limits.max_call_depth,
+                    "retained return position depth",
+                )?;
+                budget.input(
+                    binding
+                        .position
+                        .path
+                        .len()
+                        .saturating_add(binding.sources.len())
+                        .saturating_add(1),
+                    "retained result positions",
+                )?;
+                for source in &binding.sources {
+                    count(
+                        0,
+                        source.path.len(),
+                        limits.max_call_depth,
+                        "retained return source depth",
+                    )?;
+                    budget.input(
+                        source.path.len().saturating_add(1),
+                        "retained return source path",
+                    )?;
+                }
+            }
+            return Err(bad(
+                "explicit retained return sources lack complete retained result proof",
+            ));
+        }
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
             // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.

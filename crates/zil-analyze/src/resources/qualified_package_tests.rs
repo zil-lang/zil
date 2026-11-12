@@ -42,6 +42,7 @@ fn fixture() -> TypedModule {
     let span = Span::new(FileId(0), 0, 1);
     let owner = Type::Managed(Box::new(Type::ByteBuffer));
     let function = TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,

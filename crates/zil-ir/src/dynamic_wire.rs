@@ -92,6 +92,10 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_interface(&mut self, value: &DynInterface) -> WireResult<()> {
+        self.boolean(value.context.is_some())?;
+        if let Some(context) = &value.context {
+            self.ty(context, 0)?;
+        }
         self.boolean(value.owning_cleanup.is_some())?;
         if let Some(cleanup) = &value.owning_cleanup {
             self.dyn_cleanup_contract(cleanup)?;
@@ -134,7 +138,11 @@ impl Writer<'_> {
         }
         self.count(value.ports.len(), self.limits.max_nodes)?;
         for value in &value.ports {
-            self.retained_port_binding(value)?;
+            self.u32(value.port)?;
+            self.count(value.sources.len(), self.limits.max_nodes)?;
+            for source in &value.sources {
+                self.storage_position(source)?;
+            }
         }
         self.count(value.entries.len(), self.limits.max_nodes)?;
         for value in &value.entries {
@@ -563,6 +571,11 @@ impl Reader<'_> {
     }
     pub(super) fn dyn_interface(&mut self) -> WireResult<DynInterface> {
         Ok(DynInterface {
+            context: if self.boolean()? {
+                Some(self.ty(0)?)
+            } else {
+                None
+            },
             owning_cleanup: if self.boolean()? {
                 Some(self.dyn_cleanup_contract()?)
             } else {
@@ -629,7 +642,13 @@ impl Reader<'_> {
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut values_12 = Vec::with_capacity(count);
                 for _ in 0..count {
-                    values_12.push(self.retained_port_binding()?);
+                    let port = self.u32()?;
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut sources = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        sources.push(self.storage_position()?);
+                    }
+                    values_12.push(DynRetainedPortBinding { port, sources });
                 }
                 values_12
             },

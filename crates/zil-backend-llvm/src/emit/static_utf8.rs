@@ -87,6 +87,7 @@ pub(crate) fn same_functions(
     }
     for (left, right) in left.iter().zip(right) {
         let TypedFunction {
+            retained_return_sources,
             storage_life,
             call_kind,
             resume_bound,
@@ -107,7 +108,8 @@ pub(crate) fn same_functions(
             entry,
             span,
         } = left;
-        if storage_life != &right.storage_life
+        if retained_return_sources != &right.retained_return_sources
+            || storage_life != &right.storage_life
             || call_kind != &right.call_kind
             || resume_bound != &right.resume_bound
             || reference_return_bound != &right.reference_return_bound

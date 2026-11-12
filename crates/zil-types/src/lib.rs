@@ -71,6 +71,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    retained_return_sources: Option<Vec<StorageSourceBinding>>,
     storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
@@ -278,6 +279,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    retained_return_sources: f.retained_return_sources.clone(),
                     storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
@@ -420,6 +422,12 @@ fn signature_errors(
         // Signature and typed header each copy the complete qualified type.
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         stored::pure_inline(ty, left, limits, span)
+    }
+    if f.retained_return_sources.is_some() {
+        return Err(unsupported(
+            f.span,
+            "explicit retained return sources require complete retained result proof",
+        ));
     }
     // Detect actual outer Array views during the existing bounded header walk.
     let mut arrays = stored::shared_array_related(&f.return_type);
@@ -570,16 +578,6 @@ pub fn check(
         return Err(vec![unsupported(
             Span::default(),
             "dyn declaration has no actual interface",
-        )]);
-    }
-    if core.dyn_interfaces.iter().any(|interface| {
-        !dyn_vtables
-            .iter()
-            .any(|table| table.interface == interface.id)
-    }) {
-        return Err(vec![unsupported(
-            Span::default(),
-            "dyn interface has no actual provider table",
         )]);
     }
     let mut resource_definitions =
@@ -849,6 +847,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 resume_bound: f.resume_bound,
@@ -3177,6 +3176,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3384,6 +3384,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            retained_return_sources: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -4069,6 +4070,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
                 resume_bound: zil_ir::TaskResumeBound::Local,

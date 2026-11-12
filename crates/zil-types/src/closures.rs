@@ -5835,6 +5835,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(bindings) = &signature.retained_return_sources {
+            inference::charge_return_sources(bindings, self.limits, span, |n| {
+                self.graph.spend_count(n, span)
+            })?;
+        }
         if let Some(life) = &signature.storage_life {
             borrowed_fp::charge_contract(life, |work| self.graph.spend_count(work, span), 1)?;
         }

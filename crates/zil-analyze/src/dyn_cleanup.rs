@@ -51,7 +51,7 @@ pub(super) fn metadata(
     for e in &c.effects {
         match e {
             DynEffect::Call(position) => position_metadata(position, budget)?,
-            DynEffect::Cleanup(ty) => budget.type_work(ty, false, WORK)?,
+            DynEffect::Cleanup(ty) => crate::dyn_metadata::ty(ty, budget)?,
             _ => budget.spend(1, WORK)?,
         }
     }
@@ -113,7 +113,10 @@ pub(super) fn owner_interface(
         .find(|i| i.id == id)
         .ok_or_else(|| bad("owned dyn capture interface is absent"))?;
     bound(interface.owning_cleanup.as_ref(), budget)?;
-    if !interface.retained_life.ports.is_empty() || interface.retained_life.binder_count != 0 {
+    if interface.context.is_some()
+        || !interface.retained_life.ports.is_empty()
+        || interface.retained_life.binder_count != 0
+    {
         return Err(bad("closed owned dyn capture retains external ports"));
     }
     Ok(())

@@ -47,6 +47,68 @@ fn backends() -> Vec<NativeBackend> {
 }
 
 #[test]
+fn trait_object_library_definition_needs_no_local_provider() {
+    let source = include_str!("../pending/dyn-trait.zil");
+    let (module, plan) = source_candidate_for(source);
+    assert!(module.dyn_vtables.is_empty());
+    let upper = vec![
+        zil_ir::DynEffect::Alloc,
+        zil_ir::DynEffect::Io,
+        zil_ir::DynEffect::Block,
+        zil_ir::DynEffect::Ffi,
+        zil_ir::DynEffect::Reenter,
+        zil_ir::DynEffect::Panic,
+    ];
+    assert_eq!(
+        module.dyn_interfaces[0].slots[0].contract.effects,
+        Some(upper)
+    );
+    let mut forged = module.clone();
+    forged.dyn_interfaces[0].slots[0].contract.effects = None;
+    assert_candidate_rejected_by_both_kernels(forged, &plan);
+    let provider = format!(
+        "{source}\nstruct A{{n:i32}}impl Read for A{{fn read(self:&Self)->i32{{return self.n}}}}"
+    );
+    let (with_provider, _) = source_candidate_for(&provider);
+    assert_eq!(
+        module.dyn_interfaces[0].slots[0].contract,
+        with_provider.dyn_interfaces[0].slots[0].contract
+    );
+    assert_eq!(
+        module.dyn_interfaces[0].owning_cleanup,
+        with_provider.dyn_interfaces[0].owning_cleanup
+    );
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("provider-free-library");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"0\n");
+        }
+    }
+}
+
+#[test]
 fn owned_package_selects_concrete_cleanup_and_survives_return() {
     for backend in backends() {
         for optimization in [Optimization::O0, Optimization::O2] {
@@ -1863,7 +1925,14 @@ fn arithmetic_provider_proves_panic_and_preserves_checked_execution() {
     let (module, plan) = source_candidate_for(source);
     assert_eq!(
         module.dyn_interfaces[0].slots[0].contract.effects,
-        Some(vec![zil_ir::DynEffect::Panic])
+        Some(vec![
+            zil_ir::DynEffect::Alloc,
+            zil_ir::DynEffect::Io,
+            zil_ir::DynEffect::Block,
+            zil_ir::DynEffect::Ffi,
+            zil_ir::DynEffect::Reenter,
+            zil_ir::DynEffect::Panic
+        ])
     );
     let target = module.target.clone();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();

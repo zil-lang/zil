@@ -3,7 +3,7 @@ use super::*;
 use std::collections::{BTreeSet, VecDeque};
 
 pub(super) fn metadata(
-    module: &TypedModule,
+    _module: &TypedModule,
     claim: Option<&DynCleanupContract>,
     budget: &mut Budget,
 ) -> Check<()> {
@@ -26,9 +26,7 @@ pub(super) fn metadata(
     budget.spend(c.effects.len().saturating_add(1))?;
     for e in &c.effects {
         match e {
-            DynEffect::Cleanup(ty) => {
-                check_type_shape(ty, &module.target, &budget.limits.clone(), budget)?
-            }
+            DynEffect::Cleanup(ty) => crate::dynamic_metadata::ty(ty, budget)?,
             DynEffect::Call(p) => position(p, budget)?,
             _ => budget.spend(1)?,
         }

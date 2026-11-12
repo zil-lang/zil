@@ -1481,6 +1481,7 @@ impl Builder<'_, '_> {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
+                retained_return_sources: typed.retained_return_sources.clone(),
                 storage_life: typed.storage_life.clone(),
                 reference_return_bound: None,
                 name: function.name,

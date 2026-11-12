@@ -49,6 +49,7 @@ fn trace(parameters: &[u32]) -> CallableTrace {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        retained_return_sources: None,
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         resume_bound: zil_ir::TaskResumeBound::Local,

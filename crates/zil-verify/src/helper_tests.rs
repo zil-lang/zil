@@ -47,6 +47,7 @@ impl Body {
     fn new(id: u32) -> Self {
         Self {
             f: TypedFunction {
+                retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 resume_bound: zil_ir::TaskResumeBound::Local,

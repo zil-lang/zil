@@ -52,6 +52,38 @@ pub(super) fn check_claim(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
+    budget.spend(1)?;
+    if let Some(bindings) = &f.retained_return_sources {
+        if bindings.len() > limits.max_nodes {
+            return Err(limit("retained return binding count exceeds node bound"));
+        }
+        budget.spend(bindings.len())?;
+        for binding in bindings {
+            if binding.sources.len() > limits.max_nodes
+                || binding.position.path.len() > limits.max_call_depth
+            {
+                return Err(limit("retained return source relation exceeds bounds"));
+            }
+            budget.spend(
+                binding
+                    .position
+                    .path
+                    .len()
+                    .saturating_add(binding.sources.len())
+                    .saturating_add(1),
+            )?;
+            for source in &binding.sources {
+                if source.path.len() > limits.max_call_depth {
+                    return Err(limit("retained return source path exceeds depth"));
+                }
+                budget.spend(source.path.len().saturating_add(1))?;
+            }
+        }
+        return Err(bad(
+            f,
+            "explicit retained return sources lack complete retained result proof",
+        ));
+    }
     if let Some(c) = &f.callable_return_contract {
         budget.spend(1)?;
         budget.callable_source_functions.push(f.id);
@@ -232,7 +264,7 @@ pub(super) fn check_claim(
             packages::check_capture_type(module, ty, Some(f.span), budget)?;
             cleanup.push(index as u32);
         } else if let Type::OwnedDyn { interface } = ty {
-            dynamic_dispatch::type_owned(module, *interface, budget)?;
+            dynamic_dispatch::closed_owned(module, *interface, budget)?;
             cleanup.push(index as u32);
         } else if matches!(ty, Type::Managed(_)) {
             cleanup.push(index as u32);
@@ -390,7 +422,7 @@ fn check_parameter_claim(
         match ty {
             Type::Managed(_) => cleanup.push(index as u32),
             Type::OwnedDyn { interface } => {
-                dynamic_dispatch::type_owned(module, *interface, budget)?;
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
                 cleanup.push(index as u32);
             }
             Type::Package { .. } => {
