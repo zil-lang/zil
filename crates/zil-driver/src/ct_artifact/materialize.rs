@@ -585,6 +585,12 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                return Err(category(
+                    "scoped Type reconstruction requires frozen stage authority",
+                    span,
+                ));
+            }
             CtTypeNode::BorrowedStorage { storage, .. } => {
                 self.environment
                     .budget

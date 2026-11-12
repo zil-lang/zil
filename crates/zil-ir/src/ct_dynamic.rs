@@ -1,6 +1,7 @@
 //! Complete untrusted CT inventory for dynamic metadata and storage sources.
 //! Type payloads are edges in the finite metadata Type DAG in this catalogue.
 //! Catalogue membership grants no visibility, trait, provider or borrow right.
+use super::{CtStageFacetRequest, CtStageIdentity};
 use crate::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -8,6 +9,8 @@ pub struct CtDynamicTypeId(pub u32);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CtDynamicCatalogue {
+    pub stage: Option<CtStageIdentity>,
+    pub facet_requests: Vec<CtStageFacetRequest>,
     pub types: Vec<CtDynamicTypeNode>,
     pub life_declarations: Vec<CtLifeNominalDeclaration>,
     pub life_instances: Vec<CtLifeNominalInstance>,

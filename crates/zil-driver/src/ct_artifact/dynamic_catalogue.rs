@@ -227,6 +227,9 @@ impl CtDynamicVisitor for CopyCost<'_> {
     fn type_reference(&mut self, _id: CtDynamicTypeId, depth: usize) -> CompileResult<()> {
         self.node(depth)
     }
+    fn type_handle(&mut self, value: &CtTypeRef, depth: usize) -> CompileResult<()> {
+        value.visit_ct_dynamic(self, depth)
+    }
     fn constant(&mut self, value: &Constant, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
         if let Constant::WideString(text) = value {

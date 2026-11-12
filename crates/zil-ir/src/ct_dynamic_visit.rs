@@ -13,6 +13,7 @@ pub trait CtDynamicVisitor {
         depth: usize,
     ) -> Result<(), Self::Error>;
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Result<(), Self::Error>;
+    fn type_handle(&mut self, value: &CtTypeRef, depth: usize) -> Result<(), Self::Error>;
     fn constant(&mut self, value: &Constant, depth: usize) -> Result<(), Self::Error>;
     fn text(&mut self, value: &str, depth: usize) -> Result<(), Self::Error>;
 }
@@ -2698,6 +2699,18 @@ impl CtDynamicMetadata for CtDynamicCatalogue {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.stage {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.rows(
+            (self.facet_requests).len(),
+            std::mem::size_of::<CtStageFacetRequest>(),
+            depth + 1,
+        )?;
+        for item in &self.facet_requests {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
         visitor.rows(
             (self.types).len(),
             std::mem::size_of::<CtDynamicTypeNode>(),
@@ -2801,6 +2814,494 @@ impl CtDynamicMetadata for CtFunctionSourceBindings {
             for item in item {
                 (item).visit_ct_dynamic(visitor, depth + 1)?;
             }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtStageIdentity {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.source_fingerprint;
+        visitor.node(depth + 1)?;
+        let _ = &self.epoch;
+        visitor.node(depth + 1)?;
+        let _ = &self.committed_generation_fingerprint;
+        visitor.node(depth + 1)?;
+        let _ = &self.declaration_inventory_fingerprint;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtStageFacet {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Shape => {}
+            Self::Contract => {}
+            Self::Layout => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtStageSubject {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Declaration(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Type(field_value_0) => {
+                visitor.type_handle(field_value_0, depth + 1)?;
+            }
+            Self::Instance {
+                declaration: field_declaration,
+                context: field_context,
+                arguments: field_arguments,
+            } => {
+                (field_declaration).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.type_handle(field_context, depth + 1)?;
+                visitor.rows(
+                    (field_arguments).len(),
+                    std::mem::size_of::<CtTypeArgument>(),
+                    depth + 1,
+                )?;
+                for item in field_arguments {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtBodySourceRef {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
+        let _ = &self.body_fingerprint;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtStageFacetRequest {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.subject).visit_ct_dynamic(visitor, depth + 1)?;
+        (self.facet).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.content_fingerprint {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.body_source {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtTypeCatalogue {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        (self.stage).visit_ct_dynamic(visitor, depth + 1)?;
+        visitor.rows(
+            (self.types).len(),
+            std::mem::size_of::<CtDynamicTypeNode>(),
+            depth + 1,
+        )?;
+        for (index, node) in (self.types).iter().enumerate() {
+            visitor.type_node(index, node, depth + 1)?;
+        }
+        visitor.rows(
+            (self.interfaces).len(),
+            std::mem::size_of::<CtDynInterface>(),
+            depth + 1,
+        )?;
+        for item in &self.interfaces {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtTypeRef {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.scoped_catalogue {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        visitor.rows(
+            (self.nodes).len(),
+            std::mem::size_of::<CtTypeNode>(),
+            depth + 1,
+        )?;
+        for item in &self.nodes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        let _ = &self.root;
+        visitor.node(depth + 1)?;
+        visitor.rows(
+            (self.ambient_classes).len(),
+            std::mem::size_of::<CtAmbientClassBinding>(),
+            depth + 1,
+        )?;
+        for item in &self.ambient_classes {
+            (item).visit_ct_dynamic(visitor, depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtAmbientClassBinding {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.owner;
+        visitor.node(depth + 1)?;
+        let _ = &self.class;
+        visitor.node(depth + 1)?;
+        (self.source).visit_ct_dynamic(visitor, depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtAmbientLifeReference {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.scope;
+        visitor.node(depth + 1)?;
+        let _ = &self.parameter;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtTypeNode {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::ScopedDyn {
+                descriptor: field_descriptor,
+                context: field_context,
+                classes: field_classes,
+            } => {
+                visitor.type_reference(*field_descriptor, depth + 1)?;
+                visitor.node(depth + 1)?;
+                if let Some(item) = field_context {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                visitor.rows(
+                    (field_classes).len(),
+                    std::mem::size_of::<CtLifetimeArgument>(),
+                    depth + 1,
+                )?;
+                for item in field_classes {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::ScopedTask {
+                descriptor: field_descriptor,
+                result: field_result,
+                context: field_context,
+                classes: field_classes,
+            } => {
+                visitor.type_reference(*field_descriptor, depth + 1)?;
+                let _ = field_result;
+                visitor.node(depth + 1)?;
+                visitor.node(depth + 1)?;
+                if let Some(item) = field_context {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                visitor.rows(
+                    (field_classes).len(),
+                    std::mem::size_of::<CtLifetimeArgument>(),
+                    depth + 1,
+                )?;
+                for item in field_classes {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::BorrowedStorage {
+                storage: field_storage,
+                life: field_life,
+            } => {
+                let _ = field_storage;
+                visitor.node(depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Primitive(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Builtin(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Nominal {
+                symbol: field_symbol,
+                arguments: field_arguments,
+            } => {
+                (field_symbol).visit_ct_dynamic(visitor, depth + 1)?;
+                visitor.rows(
+                    (field_arguments).len(),
+                    std::mem::size_of::<CtTypeArgument>(),
+                    depth + 1,
+                )?;
+                for item in field_arguments {
+                    (item).visit_ct_dynamic(visitor, depth + 1)?;
+                }
+            }
+            Self::Tuple(field_value_0) => {
+                visitor.rows(
+                    (field_value_0).len(),
+                    std::mem::size_of::<CtTypeNodeId>(),
+                    depth + 1,
+                )?;
+                for item in field_value_0 {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+            }
+            Self::Array {
+                element: field_element,
+                length: field_length,
+            } => {
+                let _ = field_element;
+                visitor.node(depth + 1)?;
+                let _ = field_length;
+                visitor.node(depth + 1)?;
+            }
+            Self::FunctionPointer {
+                parameters: field_parameters,
+                result: field_result,
+            } => {
+                visitor.rows(
+                    (field_parameters).len(),
+                    std::mem::size_of::<CtTypeNodeId>(),
+                    depth + 1,
+                )?;
+                for item in field_parameters {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_result;
+                visitor.node(depth + 1)?;
+            }
+            Self::BorrowedFunctionPointer {
+                parameters: field_parameters,
+                result: field_result,
+                life: field_life,
+            } => {
+                visitor.rows(
+                    (field_parameters).len(),
+                    std::mem::size_of::<CtTypeNodeId>(),
+                    depth + 1,
+                )?;
+                for item in field_parameters {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_result;
+                visitor.node(depth + 1)?;
+                (field_life).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::Address {
+                mutable: field_mutable,
+                inner: field_inner,
+            } => {
+                let _ = field_mutable;
+                visitor.node(depth + 1)?;
+                let _ = field_inner;
+                visitor.node(depth + 1)?;
+            }
+            Self::Slice(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Managed(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Desc(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::OwnedStore(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::ForeignCallback {
+                parameters: field_parameters,
+                result: field_result,
+            } => {
+                visitor.rows(
+                    (field_parameters).len(),
+                    std::mem::size_of::<CtTypeNodeId>(),
+                    depth + 1,
+                )?;
+                for item in field_parameters {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+                let _ = field_result;
+                visitor.node(depth + 1)?;
+            }
+            Self::Opaque {
+                identity: field_identity,
+            } => {
+                (field_identity).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+            Self::ErrorUnion {
+                error: field_error,
+                result: field_result,
+            } => {
+                let _ = field_error;
+                visitor.node(depth + 1)?;
+                let _ = field_result;
+                visitor.node(depth + 1)?;
+            }
+            Self::AnonymousSum(field_value_0) => {
+                visitor.rows(
+                    (field_value_0).len(),
+                    std::mem::size_of::<CtTypeNodeId>(),
+                    depth + 1,
+                )?;
+                for item in field_value_0 {
+                    let _ = item;
+                    visitor.node(depth + 1)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtSymbolId {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.module;
+        visitor.node(depth + 1)?;
+        let _ = &self.declaration;
+        visitor.node(depth + 1)?;
+        visitor.node(depth + 1)?;
+        if let Some(item) = &self.generation_path {
+            let _ = item;
+            visitor.node(depth + 1)?;
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtTypeArgument {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Type(field_value_0) => {
+                let _ = field_value_0;
+                visitor.node(depth + 1)?;
+            }
+            Self::Scalar(field_value_0) => {
+                visitor.constant(field_value_0, depth + 1)?;
+            }
+            Self::Lifetime(field_value_0) => {
+                (field_value_0).visit_ct_dynamic(visitor, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtLifetimeArgument {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        let _ = &self.owner;
+        visitor.node(depth + 1)?;
+        let _ = &self.binder;
+        visitor.node(depth + 1)?;
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtBuiltinType {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::ByteBuffer => {}
+            Self::ForeignHandle => {}
+            Self::CWideString => {}
+        }
+        Ok(())
+    }
+}
+impl CtDynamicMetadata for CtScalarTy {
+    fn visit_ct_dynamic<V: CtDynamicVisitor>(
+        &self,
+        visitor: &mut V,
+        depth: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(depth)?;
+        match self {
+            Self::Unit => {}
+            Self::Bool => {}
+            Self::U8 => {}
+            Self::U16 => {}
+            Self::U32 => {}
+            Self::I8 => {}
+            Self::I16 => {}
+            Self::Isize => {}
+            Self::I32 => {}
+            Self::I64 => {}
+            Self::U64 => {}
+            Self::Usize => {}
+            Self::F32 => {}
+            Self::F64 => {}
         }
         Ok(())
     }

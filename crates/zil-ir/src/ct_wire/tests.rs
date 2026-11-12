@@ -20,6 +20,7 @@ fn program() -> CtArtifactProgram {
             tokens: vec![],
         },
         snapshot: CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Tokens,
             target_fingerprint: None,
@@ -41,6 +42,7 @@ fn program() -> CtArtifactProgram {
 fn ct6_contextual_type_instruction_transports_the_complete_graph() {
     let limits = Limits::default();
     let graph = CtTypeRef {
+        scoped_catalogue: None,
         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
         root: CtTypeNodeId(0),
         ambient_classes: vec![CtAmbientClassBinding {
@@ -122,6 +124,7 @@ fn rich_callable_and_ambient_scope_claims_are_lossless_bounded_raw_data() {
         parameter: 2,
     };
     let graph = CtTypeRef {
+        scoped_catalogue: None,
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I32),
             CtTypeNode::Address {

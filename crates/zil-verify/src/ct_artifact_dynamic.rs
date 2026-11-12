@@ -11,6 +11,7 @@ struct Inventory<'a, 'b> {
     heights: Vec<usize>,
     current: Option<usize>,
     height: usize,
+    type_count: usize,
 }
 impl Inventory<'_, '_> {
     fn allocation(&mut self, bytes: usize) -> Check<()> {
@@ -84,15 +85,7 @@ impl CtDynamicVisitor for Inventory<'_, '_> {
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Check<()> {
         self.node(depth)?;
         let index = id.0 as usize;
-        if index
-            >= self
-                .raw
-                .dynamic_catalogue
-                .as_ref()
-                .expect("present catalogue")
-                .types
-                .len()
-        {
+        if index >= self.type_count {
             return Err(reject(
                 None,
                 "CT dynamic Type reference is outside the catalogue",
@@ -108,6 +101,36 @@ impl CtDynamicVisitor for Inventory<'_, '_> {
             self.height = self.height.max(self.heights[index].saturating_add(1));
         }
         Ok(())
+    }
+    fn type_handle(&mut self, value: &CtTypeRef, depth: usize) -> Check<()> {
+        if let Some(catalogue) = &value.scoped_catalogue {
+            // Each nested handle owns a separate finite descriptor namespace.
+            // These are structural bounds only, not frozen-stage authorization.
+            self.rows(catalogue.types.len(), std::mem::size_of::<usize>(), depth)?;
+            let heights =
+                std::mem::replace(&mut self.heights, Vec::with_capacity(catalogue.types.len()));
+            let state = (self.current.take(), self.height, self.type_count);
+            self.height = 1;
+            self.type_count = catalogue.types.len();
+            let result = value.visit_ct_dynamic(self, depth);
+            self.heights = heights;
+            (self.current, self.height, self.type_count) = state;
+            result
+        } else {
+            self.rows(value.nodes.len(), 0, depth)?;
+            if value.nodes.iter().any(|node| {
+                matches!(
+                    node,
+                    CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. }
+                )
+            }) {
+                return Err(reject(
+                    None,
+                    "scoped Type node has no bound descriptor catalogue",
+                ));
+            }
+            value.visit_ct_dynamic(self, depth)
+        }
     }
     fn constant(&mut self, value: &Constant, depth: usize) -> Check<()> {
         self.node(depth)?;
@@ -148,6 +171,7 @@ pub(super) fn check(
         heights: Vec::with_capacity(count),
         current: None,
         height: 1,
+        type_count: count,
     };
     catalogue.visit_ct_dynamic(&mut inventory, 0)
 }
@@ -175,6 +199,7 @@ mod tests {
                 tokens: vec![],
             },
             snapshot: CtSnapshotRequest {
+                stage: None,
                 fingerprint: Fingerprint::ZERO,
                 ready: CtReadyStage::Tokens,
                 target_fingerprint: None,

@@ -147,6 +147,9 @@ impl Identity<'_, '_> {
                     );
                     let mut key = Vec::new();
                     let tag = match node {
+                        CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                            return Err(pending_scoped_identity());
+                        }
                         CtTypeNode::Primitive(_) => 0,
                         CtTypeNode::Builtin(_) => 1,
                         CtTypeNode::Nominal { .. } => 2,

@@ -122,6 +122,9 @@ impl FrozenReadView<'_> {
             out.push((text.to_owned(), CtTokenClass::Identifier, None))
         };
         match actual {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                return Err(self.unready("scoped Type syntax requires frozen stage authority"));
+            }
             CtTypeNode::BorrowedStorage { .. } => {
                 return Err(
                     self.unready("stored-borrow Type needs a closed scoped source reconstruction")
@@ -1119,6 +1122,7 @@ impl FrozenReadView<'_> {
                 budget
                     .reserve_temporary_bytes((owner_type.nodes.len() as u64).saturating_mul(96))?;
                 Ok(CtTypeRef {
+                    scoped_catalogue: None,
                     nodes: owner_type.nodes.clone(),
                     root: *root,
                     ambient_classes: owner_type.ambient_classes.clone(),
@@ -1767,6 +1771,7 @@ impl FrozenReadView<'_> {
         }
         Self::compact_type_ref(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes: Vec::new(),
@@ -2053,6 +2058,7 @@ impl FrozenReadView<'_> {
         )?;
         let value = Self::compact_type_ref(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes: Vec::new(),
@@ -2306,6 +2312,7 @@ impl FrozenReadView<'_> {
         }
         budget.release_temporary_bytes(scratch);
         let value = CtTypeRef {
+            scoped_catalogue: None,
             root: remap[ty.root.0 as usize],
             nodes,
             ambient_classes: Vec::new(),
@@ -2488,6 +2495,7 @@ impl CtReadView for FrozenReadView<'_> {
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
         let handle = CtTypeRef {
+            scoped_catalogue: None,
             nodes: vec![CtTypeNode::Nominal {
                 symbol: symbol.clone(),
                 arguments: Vec::new(),
@@ -2550,6 +2558,11 @@ impl CtReadView for FrozenReadView<'_> {
                     let shift = |id: CtTypeNodeId| CtTypeNodeId(id.0.saturating_add(base));
                     for node in &value.nodes {
                         nodes.push(match node {
+                            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                                return Err(self.unready(
+                                    "scoped Type substitution requires stage catalogue relocation",
+                                ));
+                            }
                             CtTypeNode::BorrowedStorage { .. } => {
                                 return Err(self.unready(
                                     "stored-borrow CT substitution requires closed scope remapping",
@@ -2656,6 +2669,7 @@ impl CtReadView for FrozenReadView<'_> {
         });
         let applied = Self::compact_type_ref(
             CtTypeRef {
+                scoped_catalogue: None,
                 nodes,
                 root,
                 ambient_classes: Vec::new(),

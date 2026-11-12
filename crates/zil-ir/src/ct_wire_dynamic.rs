@@ -3085,12 +3085,197 @@ impl Wire for CallableKind {
         })
     }
 }
+impl Wire for CtStageIdentity {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.source_fingerprint.encode(e)?;
+            self.epoch.encode(e)?;
+            self.committed_generation_fingerprint.encode(e)?;
+            self.declaration_inventory_fingerprint.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                source_fingerprint: <Fingerprint as Wire>::decode(d)?,
+                epoch: <u64 as Wire>::decode(d)?,
+                committed_generation_fingerprint: <Fingerprint as Wire>::decode(d)?,
+                declaration_inventory_fingerprint: <Fingerprint as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtStageFacet {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Shape => {
+                    0u8.encode(e)?;
+                }
+                Self::Contract => {
+                    1u8.encode(e)?;
+                }
+                Self::Layout => {
+                    2u8.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Shape,
+                1 => Self::Contract,
+                2 => Self::Layout,
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtStageSubject {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            match self {
+                Self::Declaration(value_0) => {
+                    0u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Type(value_0) => {
+                    1u8.encode(e)?;
+                    value_0.encode(e)?;
+                }
+                Self::Instance {
+                    declaration,
+                    context,
+                    arguments,
+                } => {
+                    2u8.encode(e)?;
+                    declaration.encode(e)?;
+                    context.encode(e)?;
+                    arguments.encode(e)?;
+                }
+            }
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(match u8::decode(d)? {
+                0 => Self::Declaration(<CtSymbolId as Wire>::decode(d)?),
+                1 => Self::Type(<CtTypeRef as Wire>::decode(d)?),
+                2 => Self::Instance {
+                    declaration: <CtSymbolId as Wire>::decode(d)?,
+                    context: <CtTypeRef as Wire>::decode(d)?,
+                    arguments: <Vec<CtTypeArgument> as Wire>::decode(d)?,
+                },
+                _ => return Err(WireError::UnknownTag),
+            })
+        })
+    }
+}
+impl Wire for CtBodySourceRef {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.declaration.encode(e)?;
+            self.body_fingerprint.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                declaration: <CtSymbolId as Wire>::decode(d)?,
+                body_fingerprint: <Fingerprint as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtStageFacetRequest {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.subject.encode(e)?;
+            self.facet.encode(e)?;
+            self.content_fingerprint.encode(e)?;
+            self.body_source.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                subject: <CtStageSubject as Wire>::decode(d)?,
+                facet: <CtStageFacet as Wire>::decode(d)?,
+                content_fingerprint: <Option<Fingerprint> as Wire>::decode(d)?,
+                body_source: <Option<CtBodySourceRef> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
+impl Wire for CtTypeCatalogue {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        if e.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        e.descend(|e| {
+            self.stage.encode(e)?;
+            self.types.encode(e)?;
+            self.interfaces.encode(e)?;
+            Ok(())
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        if d.depth >= 128 {
+            return Err(WireError::Limit);
+        }
+        d.descend(|d| {
+            Ok(Self {
+                stage: <CtStageIdentity as Wire>::decode(d)?,
+                types: <Vec<CtDynamicTypeNode> as Wire>::decode(d)?,
+                interfaces: <Vec<CtDynInterface> as Wire>::decode(d)?,
+            })
+        })
+    }
+}
 impl Wire for CtDynamicCatalogue {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         if e.depth >= 128 {
             return Err(WireError::Limit);
         }
         e.descend(|e| {
+            self.stage.encode(e)?;
+            self.facet_requests.encode(e)?;
             self.types.encode(e)?;
             self.life_declarations.encode(e)?;
             self.life_instances.encode(e)?;
@@ -3108,6 +3293,8 @@ impl Wire for CtDynamicCatalogue {
         }
         d.descend(|d| {
             Ok(Self {
+                stage: <Option<CtStageIdentity> as Wire>::decode(d)?,
+                facet_requests: <Vec<CtStageFacetRequest> as Wire>::decode(d)?,
                 types: <Vec<CtDynamicTypeNode> as Wire>::decode(d)?,
                 life_declarations: <Vec<CtLifeNominalDeclaration> as Wire>::decode(d)?,
                 life_instances: <Vec<CtLifeNominalInstance> as Wire>::decode(d)?,
