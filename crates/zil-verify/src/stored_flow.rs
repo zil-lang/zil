@@ -6756,6 +6756,9 @@ fn solve_check(
                 continue;
             }
             let mut actual = BTreeSet::new();
+            let weak_description = matches!(&f.values[v], Type::Desc(payload)
+                if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
+                    | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }));
             for root in p
                 .address
                 .sources
@@ -6788,7 +6791,11 @@ fn solve_check(
                     }
                     _ => root.base,
                 };
-                actual.insert(base);
+                // The private ledger above still proves descriptor accesses
+                // and retirement. Public Hold denotes strong address debt.
+                if !weak_description {
+                    actual.insert(base);
+                }
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {

@@ -394,6 +394,7 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
             leaf: vec![],
             inline: vec![],
             heap_element: None,
+            heap_parents: Vec::new(),
         }],
         loans: vec![],
     };
@@ -421,6 +422,7 @@ fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
         leaf: vec![],
         inline: vec![],
         heap_element: None,
+        heap_parents: Vec::new(),
     };
     let local_head = Source {
         base: HoldRoot::Local(LocalId(2)),
