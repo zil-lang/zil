@@ -1012,8 +1012,15 @@ fn check_with(
                         )?;
                     }
                 }
+                InstructionKind::BindPackageCapture { local, index } | InstructionKind::EndPackageCapture { local, index }
+                    if !captures.is_empty() =>
+                {
+                    let actual=captures.get(*index as usize).ok_or_else(||bad("captured view class index absent"))?;
+                    array_outer::copy(&mut e, &locals[local.0 as usize], actual, outer.as_ref(), b)?;
+                }
                 InstructionKind::TakeLocal { local }
-                    if (b.task_borrowed_results
+                    if matches!(&f.locals[local.0 as usize].ty,Type::BorrowedStorage{..})
+                        || (b.task_borrowed_results
                         && !locals[local.0 as usize].task_ports.is_empty())
                         || super::stored_callables::fixed_value(
                             module,
