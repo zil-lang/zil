@@ -25,6 +25,7 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
         }
         spend(left, f.parameters.len(), f.span)?;
         let mut life = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: Vec::new(),

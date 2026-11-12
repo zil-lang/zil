@@ -395,6 +395,7 @@ mod tests {
             }),
         };
         let relation = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: vec![],

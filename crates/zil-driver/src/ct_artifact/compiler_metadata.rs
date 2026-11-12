@@ -132,6 +132,23 @@ impl Budget<'_> {
                                 span,
                             )?;
                         }
+                        self.work(
+                            life.static_bindings
+                                .len()
+                                .saturating_mul(std::mem::size_of::<zil_ir::StoragePosition>()),
+                            span,
+                        )?;
+                        for position in &life.static_bindings {
+                            self.work(
+                                position
+                                    .path
+                                    .len()
+                                    .saturating_mul(
+                                        std::mem::size_of::<zil_ir::ContractProjection>(),
+                                    ),
+                                span,
+                            )?;
+                        }
                         for row in &life.classes {
                             self.work(
                                 row.position
@@ -255,6 +272,7 @@ impl Budget<'_> {
             life.bindings
                 .len()
                 .saturating_add(life.classes.len())
+                .saturating_add(life.static_bindings.len())
                 .saturating_add(2),
             span,
         )?;
@@ -271,6 +289,20 @@ impl Budget<'_> {
             self.work(row.position.path.len(), span)?;
             bytes = bytes.saturating_add(
                 row.position
+                    .path
+                    .len()
+                    .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>()),
+            );
+        }
+        bytes = bytes.saturating_add(
+            life.static_bindings
+                .len()
+                .saturating_mul(std::mem::size_of::<zil_ir::StoragePosition>()),
+        );
+        for position in &life.static_bindings {
+            self.work(position.path.len(), span)?;
+            bytes = bytes.saturating_add(
+                position
                     .path
                     .len()
                     .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>()),

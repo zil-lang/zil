@@ -802,6 +802,7 @@ impl Collector<'_> {
             }
             if let Some(life) = &contract.life {
                 if life.bindings.len() > self.limits.max_locals
+                    || life.static_bindings.len() > self.limits.max_nodes
                     || life.classes.len() > self.limits.max_nodes
                 {
                     return Err(vec![Diagnostic::limit(
@@ -814,10 +815,14 @@ impl Collector<'_> {
                     life.bindings
                         .len()
                         .saturating_add(life.classes.len())
+                        .saturating_add(life.static_bindings.len())
                         .saturating_add(2),
                 )?;
                 for row in &life.bindings {
                     self.text_len(row.position.path.len())?;
+                }
+                for position in &life.static_bindings {
+                    self.text_len(position.path.len())?;
                 }
                 for row in &life.classes {
                     self.text_len(row.position.path.len())?;

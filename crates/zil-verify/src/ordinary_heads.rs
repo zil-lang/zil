@@ -260,6 +260,7 @@ mod tests {
             inner: Box::new(inner),
         };
         f.storage_life = Some(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 1,
             classes: vec![],
