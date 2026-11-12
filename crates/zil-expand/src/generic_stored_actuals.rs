@@ -362,7 +362,8 @@ impl Engine<'_> {
             return self.materialize_unification_actual(pattern, inner, depth + 1);
         }
         if matches!(&pattern.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
-            && self.qualified_actual_syntax(pattern, depth + 1)?
+            && (self.qualified_actual_syntax(pattern, depth + 1)?
+                || self.products.dynamic.context_type(pattern,&mut self.budget)?.is_some())
         {
             return self.ty(actual, depth + 1);
         }
