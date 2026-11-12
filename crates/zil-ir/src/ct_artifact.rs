@@ -1,6 +1,15 @@
 //! Raw CT-only artifact schema, independently versioned from runtime Wire.
 //! All IDs and records are untrusted data. Verification must be independent.
 use crate::{BinaryOp, Constant, UnaryOp};
+#[path = "ct_dynamic.rs"]
+mod dynamic;
+pub use dynamic::*;
+#[path = "ct_dynamic_visit.rs"]
+mod dynamic_visit;
+pub use dynamic_visit::*;
+#[path = "ct_dynamic_reify.rs"]
+mod dynamic_reify;
+pub use dynamic_reify::*;
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
 pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 8;
@@ -767,6 +776,8 @@ pub struct CtArtifactProgram {
     pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
     pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
+    /// Full raw inventory; independently authenticated against the frozen Core view.
+    pub dynamic_catalogue: CtDynamicCatalogue,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,
     pub constants: Vec<CtConstant>,

@@ -2,6 +2,8 @@
 //! schema-order tags; no Debug/serde layout or runtime Wire31 dependency.
 use crate::ct_artifact::*;
 use crate::{BinaryOp, Constant, StorageLifeContract, UnaryOp};
+#[path = "ct_wire_dynamic.rs"]
+mod dynamic;
 #[path = "ct_wire_scopes.rs"]
 mod scopes;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
@@ -3379,6 +3381,7 @@ impl Wire for CtArtifactProgram {
             self.target_pointer_width.encode(e)?;
             self.source_fingerprint.encode(e)?;
             self.ambient_life_scopes.encode(e)?;
+            self.dynamic_catalogue.encode(e)?;
             self.functions.encode(e)?;
             self.entry.encode(e)?;
             self.constants.encode(e)?;
@@ -3398,6 +3401,7 @@ impl Wire for CtArtifactProgram {
                 target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
                 ambient_life_scopes: Vec::<CtAmbientLifeScope>::decode(d)?,
+                dynamic_catalogue: CtDynamicCatalogue::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,
                 constants: <Vec<CtConstant> as Wire>::decode(d)?,

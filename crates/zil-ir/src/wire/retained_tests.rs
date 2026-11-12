@@ -886,6 +886,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
+        dynamic_catalogue: Default::default(),
         ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
