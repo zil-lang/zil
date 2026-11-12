@@ -809,7 +809,11 @@ fn check_module(
         }
     }
     registration::storage(module, &mut budget)?;
-    closures::check_definitions(module, limits, &mut budget)?;
+    if let Some(attempt) = reuse.as_deref_mut() {
+        closures::check_definitions_with_reuse(module, limits, &mut budget, Some(attempt))?;
+    } else {
+        closures::check_definitions(module, limits, &mut budget)?;
+    }
     foreign::check_declarations(module, &mut budget, reuse.as_deref_mut())?;
     let mut names = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =

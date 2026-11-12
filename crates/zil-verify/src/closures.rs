@@ -53,12 +53,21 @@ pub(super) fn check_definitions(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
+    check_definitions_with_reuse(module, limits, budget, None)
+}
+
+pub(super) fn check_definitions_with_reuse(
+    module: &TypedModule,
+    limits: &Limits,
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<()> {
     if module.closures.len() > limits.max_functions
         || module.closures.len() > module.functions.len()
     {
         return Err(limit("closure count exceeds the function bound"));
     }
-    check_layouts(module, limits, budget)?;
+    check_layouts(module, limits, budget, reuse)?;
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
@@ -419,7 +428,12 @@ pub(super) fn check_definitions(
 
 /// Inline fields must form a finite layout before any backend sizing or
 /// alignment recursion. A raw ClosureId is not evidence of acyclicity.
-fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> Check<()> {
+fn check_layouts(
+    module: &TypedModule,
+    limits: &Limits,
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<()> {
     budget.spend(module.closures.len().saturating_mul(3))?;
     let mut state = vec![0u8; module.closures.len()];
     let mut heights = vec![0usize; module.closures.len()];
@@ -509,29 +523,47 @@ fn check_layouts(module: &TypedModule, limits: &Limits, budget: &mut Budget) -> 
     // Each local/value instance can require another machine layout/cleanup
     // traversal. Charge expanded work, including array multiplicity, rather
     // than granting a large DAG a cheap ClosureId at every use site.
-    let instances = module
-        .functions
-        .iter()
-        .try_fold(0usize, |count, function| {
+    let instances = match reuse
+        .as_deref()
+        .and_then(|attempt| attempt.raw_instance_count(module))
+    {
+        Some(count) => count,
+        None => module.functions.iter().try_fold(0usize, |count, function| {
             count
                 .checked_add(function.locals.len())
                 .and_then(|count| count.checked_add(function.values.len()))
                 .and_then(|count| count.checked_add(1))
-        })
-        .ok_or_else(|| limit("closure instance table size overflow"))?;
+        }),
+    }
+    .ok_or_else(|| limit("closure instance table size overflow"))?;
     budget.spend(instances)?;
-    let mut types = module
-        .functions
+    if let Some(attempt) = reuse {
+        attempt.check_closure_instances(module, &expanded, budget)?;
+    } else {
+        for function in module.functions.iter().rev() {
+            check_function_instances(module, function, &expanded, budget)?;
+        }
+    }
+    Ok(())
+}
+
+/// One function's exact slice of the original reverse raw-instance walk.
+/// Splitting the stack changes neither charged work nor the first visited type.
+pub(super) fn check_function_instances(
+    module: &TypedModule,
+    function: &TypedFunction,
+    expanded: &[usize],
+    budget: &mut Budget,
+) -> Check<()> {
+    let mut types = function
+        .locals
         .iter()
-        .flat_map(|f| {
-            f.locals
-                .iter()
-                .map(|local| &local.ty)
-                .chain(&f.values)
-                .chain(std::iter::once(&f.return_type))
-        })
+        .map(|local| &local.ty)
+        .chain(&function.values)
+        .chain(std::iter::once(&function.return_type))
         .map(|ty| (ty, 1usize))
         .collect::<Vec<_>>();
+
     while let Some((ty, count)) = types.pop() {
         budget.spend(1)?;
         match ty {

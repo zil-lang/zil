@@ -61,6 +61,8 @@ fn attempt<'a>(
         previous_inventory: &session.inventory,
         previous_lexical: &session.lexical,
         next_lexical: session.lexical.clone(),
+        previous_closure_instances: session.closure_instances.as_ref(),
+        next_closure_instances: None,
         previous_inputs: session.verified.as_ref(),
         delta: RawDelta::new(
             session.verified.as_ref(),
@@ -123,6 +125,8 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     assert_eq!(stats.resource_inventory_functions_reused, 15);
     assert_eq!(stats.region_functions_reused, 15);
     assert_eq!(stats.lexical_cleanup_functions_reused, 15);
+    assert_eq!(stats.closure_instance_functions_checked, 0);
+    assert_eq!(stats.closure_instance_functions_reused, 16);
     assert!(stats.raw_shape_ranges_reused < 15);
     assert_ne!(
         initial.fingerprint(),
@@ -733,4 +737,131 @@ fn lexical_receipts_do_not_authorize_changed_deferred_callee_bodies() {
     assert!(expected[0].message.contains("nested defer registration"));
     assert_eq!(session.stats().lexical_cleanup_functions_reused, 1);
     verify(&mut session, &module, &plan, &limits).unwrap();
+}
+
+#[test]
+fn closure_instance_ranges_keep_global_count_and_reverse_fee_boundaries() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(module.clone()),
+        plan: Arc::new(plan),
+    };
+    let mut measured = raw_budget(&limits, 2);
+    for f in module.functions.iter().rev() {
+        closures::check_function_instances(&module, f, &[], &mut measured).unwrap();
+    }
+    let work = limits.max_analysis_steps - measured.remaining;
+    for available in [work, work - 1, 0] {
+        let mut call = attempt(&session, &current, &limits);
+        call.check_shape_tree(current.module(), &mut raw_budget(&limits, 2), &limits)
+            .unwrap();
+        let count: usize = module
+            .functions
+            .iter()
+            .map(|f| f.locals.len() + f.values.len() + 1)
+            .sum();
+        assert_eq!(call.raw_instance_count(current.module()), Some(Some(count)));
+        let mut fresh = raw_budget(&limits, 2);
+        fresh.remaining = available;
+        let expected = module
+            .functions
+            .iter()
+            .rev()
+            .try_for_each(|f| closures::check_function_instances(&module, f, &[], &mut fresh));
+        let mut warm = raw_budget(&limits, 2);
+        warm.remaining = available;
+        let actual = call.check_closure_instances(current.module(), &[], &mut warm);
+        assert_eq!(expected, actual);
+        assert_eq!(fresh.remaining, warm.remaining);
+        if available == work {
+            assert_eq!(call.stats.closure_instance_functions_reused, 2);
+            assert_eq!(call.stats.closure_instance_ranges_reused, 1);
+        }
+    }
+}
+
+#[test]
+fn closure_instance_actual_layout_dependency_change_forces_current_checks() {
+    let module = crate::defer_tests::fixture(1, true, false);
+    let plan = crate::resource_tests::plan(&module);
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let mut changed = module.clone();
+    changed.closures[0].captures[0] = Type::Array {
+        element: Box::new(Type::I32),
+        length: 3,
+    };
+    assert!(changed.functions.ptr_eq(&module.functions));
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(changed.clone()),
+        plan: Arc::new(plan.clone()),
+    };
+    let mut call = attempt(&session, &current, &limits);
+    call.check_shape_tree(current.module(), &mut raw_budget(&limits, 2), &limits)
+        .unwrap();
+    let mut fresh = raw_budget(&limits, 2);
+    let expected = closures::check_definitions(&changed, &limits, &mut fresh);
+    let mut warm = raw_budget(&limits, 2);
+    let actual = closures::check_definitions_with_reuse(
+        current.module(),
+        &limits,
+        &mut warm,
+        Some(&mut call),
+    );
+    assert_eq!(expected, actual);
+    assert_eq!(fresh.remaining, warm.remaining);
+    assert_eq!(call.stats.closure_instance_functions_reused, 0);
+    assert_eq!(call.stats.closure_instance_functions_checked, 2);
+    // Equal current raw function leaves do not authorize the changed capture
+    // ABI: the later full current function check still rejects its construction.
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = changed.fingerprint();
+    let expected =
+        verify_module(changed.clone(), candidate.clone(), &changed.target, &limits).unwrap_err();
+    assert_eq!(
+        verify(&mut session, &changed, &candidate, &limits).unwrap_err(),
+        expected
+    );
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().closure_instance_functions_reused, 2);
+}
+
+#[test]
+fn closure_instance_failure_visits_last_function_first_without_publishing() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let mut changed = module.clone();
+    changed.functions[0]
+        .values
+        .push(Type::Closure(ClosureId(0)));
+    changed.functions[1].values.push(Type::Array {
+        element: Box::new(Type::Closure(ClosureId(1))),
+        length: 1,
+    });
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(changed.clone()),
+        plan: Arc::new(plan.clone()),
+    };
+    let mut fresh = raw_budget(&limits, 2);
+    let expected = changed
+        .functions
+        .iter()
+        .rev()
+        .try_for_each(|f| closures::check_function_instances(&changed, f, &[], &mut fresh));
+    let mut warm = raw_budget(&limits, 2);
+    let mut call = attempt(&session, &current, &limits);
+    let actual = call.check_closure_instances(current.module(), &[], &mut warm);
+    assert!(expected.is_err());
+    assert_eq!(expected, actual);
+    assert_eq!(fresh.remaining, warm.remaining);
+    assert_eq!(warm.remaining, limits.max_analysis_steps - 3);
+    assert_eq!(call.stats.closure_instance_functions_checked, 1);
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().closure_instance_functions_reused, 2);
 }

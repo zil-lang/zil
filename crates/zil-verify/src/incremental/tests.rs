@@ -76,6 +76,9 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             region_functions_reused: 0,
             lexical_cleanup_functions_checked: 2,
             lexical_cleanup_functions_reused: 0,
+            closure_instance_functions_checked: 0,
+            closure_instance_functions_reused: 2,
+            closure_instance_ranges_reused: 2,
         }
     );
 }
@@ -232,6 +235,8 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
         previous_inventory: &session.inventory,
         previous_lexical: &session.lexical,
         next_lexical: session.lexical.clone(),
+        previous_closure_instances: session.closure_instances.as_ref(),
+        next_closure_instances: None,
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
         current_shape_functions: None,

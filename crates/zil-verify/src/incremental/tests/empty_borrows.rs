@@ -9,6 +9,8 @@ fn attempt(session: &VerifySession) -> Attempt<'_> {
         previous_inventory: &session.inventory,
         previous_lexical: &session.lexical,
         next_lexical: session.lexical.clone(),
+        previous_closure_instances: session.closure_instances.as_ref(),
+        next_closure_instances: None,
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
         current_shape_functions: None,
