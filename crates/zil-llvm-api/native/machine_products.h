@@ -26,4 +26,7 @@ extern "C" int ZilNativeProductsMachineDiagnostics(int enabled);
 extern "C" int ZilNativeProductsMachineNumberingTests(int enabled);
 // Bit 31 means executed; bits 0..14 identify the fifteen independent checks.
 extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults();
+// Test-only actual AsmPrinter padding policy: -1 disabled, otherwise align64
+// non-entry blocks with this max padding. Bound into the machine request key.
+extern "C" int ZilNativeProductsMachineAlignmentTest(int max_bytes);
 #endif
