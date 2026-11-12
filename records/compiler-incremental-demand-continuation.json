@@ -1091,8 +1091,8 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "618a70819f1989475901c380da8491e9d07558e7",
-        "source": "9daadfc539eeaab77425164ae86373ac694583d4",
+        "read_goal": "c0221cb40034c2b36d5afe914e4833c58e7c671b",
+        "source": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
         "measured_source": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
         "measured_binary_sha256": "c584aaea968667c0076ce3a2518be18d7ad9397a72ba2c0ed8fe3e65d6c5da7a",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
@@ -1103,7 +1103,8 @@
           "default_workspace_c18": "33/33 groups,6363 passed,0failed/ignored,337 driver integrations; exact old source, not current full pass",
           "latest_directed_at_fc4_before_test_format_only": "native API67/0/0,CT71/0/0,driver207/0/0,strict native all-target Clippy pass",
           "format": "failed03/04 test-only formatting differences retained; fixed05 pass",
-          "default_workspace_latest": "03 currently running frozen9daad;14/33 groups passed at last observation,not acceptance"
+          "default_workspace_latest": "Exact9daad complete33 scope recovered:28 exact-source successful groups inherited plus5 fresh failed/not-run groups,6375pass/0fail/0ignore/0filter; originalENOSPC failures remain, not originalrun pass.",
+          "frame": "Exact55e native69/backend239/driver207 pass;Clippy07 featuregetter condition failure retained,04a fix. Exact244c complete native70,strict alltargetClippy08,fmt07,tools39pass;release08 running,no new timing."
         },
         "new_CT": "exact original20x20x16 locked fixture private21 actual body checks/404 reuses; positions425checks; globalcontext/declarations remain; originalprefix/N-N1/firsterror/independentVerify retained",
         "F14": "General function key now includes all reachable named type definitions and validates current caller owners; originalfinding/failed proofs retained; native negatives pass.",
@@ -1112,7 +1113,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "ordinary spill/frame/CFI complete value restoration/current owner rebinding and pressure quality controls in independent branch; not executed/accepted yet",
+        "active_construction": "Frame/currentPSV/MMO/CFI complete native consumer qualified and bounded independently reviewed; actual425 timing pending. New entry-selector uses ordered typed keys+fourtext length/hash only to reject, matching candidate still complete boundeddecode+originalfullEq+replay checks. Static independent review244c accepted; no authority relaxation.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1126,7 +1127,8 @@
         },
         "local_custody": "four oldv9 run materializations25712files/3539915708B were retired only after exact fixedf541inventory hashes/modes; complete original raw remains recoverable from v9/f541, latestclosed01/profile07 retained. Tombstone preserved.",
         "automatic_review": "raw trace+ELF push to a new research source ref rejected for unapproved raw payload/destination; preserved locally for separate authorized archive, puretools branch27c454 pushed without raw ancestry. No retry/bypass.",
-        "controls": "default switches off; no main merge; defaultbudgets,independentVerify and originalO2 passes retained; one heavywindow"
+        "controls": "Default switches off; no research merge to main; default budgets, independent Verify and original O2 retained; one heavy window. User requests batch validation after complete logic; no per-getter reruns.",
+        "astra_review": "Read-only fixed368ea architecture review source244c:tools/research/incremental-demand/full-push-astra-native-panorama-review.{json,md}; recommends frame consumers, entry negative-filter, then schema3-driven capture/replay economics. No new measuredspeed."
       }
     }
   }
