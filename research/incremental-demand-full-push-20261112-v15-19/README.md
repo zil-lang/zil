@@ -1,0 +1,5 @@
+# Full push evidence v15-19
+
+V15 finalstoragepiece19: complete remainingoriginal O2metadata plus original21669file SHA/mode/size inventory,18 verifiedpiece refs/disjointunion proof, original270row validator/strictsummary receipts, full1e260 formal JSON/MD/reviews/native scopes/tool/docs snapshots, v14check fullrecovery/actual270revalidation, cleanup07/08 and selectivechecksummaryprojection. Measuredproduction source1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393. Reporting/tool/docs snapshots are postmeasurement. Everypiece freshHTTPS byte/mode verified; originalvalidator/strictsummary passed before retirement. No wholeassembledfreshvalidator rerun, reduced270scope/native2808/CAS476, or languageparity/minimality claim.
+
+Use `python3 restore_https.py FULL_ARCHIVE_COMMIT --receipt RECEIPT_JSON` at the complete fixed commit. Fresh HTTPS only; every part/archive digest and restored file twice plus exact modes verified. Restore both v13a and v13b fixed commits named by the final recovery receipt for the complete checkpoint. No old66archiveparts need restoration; all Git objects remain.

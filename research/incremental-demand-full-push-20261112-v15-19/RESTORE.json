@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "57a75dbd85747c123bb52da7a5d51fde9d9b5b98931dbc1b8446e80b54d30840",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv13 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 371996,
+    "sha256": "6ac58b8d69847bccc0c216c6a626b703fd64a394bd6e6ff3a47644312492dd31"
+  },
+  "schema": 1,
+  "scope": "V15 finalstoragepiece19: complete remainingoriginal O2metadata plus original21669file SHA/mode/size inventory,18 verifiedpiece refs/disjointunion proof, original270row validator/strictsummary receipts, full1e260 formal JSON/MD/reviews/native scopes/tool/docs snapshots, v14check fullrecovery/actual270revalidation, cleanup07/08 and selectivechecksummaryprojection. Measuredproduction source1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393. Reporting/tool/docs snapshots are postmeasurement. Everypiece freshHTTPS byte/mode verified; originalvalidator/strictsummary passed before retirement. No wholeassembledfreshvalidator rerun, reduced270scope/native2808/CAS476, or languageparity/minimality claim.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
