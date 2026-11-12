@@ -1217,14 +1217,20 @@
             "strong_pairs": 15,
             "safe_error_pairs": 2,
             "external_controller_exit": 0,
-            "candidate_private_ms": 461.151774,
-            "main_private_ms": 1453.000933,
-            "candidate_cold_ms": 6944.965849,
-            "main_cold_ms": 5725.460271,
-            "candidate_broad_ms": 6628.489992,
-            "main_broad_ms": 5816.820561,
+            "candidate_private_ms": 461.151631,
+            "main_private_ms": 1453.000596,
+            "candidate_cold_ms": 6944.965608,
+            "main_cold_ms": 5725.460234,
+            "candidate_broad_ms": 6628.489823,
+            "main_broad_ms": 5816.820529,
             "negative": "cold andbroad slower thanmain; significant overallRustlead notproved",
-            "actual_private_work": "39MF reused/3executed;2FPM reused/376executed; currentindependentVerify1"
+            "actual_private_work": "39MF reused/3executed;2FPM reused/376executed; currentindependentVerify1",
+            "exact_observation_source": {
+              "source_commit": "86392ba1f",
+              "path": "tools/research/incremental-demand/full-push-checkpoint-328.json",
+              "profile": "12",
+              "policy": "Values loaded directly from retained original observations; not reconstructed from rounded prose."
+            }
           },
           "profile11": "34rows/180outcomesqualitypass; originaltool85255 unknownafterenvironmentreconnect; persistedexit0 alone notdirectcontrollerobservation. timingcontinuityunproven, no speedattribution. Exactsource/profile12 rerun afterready.",
           "profile10": "Separatelybinds25c;471ms private/main1707diagnostic, notretagged328."
