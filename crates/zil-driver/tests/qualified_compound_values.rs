@@ -150,3 +150,65 @@ fn shared_tuple_generic_identity_runs_both_backends() {
     }
     fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn owning_exclusive_and_resource_values_run_both_backends() {
+    let directory =
+        std::env::temp_dir().join(format!("zil-affine-compound-{}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    for (label, text, expected) in [
+        (
+            "owning",
+            include_str!("../../../tests/fixtures/qualified-values/owning-compound.zil"),
+            b"A".as_slice(),
+        ),
+        (
+            "exclusive",
+            include_str!("../../../tests/fixtures/qualified-values/exclusive-compound.zil"),
+            b"".as_slice(),
+        ),
+        (
+            "resource-value",
+            include_str!("../../../tests/fixtures/qualified-values/resource-value-roles.zil"),
+            b"CBA".as_slice(),
+        ),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let output = directory.join(format!("{label}-{backend:?}-{optimization:?}"));
+                let report = compile_source(
+                    &input(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        output: Some(output.clone()),
+                        backend,
+                        optimization,
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{label}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let result = Command::new(&output).output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{label}: {result:?}");
+                assert_eq!(result.stdout, expected, "{label}: {result:?}");
+                assert!(result.stderr.is_empty(), "{label}: {result:?}");
+                eprintln!(
+                    "{label} {backend:?} {optimization:?}: {}",
+                    String::from_utf8_lossy(expected)
+                );
+            }
+        }
+    }
+    fs::remove_dir_all(directory).unwrap();
+}
