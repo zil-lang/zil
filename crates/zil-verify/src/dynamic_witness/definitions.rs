@@ -103,6 +103,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
             // own Fixed/Invocation domains. No Context ordinal is compared here.
             dynamic_metadata::recipe(original, b)?;
             dynamic_metadata::recipe(instance, b)?;
+            super::scopes::function(module,actual,original,b)?;
             if original.definition != definition.id
                 || original.receiver != instance.receiver
                 || original.declaration_actuals != instance.declaration_actuals
