@@ -15,6 +15,7 @@ use live_words::LiveRow;
 mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
+mod dyn_address;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -393,6 +394,8 @@ struct Value {
     /// itself grant an element address or public Hold.
     store_description: Permission,
     task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
+    /// Distinct from Task frame ports: every dyn row is explicit, including unused uppers.
+    dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
     /// Capture ordinal followed by its pointee's stored-leaf path. These are
@@ -470,6 +473,7 @@ pub(super) struct Facts {
     pointer_parents: Vec<Vec<TaskLoanAnchor>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     returned_task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
+    returned_dyn_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     package_return_calls: BTreeMap<ValueId, u32>,
     byte_reads: Vec<Target>,
     byte_covered: bool,
@@ -541,6 +545,7 @@ fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
     changed |= union(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::merge(to, from, b)?;
+    changed |= dyn_address::merge(to, from, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
@@ -593,6 +598,11 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         store_description: copy_permission(&value.store_description, b)?,
         task_ports: if b.task_borrowed_results {
             copy_permission_rows(&value.task_ports, b)?
+        } else {
+            BTreeMap::new()
+        },
+        dyn_ports: if b.dyn_contexts {
+            copy_permission_rows(&value.dyn_ports, b)?
         } else {
             BTreeMap::new()
         },
@@ -658,6 +668,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         target_work(&value.store_description.targets, b)?;
         fee(b, value.store_description.loans.len())?;
         task_address::work(value, b)?;
+        dyn_address::work(value, b)?;
         fee(b, value.environment.len())?;
         for (path, permission) in value.environment.iter().chain(&value.slots) {
             fee(
@@ -717,6 +728,15 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     for row in &f.values {
         for root in row {
             fee(b, target_width(root).saturating_add(1))?;
+        }
+    }
+    if b.dyn_contexts {
+        fee(b, f.returned_dyn_ports.len())?;
+        for (path, targets) in &f.returned_dyn_ports {
+            fee(b, path.len().saturating_add(targets.len()))?;
+            for target in targets {
+                fee(b, target_width(target))?;
+            }
         }
     }
     if b.task_borrowed_results {
@@ -2178,6 +2198,7 @@ fn seed_environment(
     Ok(())
 }
 fn seed_value(
+    module: &TypedModule,
     ty: &Type,
     base: HoldRoot,
     state: &mut State,
@@ -2321,6 +2342,7 @@ fn seed_value(
         value.slots = slots;
     }
     task_address::seed(ty, base, &mut value, loans, b)?;
+    dyn_address::seed(module, ty, base, &mut value, loans, b)?;
     Ok(value)
 }
 fn seed(
@@ -2333,6 +2355,7 @@ fn seed(
     for (index, local) in f.parameters.iter().enumerate() {
         fee(b, 1)?;
         let mut value = seed_value(
+            module,
             &f.locals[local.0 as usize].ty,
             HoldRoot::Parameter(index as u32),
             &mut state,
@@ -2371,7 +2394,14 @@ fn seed(
     {
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
-            let value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            let value = seed_value(
+                module,
+                ty,
+                HoldRoot::Capture(index as u32),
+                &mut state,
+                loans,
+                b,
+            )?;
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(index as u32, value);
         }
@@ -2521,6 +2551,11 @@ fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     union(&mut permission, &value.held, b)?;
     for leaf in value.slots.values() {
         union(&mut permission, leaf, b)?;
+    }
+    if b.dyn_contexts {
+        for leaf in value.dyn_ports.values() {
+            union(&mut permission, leaf, b)?;
+        }
     }
     if b.task_borrowed_results {
         for leaf in value.task_ports.values() {
@@ -2757,6 +2792,7 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
+    let dyn_transfer = dyn_address::transfer(module, f, i, state, values, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let option_transfer = if enum_transfer.is_none() && task_transfer.is_none() {
@@ -2792,7 +2828,8 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
-            if task_address::shape(&f.locals[local.0 as usize].ty).is_some()
+            if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. })
+                || task_address::shape(&f.locals[local.0 as usize].ty).is_some()
                 || matches!(
                     f.locals[local.0 as usize].ty,
                     Type::Address { mutable: true, .. }
@@ -3547,6 +3584,9 @@ fn transfer(
         | InstructionKind::DescribeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
+        _ if dyn_transfer.is_some() => {
+            out = dyn_transfer.unwrap();
+        }
         _ if enum_transfer.is_some() => {
             out = enum_transfer.unwrap();
         }
@@ -3646,6 +3686,7 @@ fn transfer(
             )]);
         }
     }
+    dyn_address::propagate(i, state, values, &mut out, b)?;
     if let Some(result) = i.result
         && b.static_utf8
         && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
@@ -3666,6 +3707,9 @@ fn transfer(
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::MakeDynBorrow { .. }
+                | InstructionKind::BorrowDynOwned { .. }
+                | InstructionKind::CallDynSlot { .. }
                 | InstructionKind::LoadStoredBorrow {
                     mode: StoredBorrowLoad::Reborrow { mutable: true },
                     ..
@@ -3936,6 +3980,11 @@ fn active(
         if let Some(value) = value {
             active_loans_union(&mut direct, &value.pointer, b)?;
             active_loans_union(&mut direct, &value.held, b)?;
+            if b.dyn_contexts {
+                for permission in value.dyn_ports.values() {
+                    active_loans_union(&mut direct, permission, b)?;
+                }
+            }
             if b.task_borrowed_results {
                 for permission in value.task_ports.values() {
                     active_loans_union(&mut direct, permission, b)?;
@@ -3943,6 +3992,13 @@ fn active(
             }
             for leaf in value.slots.values() {
                 active_loans_union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        for value in state.locals.values().chain(state.captures.values()) {
+            for permission in value.dyn_ports.values() {
+                active_loans_union(&mut direct, permission, b)?;
             }
         }
     }
@@ -3996,6 +4052,11 @@ fn active_by_permission(
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
             union(&mut direct, &value.held, b)?;
+            if b.dyn_contexts {
+                for permission in value.dyn_ports.values() {
+                    union(&mut direct, permission, b)?;
+                }
+            }
             if b.task_borrowed_results {
                 for permission in value.task_ports.values() {
                     union(&mut direct, permission, b)?;
@@ -4003,6 +4064,13 @@ fn active_by_permission(
             }
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        for value in state.locals.values().chain(state.captures.values()) {
+            for permission in value.dyn_ports.values() {
+                union(&mut direct, permission, b)?;
             }
         }
     }
@@ -5035,6 +5103,7 @@ fn derive_cfg(
                 pointer_parents: Vec::new(),
                 returned: BTreeMap::new(),
                 returned_task_ports: BTreeMap::new(),
+                returned_dyn_ports: BTreeMap::new(),
                 package_return_calls,
                 byte_reads: Vec::new(),
                 byte_covered: false,
