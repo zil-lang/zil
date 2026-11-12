@@ -25,20 +25,51 @@ CANDIDATES = {SOURCE: CANDIDATE_BINARY,
               '328eb392d8d88148a75a743d899b43aebae73587':
               'e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a',
               '03b078b5799fe44d98855f26279f0f09e1d25bf5':
-              'd0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c'}
+              'd0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c',
+              '4b809bbfedb92b23062d5bf151eb75fef4bfcd35':
+              '4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4'}
 GENERATOR = 'tools/research/reactive-query-graph/native_workloads.py'
 RUNNER = 'tools/research/reactive-query-graph/native_measure.py'
 HELPER = 'tools/research/incremental-demand/push_counters.py'
 REQUESTS = ['cold', 'unchanged', 'private', 'multi', 'broad', 'positions', 'error', 'recovery', 'restore']
+SDK15_RUNTIME = ('/workspace/.zil-environment/llvm-function-products-v15/lib',
+                 '200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461')
+# Legacy default-source constants remain SDK15. Runtime authority below is an
+# explicit source table: adding a binary pin must never inherit a newer SDK.
 LIBRARIES = {'baseline': '/workspace/.zil-environment/llvm-23.1.4/lib',
-             'candidate': '/workspace/.zil-environment/llvm-function-products-v15/lib'}
+             'candidate': SDK15_RUNTIME[0]}
 DSOS = {'baseline': '2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250',
-        'candidate': '200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461'}
+        'candidate': SDK15_RUNTIME[1]}
+CANDIDATE_RUNTIMES = {
+    SOURCE: SDK15_RUNTIME,
+    '328eb392d8d88148a75a743d899b43aebae73587': SDK15_RUNTIME,
+    '03b078b5799fe44d98855f26279f0f09e1d25bf5': SDK15_RUNTIME,
+    '4b809bbfedb92b23062d5bf151eb75fef4bfcd35': (
+        '/workspace/.zil-environment/llvm-function-products-v16/lib',
+        '3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b'),
+}
 
 
 def require(value, context):
     if not value:
         raise ValueError(context)
+
+
+def runtime_pins(source):
+    require(source in CANDIDATES and source in CANDIDATE_RUNTIMES,
+            'source has no complete explicit binary/runtime pin')
+    library, dso = CANDIDATE_RUNTIMES[source]
+    require(type(library) is str and Path(library).is_absolute()
+            and '..' not in Path(library).parts and ':' not in library
+            and type(dso) is str and re.fullmatch('[0-9a-f]{64}', dso) is not None,
+            'invalid source-specific runtime pin')
+    return ({'baseline': LIBRARIES['baseline'], 'candidate': library},
+            {'baseline': DSOS['baseline'], 'candidate': dso})
+
+
+def check_build_runtime(receipt, libraries, dsos):
+    require(receipt['path'] == str(Path(libraries['candidate'])/'libLLVM.so.23.1')
+            and receipt['sha256'] == dsos['candidate'], 'build source-specific LLVM runtime')
 
 
 def sha(data):
@@ -70,6 +101,7 @@ def pairs():
 
 
 def check_arguments(arguments, source=SOURCE):
+    libraries, _ = runtime_pins(source)
     expected = {'case': 'scalar', 'modules': 20, 'functions': 20, 'steps': 16,
                 'blocks': 1, 'request': None, 'mode': 'O2', 'backend': 'llvm-api',
                 'cache': 'all', 'source_cache': False, 'closed_executable': False,
@@ -79,7 +111,7 @@ def check_arguments(arguments, source=SOURCE):
                 'timeout': 180, 'native_timeout': 10, 'sample_ms': 10}
     for key, value in expected.items():
         require(arguments.get(key) == value, f'fixed argument differs: {key}')
-    for arm, library in LIBRARIES.items():
+    for arm, library in libraries.items():
         require(arguments[arm + '_llvm_library_path'] == library, f'{arm} library argument')
     require(arguments['baseline_source'] == BASELINE and arguments['candidate_source'] == source, 'argument source pins')
 
@@ -117,9 +149,11 @@ def parse_controller_exit(value):
 
 def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     manifest, rows, summary, build = read(raw/'manifest.json'), lines(raw/'rows.jsonl'), read(raw/'summary.json'), read(build_path)
+    require(manifest.get('native_quality_protocol') is None, 'custom ELF protocol is not this strict diagnostic')
     a = manifest['arguments']
     require(source in CANDIDATES, 'unsupported source pin')
     candidate_binary_sha256 = CANDIDATES[source]
+    libraries, dsos_pinned = runtime_pins(source)
     check_arguments(a, source)
     controller = controller_status(controller_exit, int(raw.with_suffix('.exit').read_text()))
     require(build['exit_code'] == 0, 'build failure')
@@ -131,7 +165,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     require(build['sha256'] == candidate_binary_sha256, 'fixed build binary')
     require(file_sha(build_path.with_suffix('.log')) == build['log_sha256'] and int(build_path.with_suffix('.exit').read_text()) == 0, 'build log/exit receipt')
     require(file_sha(Path(build['binary'])) == build['sha256'], 'actual build receipt binary path/hash')
-    require(build['llvm_library']['sha256'] == DSOS['candidate'], 'build LLVM DSO')
+    check_build_runtime(build['llvm_library'], libraries, dsos_pinned)
     for arm, expected in [('baseline', BASELINE_BINARY), ('candidate', candidate_binary_sha256)]:
         binary = manifest['binaries'][arm]
         require(binary['path'] == a[arm] and binary['sha256'] == expected, f'{arm} binary metadata')
@@ -182,7 +216,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
     startups = {}
     for arm in ['baseline', 'candidate']:
         environment = environments[arm]
-        expected_env = {'LD_LIBRARY_PATH': LIBRARIES[arm], 'ZIL_LLVM_LIB_DIR': LIBRARIES[arm],
+        expected_env = {'LD_LIBRARY_PATH': libraries[arm], 'ZIL_LLVM_LIB_DIR': libraries[arm],
                         'LD_PRELOAD': None, 'LD_AUDIT': None,
                         'ZIL_CLANG': '/workspace/.zil-environment/llvm-23.1.4/bin/clang',
                         'ZIL_LLVM_CONFIG': '/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config', 'LLVM_CONFIG': None}
@@ -193,7 +227,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
         require(startup['environment'] == environment and startup['ready'] == {'ready': True, 'protocol': 1, 'pid': startup['pid'], 'capacity_entries': 256, 'reset_after': 4096}, f'{arm} startup')
         for name in ['runtime-startup.json', 'runtime-final.json']:
             dsos = pc.inspect_runtime_receipt(read(work/name), environment, startup['pid'], raw, blob, runner.llvm_mappings)
-            require(dsos == manifest['runtime_libraries'][arm] and [d['sha256'] for d in dsos] == [DSOS[arm]], f'{arm} startup/final DSO')
+            require(dsos == manifest['runtime_libraries'][arm] and [d['sha256'] for d in dsos] == [dsos_pinned[arm]], f'{arm} startup/final DSO')
     require(len(rows) == 34, '34 rows')
     native_count, success_pairs, error_pairs, offset = 0, 0, 0, 0
     measured = {}
@@ -308,7 +342,7 @@ def qualify(repo, raw, build_path, controller_exit, source=SOURCE):
             'raw': str(raw), 'build_receipt': {'path': str(build_path), 'sha256': file_sha(build_path)},
             'raw_sha256': {name: file_sha(raw/name) for name in ['manifest.json', 'rows.jsonl', 'summary.json']},
             'pinned_tools_sha256': tool_hashes, 'checked_archived_blobs': len(blob_cache),
-            'runtime_dso_sha256': DSOS, **controller,
+            'runtime_library_paths': libraries, 'runtime_dso_sha256': dsos_pinned, **controller,
             'historical_validator_incompatibility': {'path': 'tools/research/incremental-demand/profile_validate.py', 'sha256': sha(git('show', source+':tools/research/incremental-demand/profile_validate.py')), 'independently_reexecuted': False, 'reason': 'Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile.'},
             'scope': ['Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.',
                       *(['External controller completion/continuous timing were not observed after environment reconnect; recorded quality may be checked, performance attribution is excluded.'] if controller_exit is None else []),

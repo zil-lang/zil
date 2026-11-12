@@ -4,6 +4,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 DIRECTORY = Path(__file__).resolve().parent
 
@@ -101,6 +102,79 @@ class PushProfileQualification(unittest.TestCase):
             record['binary_sha256'] = validator.CANDIDATES[old_source]
             with self.subTest(old_source=old_source), self.assertRaises(ValueError):
                 validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+
+    def test_all_old_sources_stay_bound_to_sdk15(self):
+        for source in [validator.SOURCE, '328eb392d8d88148a75a743d899b43aebae73587',
+                       '03b078b5799fe44d98855f26279f0f09e1d25bf5']:
+            libraries, dsos = validator.runtime_pins(source)
+            self.assertEqual((libraries['candidate'], dsos['candidate']),
+                             ('/workspace/.zil-environment/llvm-function-products-v15/lib',
+                              '200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461'))
+            libraries['candidate'] = '/changed-by-caller'
+            self.assertEqual(validator.runtime_pins(source)[0]['candidate'],
+                             '/workspace/.zil-environment/llvm-function-products-v15/lib')
+            arguments = self.arguments()
+            arguments['candidate_source'] = source
+            arguments['candidate_llvm_library_path'] = '/workspace/.zil-environment/llvm-function-products-v16/lib'
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                validator.check_arguments(arguments, source)
+
+    def test_registered_binary_without_runtime_has_no_default_fallback(self):
+        source = '1'*40  # Synthetic unit-test source, never a real build pin.
+        with patch.dict(validator.CANDIDATES, {source: '2'*64}):
+            with self.assertRaises(ValueError):
+                validator.runtime_pins(source)
+
+    def test_new_runtime_is_isolated_from_sdk15_sources(self):
+        source = '1'*40  # Synthetic unit-test source, not the pending real source.
+        sdk16 = ('/workspace/.zil-environment/llvm-function-products-v16/lib',
+                 '3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b')
+        with patch.dict(validator.CANDIDATES, {source: '2'*64}), \
+             patch.dict(validator.CANDIDATE_RUNTIMES, {source: sdk16}):
+            libraries, dsos = validator.runtime_pins(source)
+            self.assertEqual((libraries['candidate'], dsos['candidate']), sdk16)
+            arguments = self.arguments()
+            arguments['candidate_source'] = source
+            with self.assertRaises(ValueError):
+                validator.check_arguments(arguments, source)
+            arguments['candidate_llvm_library_path'] = sdk16[0]
+            validator.check_arguments(arguments, source)
+            self.assertEqual(validator.runtime_pins(validator.SOURCE)[1]['candidate'],
+                             validator.SDK15_RUNTIME[1])
+
+    def test_build_runtime_path_and_hash_cannot_mix_sdk_versions(self):
+        libraries, dsos = validator.runtime_pins(validator.SOURCE)
+        valid = {'path': libraries['candidate']+'/libLLVM.so.23.1',
+                 'sha256': dsos['candidate']}
+        validator.check_build_runtime(valid, libraries, dsos)
+        for wrong in [dict(valid, path='/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1'),
+                      dict(valid, sha256='3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b')]:
+            with self.subTest(wrong=wrong), self.assertRaises(ValueError):
+                validator.check_build_runtime(wrong, libraries, dsos)
+
+    def test_combined_backend_source_uses_only_its_sdk16_and_binary(self):
+        source = '4b809bbfedb92b23062d5bf151eb75fef4bfcd35'
+        self.assertEqual(validator.CANDIDATES[source],
+                         '4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4')
+        libraries, dsos = validator.runtime_pins(source)
+        self.assertEqual((libraries['candidate'], dsos['candidate']),
+                         ('/workspace/.zil-environment/llvm-function-products-v16/lib',
+                          '3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b'))
+        arguments = self.arguments()
+        arguments['candidate_source'] = source
+        with self.assertRaises(ValueError):
+            validator.check_arguments(arguments, source)
+        arguments['candidate_llvm_library_path'] = libraries['candidate']
+        validator.check_arguments(arguments, source)
+        record = {'source': source, 'binary_sha256': validator.CANDIDATES[source],
+                  'command': validator.expected_controller_command(Path('/repo'), Path('/raw'), arguments)}
+        validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+        record['binary_sha256'] = validator.CANDIDATES['03b078b5799fe44d98855f26279f0f09e1d25bf5']
+        with self.assertRaises(ValueError):
+            validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+        for old_source in [validator.SOURCE, '328eb392d8d88148a75a743d899b43aebae73587',
+                           '03b078b5799fe44d98855f26279f0f09e1d25bf5']:
+            self.assertEqual(validator.runtime_pins(old_source)[1]['candidate'], validator.SDK15_RUNTIME[1])
 
     def test_only_second_line_fingerprint_is_normalized(self):
         prefix = b'; ZIL verified LLVM module\n; verified-fingerprint: '
