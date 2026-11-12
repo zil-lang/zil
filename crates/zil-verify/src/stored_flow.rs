@@ -8,6 +8,9 @@ mod array_snapshot;
 mod borrowed_owned_entry_tests;
 mod byte_queries;
 mod dyn_closed;
+mod dyn_ports;
+mod dyn_providers;
+mod dyn_returns;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -322,9 +325,18 @@ pub(crate) fn shared_array_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
 
 type Path = Vec<PlaceProjection>;
 type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
+/// Typed opaque carrier namespace. A Task port never supplies a Dyn target.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum PortOrigin {
+    Task(u32),
+    Dyn {
+        carrier: Vec<ContractProjection>,
+        port: u32,
+    },
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Source {
-    pub(super) retained_port: Option<u32>,
+    pub(super) retained_port: Option<PortOrigin>,
     pub(super) base: HoldRoot,
     pub(super) leaf: Path,
     pub(super) inline: Path,
@@ -369,6 +381,8 @@ struct Payload {
     address: Permission,
     store_description: Permission,
     task_ports: Vec<(Vec<ContractProjection>, Permission)>,
+    dyn_ports: dyn_ports::Rows,
+    dyn_views: Vec<dyn_ports::View>,
     creation_complete: Option<bool>,
     // For a concrete Fixed environment only, a private Field(capture) prefix
     // retains its actual outer address and pointee leaves. It grants no public
@@ -393,8 +407,14 @@ struct Loan {
 struct Summary {
     byte_reads: Vec<Source>,
     byte_covered: bool,
+    dyn_accesses: Vec<(Source, bool)>,
+    dyn_effects: Vec<DynEffect>,
+    dyn_effects_known: bool,
+    dyn_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
+    dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
+    dyn_ports: dyn_ports::Rows,
     external_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
@@ -447,9 +467,14 @@ fn amount(a: usize, b: usize) -> Check<usize> {
         .ok_or_else(|| limit("stored comparison work overflow"))
 }
 fn width(s: &Source) -> usize {
+    let opaque = match &s.retained_port {
+        Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+        _ => 0,
+    };
     s.leaf
         .len()
         .saturating_add(s.inline.len())
+        .saturating_add(opaque)
         .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
         .saturating_add(1)
 }
@@ -470,6 +495,10 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     permission_work(&p.address, b)?;
     permission_work(&p.store_description, b)?;
     task_address::work(p, b)?;
+    if b.dyn_contexts {
+        dyn_ports::work(&p.dyn_ports, b)?;
+        dyn_ports::views_work(&p.dyn_views, b)?;
+    }
     p.leaves.copy_work(b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
@@ -657,6 +686,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
         changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     }
     changed |= task_address::join(to, from, b)?;
+    changed |= dyn_ports::join(to, from, b)?;
     if let Some(complete) = from.creation_complete {
         let joined = Some(to.creation_complete.unwrap_or(false) || complete);
         changed |= to.creation_complete != joined;
@@ -764,6 +794,7 @@ fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) 
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::StoreStoredBorrow { value, .. }
         | InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::MakeDynOwned { source: value, .. }
         | InstructionKind::ExtractField {
             aggregate: value, ..
         }
@@ -1314,6 +1345,8 @@ pub(super) fn qualifications(
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !dyn_closed::operation(module, f, i, b)?
+                    && !dyn_ports::operation(module, f, i, b)?
+                    && !dyn_ports::wrapper(module, f, i, b)?
                     && !owned_operation
                     && !enum_operation
                     && !owned_byte_views::instruction(module, f, i, b)?
@@ -1416,6 +1449,7 @@ pub(super) fn qualifications(
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_borrowed_results && task_address::wrapper_instruction(f, i, b)?)
+                    && !dyn_ports::wrapper(module, f, i, b)?
                 {
                     // A qualified Enum claim cannot become an unsupported Copy
                     // operation merely by deleting its nominal instance inventory.
@@ -2313,6 +2347,14 @@ fn seed(
                 p.option_variants = option_address::Variants::parameter(position as u32, b)?;
             }
         }
+        dyn_ports::seed(
+            module,
+            ty,
+            HoldRoot::Parameter(position as u32),
+            &mut p,
+            loans,
+            b,
+        )?;
         if fixed_environment(module, ty) {
             seed_environment(
                 module,
@@ -2324,6 +2366,7 @@ fn seed(
             )?;
         }
         if addressed(ty).is_some()
+            || b.dyn_contexts && matches!(ty, Type::Address { .. }) && !p.dyn_ports.0.is_empty()
             || fixed_environment(module, ty)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
         {
@@ -2446,6 +2489,8 @@ fn projection_only_load(
     Ok((uses == 1).then_some(adjacent).flatten())
 }
 fn instantiate(
+    module: &TypedModule,
+    f: &TypedFunction,
     source: &Source,
     args: &[ValueId],
     values: &[Payload],
@@ -2469,8 +2514,27 @@ fn instantiate(
         .get(position as usize)
         .and_then(|v| values.get(v.0 as usize))
         .ok_or_else(|| err("callee source has no actual argument"))?;
-    let mut p = if let Some(port) = source.retained_port {
-        task_address::select(v, &source.leaf, port, b)?
+    let mut p = if let Some(port) = &source.retained_port {
+        match port {
+            PortOrigin::Task(port) => task_address::select(v, &source.leaf, *port, b)?,
+            PortOrigin::Dyn { carrier, port } => {
+                if !source.leaf.is_empty() {
+                    return Err(err(
+                        "Dyn port source has a noncanonical second carrier path",
+                    ));
+                }
+                dyn_ports::select_actual(
+                    module,
+                    f,
+                    args[position as usize],
+                    v,
+                    state,
+                    carrier,
+                    *port,
+                    b,
+                )?
+            }
+        }
     } else if source.leaf.is_empty() {
         permission_work(&v.address, b)?;
         v.address.clone()
@@ -2632,6 +2696,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
     let task_transfer = task_address::transfer(module, f, i, state, values, summaries, b)?;
     let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
@@ -3226,7 +3291,25 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+            dyn_ports::call(
+                module,
+                f,
+                &summaries[function.0 as usize],
+                arguments,
+                values,
+                state,
+                &mut out,
+                b,
+            )?;
+            if b.dyn_contexts {
+                for parent in &summaries[function.0 as usize].dyn_result_parents {
+                    let actual = instantiate(module, f, parent, arguments, values, state, b)?;
+                    add_loans(&mut out.address.loans, &actual.loans, b)?;
+                }
+            }
             task_address::call(
+                module,
+                f,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
@@ -3245,7 +3328,7 @@ fn step(
                 for source in sources {
                     join_permission(
                         &mut p,
-                        &instantiate(source, arguments, values, state, b)?,
+                        &instantiate(module, f, source, arguments, values, state, b)?,
                         b,
                     )?;
                     if path.is_empty()
@@ -3278,7 +3361,7 @@ fn step(
                     .get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
                 if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && qualified(inner).is_some())
                 {
                     continue;
                 }
@@ -3300,7 +3383,7 @@ fn step(
                 for source in sources {
                     join_permission(
                         &mut permission,
-                        &instantiate(source, arguments, values, state, b)?,
+                        &instantiate(module, f, source, arguments, values, state, b)?,
                         b,
                     )?;
                 }
@@ -3327,6 +3410,7 @@ fn step(
                 }
             }
         }
+        _ if dyn_transfer.is_some() => {}
         _ if closed_dyn_transfer.is_some() => {
             out = copy_payload(closed_dyn_transfer.as_ref().unwrap(), b)?;
         }
@@ -3427,6 +3511,10 @@ fn step(
                 Some(i.span),
             ));
         }
+    }
+    if let Some(dynamic) = &dyn_transfer {
+        join_permission(&mut out.address, &dynamic.address, b)?;
+        dyn_ports::join(&mut out, dynamic, b)?;
     }
     if let Some(id) = i.result
         && b.static_utf8
@@ -3953,6 +4041,11 @@ fn live_loans(
                 loans.add(&p.loans, b)?;
             }
         }
+        if b.dyn_contexts {
+            for (_, p) in &payload.dyn_ports.0 {
+                loans.add(&p.permission.loans, b)?;
+            }
+        }
         for (_, p) in &payload.leaves {
             loans.add(&p.loans, b)?;
         }
@@ -3978,6 +4071,25 @@ fn live_loans(
         for payload in &state.locals {
             for (_, permission) in &payload.task_ports {
                 loans.add(&permission.loans, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        b.spend(
+            state
+                .locals
+                .len()
+                .saturating_add(state.external.len())
+                .saturating_add(state.captures.len()),
+        )?;
+        for payload in state
+            .locals
+            .iter()
+            .chain(&state.external)
+            .chain(&state.captures)
+        {
+            for (_, p) in &payload.dyn_ports.0 {
+                loans.add(&p.permission.loans, b)?;
             }
         }
     }
@@ -4017,6 +4129,11 @@ fn live_loans_main_fullscan(
                 add_loans_by_scan(&mut loans, &p.loans, b)?;
             }
         }
+        if b.dyn_contexts {
+            for (_, p) in &payload.dyn_ports.0 {
+                add_loans_by_scan(&mut loans, &p.permission.loans, b)?;
+            }
+        }
         for (_, p) in &payload.leaves {
             add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
@@ -4027,6 +4144,18 @@ fn live_loans_main_fullscan(
         for payload in &state.locals {
             for (_, permission) in &payload.task_ports {
                 add_loans_by_scan(&mut loans, &permission.loans, b)?;
+            }
+        }
+    }
+    if b.dyn_contexts {
+        for payload in state
+            .locals
+            .iter()
+            .chain(&state.external)
+            .chain(&state.captures)
+        {
+            for (_, p) in &payload.dyn_ports.0 {
+                add_loans_by_scan(&mut loans, &p.permission.loans, b)?;
             }
         }
     }
@@ -4137,6 +4266,8 @@ fn check_call(
             let flow =
                 byte_flow.ok_or_else(|| err("Byte separation has no covered origin flow"))?;
             let left = flow.instantiate(
+                module,
+                f,
                 a,
                 callee,
                 arguments,
@@ -4146,6 +4277,8 @@ fn check_call(
                 b,
             )?;
             let right = flow.instantiate(
+                module,
+                f,
                 z,
                 callee,
                 arguments,
@@ -4165,8 +4298,8 @@ fn check_call(
             }
             continue;
         }
-        let a = instantiate(a, arguments, &solution.values, state, b)?;
-        let z = instantiate(z, arguments, &solution.values, state, b)?;
+        let a = instantiate(module, f, a, arguments, &solution.values, state, b)?;
+        let z = instantiate(module, f, z, arguments, &solution.values, state, b)?;
         if a.sources.is_empty() || z.sources.is_empty() {
             return Err(err("call separation has incomplete actual target facts"));
         }
@@ -4188,6 +4321,7 @@ fn windows(
     summaries: &[Summary],
     requirements: &mut Vec<(Source, Source)>,
     byte_reads: &mut Vec<Source>,
+    dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
     // A module marker only schedules this actual per-function inventory.
@@ -4263,6 +4397,7 @@ fn windows(
             if let Some(flow) = &byte_flow {
                 for permission in flow.reads(
                     module,
+                    f,
                     i,
                     &solution.values,
                     &state,
@@ -4293,6 +4428,16 @@ fn windows(
             )?;
             {
                 let mut checks = access_candidates::Access::new(&active, &solution.loans, b)?;
+                dyn_ports::access(
+                    module,
+                    f,
+                    i,
+                    &state,
+                    &solution.values,
+                    &mut checks,
+                    requirements,
+                    b,
+                )?;
                 dyn_closed::access(
                     module,
                     f,
@@ -4782,6 +4927,16 @@ fn windows(
                     _ => {}
                 }
             }
+            dyn_providers::observe(
+                module,
+                f,
+                i,
+                &state,
+                &solution.values,
+                summaries,
+                dyn_accesses,
+                b,
+            )?;
             step(
                 module,
                 f,
@@ -4809,6 +4964,14 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if b.dyn_contexts {
+        dyn_ports::work(&s.dyn_ports, b)?;
+        dyn_providers::work(s, b)?;
+        source_work(&s.dyn_result_parents, b)?;
+        for (_, rows) in &s.dyn_after {
+            dyn_ports::work(rows, b)?;
+        }
+    }
     if b.byte_queries {
         source_work(&s.byte_reads, b)?;
         b.spend(1)?;
@@ -4939,6 +5102,9 @@ fn summarize(
                 continue;
             }
         }
+        if b.dyn_contexts && !dyn_returns::complete(module, ty, p, b)? {
+            summary.complete = false;
+        }
         if p.creation_complete == Some(false) {
             summary.complete = false;
         }
@@ -5033,7 +5199,9 @@ fn summarize(
     }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
-        if b.stored_slot_updates && *reachable && matches!(block.terminator, Terminator::Return(_))
+        if (b.stored_slot_updates || b.dyn_contexts)
+            && *reachable
+            && matches!(block.terminator, Terminator::Return(_))
         {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
                 let local = *f
@@ -5041,7 +5209,7 @@ fn summarize(
                     .get(position)
                     .ok_or_else(|| err("external output exceeds actual parameter table"))?;
                 if !matches!(&f.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                    Type::Address { mutable, inner } if (*mutable || b.dyn_contexts) && qualified(inner).is_some())
                 {
                     continue;
                 }
@@ -5085,6 +5253,16 @@ fn summarize(
                 }
             }
         }
+        if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+            dyn_returns::after(
+                module,
+                f,
+                &solution.outputs[bi],
+                &mut summary,
+                &solution.loans,
+                b,
+            )?;
+        }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
             summary
@@ -5100,6 +5278,14 @@ fn summarize(
                 result_row(&mut summary, path, &p.sources, b)?;
             }
             task_address::summarize(f, payload, &mut summary, b)?;
+            dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
+            if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
+                add_sources(
+                    &mut summary.dyn_result_parents,
+                    &dyn_returns::parents(&payload.address, &solution.loans, b)?,
+                    b,
+                )?;
+            }
         }
     }
     for loan in &solution.loans {
@@ -5322,7 +5508,8 @@ fn check_with_mask(
         {
             type_work(ty, &b.limits.clone(), b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
-            let closed_dyn_value = dyn_closed::value(module, ty, b)?;
+            let closed_dyn_value =
+                dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_borrowed_results && task_address::shape(ty))
@@ -5423,7 +5610,7 @@ fn solve_check(
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
             )?;
-            if b.stored_slot_updates {
+            if b.stored_slot_updates || b.dyn_contexts {
                 b.spend(f.blocks.len())?;
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
@@ -5466,6 +5653,7 @@ fn solve_check(
                     }
                 }
             }
+            dyn_providers::effects(module, f, &graphs[index], &summaries, &mut summary, b)?;
             observed_none |= !summary.none_values.is_empty();
             if summary.complete {
                 summary.byte_covered = b.byte_queries;
@@ -5477,6 +5665,7 @@ fn solve_check(
                     &summaries,
                     &mut summary.apart,
                     &mut summary.byte_reads,
+                    &mut summary.dyn_accesses,
                     b,
                 )?;
             }
@@ -5508,6 +5697,7 @@ fn solve_check(
     {
         return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
+    dyn_providers::validate(module, &summaries, b)?;
     let mut checked_task_sources = if b.task_borrowed_results {
         Some(Vec::with_capacity(module.functions.len()))
     } else {
@@ -5552,6 +5742,7 @@ fn solve_check(
                 "stored/reference operation has no complete actual target permission",
             ));
         }
+        dyn_returns::validate(module, f, &s.dyn_ports, b)?;
         enum_address::projections(f, &graphs[index], s, b)?;
         let mut relations = relation_index::Relations::new(f, b)?;
         let lender = captured_definition(module, f).filter(|d| super::stored_callables::lending(d));
@@ -5626,7 +5817,17 @@ fn solve_check(
                 if f.storage_life.is_some()
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
-                            task_address::source_relation(f, source, b)?
+                            match &source.retained_port {
+                                Some(PortOrigin::Task(_)) => {
+                                    task_address::source_relation(f, source, b)?
+                                }
+                                Some(PortOrigin::Dyn { carrier, port }) => {
+                                    dyn_returns::source_relation(
+                                        module, f, position, carrier, *port, b,
+                                    )?
+                                }
+                                None => unreachable!(),
+                            }
                         } else {
                             relations.get(StorageBase::Parameter(position), &source.leaf, b)?
                         })
@@ -5744,6 +5945,12 @@ fn solve_check(
                 .chain(p.store_description.sources.iter())
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
+                .chain(
+                    p.dyn_ports
+                        .0
+                        .iter()
+                        .flat_map(|(_, p)| &p.permission.sources),
+                )
             {
                 b.spend(actual.len().saturating_add(1))?;
                 actual.insert(root.base);

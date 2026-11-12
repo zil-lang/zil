@@ -118,6 +118,8 @@ fn check_call_unfiltered(
             let flow =
                 byte_flow.ok_or_else(|| err("Byte separation has no covered origin flow"))?;
             let left = flow.instantiate(
+                module,
+                f,
                 a,
                 callee,
                 arguments,
@@ -127,6 +129,8 @@ fn check_call_unfiltered(
                 b,
             )?;
             let right = flow.instantiate(
+                module,
+                f,
                 z,
                 callee,
                 arguments,
@@ -146,8 +150,8 @@ fn check_call_unfiltered(
             }
             continue;
         }
-        let a = instantiate(a, arguments, &solution.values, state, b)?;
-        let z = instantiate(z, arguments, &solution.values, state, b)?;
+        let a = instantiate(module, f, a, arguments, &solution.values, state, b)?;
+        let z = instantiate(module, f, z, arguments, &solution.values, state, b)?;
         if a.sources.is_empty() || z.sources.is_empty() {
             return Err(err("call separation has incomplete actual target facts"));
         }

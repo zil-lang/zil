@@ -1140,6 +1140,129 @@ fn check_with(
                 }
                 let out = i.result.map(|v| &values[v.0 as usize]);
                 match &i.kind {
+                    InstructionKind::MakeDynOwned { vtable, source, .. }
+                    | InstructionKind::MakeDynBorrow { vtable, source, .. } => {
+                        if b.dyn_contexts {
+                            b.spend(module.dyn_vtables.len())?;
+                            let table = module
+                                .dyn_vtables
+                                .iter()
+                                .find(|table| table.id == *vtable)
+                                .ok_or_else(|| bad("Dyn constructor actual table is absent"))?;
+                            let iface =
+                                crate::dynamic_ports::interface(module, table.interface, b)?;
+                            let actual = &values[source.0 as usize];
+                            let result = i
+                                .result
+                                .ok_or_else(|| bad("Dyn constructor has no actual result"))?;
+                            let output = &values[result.0 as usize];
+                            if actual.classes.len() != table.self_classes.len() {
+                                return Err(bad(
+                                    "Dyn Self class witness differs from actual SSA class arity",
+                                ));
+                            }
+                            let prefix = if matches!(i.kind, InstructionKind::MakeDynOwned { .. }) {
+                                vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+                            } else {
+                                vec![LifeTypeProjection::Pointee]
+                            };
+                            for (index, class) in table.self_classes.iter().enumerate() {
+                                let StorageBinder::Fixed(class) = class else {
+                                    return Err(bad("Dyn constructor cannot freshen a Self class"));
+                                };
+                                if *class >= iface.retained_life.binder_count {
+                                    return Err(bad("Dyn constructor Context class is absent"));
+                                }
+                                b.spend(
+                                    output
+                                        .keys
+                                        .len()
+                                        .saturating_mul(prefix.len().saturating_add(1)),
+                                )?;
+                                let selected = output.keys.iter().position(|(path, ordinal)| *path == prefix && ordinal == class)
+                                    .ok_or_else(|| bad("Dyn result has no exact complete Context class occurrence"))?;
+                                e.equal(actual.classes[index], output.classes[selected], b)?;
+                            }
+                            if matches!(i.kind, InstructionKind::MakeDynBorrow { .. })
+                                && let (Some(a), Some(z)) = (actual.outer, output.outer)
+                            {
+                                e.equal(a, z, b)?;
+                            }
+                        }
+                    }
+                    InstructionKind::BorrowDynOwned { local, .. } if b.dyn_contexts => {
+                        if let Some(out) = out {
+                            let actual = &locals[local.0 as usize];
+                            for (index, (path, class)) in out.keys.iter().enumerate() {
+                                let tail = path
+                                    .strip_prefix(&[LifeTypeProjection::Pointee])
+                                    .ok_or_else(|| {
+                                        bad("borrowed Dyn result has no pointee Context class path")
+                                    })?;
+                                let mut expected = if actual.outer.is_some() {
+                                    vec![LifeTypeProjection::Pointee]
+                                } else {
+                                    vec![]
+                                };
+                                expected.extend_from_slice(tail);
+                                b.spend(
+                                    actual
+                                        .keys
+                                        .len()
+                                        .saturating_mul(expected.len().saturating_add(1)),
+                                )?;
+                                let source=actual.keys.iter().position(|(p,c)|p==&expected&&c==class).ok_or_else(||bad("borrowed Dyn owner omits an actual complete Context class"))?;
+                                e.equal(actual.classes[source], out.classes[index], b)?;
+                            }
+                            if let (Some(a), Some(z)) = (actual.outer, out.outer) {
+                                e.equal(a, z, b)?;
+                            }
+                        }
+                    }
+                    InstructionKind::CallDynSlot {
+                        callee,
+                        interface,
+                        slot,
+                        arguments,
+                    } if b.dyn_contexts => {
+                        let item = crate::dynamic_ports::interface(module, *interface, b)?;
+                        if let Some(c) = item
+                            .slots
+                            .get(*slot as usize)
+                            .and_then(|slot| slot.storage_life.as_ref())
+                        {
+                            b.spend(arguments.len().saturating_add(1))?;
+                            let mut args = vec![*callee];
+                            args.extend(arguments);
+                            call_with_outer(
+                                c,
+                                &args,
+                                i.result,
+                                &values,
+                                &mut e,
+                                outer.as_ref(),
+                                b,
+                            )?;
+                        } else {
+                            return Err(bad("dynamic call has no complete public class relation"));
+                        }
+                    }
+                    InstructionKind::TakeVariantField { local, path } if b.dyn_contexts => {
+                        if let (Some(out), [step]) = (out, path.as_slice()) {
+                            if matches!(step, PlaceProjection::ErrorArm(_))
+                                && !out.classes.is_empty()
+                            {
+                                link_projection(
+                                    &f.locals[local.0 as usize].ty,
+                                    &locals[local.0 as usize],
+                                    out,
+                                    LifeTypeProjection::Place(*step),
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
+                        }
+                    }
                     InstructionKind::TaskCreate {
                         arguments,
                         port_bindings,
@@ -1531,12 +1654,13 @@ fn check_with(
                         }
                     }
                     InstructionKind::MakeErrorUnion { value, is_error }
-                        if b.stored_enum_addresses =>
+                        if b.stored_enum_addresses || b.dyn_contexts =>
                     {
                         if let (Some(out), Some(id)) = (out, i.result)
                             && (super::stored_flow::enum_address::signature(
                                 &f.values[id.0 as usize],
-                            ) || b.task_borrowed_results && !out.task_ports.is_empty())
+                            ) || b.task_borrowed_results && !out.task_ports.is_empty()
+                                || b.dyn_contexts && !out.classes.is_empty())
                         {
                             link_projection(
                                 &f.values[id.0 as usize],
@@ -1549,12 +1673,13 @@ fn check_with(
                         }
                     }
                     InstructionKind::ReadErrorUnion { value, is_error }
-                        if b.stored_enum_addresses =>
+                    | InstructionKind::TakeErrorUnion { value, is_error }
+                        if b.stored_enum_addresses || b.dyn_contexts =>
                     {
                         if let Some(out) = out
-                            && super::stored_flow::enum_address::signature(
+                            && (super::stored_flow::enum_address::signature(
                                 &f.values[value.0 as usize],
-                            )
+                            ) || b.dyn_contexts && !values[value.0 as usize].classes.is_empty())
                         {
                             link_projection(
                                 &f.values[value.0 as usize],
