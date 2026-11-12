@@ -118,10 +118,11 @@ pub(super) fn fixed_result(d: &ClosureDefinition) -> bool {
         )
     })
 }
-
-pub(super) fn transferred(d: &ClosureDefinition) -> bool {
-    d.kind == CallableKind::FnOnce
-        && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
+pub(super) fn transferred(d:&ClosureDefinition)->bool {
+    d.kind==CallableKind::FnOnce
+        && matches!(&d.result,Type::Address{inner,..}if inner.is_address_pointee()
+            || matches!(inner.as_ref(), Type::BorrowedStorage{storage,life}
+                if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)) && life.retained.is_empty()))
         && fixed_result(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
