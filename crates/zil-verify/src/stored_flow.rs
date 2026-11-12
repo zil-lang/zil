@@ -2343,7 +2343,9 @@ fn captured_definition<'a>(
 ) -> Option<&'a ClosureDefinition> {
     f.environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        .filter(|d| d.storage_life.is_some() || b.returned_environment_sources)
+        .filter(|d| {
+            d.storage_life.is_some() || b.returned_environment_sources || b.nested_callable_sources
+        })
 }
 fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
     let ty = if let Type::Address { inner, .. } = ty {
