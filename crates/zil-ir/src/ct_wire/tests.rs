@@ -1092,11 +1092,57 @@ fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees()
     *right = CtDynConstPattern::IntegerLiteral("43".into());
     assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
     let mut pattern = CtDynTypePattern::SelfType;
+    for _ in 0..112 {
+        pattern = CtDynTypePattern::Slice(Box::new(pattern));
+    }
+    raw.dynamic_catalogue.as_mut().unwrap().declarations[0].self_pattern = Some(pattern);
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let mut pattern = CtDynTypePattern::SelfType;
     for _ in 0..130 {
         pattern = CtDynTypePattern::Slice(Box::new(pattern));
     }
     raw.dynamic_catalogue.as_mut().unwrap().declarations[0].self_pattern = Some(pattern);
     assert_eq!(encode_program(&raw, &limits), Err(WireError::Limit));
+}
+
+#[test]
+fn ct_dynamic_constant_occurrences_are_real_catalogue_edges_and_identity() {
+    let mut raw = program();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    raw.dynamic_catalogue.as_mut().unwrap().types = vec![
+        CtDynamicTypeNode::I32,
+        CtDynamicTypeNode::Address {
+            mutable: false,
+            inner: CtDynamicTypeId(0),
+        },
+        CtDynamicTypeNode::BorrowedFunctionPointer {
+            parameters: vec![],
+            result: CtDynamicTypeId(1),
+            life: crate::StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                static_bindings: vec![crate::StoragePosition {
+                    base: crate::StorageBase::Result,
+                    path: vec![],
+                }],
+                classes: vec![],
+            },
+        },
+    ];
+    let limits = Limits::default();
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let key = program_fingerprint(&raw, &limits).unwrap();
+    let CtDynamicTypeNode::BorrowedFunctionPointer { life, .. } =
+        &mut raw.dynamic_catalogue.as_mut().unwrap().types[2]
+    else {
+        unreachable!()
+    };
+    life.static_bindings.clear();
+    assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
+    assert_ne!(bytes, encode_program(&raw, &limits).unwrap());
 }
 #[test]
 fn ct_dynamic_wire_work_is_exact_n_minus_one_and_fresh() {

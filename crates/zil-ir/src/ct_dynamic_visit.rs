@@ -490,7 +490,7 @@ impl CtDynamicMetadata for CtDynAssociatedType {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         (self.member).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.type_reference(*&self.ty, depth + 1)?;
+        visitor.type_reference(self.ty, depth + 1)?;
         (self.life).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
             (self.classes).len(),
@@ -512,7 +512,7 @@ impl CtDynamicMetadata for CtDynAssociatedConstant {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         (self.member).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.type_reference(*&self.ty, depth + 1)?;
+        visitor.type_reference(self.ty, depth + 1)?;
         visitor.constant(&self.value, depth + 1)?;
         Ok(())
     }
@@ -563,7 +563,7 @@ impl CtDynamicMetadata for CtDynSlot {
         for item in &self.parameter_modes {
             (item).visit_ct_dynamic(visitor, depth + 1)?;
         }
-        visitor.type_reference(*&self.result, depth + 1)?;
+        visitor.type_reference(self.result, depth + 1)?;
         (self.result_mode).visit_ct_dynamic(visitor, depth + 1)?;
         (self.call_kind).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.node(depth + 1)?;
@@ -710,7 +710,7 @@ impl CtDynamicMetadata for CtCoreDynVtable {
         }
         (self.id).visit_ct_dynamic(visitor, depth + 1)?;
         (self.interface).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.type_reference(*&self.self_type, depth + 1)?;
+        visitor.type_reference(self.self_type, depth + 1)?;
         (self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
             (self.actuals).len(),
@@ -780,7 +780,7 @@ impl CtDynamicMetadata for CtDynVtable {
         }
         (self.id).visit_ct_dynamic(visitor, depth + 1)?;
         (self.interface).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.type_reference(*&self.self_type, depth + 1)?;
+        visitor.type_reference(self.self_type, depth + 1)?;
         (self.implementation).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
             (self.actuals).len(),
@@ -1107,7 +1107,7 @@ impl CtDynamicMetadata for CtDynTypeValue {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        visitor.type_reference(*&self.ty, depth + 1)?;
+        visitor.type_reference(self.ty, depth + 1)?;
         (self.life).visit_ct_dynamic(visitor, depth + 1)?;
         visitor.rows(
             (self.classes).len(),
@@ -1948,7 +1948,7 @@ impl CtDynamicMetadata for CtRetainedBorrowPort {
         depth: usize,
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
-        visitor.type_reference(*&self.leaf, depth + 1)?;
+        visitor.type_reference(self.leaf, depth + 1)?;
         let _ = &self.mode;
         visitor.node(depth + 1)?;
         let _ = &self.binder;
@@ -2102,7 +2102,7 @@ impl CtDynamicMetadata for CtLifeNominalInstance {
     ) -> Result<(), V::Error> {
         visitor.node(depth)?;
         (self.declaration).visit_ct_dynamic(visitor, depth + 1)?;
-        visitor.type_reference(*&self.ty, depth + 1)?;
+        visitor.type_reference(self.ty, depth + 1)?;
         visitor.rows(
             (self.arguments).len(),
             std::mem::size_of::<CtLifeNominalActual>(),
@@ -2257,7 +2257,7 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
                 )?;
                 for item in field_fields {
                     visitor.text(&(item).0, depth + 1)?;
-                    visitor.type_reference(*&(item).1, depth + 1)?;
+                    visitor.type_reference((item).1, depth + 1)?;
                 }
             }
             Self::Package {
@@ -2272,7 +2272,7 @@ impl CtDynamicMetadata for CtDynamicTypeNode {
                 )?;
                 for item in field_fields {
                     visitor.text(&(item).0, depth + 1)?;
-                    visitor.type_reference(*&(item).1, depth + 1)?;
+                    visitor.type_reference((item).1, depth + 1)?;
                 }
             }
             Self::Enum {
