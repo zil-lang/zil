@@ -36,12 +36,14 @@ pub struct ObjectCacheSummary {
     pub key_ns: u64,
     pub lookup_ns: u64,
     pub current_preflight_ns: u64,
+    pub object_hit_preflight_checked_units: usize,
+    pub object_hit_preflight_reused_units: usize,
     pub disabled_reason: Option<String>,
 }
 impl ObjectCacheSummary {
     pub(crate) fn to_json(&self) -> String {
         format!(
-            "{{\"requested\":{},\"enabled\":{},\"hits\":{},\"misses\":{},\"corrupt\":{},\"stored\":{},\"write_failures\":{},\"key_ns\":{},\"lookup_ns\":{},\"current_preflight_ns\":{},\"disabled_reason\":{}}}",
+            "{{\"requested\":{},\"enabled\":{},\"hits\":{},\"misses\":{},\"corrupt\":{},\"stored\":{},\"write_failures\":{},\"key_ns\":{},\"lookup_ns\":{},\"current_preflight_ns\":{},\"object_hit_preflight_checked_units\":{},\"object_hit_preflight_reused_units\":{},\"disabled_reason\":{}}}",
             self.requested,
             self.enabled,
             self.hits,
@@ -52,6 +54,8 @@ impl ObjectCacheSummary {
             self.key_ns,
             self.lookup_ns,
             self.current_preflight_ns,
+            self.object_hit_preflight_checked_units,
+            self.object_hit_preflight_reused_units,
             self.disabled_reason
                 .as_deref()
                 .map_or_else(|| "null".into(), json_string)
@@ -64,6 +68,10 @@ impl ObjectCacheSummary {
         self.key_ns += access.key_ns;
         self.lookup_ns += access.lookup_ns;
         self.current_preflight_ns += access.preflight_ns;
+        self.object_hit_preflight_checked_units +=
+            usize::from(access.hit && !access.preflight_reused);
+        self.object_hit_preflight_reused_units +=
+            usize::from(access.hit && access.preflight_reused);
     }
 }
 
@@ -118,6 +126,7 @@ pub(crate) struct Access {
     pub(crate) key_ns: u64,
     pub(crate) lookup_ns: u64,
     pub(crate) preflight_ns: u64,
+    pub(crate) preflight_reused: bool,
 }
 impl Access {
     pub(crate) fn to_json(&self) -> String {
@@ -248,6 +257,7 @@ impl PreparedCache {
                 key_ns,
                 lookup_ns: elapsed_ns(t),
                 preflight_ns: 0,
+                preflight_reused: false,
             },
             bytes,
         )

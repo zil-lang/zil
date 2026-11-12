@@ -242,7 +242,8 @@ impl Store {
         {
             return None;
         }
-        let cache = ArtifactCache::with_limit(&root, self.maximum);
+        let namespace = guarded.pin_cache_directory(&root).ok()?;
+        let cache = ArtifactCache::with_limit(namespace.root(), self.maximum);
         let mut stats = SemanticPublicationStats {
             serialized_functions: encoding.serialized_functions,
             reused_functions: encoding.reused_functions,
@@ -253,7 +254,9 @@ impl Store {
             if options.cancellation.is_cancelled() {
                 return None;
             }
-            let path = root.join(format!("{}.candidate", segment.fingerprint));
+            let path = namespace
+                .root()
+                .join(format!("{}.candidate", segment.fingerprint));
             let key = (root.clone(), segment.fingerprint);
             let before = file_stamp(&path);
             // Known immutable items need only a metadata comparison. A first
@@ -269,7 +272,7 @@ impl Store {
             if valid_existing {
                 stats.existing_segments += 1;
             } else {
-                if guarded.validate().is_err() {
+                if namespace.validate_write().is_err() {
                     return None;
                 }
                 cache
@@ -284,7 +287,7 @@ impl Store {
             }
             published.insert(key, file_stamp(&path)?);
         }
-        if options.cancellation.is_cancelled() || guarded.validate().is_err() {
+        if options.cancellation.is_cancelled() || namespace.validate().is_err() {
             return None;
         }
         ArtifactCache::with_limit(&self.root, self.maximum)

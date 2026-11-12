@@ -183,6 +183,7 @@ pub(super) fn load(
     root_path: &Path,
     options: &CompileOptions,
     session: &CompilationSession,
+    mut stats: Option<&mut SourceIngressStats>,
 ) -> CompileResult<Option<Attempt>> {
     if session.active_query_count() != 0 || root_path.to_str().is_none() {
         return Ok(None);
@@ -190,6 +191,9 @@ pub(super) fn load(
     let Some(mut store) = Store::new(&project.modules[0], options) else {
         return Ok(None);
     };
+    if let Some(stats) = stats.as_deref_mut() {
+        stats.discovery_receipt_probes += 1;
+    }
     let receipt = (|| {
         let root = validate_sources(project, &options.limits).ok()?;
         let mut plan = ArtifactPlan::project(root, &project.modules, options).ok()?;
@@ -213,8 +217,21 @@ pub(super) fn load(
     let Some(receipt) = receipt else {
         return Ok(None);
     };
+    if let Some(stats) = stats.as_deref_mut() {
+        stats.source_clone_bytes += project.modules.iter().map(|s| s.text.len()).sum::<usize>();
+    }
     let mut recovered = project.clone();
-    let complete = replay(&receipt, &mut recovered, root_path, options).is_some();
+    let complete = replay(
+        &receipt,
+        &mut recovered,
+        root_path,
+        options,
+        stats.as_deref_mut(),
+    )
+    .is_some();
+    if complete && let Some(stats) = stats {
+        stats.discovery_receipt_complete += 1;
+    }
     // Optional mismatches fall back, but cancellation must not restart parsing.
     options
         .cancellation
@@ -231,6 +248,7 @@ fn replay(
     project: &mut ProjectSources,
     root_path: &Path,
     options: &CompileOptions,
+    mut stats: Option<&mut SourceIngressStats>,
 ) -> Option<()> {
     let directory = root_path.parent()?;
     let mut remaining = options.limits.clone();
@@ -265,7 +283,13 @@ fn replay(
                 }
                 let mut read_options = options.clone();
                 read_options.limits.max_source_bytes = remaining.max_source_bytes;
+                let started = stats.as_ref().map(|_| Instant::now());
                 let mut source = read_source(&canonical, &read_options).ok()?;
+                if let Some(stats) = stats.as_deref_mut() {
+                    stats.source_read_ns +=
+                        started.expect("profiled receipt read").elapsed().as_nanos();
+                    stats.read(&source);
+                }
                 remaining.max_source_bytes =
                     remaining.max_source_bytes.checked_sub(source.text.len())?;
                 source.file_id = FileId(u32::try_from(next).ok()?);

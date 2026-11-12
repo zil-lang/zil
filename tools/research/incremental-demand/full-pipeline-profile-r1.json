@@ -1,0 +1,547 @@
+{
+  "schema": "full-pipeline-profile-v1",
+  "purpose": "Single-block causal profile, not a statistical or Rust comparison; negative observations retained",
+  "source": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "candidate": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc"
+  },
+  "workload": {
+    "modules": 20,
+    "functions_per_module": 20,
+    "steps": 16,
+    "mode": "O2",
+    "requested_cgu": 16,
+    "jobs": 1,
+    "cache": "all",
+    "blocks": 1
+  },
+  "raw": {
+    "path": "out/runs/full-pipeline-profile-o2-r1/rows.jsonl",
+    "sha256": "f68fb2a54313d5d445e2bb9884a6637138218dfd3daecc389986752b8e4fbdb8",
+    "durability": "local only pending remote archive and recovery verification"
+  },
+  "rows": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "wall_ms": 5797.874307,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "wall_ms": 7244.862063,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2161120,
+        "function_cache_publication": 513070642,
+        "function_cache_read": 1272,
+        "function_checkpoint": 6610,
+        "owner_binding": 7261,
+        "producer_checkpoint": 921,
+        "project_setup": 542494,
+        "semantic_cache_read": 881,
+        "semantic_candidate_publication": 519635880,
+        "source_ingress": 186747826
+      },
+      "phase_timings_ns": {
+        "parse": 30704,
+        "expand": 536271676,
+        "types": 259485540,
+        "analyze": 67413771,
+        "verify": 68177490,
+        "lower": 1918257,
+        "codegen": 5048534954,
+        "ct": 35672118
+      },
+      "backend_work": {
+        "lowered_functions": 425,
+        "reused_functions": 0,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 429,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 423,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "function_cache_publication": {
+        "written_functions": 421,
+        "existing_functions": 0,
+        "written_bytes": 5280377,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 429,
+        "existing_segments": 0,
+        "written_bytes": 6738242,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "wall_ms": 490.535332,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 40,
+        "function_checkpoint": 2885,
+        "project_setup": 687171,
+        "semantic_cache_read": 160,
+        "source_ingress": 83989142
+      },
+      "phase_timings_ns": {
+        "types": 3288190,
+        "analyze": 18698,
+        "verify": 4126,
+        "lower": 2191887,
+        "codegen": 396724083
+      },
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 1,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 0,
+        "instruction_proofs_reused": 0
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "wall_ms": 472.447687,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "wall_ms": 1548.523606,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "wall_ms": 1260.261079,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1343345,
+        "function_cache_publication": 3114690,
+        "function_cache_read": 741,
+        "function_checkpoint": 6069,
+        "owner_binding": 8893,
+        "producer_checkpoint": 344496,
+        "project_setup": 497015,
+        "semantic_cache_read": 4437,
+        "semantic_candidate_publication": 50108437,
+        "source_ingress": 3524024
+      },
+      "phase_timings_ns": {
+        "parse": 19304,
+        "expand": 18460280,
+        "types": 21513918,
+        "analyze": 26870599,
+        "verify": 41310401,
+        "lower": 3358445,
+        "codegen": 1050692380,
+        "ct": 32660050
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 21,
+        "reused_functions": 404,
+        "written_segments": 24,
+        "existing_segments": 405,
+        "written_bytes": 1713422,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "wall_ms": 2228.168002,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2777494,
+        "function_cache_publication": 13349125,
+        "function_cache_read": 581,
+        "function_checkpoint": 5728,
+        "owner_binding": 16645,
+        "producer_checkpoint": 282804,
+        "project_setup": 551918,
+        "semantic_cache_read": 7241,
+        "semantic_candidate_publication": 79342917,
+        "source_ingress": 9443940
+      },
+      "phase_timings_ns": {
+        "parse": 81175,
+        "expand": 37439316,
+        "types": 28991058,
+        "analyze": 30663407,
+        "verify": 48328533,
+        "lower": 3504394,
+        "codegen": 1885925969,
+        "ct": 40444993
+      },
+      "backend_work": {
+        "lowered_functions": 3,
+        "reused_functions": 422,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 13,
+        "reused_link": false,
+        "rendered_diagnostic_items": 3,
+        "reused_diagnostic_items": 426
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 3,
+        "function_proofs_reused": 420,
+        "instruction_proofs_reused": 132539
+      },
+      "function_cache_publication": {
+        "written_functions": 2,
+        "existing_functions": 419,
+        "written_bytes": 25856,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 42,
+        "reused_functions": 383,
+        "written_segments": 45,
+        "existing_segments": 384,
+        "written_bytes": 1977548,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "wall_ms": 2704.60117,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "wall_ms": 5063.540635,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "wall_ms": 6531.316252,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2318727,
+        "function_cache_publication": 339566362,
+        "function_cache_read": 721,
+        "function_checkpoint": 5718,
+        "owner_binding": 11918,
+        "producer_checkpoint": 393069,
+        "project_setup": 593951,
+        "semantic_cache_read": 29163,
+        "semantic_candidate_publication": 354645425,
+        "source_ingress": 106097411
+      },
+      "phase_timings_ns": {
+        "parse": 51274,
+        "expand": 475506907,
+        "types": 240905909,
+        "analyze": 84577394,
+        "verify": 53832525,
+        "lower": 3034370,
+        "codegen": 4757316708,
+        "ct": 31061633
+      },
+      "backend_work": {
+        "lowered_functions": 400,
+        "reused_functions": 25,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 0,
+        "reused_link": false,
+        "rendered_diagnostic_items": 400,
+        "reused_diagnostic_items": 29
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 400,
+        "function_proofs_reused": 23,
+        "instruction_proofs_reused": 2323
+      },
+      "function_cache_publication": {
+        "written_functions": 397,
+        "existing_functions": 24,
+        "written_bytes": 5132616,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 417,
+        "reused_functions": 8,
+        "written_segments": 420,
+        "existing_segments": 9,
+        "written_bytes": 6691864,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "wall_ms": 1397.120973,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 3623483,
+        "function_cache_publication": 25654987,
+        "function_cache_read": 601,
+        "function_checkpoint": 7401,
+        "owner_binding": 13080,
+        "producer_checkpoint": 346830,
+        "project_setup": 553289,
+        "semantic_cache_read": 6219,
+        "semantic_candidate_publication": 393412465,
+        "source_ingress": 61735274
+      },
+      "phase_timings_ns": {
+        "parse": 58509,
+        "expand": 210664711,
+        "types": 131978754,
+        "analyze": 55012072,
+        "verify": 59584109,
+        "lower": 4160297,
+        "codegen": 391957368,
+        "ct": 27911359
+      },
+      "backend_work": {
+        "lowered_functions": 0,
+        "reused_functions": 425,
+        "reused_machine_transforms": true,
+        "reused_partition": true,
+        "reused_object_keys": 16,
+        "reused_link": true,
+        "rendered_diagnostic_items": 0,
+        "reused_diagnostic_items": 0
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 0,
+        "function_proofs_reused": 423,
+        "instruction_proofs_reused": 133523
+      },
+      "function_cache_publication": {
+        "written_functions": 0,
+        "existing_functions": 421,
+        "written_bytes": 0,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 428,
+        "existing_segments": 1,
+        "written_bytes": 6738230,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "wall_ms": 1394.075845,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "wall_ms": 344.322681,
+      "valid": true,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "wall_ms": 516.005053,
+      "valid": true,
+      "status": "SafeReject",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 41,
+        "function_cache_read": 561,
+        "function_checkpoint": 8654,
+        "owner_binding": 16014,
+        "producer_checkpoint": 343555,
+        "project_setup": 534621,
+        "semantic_cache_read": 6630,
+        "source_ingress": 43159451
+      },
+      "phase_timings_ns": {
+        "parse": 37982,
+        "expand": 377299034,
+        "types": 30415684,
+        "ct": 39325643
+      },
+      "backend_work": null,
+      "verification_work": null,
+      "function_cache_publication": null,
+      "semantic_cache_publication": null
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "wall_ms": 1308.035244,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 1715533,
+        "function_cache_publication": 3307229,
+        "function_cache_read": 611,
+        "function_checkpoint": 90826,
+        "owner_binding": 12559,
+        "producer_checkpoint": 544476,
+        "project_setup": 852678,
+        "semantic_cache_read": 5158,
+        "semantic_candidate_publication": 65986517,
+        "source_ingress": 4595960
+      },
+      "phase_timings_ns": {
+        "parse": 40209,
+        "expand": 25548902,
+        "types": 34721159,
+        "analyze": 31942674,
+        "verify": 38594777,
+        "lower": 4121279,
+        "codegen": 1053158403,
+        "ct": 35412245
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "function_cache_publication": {
+        "written_functions": 1,
+        "existing_functions": 420,
+        "written_bytes": 12928,
+        "manifest_bytes": 53932
+      },
+      "semantic_cache_publication": {
+        "serialized_functions": 425,
+        "reused_functions": 0,
+        "written_segments": 24,
+        "existing_segments": 405,
+        "written_bytes": 1713422,
+        "manifest_bytes": 17180
+      }
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "wall_ms": 1681.405141,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "wall_ms": 499.53393,
+      "valid": true,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "wall_ms": 802.252554,
+      "valid": true,
+      "status": "Success",
+      "driver_timings_ns": {
+        "discovery_receipt_publication": 2290113,
+        "function_checkpoint": 3155,
+        "project_setup": 557316,
+        "semantic_cache_read": 29314121,
+        "source_ingress": 6272925
+      },
+      "phase_timings_ns": {
+        "types": 3009281,
+        "analyze": 14973,
+        "verify": 44117876,
+        "lower": 3383262,
+        "codegen": 706796832
+      },
+      "backend_work": {
+        "lowered_functions": 1,
+        "reused_functions": 424,
+        "reused_machine_transforms": false,
+        "reused_partition": false,
+        "reused_object_keys": 15,
+        "reused_link": false,
+        "rendered_diagnostic_items": 1,
+        "reused_diagnostic_items": 428
+      },
+      "verification_work": {
+        "full_receipts_reused": 0,
+        "function_proofs_checked": 1,
+        "function_proofs_reused": 422,
+        "instruction_proofs_reused": 133195
+      },
+      "function_cache_publication": null,
+      "semantic_cache_publication": null
+    }
+  ]
+}

@@ -15,6 +15,7 @@ pub use project_manifest::ProjectManifest;
 /// Explicit module import destinations keyed by the source module that imports.
 pub type ScopedImports = BTreeMap<(ModuleId, Vec<String>), ModuleId>;
 mod semantic_cache;
+pub use project::SourceIngressStats;
 pub use semantic_cache::{FunctionPublicationStats, SemanticPublicationStats};
 mod session;
 mod stable_source_identity;
@@ -171,6 +172,8 @@ pub enum DiskCacheStatus {
     Missing,
     Hit,
     Rebuilt,
+    /// Current source replay reused resident frontend state without disk decode.
+    Resident,
 }
 impl DiskCacheStatus {
     fn as_str(self) -> &'static str {
@@ -179,6 +182,7 @@ impl DiskCacheStatus {
             Self::Missing => "missing",
             Self::Hit => "hit",
             Self::Rebuilt => "rebuilt",
+            Self::Resident => "resident",
         }
     }
 }
@@ -265,6 +269,7 @@ pub struct CompileReport {
     // inline counter payloads multiplied their nonrecursive stack footprint.
     /// Encoding work in the final attempt only; None means not observed.
     /// These counters never represent Verify or successful disk publication.
+    pub source_ingress: Option<Box<SourceIngressStats>>,
     pub function_cache_encoding: Option<Box<zil_ir::wire::FunctionEncodingStats>>,
     pub function_cache_publication: Option<FunctionPublicationStats>,
     pub semantic_cache_publication: Option<SemanticPublicationStats>,
@@ -305,6 +310,7 @@ impl CompileReport {
             verification_runs: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
+            source_ingress: None,
             function_cache_encoding: None,
             function_cache_publication: None,
             semantic_cache_publication: None,
@@ -323,7 +329,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -370,6 +376,7 @@ impl CompileReport {
             self.source_files.iter().map(|(id, path)| format!("{}:{}", json_string(&id.0.to_string()), json_string(path))).collect::<Vec<_>>().join(","),
             self.scalar_interfaces.iter().map(|interface| format!("{{\"module\":{},\"signature_fingerprint\":{},\"implementation_fingerprint\":{},\"contract_fingerprint\":{},\"result_origins\":{},\"callable_contracts\":{},\"callable_returns\":{},\"exports\":[{}]}}", interface.module.0, json_string(&interface.signature_fingerprint.to_hex()), json_string(&interface.implementation_fingerprint.to_hex()), interface.contract_fingerprint.map_or_else(|| "null".into(), |hash| json_string(&hash.to_hex())), interface.result_origins.as_ref().map_or_else(|| "null".into(), |origins| format!("[{}]", origins.iter().map(|origin| format!("{{\"name\":{},\"parameters\":{:?},\"static_storage\":{}}}", json_string(&origin.name), origin.parameters, origin.static_storage)).collect::<Vec<_>>().join(","))), contracts::callable_json(interface), contracts::callable_return_json(interface), interface.exports.iter().map(|f| json_string(&f.name)).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(","),
             self.frontend_stats_json(),
+            self.source_ingress.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
             self.function_cache_encoding.as_ref().map_or_else(|| "null".into(), |stats| format!(
                 "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
                 stats.serialized_functions, stats.reused_functions)),

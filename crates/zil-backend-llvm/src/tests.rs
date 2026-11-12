@@ -2073,6 +2073,14 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
         warm.codegen.actual_units
     );
     assert_eq!(warm.codegen.object_cache.hits, warm.codegen.actual_units);
+    assert_eq!(
+        warm.codegen.object_cache.object_hit_preflight_checked_units,
+        warm.codegen.actual_units
+    );
+    assert_eq!(
+        warm.codegen.object_cache.object_hit_preflight_reused_units,
+        0
+    );
     // The controlled Linux GNU linker is fully discovered; other toolchains
     // conservatively execute a fresh link instead of satisfying this fixture.
     assert!(
@@ -2101,6 +2109,49 @@ fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link()
             .unwrap()
             .contains(&verified.fingerprint().to_hex())
     );
+    let mut repeated = build_view_with_cancellation_and_session(
+        &verified,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        Some(&mut session),
+    )
+    .unwrap();
+    repeated.commit_object_cache();
+    assert_eq!(
+        repeated
+            .codegen
+            .object_cache
+            .object_hit_preflight_checked_units,
+        0
+    );
+    assert_eq!(
+        repeated
+            .codegen
+            .object_cache
+            .object_hit_preflight_reused_units,
+        repeated.codegen.actual_units
+    );
+    assert!(
+        repeated
+            .codegen
+            .object_reports
+            .iter()
+            .all(|report| report.contains("\"current_machine_preflight_reused\":true"))
+    );
+    let timing = &repeated.codegen.timings;
+    assert_eq!(
+        timing.total_ns,
+        timing.machine_ns
+            + timing.partition_ns
+            + timing.diagnostic_ns
+            + timing.object_ns
+            + timing.link_key_ns
+            + timing.link_execution_ns
+            + timing.other_ns
+    );
+    assert_eq!(fs::read(&repeated.executable).unwrap(), original);
 }
 
 #[test]

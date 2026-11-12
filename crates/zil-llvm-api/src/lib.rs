@@ -5,7 +5,9 @@
 
 pub mod model;
 mod preflight;
+mod preflight_receipt;
 mod shared_vec;
+pub use preflight_receipt::{PreflightReceipt, validate_module_with_receipt};
 
 include!(concat!(env!("OUT_DIR"), "/llvm_version.rs"));
 

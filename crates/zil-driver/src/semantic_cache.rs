@@ -831,13 +831,16 @@ impl FunctionStore {
         if !private_directory(&self.store.root, true) || !private_directory(&root, true) {
             return None;
         }
-        let cache = ArtifactCache::with_limit(&root, self.store.maximum);
+        let namespace = guarded.pin_cache_directory(&root).ok()?;
+        let cache = ArtifactCache::with_limit(namespace.root(), self.store.maximum);
         let mut stats = FunctionPublicationStats::default();
         for item in products.items {
             if options.cancellation.is_cancelled() {
                 return None;
             }
-            let path = root.join(format!("{}.candidate", item.content_fingerprint));
+            let path = namespace
+                .root()
+                .join(format!("{}.candidate", item.content_fingerprint));
             // Existing optional raw entries need not be read/hash-copied merely
             // to publish another manifest. Loading always checks their complete
             // digest and bounded decoding; corruption is a miss, never authority.
@@ -847,7 +850,7 @@ impl FunctionStore {
             if exists {
                 stats.existing_functions += 1;
             } else {
-                if guarded.validate().is_err() {
+                if namespace.validate_write().is_err() {
                     return None;
                 }
                 cache
@@ -861,7 +864,7 @@ impl FunctionStore {
                 stats.written_bytes += item.bytes.len();
             }
         }
-        if options.cancellation.is_cancelled() || guarded.validate().is_err() {
+        if options.cancellation.is_cancelled() || namespace.validate().is_err() {
             return None;
         }
         // Install a complete manifest only after every required raw item exists.

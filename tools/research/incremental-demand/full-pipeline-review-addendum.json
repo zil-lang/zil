@@ -1,0 +1,108 @@
+{
+  "schema": "full-pipeline-independent-source-review-addendum-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+  "candidate_tree": "14b9687487b02dfa792389b5a8500e2c641fe6a0",
+  "previous_candidate_commit": "e105418b63078757d2f655ffa02858caed7838f6",
+  "original_base_commit": "ff81e07961077613907ce4d3b9cf650defccfd1d",
+  "prior_review": {
+    "path": "tools/research/incremental-demand/full-pipeline-review.json",
+    "sha256": "85ec8769ddf65fa11d3b59c99f004d3c5b811360878e00f61066e56c5e617142",
+    "preserved": true,
+    "interpretation": "The rejection of exact e105 for F1 remains correct. This separate receipt evaluates its later fix; it does not rewrite that historical decision."
+  },
+  "verdict": "ACCEPT the bounded default-off research source at b3d4d84002e2411f1cace6099ba96b16f5b5f5fc after closing F1. No further blocking dependency or proof-authority issue was established within the reviewed scope. F2 remains open; this is neither completion of the performance objective nor permission to enable by default or merge main.",
+  "review_scope": {
+    "source_identity": "HEAD and clean worktree were checked at review start. Git comparison shows four changed files, with link_cache.rs the sole production change relative to e105; the other files are handoff/audit/prior-review documents.",
+    "delta": {
+      "path": "crates/zil-backend-llvm/src/link_cache.rs",
+      "previous_sha256": "693a7c4ffb8a3d6ed12da82eea8013465df808ff1b4cdbc3b62ad4f173718511",
+      "sha256": "44390aef1919d93c9fbd7079f571d25456c91c8abcd2bc293a1271e17ff536b6",
+      "git_diff_sha256": "3e326a5b86a2b66c0f955ae7b0769851a371ea73e4349a232f11dd3b20e26a02",
+      "identical_to_previously_reviewed_candidate": "/tmp/zil-link-cache-section-guard.rs"
+    },
+    "continuity": "Rehashed all 47 material production/test files listed in the prior independent source receipt. Exactly link_cache.rs differs. Prior substantive Verify/Analyze/Types/SharedVec/Backend/persistence/ArtifactPlan/driver boundary analysis carries forward by unchanged file identity; the whole source was not independently reread from scratch in this addendum.",
+    "delta_review": "Read the complete actual committed delta, its ET_REL admission call site, finite section parser and three new direct/archive/file-input regression tests. Rechecked exact byte identity with the previously reviewed temporary candidate.",
+    "reviewer_execution": "Read-only git/source/log/hash processing only. No Cargo build, compiler test, native execution or benchmark was run by this reviewer. No production/helper file was modified and no commit was made."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "status": "CLOSED in b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+      "severity_before_fix": "blocking dependency correctness",
+      "title": "Implicit plugin-bearing relocatable inputs now decline final-link reuse",
+      "fix": "elf_needed no longer accepts ET_REL from its outer ELF header alone. Before returning an empty dynamic dependency list it calls native_relocatable_sections. Direct object/CRT inputs and every understood archive member pass through this same check.",
+      "source_evidence": [
+        "Finite ELF64 little-endian x86_64 ET_REL/header schema, bounded checked section-table and string-table ranges, null section, real NUL-terminated names, fixed cumulative name work and no extended numbering.",
+        "GNU LTO/debug-LTO/offload, LLVM/bitcode/plugin and object-only indicators decline. Only understood native section types and finite flags are accepted; unknown types/flags and malformed names/ranges/entry layouts decline.",
+        "An unsupported input returns None from dependency discovery, so the ordinary current link runs. The new guard is a conservative reuse admission, not a restriction on language compilation or an attempt to infer missing plugin identity."
+      ],
+      "tests": "The read backend log contains passing native positives, all listed plugin markers in direct objects and archive members, actual Inputs::file direct CRT/archive negatives, unknown section types/flags, raw bitcode, and missing/truncated/malformed section metadata. These are part of 213 passed backend tests.",
+      "limits": "This closes the demonstrated standard ELF/LTO implicit-plugin omission through conservative admission. It is not a proof for arbitrary externally modified linker/plugin implementations, unsupported object formats or every future extension. Unsupported forms must continue to fall back rather than broaden admission without dependency evidence."
+    },
+    {
+      "id": "F2",
+      "status": "OPEN",
+      "severity": "performance/objective limitation, not a safety rejection for ordinary O2",
+      "title": "Optional whole-transform/stable-name paths can still COW unchanged shared bodies after a private edit",
+      "scope": "The whole ScalarIdentity transform cache can miss after one changed function. Explicit incremental_o2 fold passes can then mutate unchanged functions again through SharedVec; stable-name closed-executable renaming traverses blocks mutably even when a body needs no operand rename. Those source files are unchanged from e105.",
+      "qualification": "Ordinary O2 with incremental_o2=false and closed-executable/stable naming disabled does not run those passes. The finding is not evidence of an ordinary-O2 matrix regression. Whole-unchanged fast-path success does not settle genuine private-edit copy cost.",
+      "follow_up": "Measure complete requests first, then unchanged-body allocations/copies for these explicit modes. Consider per-function transform/rename products or read-only change detection before mutable access if material."
+    }
+  ],
+  "validation": {
+    "execution_owner": "Root; reviewer independently read raw logs and recomputed their hashes and counts.",
+    "full_workspace": {
+      "source_commit": "e105418b63078757d2f655ffa02858caed7838f6",
+      "command_reported_by_root": "cargo test --workspace --features llvm-api --no-fail-fast",
+      "path": "out/runs/full-pipeline-workspace-01.log",
+      "sha256": "f07dbfa7459c039a373465973f7d65f60a8e39d47479718c62df462b234088c5",
+      "suite_results": 430,
+      "test_binaries": 416,
+      "doc_test_binaries": 14,
+      "passed": 6173,
+      "failed": 0,
+      "ignored": 0,
+      "exit_code_reported_by_root": 0,
+      "scope_note": "Includes zero-test suites in the binary count. This full workspace run predates the link-cache fix and is not claimed as a full workspace run on b3d."
+    },
+    "post_fix_backend": {
+      "source_commit": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+      "path": "out/runs/full-pipeline-link-fix-01.log",
+      "sha256": "ee9274ce9d1296d6173f35cc0cdc342c6783a1ae003e0d2e1966c21de5e4fcf1",
+      "suite_results": 1,
+      "passed": 213,
+      "failed": 0,
+      "ignored": 0,
+      "exit_code_reported_by_root": 0,
+      "new_regression_tests": [
+        "link_cache::dependency_tests::native_sections_reject_plugin_inputs_in_direct_objects_and_archives",
+        "link_cache::dependency_tests::direct_crt_and_archive_file_inputs_decline_embedded_lto",
+        "link_cache::dependency_tests::missing_truncated_or_malformed_section_names_cannot_admit_a_link_product"
+      ]
+    },
+    "post_fix_clippy": {
+      "source_commit": "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+      "scope_reported_by_root": "workspace, all targets, features llvm-api, -D warnings",
+      "path": "out/runs/full-pipeline-link-clippy-01.log",
+      "sha256": "d131665df08fe75c66d827137acaf14e8f663745d63dfbdde06dde91e22e4543",
+      "observed": "Finished dev profile; no warning/error diagnostics in this log.",
+      "exit_code_reported_by_root": 0
+    },
+    "post_fix_fmt": {
+      "status": "passed as reported by root; no separate raw fmt log was found/read by this reviewer",
+      "not_independently_executed": true
+    },
+    "attribution_note": "Root supplied source/window and exit-code attribution. Cargo raw logs corroborate suite results and build completion but do not themselves embed the Git commit or complete invocation."
+  },
+  "remaining_limits_and_unmeasured": [
+    "No full-workspace rerun on b3d is claimed; post-fix evidence is the backend delta suite plus strict workspace lint and reported formatting.",
+    "No full-pipeline release/profile/matched performance, allocation, peak-memory, restart, crash-injection or broad external-toolchain/platform matrix is established by this receipt. Later measurement must bind its own source, tool and binary identities.",
+    "Earlier e91 serialization-only matrices and their timing ratios do not measure this full-pipeline source. No speedup, parity with Rust or end-to-end completion is inferred from cache counters or passing tests.",
+    "Prior conservative domain fallbacks, fresh global validation/aggregation, whole-project admission and key work, object preflight, final-link discovery subprocesses and actual output writes remain. This is not a single general minimal reactive scheduler.",
+    "Historical checkpoint-shared fragment slots are not a strict all-history memory-byte bound. Per-manifest/item limits are not a total disk-cache quota; optional interrupted publication can leave harmless unreferenced raw children.",
+    "New process-local proof/reuse and function-v2/semantic-v5 paths remain default-off via producer_reuse; immutable raw/disk products still cannot authorize Verify. No main merge or default enable is approved."
+  ]
+}

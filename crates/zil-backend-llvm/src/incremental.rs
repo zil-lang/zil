@@ -13,6 +13,7 @@ pub struct BackendSession {
     pub(crate) transformed: Option<Arc<TransformProduct>>,
     pub(crate) keys: Vec<Arc<KeyProduct>>,
     pub(crate) key_partition: Option<Arc<PartitionProduct>>,
+    pub(crate) preflights: Vec<Arc<PreflightProduct>>,
     pub(crate) summary: BackendSessionSummary,
     pub(crate) link: Option<Arc<crate::link_cache::Product>>,
     diagnostic_items: std::collections::BTreeMap<String, Arc<DiagnosticItem>>,
@@ -234,3 +235,17 @@ pub(crate) struct KeyProduct {
     pub(crate) module: Module,
     pub(crate) key: Fingerprint,
 }
+
+/// Raw work-product bookkeeping only. Equality here is snapshot identity, never
+/// checker authority: every use goes back through the LLVM preflight API.
+#[derive(Clone, Debug)]
+pub(crate) struct PreflightProduct {
+    pub(crate) module: Module,
+    pub(crate) receipt: Arc<zil_llvm_api::PreflightReceipt>,
+}
+impl PartialEq for PreflightProduct {
+    fn eq(&self, other: &Self) -> bool {
+        self.module == other.module && Arc::ptr_eq(&self.receipt, &other.receipt)
+    }
+}
+impl Eq for PreflightProduct {}

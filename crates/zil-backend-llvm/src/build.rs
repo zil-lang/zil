@@ -63,6 +63,46 @@ impl Default for CodegenOptions {
     }
 }
 
+/// Non-overlapping wall-time buckets for this native build. Object work includes
+/// cache preparation and unit scheduling; other includes output/path admission
+/// and publication. These are measurements, not estimated work or skipped cost.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BackendTimings {
+    pub machine_ns: u64,
+    pub partition_ns: u64,
+    pub diagnostic_ns: u64,
+    pub object_ns: u64,
+    pub link_key_ns: u64,
+    pub link_execution_ns: u64,
+    pub total_ns: u64,
+    pub other_ns: u64,
+}
+impl BackendTimings {
+    fn finish(&mut self, start: std::time::Instant) {
+        self.total_ns = crate::object_cache::elapsed_ns(start);
+        self.other_ns = self.total_ns.saturating_sub(
+            self.machine_ns
+                .saturating_add(self.partition_ns)
+                .saturating_add(self.diagnostic_ns)
+                .saturating_add(self.object_ns)
+                .saturating_add(self.link_key_ns)
+                .saturating_add(self.link_execution_ns),
+        );
+    }
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"machine_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            self.machine_ns,
+            self.partition_ns,
+            self.diagnostic_ns,
+            self.object_ns,
+            self.link_key_ns,
+            self.link_execution_ns,
+            self.other_ns,
+            self.total_ns
+        )
+    }
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CodegenSummary {
     pub backend: NativeBackend,
@@ -74,11 +114,12 @@ pub struct CodegenSummary {
     pub jobs: usize,
     pub fallback: Option<String>,
     pub task_abis: Vec<crate::TaskAbiArtifact>,
+    pub timings: BackendTimings,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}]}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.object_cache.to_json(),
@@ -92,7 +133,8 @@ impl CodegenSummary {
                 .iter()
                 .map(crate::TaskAbiArtifact::to_json)
                 .collect::<Vec<_>>()
-                .join(",")
+                .join(","),
+            self.timings.to_json()
         )
     }
 }
@@ -228,6 +270,8 @@ pub fn build_view_with_cancellation_and_session(
     stable_names: Option<&[(FunctionId, String)]>,
     mut session: Option<&mut crate::BackendSession>,
 ) -> CompileResult<BuildArtifact> {
+    let build_started = std::time::Instant::now();
+    let mut timings = BackendTimings::default();
     if let Some(session) = session.as_deref_mut() {
         session.begin();
     }
@@ -265,6 +309,7 @@ pub fn build_view_with_cancellation_and_session(
             None,
         )]);
     }
+    let machine_started = std::time::Instant::now();
     let (mut machine, collected_closed, mut task_work) = crate::emit::lower_view_with_session(
         verified,
         lir,
@@ -315,6 +360,7 @@ pub fn build_view_with_cancellation_and_session(
             }));
         }
     }
+    timings.machine_ns = crate::object_cache::elapsed_ns(machine_started);
     // Source grouping and call-import policy are dependencies in addition to
     // generated machine values. A changed body with equal machine output can
     // stop here only when those partition dependencies also compare equally.
@@ -342,6 +388,7 @@ pub fn build_view_with_cancellation_and_session(
             None,
         )]);
     }
+    let partition_started = std::time::Instant::now();
     let partition_input = session.as_ref().map(|session| {
         crate::incremental::PartitionInput::new(
             options,
@@ -415,6 +462,7 @@ pub fn build_view_with_cancellation_and_session(
         // Diagnostic/reference output only. Each nonempty transform plan requires
         // complete original-model preflight. Existing per-unit API preflight still runs
         // immediately before its LLVMBuilder calls and cannot be bypassed.
+        let diagnostic_started = std::time::Instant::now();
         let llvm: crate::incremental::DiagnosticText =
             if let Some(session) = session.as_deref_mut() {
                 session.render(&machine)
@@ -422,6 +470,7 @@ pub fn build_view_with_cancellation_and_session(
                 machine.to_text()
             }
             .into();
+        timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
         let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
             let trace =
@@ -486,6 +535,9 @@ pub fn build_view_with_cancellation_and_session(
             private_closures,
         )
     };
+    timings.partition_ns =
+        crate::object_cache::elapsed_ns(partition_started).saturating_sub(timings.diagnostic_ns);
+    let object_setup_started = std::time::Instant::now();
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
@@ -533,7 +585,9 @@ pub fn build_view_with_cancellation_and_session(
         jobs: options.codegen.jobs.min(actual_units),
         fallback: plan.fallback.map(str::to_owned),
         task_abis,
+        timings: BackendTimings::default(),
     };
+    timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {
         return Err(infra(
@@ -577,20 +631,25 @@ pub fn build_view_with_cancellation_and_session(
     let ir_path = staging.0.join("module.ll");
     let executable_path = staging.0.join("program");
     let object_path = staging.0.join("module.obj");
+    let diagnostic_started = std::time::Instant::now();
     llvm.write(&ir_path)
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
+    timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
 
     let optimization = match options.optimization {
         Optimization::O0 => "-O0",
         Optimization::O2 => "-O2",
     };
     let mut commands = Vec::new();
+    let scan_started = std::time::Instant::now();
     let scoped_threads = lir
         .functions
         .iter()
         .flat_map(|f| &f.blocks)
         .flat_map(|b| &b.instructions)
         .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
+    timings.machine_ns += crate::object_cache::elapsed_ns(scan_started);
+    let object_started = std::time::Instant::now();
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
         // Keep one clang invocation, but linkage-transformed builds must consume
@@ -642,6 +701,7 @@ pub fn build_view_with_cancellation_and_session(
                     object,
                     module,
                     key: None,
+                    preflight: None,
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -681,6 +741,18 @@ pub fn build_view_with_cancellation_and_session(
             session.keys = next;
             session.key_partition = session.partition.clone();
         }
+        if let Some(session) = session.as_ref() {
+            for unit in &mut inputs {
+                unit.preflight = session
+                    .preflights
+                    .iter()
+                    .find(|product| {
+                        product.module.triple == unit.module.triple
+                            && product.module.items == unit.module.items
+                    })
+                    .map(|product| product.receipt.clone());
+            }
+        }
         let compiled = compile_units(
             &inputs,
             &lir.target.triple,
@@ -689,7 +761,14 @@ pub fn build_view_with_cancellation_and_session(
             cache.as_ref(),
             cancelled,
         )?;
-        for result in compiled {
+        let mut next_preflights = Vec::new();
+        for (unit, result) in inputs.iter().zip(compiled) {
+            if let Some(receipt) = result.preflight.or_else(|| unit.preflight.clone()) {
+                next_preflights.push(std::sync::Arc::new(crate::incremental::PreflightProduct {
+                    module: unit.module.clone(),
+                    receipt,
+                }));
+            }
             commands.extend(result.commands);
             if let Some(receipt) = result.receipt {
                 codegen.object_reports.push(receipt);
@@ -701,12 +780,17 @@ pub fn build_view_with_cancellation_and_session(
                 pending_cache.objects.push(pending);
             }
         }
+        if let Some(session) = session.as_deref_mut() {
+            session.preflights = next_preflights;
+        }
         inputs
             .into_iter()
             .map(|unit| unit.object)
             .collect::<Vec<_>>()
     };
     check_cancelled(cancelled)?;
+    timings.object_ns += crate::object_cache::elapsed_ns(object_started);
+    let link_key_started = std::time::Instant::now();
     let link_key = session
         .as_ref()
         .filter(|_| options.backend == NativeBackend::LlvmApi && options.windows.is_none())
@@ -721,6 +805,7 @@ pub fn build_view_with_cancellation_and_session(
                 &mut commands,
             )
         });
+    timings.link_key_ns += crate::object_cache::elapsed_ns(link_key_started);
     let previous_link = session
         .as_ref()
         .and_then(|session| session.link.as_ref())
@@ -730,6 +815,8 @@ pub fn build_view_with_cancellation_and_session(
                 && codegen.object_cache.hits == actual_units
         })
         .cloned();
+    let restoring_link = previous_link.is_some();
+    let link_started = std::time::Instant::now();
     if let Some(product) = previous_link {
         check_cancelled(cancelled)?;
         product
@@ -765,10 +852,12 @@ pub fn build_view_with_cancellation_and_session(
             commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
         }
 
+        timings.link_execution_ns += crate::object_cache::elapsed_ns(link_started);
         if let (Some(session), Some(key)) = (session, link_key) {
+            let link_key_started = std::time::Instant::now();
             // Recheck discovered external values after the subprocess before
             // retaining its product; a concurrently changed dependency is red.
-            if crate::link_cache::key(
+            let current_key = crate::link_cache::key(
                 &options.clang,
                 &lir.target.triple,
                 optimization,
@@ -776,12 +865,18 @@ pub fn build_view_with_cancellation_and_session(
                 &executable_path,
                 scoped_threads,
                 &mut commands,
-            ) == Some(key)
-            {
+            );
+            timings.link_key_ns += crate::object_cache::elapsed_ns(link_key_started);
+            if current_key == Some(key) {
+                let capture_started = std::time::Instant::now();
                 session.link = crate::link_cache::Product::capture(key, &executable_path)
                     .map(std::sync::Arc::new);
+                timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
             }
         }
+    }
+    if restoring_link {
+        timings.link_execution_ns = crate::object_cache::elapsed_ns(link_started);
     }
     check_cancelled(cancelled)?;
     let recorded_command = commands.first().cloned().unwrap_or_default();
@@ -799,6 +894,9 @@ pub fn build_view_with_cancellation_and_session(
         .map_err(|error| io_error("publish LLVM IR", &final_ir, error))?;
     fs::rename(&executable_path, &final_executable)
         .map_err(|error| io_error("publish executable", &final_executable, error))?;
+    drop(staging);
+    timings.finish(build_started);
+    codegen.timings = timings;
     Ok(BuildArtifact {
         executable: final_executable,
         llvm_ir: final_ir,
@@ -817,12 +915,14 @@ struct UnitInput {
     object: PathBuf,
     module: zil_llvm_api::model::Module,
     key: Option<zil_base::Fingerprint>,
+    preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
     receipt: Option<String>,
     access: Option<Access>,
     pending: Option<PendingObject>,
+    preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
 }
 
 fn compile_units(
@@ -887,6 +987,7 @@ fn compile_units(
                                         receipt: None,
                                         access: None,
                                         pending: None,
+                                        preflight: None,
                                     })
                                 }
                                 NativeBackend::LlvmApi => compile_api_unit(
@@ -982,17 +1083,23 @@ fn compile_api_unit(
         let (mut lookup, bytes) = cache.lookup_with_key(&unit.module, unit.key);
         check_cancelled(cancelled)?;
         if let Some(bytes) = bytes {
-            // A hit is not a native Builder invocation. Current machine checks
-            // still run, independently of the checks performed by the producer.
+            // A hit is not a native Builder invocation. The independent
+            // checker either checks this current model or binds its own prior
+            // proof to the complete current immutable input. Object keys do
+            // not confer that authority.
             let t = std::time::Instant::now();
-            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+            let (proof, reused) =
+                zil_llvm_api::validate_module_with_receipt(&unit.module, unit.preflight.as_deref())
+                    .map_err(api_error)?;
+            let preflight = std::sync::Arc::new(proof);
+            lookup.preflight_reused = reused;
             lookup.preflight_ns = crate::object_cache::elapsed_ns(t);
             check_cancelled(cancelled)?;
             fs::write(&unit.object, &bytes)
                 .map_err(|e| io_error("write reused object", &unit.object, e))?;
             let q = zil_base::json_string;
             let receipt = format!(
-                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
+                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"current_machine_preflight_reused\":{},\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
                 q(zil_llvm_api::pipeline_identity(
@@ -1001,6 +1108,7 @@ fn compile_api_unit(
                 )),
                 bytes.len(),
                 lookup.to_json(),
+                reused,
                 lookup.preflight_ns,
                 lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
             );
@@ -1009,6 +1117,7 @@ fn compile_api_unit(
                 receipt: Some(receipt),
                 access: Some(lookup),
                 pending: None,
+                preflight: Some(preflight),
             });
         }
         access = Some(lookup);
@@ -1080,6 +1189,7 @@ fn compile_api_unit(
                         receipt: Some(receipt),
                         access: Some(lookup),
                         pending: Some(pending),
+                        preflight: None,
                     });
                 }
                 patch_fallback = attempt.reason;
@@ -1153,6 +1263,7 @@ fn compile_api_unit(
         receipt: Some(receipt),
         access,
         pending,
+        preflight: None,
     })
 }
 #[cfg(not(feature = "llvm-api"))]

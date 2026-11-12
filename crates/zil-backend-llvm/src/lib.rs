@@ -45,8 +45,8 @@ pub use zil_llvm_api::FunctionMerging;
 use zil_ir::FunctionId;
 
 pub use build::{
-    BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
-    WindowsLinkOptions, build, build_view_with_cancellation,
+    BackendTimings, BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend,
+    Optimization, WindowsLinkOptions, build, build_view_with_cancellation,
     build_view_with_cancellation_and_session, build_view_with_cancellation_and_stable_names,
     build_with_cancellation,
 };

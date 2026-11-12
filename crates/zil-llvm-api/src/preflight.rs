@@ -1077,8 +1077,27 @@ pub(crate) fn validate_only(module: &Module) -> Result<()> {
 }
 
 fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedule> {
+    let (triple, items) = inputs(module);
+    validate_inputs::<COLLECT_SCHEDULE>(triple, items)
+}
+
+// Exhaustively name the raw Module fields at the checking boundary. The
+// fingerprint is a diagnostic text annotation; no check, constant limit,
+// diagnostic selection or scheduling decision reads it. Both receipt binding
+// and fresh validation use this same complete input projection. Adding a Module
+// field requires an explicit decision here rather than silently omitting it.
+pub(super) fn inputs(module: &Module) -> (&str, &SharedVec<Item>) {
+    let Module {
+        triple,
+        items,
+        fingerprint: _,
+    } = module;
+    (triple, items)
+}
+
+fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -> Result<Schedule> {
     if !matches!(
-        module.triple.as_str(),
+        triple,
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
     ) {
         return fail("machine module target is not supported");
@@ -1088,7 +1107,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
         symbols: BTreeMap::new(),
         valid_named: RefCell::new(BTreeMap::new()),
     };
-    for item in &module.items {
+    for item in items {
         match item {
             Item::NamedType(n, fields) => {
                 if !identifier(n) || world.named.insert(n, fields).is_some() {
@@ -1104,7 +1123,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
     }
     let mut functions = BTreeMap::new();
     let mut scratch = FunctionScratch::default();
-    for item in &module.items {
+    for item in items {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
             Item::Global(g) => {

@@ -18,6 +18,53 @@ mod discovery_cache;
 #[path = "stdlib.rs"]
 mod stdlib;
 
+/// Actual work performed by the filesystem ingress adapter, before queries.
+/// Query reuse labels are deliberately not used to infer parser or disk work.
+#[derive(Clone, Debug, Default)]
+pub struct SourceIngressStats {
+    pub source_files_read: usize,
+    pub source_bytes_read: usize,
+    pub source_clone_bytes: usize,
+    pub parser_executions: usize,
+    pub parser_reuses: usize,
+    pub semantic_load_attempts: usize,
+    pub semantic_restored_functions: usize,
+    pub resident_routes: usize,
+    pub resident_frontend_hits: usize,
+    pub discovery_receipt_probes: usize,
+    pub discovery_receipt_complete: usize,
+    pub source_read_ns: u128,
+    pub discovery_receipt_ns: u128,
+    pub semantic_probe_ns: u128,
+    pub parser_ns: u128,
+}
+impl SourceIngressStats {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"source_files_read\":{},\"source_bytes_read\":{},\"source_clone_bytes\":{},\"parser_executions\":{},\"parser_reuses\":{},\"semantic_load_attempts\":{},\"semantic_restored_functions\":{},\"resident_routes\":{},\"resident_frontend_hits\":{},\"discovery_receipt_probes\":{},\"discovery_receipt_complete\":{},\"source_read_ns\":{},\"discovery_receipt_ns\":{},\"semantic_probe_ns\":{},\"parser_ns\":{}}}",
+            self.source_files_read,
+            self.source_bytes_read,
+            self.source_clone_bytes,
+            self.parser_executions,
+            self.parser_reuses,
+            self.semantic_load_attempts,
+            self.semantic_restored_functions,
+            self.resident_routes,
+            self.resident_frontend_hits,
+            self.discovery_receipt_probes,
+            self.discovery_receipt_complete,
+            self.source_read_ns,
+            self.discovery_receipt_ns,
+            self.semantic_probe_ns,
+            self.parser_ns
+        )
+    }
+    fn read(&mut self, source: &SourceUnit) {
+        self.source_files_read += 1;
+        self.source_bytes_read += source.text.len();
+    }
+}
+
 /// All bytes are supplied by the caller; compiling this value never loads an
 /// import from disk. Paths are root-relative logical import segments. Multiple
 /// paths may refer to one module (for example, canonicalized filesystem aliases).
@@ -67,6 +114,9 @@ enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
     Prepared(Vec<LoadedSyntax>, Box<CompileReport>),
     Semantic(Box<(TypedProgram, CandidatePlan)>),
+    /// Current source/import replay completed; only resident raw candidates may
+    /// be tried before the ordinary disk/source fallbacks. No Verify authority.
+    Resident,
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
@@ -276,6 +326,7 @@ impl CompilationSession {
             Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None, None),
             Some(LoadedProject::Prepared(syntax, report)) => (Some(syntax), None, Some(report)),
             Some(LoadedProject::Semantic(pair)) => (None, Some(pair), None),
+            Some(LoadedProject::Resident) => (None, None, None),
             None => (None, None, None),
         };
         let mut report = prepared_report.unwrap_or_else(|| Box::new(CompileReport::new(root)));
@@ -368,6 +419,7 @@ impl CompilationSession {
         // Parse is a syntax-only stop for the requested file. Import discovery
         // belongs to expansion and must not read or reject dependencies yet.
         let discovery_start = cost_start(options.profile_compilation);
+        let mut ingress = SourceIngressStats::default();
         let loaded = if options.stop_after == Stage::Parse {
             let accepted = if let Some(manifest) = &options.project {
                 manifest
@@ -379,11 +431,20 @@ impl CompilationSession {
             accepted
                 .and_then(|accepted| read_source(&accepted, options))
                 .map(|source| {
+                    if options.profile_compilation {
+                        ingress.read(&source);
+                    }
                     project.modules[0] = source;
                     LoadedProject::Parsed(Vec::new())
                 })
         } else {
-            load_sources(&mut project, path, options, self)
+            load_sources_profiled(
+                &mut project,
+                path,
+                options,
+                self,
+                options.profile_compilation.then_some(&mut ingress),
+            )
         };
         let discovery_pending = match &loaded {
             Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => options
@@ -413,6 +474,11 @@ impl CompilationSession {
             }
         };
         report.cost_profiled = options.profile_compilation;
+        if options.profile_compilation {
+            ingress.resident_frontend_hits =
+                usize::from(report.disk_cache == DiskCacheStatus::Resident);
+            report.source_ingress = Some(Box::new(ingress));
+        }
         if let Some(nanos) = discovery_ns {
             *report
                 .driver_timings_ns
@@ -498,6 +564,39 @@ impl CompilationSession {
             } else {
                 DiskCacheStatus::Missing
             };
+        }
+        if (semantic.is_none() || options.producer_reuse)
+            && loaded_syntax.is_none()
+            && options.stop_after >= Stage::Types
+            && options.emit_dir.is_none()
+            && options.cache_dir.is_none()
+            && let Some(frontend) = self.reuse_project_frontend(
+                &key(Phase::Types, true),
+                &project.modules,
+                options,
+                report,
+                observer,
+            )?
+        {
+            if options.producer_reuse {
+                report.disk_cache = DiskCacheStatus::Resident;
+            }
+            report.phase = Phase::Types;
+            report.scalar_interfaces = frontend.typed.interfaces.clone();
+            if options.stop_after == Stage::Types {
+                return Ok(());
+            }
+            return self.finish_typed(
+                options,
+                report,
+                observer,
+                TypedInput::Program(frontend.typed),
+                frontend.snapshot,
+                artifacts,
+                stable_source.as_ref(),
+            );
+        }
+        if let Some(store) = &semantic {
             let cache_start = cost_start(options.profile_compilation);
             let restored = preloaded_semantic.or_else(|| store.load(options).map(Box::new));
             report.record_driver_cost("semantic_cache_read", cache_start);
@@ -555,34 +654,6 @@ impl CompilationSession {
                     }
                 }
             }
-        }
-        if semantic.is_none()
-            && loaded_syntax.is_none()
-            && options.stop_after >= Stage::Types
-            && options.emit_dir.is_none()
-            && options.cache_dir.is_none()
-            && let Some(frontend) = self.reuse_project_frontend(
-                &key(Phase::Types, true),
-                &project.modules,
-                options,
-                report,
-                observer,
-            )?
-        {
-            report.phase = Phase::Types;
-            report.scalar_interfaces = frontend.typed.interfaces.clone();
-            if options.stop_after == Stage::Types {
-                return Ok(());
-            }
-            return self.finish_typed(
-                options,
-                report,
-                observer,
-                TypedInput::Program(frontend.typed),
-                frontend.snapshot,
-                artifacts,
-                stable_source.as_ref(),
-            );
         }
         let mut parsed = Vec::new();
         let mut producer_syntax = options.producer_reuse.then(Vec::new);
@@ -1734,10 +1805,11 @@ pub(super) fn resolve_file_module(
 /// A raw substring check deliberately over-rejects comments and identifiers.
 /// Parser::at_word compares original bytes; both spellings that introduce an
 /// import are excluded, including self-imports whose filesystem aliases change.
-fn single_file_semantic(
+fn single_file_semantic_profiled(
     project: &ProjectSources,
     options: &CompileOptions,
     session: &CompilationSession,
+    stats: Option<&mut SourceIngressStats>,
 ) -> Option<(TypedProgram, CandidatePlan)> {
     if options.profile != ExecutionProfile::Native
         || options.closed_executable
@@ -1749,12 +1821,13 @@ fn single_file_semantic(
     {
         return None;
     }
-    exact_discovered_semantic(project, options)
+    exact_discovered_semantic_profiled(project, options, stats)
 }
 
-fn exact_discovered_semantic(
+fn exact_discovered_semantic_profiled(
     project: &ProjectSources,
     options: &CompileOptions,
+    mut stats: Option<&mut SourceIngressStats>,
 ) -> Option<(TypedProgram, CandidatePlan)> {
     // A failed optional probe cannot move a source/import error behind an
     // artifact error. The original discovery and pipeline report that error.
@@ -1764,11 +1837,55 @@ fn exact_discovered_semantic(
     let mut store = super::semantic_cache::Store::new(options, &key)?;
     let mut artifacts = ArtifactPlan::project(source, &project.modules, options).ok()?;
     store.bind_path(&artifacts.semantic_cache(&store.path()).ok()?);
-    let (typed, candidate) = store.load(options)?;
+    let probe_started = stats.as_ref().map(|_| Instant::now());
+    if let Some(stats) = stats.as_deref_mut() {
+        stats.semantic_load_attempts += 1;
+    }
+    let pair = store.load(options);
+    if let Some(stats) = stats {
+        stats.semantic_probe_ns += probe_started
+            .expect("profiled semantic probe")
+            .elapsed()
+            .as_nanos();
+        if let Some((typed, _)) = &pair {
+            stats.semantic_restored_functions += typed.module.functions.len();
+        }
+    }
+    let (typed, candidate) = pair?;
     (typed.module.source_fingerprint == fingerprint
         && typed.module.module_id == project.root
         && typed.module.target == options.target)
         .then_some((typed, candidate))
+}
+
+fn resident_discovered_frontend(
+    project: &ProjectSources,
+    options: &CompileOptions,
+    session: &CompilationSession,
+) -> bool {
+    if !options.producer_reuse
+        || options.profile != ExecutionProfile::Native
+        || options.closed_executable
+        || options.semantic_cache.is_none()
+        || options.stop_after < Stage::Verify
+        || options.emit_dir.is_some()
+        || options.cache_dir.is_some()
+        || session.active_query_count() != 0
+    {
+        return false;
+    }
+    let Ok(root) = validate_sources(project, &options.limits) else {
+        return false;
+    };
+    let key = project_key(
+        root,
+        options,
+        project_fingerprint(project),
+        Phase::Types,
+        true,
+    );
+    matches!(session.raw.get(&key), Some(RawSnapshot::ProjectTyped(_)))
+        && session.database.read(&key).ok().flatten().is_some()
 }
 
 fn load_sources(
@@ -1776,6 +1893,16 @@ fn load_sources(
     path: &Path,
     options: &mut CompileOptions,
     session: &CompilationSession,
+) -> CompileResult<LoadedProject> {
+    load_sources_profiled(project, path, options, session, None)
+}
+
+fn load_sources_profiled(
+    project: &mut ProjectSources,
+    path: &Path,
+    options: &mut CompileOptions,
+    session: &CompilationSession,
+    mut stats: Option<&mut SourceIngressStats>,
 ) -> CompileResult<LoadedProject> {
     options
         .cancellation
@@ -1794,7 +1921,12 @@ fn load_sources(
     if remaining.max_nodes == 0 {
         return Err(limit(Phase::Parse, "project module budget exceeded"));
     }
+    let read_started = stats.as_ref().map(|_| Instant::now());
     project.modules[0] = read_source(&root_path, options)?;
+    if let Some(stats) = stats.as_deref_mut() {
+        stats.read(&project.modules[0]);
+        stats.source_read_ns += read_started.expect("profiled read").elapsed().as_nanos();
+    }
     take(
         &mut remaining.max_source_bytes,
         project.modules[0].text.len(),
@@ -1815,16 +1947,46 @@ fn load_sources(
         .check(Phase::Parse)
         .map_err(|e| vec![e])?;
     if options.project.is_none()
-        && let Some(pair) = single_file_semantic(project, options, session)
+        && project.modules.len() == 1
+        && !project.modules[0].text.contains("import")
+        && !project.modules[0].text.contains("syntax")
+        && resident_discovered_frontend(project, options, session)
+    {
+        if let Some(stats) = stats.as_deref_mut() {
+            stats.resident_routes += 1;
+        }
+        return Ok(LoadedProject::Resident);
+    }
+    if options.project.is_none()
+        && let Some(pair) =
+            single_file_semantic_profiled(project, options, session, stats.as_deref_mut())
     {
         return Ok(LoadedProject::Semantic(Box::new(pair)));
     }
     let mut prefetched = BTreeMap::new();
-    if options.project.is_none()
-        && let Some(attempt) = discovery_cache::load(project, &root_path, options, session)?
-    {
+    let receipt_started = stats.as_ref().map(|_| Instant::now());
+    let discovery = if options.project.is_none() {
+        discovery_cache::load(project, &root_path, options, session, stats.as_deref_mut())?
+    } else {
+        None
+    };
+    if let Some(stats) = stats.as_deref_mut() {
+        stats.discovery_receipt_ns += receipt_started
+            .expect("profiled receipt")
+            .elapsed()
+            .as_nanos();
+    }
+    if let Some(attempt) = discovery {
+        if attempt.complete && resident_discovered_frontend(&attempt.project, options, session) {
+            *project = attempt.project;
+            if let Some(stats) = stats.as_deref_mut() {
+                stats.resident_routes += 1;
+            }
+            return Ok(LoadedProject::Resident);
+        }
         if attempt.complete
-            && let Some(pair) = exact_discovered_semantic(&attempt.project, options)
+            && let Some(pair) =
+                exact_discovered_semantic_profiled(&attempt.project, options, stats.as_deref_mut())
         {
             *project = attempt.project;
             return Ok(LoadedProject::Semantic(Box::new(pair)));
@@ -1868,6 +2030,7 @@ fn load_sources(
         query_options.scoped_imports = None;
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
+        let parser_started = stats.as_ref().map(|_| Instant::now());
         let (parsed, reused, producer) = if options.producer_reuse {
             let (source, reused) = session.producer_parse(&project.modules[index], &parse_limits);
             (source.parsed_shared(), reused, Some(source))
@@ -1886,6 +2049,17 @@ fn load_sources(
             });
             (parsed, reused, None)
         };
+        if let Some(stats) = stats.as_deref_mut() {
+            stats.parser_ns += parser_started.expect("profiled parse").elapsed().as_nanos();
+            if reused {
+                stats.parser_reuses += 1;
+            } else {
+                stats.parser_executions += 1;
+                if options.producer_reuse {
+                    stats.source_clone_bytes += project.modules[index].text.len();
+                }
+            }
+        }
         if !parsed.diagnostics.is_empty() {
             return Err(parsed.diagnostics.clone());
         }
@@ -1981,7 +2155,16 @@ fn load_sources(
                         Ok(source)
                     }
                 } else {
-                    read_source(&canonical, &read_options)
+                    let read_started = stats.as_ref().map(|_| Instant::now());
+                    let read = read_source(&canonical, &read_options);
+                    if let Some(stats) = stats.as_deref_mut() {
+                        stats.source_read_ns +=
+                            read_started.expect("profiled read").elapsed().as_nanos();
+                        if let Ok(source) = &read {
+                            stats.read(source);
+                        }
+                    }
+                    read
                 })
                 .map_err(|errors| {
                     errors
@@ -2133,7 +2316,9 @@ mod filesystem_discovery_tests {
         };
         match load_sources(&mut p, path, &mut options.clone(), session)? {
             LoadedProject::Parsed(syntax) => Ok(syntax),
-            LoadedProject::Prepared(_, _) | LoadedProject::Semantic(_) => {
+            LoadedProject::Prepared(_, _)
+            | LoadedProject::Semantic(_)
+            | LoadedProject::Resident => {
                 panic!("this control expects ordinary syntax discovery")
             }
         }
@@ -2480,6 +2665,155 @@ pub fn main()->i32=>0",
         assert!(discover(&session, &path, &CompileOptions::default()).is_err());
         session.database.abort(&key);
         assert!(discover(&session, &path, &CompileOptions::default()).is_ok());
+    }
+    #[test]
+    fn resident_discovery_reads_current_imports_without_decoding_old_semantic_files() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "import dep; pub fn main()->i32=>dep.value(3)").unwrap();
+        fs::write(
+            dir.0.join("dep.zil"),
+            "pub fn value(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}",
+        )
+        .unwrap();
+        let options = CompileOptions {
+            producer_reuse: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut session = CompilationSession::default();
+        let cold = session.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let root = fs::read_dir(options.semantic_cache.as_ref().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|p| {
+                p.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("semantic-v")
+            })
+            .unwrap();
+        // A complete resident candidate must remain usable even when optional
+        // disk candidates are corrupt or their content-addressed items vanish.
+        for entry in fs::read_dir(&root).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_file() {
+                fs::write(path, b"corrupt optional manifest").unwrap();
+            }
+        }
+        fs::remove_dir_all(root.join("items")).unwrap();
+        let mut project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
+            paths: BTreeMap::new(),
+        };
+        let loaded = load_sources(&mut project, &path, &mut options.clone(), &session).unwrap();
+        assert!(matches!(loaded, LoadedProject::Resident));
+        assert_eq!(project.modules.len(), 2);
+        let warm = session.compile_path(&path, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.verification_runs, 1);
+        let ingress = warm.source_ingress.as_ref().unwrap();
+        assert_eq!(ingress.source_files_read, 2);
+        assert_eq!(ingress.parser_executions, 0);
+        assert_eq!(ingress.semantic_load_attempts, 0);
+        assert_eq!(ingress.semantic_restored_functions, 0);
+        assert_eq!(ingress.resident_routes, 1);
+        assert_eq!(ingress.resident_frontend_hits, 1);
+        assert!(ingress.source_clone_bytes < ingress.source_bytes_read);
+
+        assert!(
+            warm.query_events
+                .iter()
+                .filter(|e| e.phase == Phase::Parse)
+                .all(|e| e.disposition == QueryDisposition::Reused)
+        );
+        assert!(
+            !warm
+                .query_events
+                .iter()
+                .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
+        );
+
+        // Added or ambiguous imports are still resolved from the current disk
+        // graph before any resident frontend can be selected.
+        fs::create_dir_all(dir.0.join("dep")).unwrap();
+        fs::write(dir.0.join("dep/mod.zil"), "pub fn value(x:i32)->i32=>x").unwrap();
+        let ambiguous = session.compile_path(&path, &options);
+        assert_eq!(ambiguous.diagnostics[0].code, "E-MODULE-AMBIGUOUS");
+        fs::remove_file(dir.0.join("dep/mod.zil")).unwrap();
+
+        session.database.clear();
+        project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
+            paths: BTreeMap::new(),
+        };
+        let loaded = load_sources(&mut project, &path, &mut options.clone(), &session).unwrap();
+        assert!(matches!(loaded, LoadedProject::Parsed(_)));
+        let repaired = session.compile_path(&path, &options);
+        assert_eq!(
+            repaired.status,
+            ResultCategory::Success,
+            "{}",
+            repaired.to_json()
+        );
+        assert_eq!(repaired.verification_runs, 1);
+        assert!(
+            repaired
+                .query_events
+                .iter()
+                .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
+        );
+        session.clear();
+        let cleared = session.compile_path(&path, &options);
+        assert_eq!(
+            cleared.status,
+            ResultCategory::Success,
+            "{}",
+            cleared.to_json()
+        );
+        assert_eq!(cleared.verification_runs, 1);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn resident_discovery_does_not_cross_limits_or_target_bindings() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "pub fn main()->i32=>7").unwrap();
+        let options = CompileOptions {
+            producer_reuse: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut session = CompilationSession::default();
+        assert_eq!(
+            session.compile_path(&path, &options).status,
+            ResultCategory::Success
+        );
+        for limited in [true, false] {
+            let mut current = options.clone();
+            if limited {
+                current.limits.max_tokens = 1;
+            } else {
+                current.target.rule_version.push_str("/different");
+            }
+            let mut project = ProjectSources {
+                root: ModuleId(0),
+                modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
+                paths: BTreeMap::new(),
+            };
+            let loaded = load_sources(&mut project, &path, &mut current.clone(), &session);
+            assert!(!matches!(loaded, Ok(LoadedProject::Resident)));
+            let actual = session.compile_path(&path, &current);
+            let expected = CompilationSession::default().compile_path(&path, &current);
+            assert_eq!(actual.status, expected.status);
+            assert_eq!(actual.diagnostics, expected.diagnostics);
+        }
+        fs::remove_dir_all(dir.0).unwrap();
     }
 }
 

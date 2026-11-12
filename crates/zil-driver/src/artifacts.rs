@@ -6,6 +6,9 @@ use std::path::Component;
 use std::sync::atomic::{AtomicU64, Ordering};
 use zil_backend_llvm::BuildArtifact;
 
+mod cache_namespace;
+pub(super) use cache_namespace::CacheNamespace;
+
 const DUMPS: &[(&str, &str, Stage)] = &[
     ("syntax", "txt", Stage::Parse),
     ("core", "txt", Stage::Core),
@@ -37,6 +40,10 @@ pub(super) struct ArtifactPlan {
     files: Vec<PlannedFile>,
 }
 impl ArtifactPlan {
+    /// Bind a batch of flat cache item writes to an already planned directory.
+    pub(super) fn pin_cache_directory(&self, root: &Path) -> CompileResult<CacheNamespace> {
+        CacheNamespace::new(self, root)
+    }
     pub(super) fn semantic_cache(&mut self, path: &Path) -> CompileResult<PathBuf> {
         self.cache_destination("semantic-cache", path)
     }
