@@ -1,0 +1,301 @@
+{
+  "documentation_commit": "86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb",
+  "exact_disjoint_original_union": true,
+  "finished_utc": "2026-11-12T19:25:34.241432+00:00",
+  "immutable_binary_shards": [
+    20,
+    21
+  ],
+  "master_sha256": "491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038",
+  "metadata_shards": [
+    22,
+    24
+  ],
+  "original_profile_bytes": 1246722829,
+  "original_profile_files": 1480,
+  "payload_shards": 19,
+  "profile_quality": {
+    "10": {
+      "binary_sha256": "50c316a9de2a6f422147ee3543ca32fde15979df7042dd61f8e440bf38336801",
+      "controller_exit": 0,
+      "original_qualifier_pass": true,
+      "source": "25c8607ab77584e423605793bbcb553ff8099330"
+    },
+    "11": {
+      "binary_sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a",
+      "controller_agreement": null,
+      "controller_exit": null,
+      "original_qualifier_pass": true,
+      "performance_attribution_excluded": true,
+      "source": "328eb392d8d88148a75a743d899b43aebae73587",
+      "timing_window_verified": false
+    },
+    "12": {
+      "binary_sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a",
+      "controller_exit": 0,
+      "original_qualifier_pass": true,
+      "source": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "remote_ref": "refs/heads/archive/source-history",
+  "schema": "full-push-v16-fixed-archive-index-v1",
+  "scope": "Supplemental metadata24 adds exact documentation/reports commit86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb/toolsparent7ec66697cb307bc46cecc60d682dfa07af139c2a; earlier metadata22 excluded these newly published files. Compiled source remains25c(profile10)/328(profiles11/12). All original profile files freshHTTPS recovered/hash+mode verified per shard before exact-master-matched local retirement. Original full current qualifiers passed before retirement. This proves byte/mode union, not a simultaneous whole assembled fresh qualifier rerun. Single candidate-profiled/baseline-unprofiled diagnostics, no Rust/earlier-candidate comparison. Recorded historical ELF SHA equality, strict actual archived LLVM equality except fixed second-line identity value. Source snapshots25c/328, all new component gates including original failures+diagnostics and corrections, cleanup10 and V15 authentication/index/union chain in metadata22. Original raw now fixed-remote-restorable; sidecars and immutable binaries retained locally.",
+  "shards": [
+    {
+      "archive_bytes": 395383,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-01",
+      "archive_sha256": "7cd88a97e80e043212cab1735ccede74b7d1cb51032f29b78801f7888ae52304",
+      "bootstrap_sha256": "0c9a90cb235eea757cc6031b494f2f8adbc4ccdaa024bb7514bbbd2b4a9fa5ed",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/96ca0dfa273f318f8084b3e0658a55c99c5c7b61/research/incremental-demand-full-push-20261112-v16-01/restore_https.py",
+      "files": 13,
+      "fixed_archive_commit": "96ca0dfa273f318f8084b3e0658a55c99c5c7b61",
+      "manifest_sha256": "d40820ea1f14de83254ca3731a1dda8b46f21bfb76237aa7ab482fe4127cc5f1",
+      "raw_bytes": 69974401
+    },
+    {
+      "archive_bytes": 347843,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-02",
+      "archive_sha256": "85349c607e0e10bd6bf26541c28d41cfd3f0d03b31b44827a0ca59a38bc67758",
+      "bootstrap_sha256": "a574aff820381c91f83e42600b10bb0085d4df1dfa8b0432038b3b3ce3ccb168",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/ff7c864163d2b035b10e5b693bf106a38b37a852/research/incremental-demand-full-push-20261112-v16-02/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "ff7c864163d2b035b10e5b693bf106a38b37a852",
+      "manifest_sha256": "315f10ee9f280f77f80c4985e5de14da2db097f752b39f880d0c18f3c16da07d",
+      "raw_bytes": 69174754
+    },
+    {
+      "archive_bytes": 362418,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-03",
+      "archive_sha256": "0d629895e75ccfc37f97d2f54fc0df18de887e7105039bba2bdd652d6a02ceb8",
+      "bootstrap_sha256": "ba44e188172ca8b34fcde87b3a8c04a36b9eea2bf9500f82976f42756b5ac6e0",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/1f80ef2dc08d7fbdc89768923bad1cf760fc5c52/research/incremental-demand-full-push-20261112-v16-03/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "1f80ef2dc08d7fbdc89768923bad1cf760fc5c52",
+      "manifest_sha256": "5e8e131a19e98550018850b47c2c8b52e33cd75600445ea0e542d32bb866a2da",
+      "raw_bytes": 69174764
+    },
+    {
+      "archive_bytes": 358334,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-04",
+      "archive_sha256": "6f7c72a2e6884fcb7e256ea5850d8c00932b5ed94788570689f558a83a22805b",
+      "bootstrap_sha256": "8bd856c29ad1f23fa246d8dd497ea0e22a2d385bd37f3ec0ff9b77e0158212ca",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/8df2b0496401e3b7319499336e14492f6951ff0c/research/incremental-demand-full-push-20261112-v16-04/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "8df2b0496401e3b7319499336e14492f6951ff0c",
+      "manifest_sha256": "879bb41bac44196bb87e92108d45a7f9891a95df9062b77f1128db2d5e91e56d",
+      "raw_bytes": 69175254
+    },
+    {
+      "archive_bytes": 355556,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-05",
+      "archive_sha256": "054603260291fbf997d9eccd4543a2a1d3a8b543e841fd7a95219a5105e9b619",
+      "bootstrap_sha256": "acd03db684a488e3ef7c831a61b70e930d9ea0038399a1861af614abb5ae657f",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/45581731cb3519ed2d4983a82c64565d0b7c625d/research/incremental-demand-full-push-20261112-v16-05/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "45581731cb3519ed2d4983a82c64565d0b7c625d",
+      "manifest_sha256": "d480ad0475004069b71989f9f3911bf1df765cc39ad8ed1b66c1147455920902",
+      "raw_bytes": 69175252
+    },
+    {
+      "archive_bytes": 361719,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-06",
+      "archive_sha256": "4eea70537d2f26aebead4e9f59bdaa5a3bbf6e97de0e83dfd0fcd875377ba94d",
+      "bootstrap_sha256": "16cfb426643f3d44a7f55a62086095e6121c103f41ff6b3f3f02bff9b5ca6329",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/678f840760d50e5bc57d372be70a013786c0d8aa/research/incremental-demand-full-push-20261112-v16-06/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "678f840760d50e5bc57d372be70a013786c0d8aa",
+      "manifest_sha256": "e12193391128f69727ba94557dce610574b19f227b616aba036e575c4b2e30c9",
+      "raw_bytes": 69175260
+    },
+    {
+      "archive_bytes": 354086,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-07",
+      "archive_sha256": "80d30d3cc81423e4ba62cb0052daa97ecf717a658c45b3dc3633f1352bbf29ba",
+      "bootstrap_sha256": "b2fa0d7891d69a2dd405c2982580affcc25077a10bd0780dd66d79c9fc27b469",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/b8afe5c0984366b430c8ad631200659805ddc67c/research/incremental-demand-full-push-20261112-v16-07/restore_https.py",
+      "files": 5,
+      "fixed_archive_commit": "b8afe5c0984366b430c8ad631200659805ddc67c",
+      "manifest_sha256": "3fa702e6070d48685d1d2cd24a621d7dc6c4203d98f8533823a743f75615213c",
+      "raw_bytes": 69175251
+    },
+    {
+      "archive_bytes": 74847,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-08",
+      "archive_sha256": "9ce62a87d1e67d5de56af3ef1630c01de968d644d53137301a50cecda07cbb3f",
+      "bootstrap_sha256": "ac60bf0193f79d42bc8ad01135a280482e7c557b57f6225db082eda2a4720beb",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/5ede6d5a3ec5932f8997d6be3d9f9ffd14007dc6/research/incremental-demand-full-push-20261112-v16-08/restore_https.py",
+      "files": 3,
+      "fixed_archive_commit": "5ede6d5a3ec5932f8997d6be3d9f9ffd14007dc6",
+      "manifest_sha256": "25cafe23cd133da00a12b2310308a6c29125d9ed626ec51468c249c3bb134692",
+      "raw_bytes": 13850479
+    },
+    {
+      "archive_bytes": 25728927,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-09",
+      "archive_sha256": "0b1af55c11b1dea64605bac8a8a9b771944d8792d77804a84ee96948e0477a8f",
+      "bootstrap_sha256": "5b5cfaa9f963b6c7f66d82eb5def60a5b6b1b0ef6f376b6715ad6f6fcd91afb0",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/aee179b5ea5180e58c0b70804a4a67c0256eb797/research/incremental-demand-full-push-20261112-v16-09/restore_https.py",
+      "files": 3,
+      "fixed_archive_commit": "aee179b5ea5180e58c0b70804a4a67c0256eb797",
+      "manifest_sha256": "fa8e062467b78e1e2a1d6e5f462788fbfa425d65cd24ba5a52ed02d28b7f4987",
+      "raw_bytes": 72407365
+    },
+    {
+      "archive_bytes": 25622600,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-10",
+      "archive_sha256": "0c6c6d84b8ef6022275ef0376593babc4f0232a5d31672ed8d2a2d9cc624d432",
+      "bootstrap_sha256": "f43082a9f44136b567784a0c293e5f203d6cafcdb52e523ae9990d73946537f4",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/fd6d2c16591e605e1dc97baaa7261ee611aa243f/research/incremental-demand-full-push-20261112-v16-10/restore_https.py",
+      "files": 23,
+      "fixed_archive_commit": "fd6d2c16591e605e1dc97baaa7261ee611aa243f",
+      "manifest_sha256": "8208e120e011e5500ae4f5e48c8df4cd9ad57fad8e65aae05d4f6cffc3e50e20",
+      "raw_bytes": 72311734
+    },
+    {
+      "archive_bytes": 25730918,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-11",
+      "archive_sha256": "278e0dbf0c609a74cc1923c02477a5a1de14ddebe0b9fc4fbe6bf01c96137b94",
+      "bootstrap_sha256": "7e52662453847027ccfed3838aeb3759a9f2f9fddf7ae6305ecd755da1747525",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/2e591b0a66cf46858d092ecd9691494d4d9e04b0/research/incremental-demand-full-push-20261112-v16-11/restore_https.py",
+      "files": 1,
+      "fixed_archive_commit": "2e591b0a66cf46858d092ecd9691494d4d9e04b0",
+      "manifest_sha256": "c6d799e196b02b3fd01d00741f270097f671597cf52b29f9e6be2d472057cd03",
+      "raw_bytes": 72392168
+    },
+    {
+      "archive_bytes": 25622503,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-12",
+      "archive_sha256": "154b0d9703765015cf75a05daf87885c613f76c3dbbc96fd76b9b1e5dd984139",
+      "bootstrap_sha256": "10ac991b156a1599b7ecebbb345222a20285f7c32867182a7212144e2487a266",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/f23f22832f333bdd91a1d362385b154e1f5c4993/research/incremental-demand-full-push-20261112-v16-12/restore_https.py",
+      "files": 23,
+      "fixed_archive_commit": "f23f22832f333bdd91a1d362385b154e1f5c4993",
+      "manifest_sha256": "fa363175b8f72149ab2271e4396f99e0559b7f520f89570791e346a4d746f88a",
+      "raw_bytes": 72312923
+    },
+    {
+      "archive_bytes": 25730920,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-13",
+      "archive_sha256": "3433c9705cef8e2a61f5640b9d7cb2b138d174e56dded905d30cfd405e8757f7",
+      "bootstrap_sha256": "653e1c7456e7becdab2ce9f6cc7143602aca9f42b8e3b3004a18a69db729a46f",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/8f990a6cca4a8153eec3326ab79ffdff84a7dce8/research/incremental-demand-full-push-20261112-v16-13/restore_https.py",
+      "files": 1,
+      "fixed_archive_commit": "8f990a6cca4a8153eec3326ab79ffdff84a7dce8",
+      "manifest_sha256": "130dbb9b5b914de04735ec1dac243da03deefddefb75f9ab995235f44709ac7e",
+      "raw_bytes": 72392168
+    },
+    {
+      "archive_bytes": 25721830,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-14",
+      "archive_sha256": "5ee8f5b915d93f05e3ee1220208f81a1c0794dbd2b84322a108015b0094e5493",
+      "bootstrap_sha256": "45393de79fe95e1b815e58d8fba7d322f5df1131e415863ea3f2fd2235ea0245",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/599b7a5778a1188b78164637cce7628d15697ebd/research/incremental-demand-full-push-20261112-v16-14/restore_https.py",
+      "files": 110,
+      "fixed_archive_commit": "599b7a5778a1188b78164637cce7628d15697ebd",
+      "manifest_sha256": "59076f1e006d2347df3ec95835b320626940aa17dd73e50b8597f2625641cb81",
+      "raw_bytes": 74817460
+    },
+    {
+      "archive_bytes": 4464562,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-15",
+      "archive_sha256": "9370e06937c5ee71fd22968daeb9c69a3d664af78562f11be4fd489c308a4722",
+      "bootstrap_sha256": "c69ad5ac8e64ecf3dd4f140f2a46fdbcb2a2decc61e7b7cb71cbef24f5e2e7db",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/654bb4209f6186df5f08639fcd6f86eef1d94b29/research/incremental-demand-full-push-20261112-v16-15/restore_https.py",
+      "files": 103,
+      "fixed_archive_commit": "654bb4209f6186df5f08639fcd6f86eef1d94b29",
+      "manifest_sha256": "3fba22c4241d1aabf64250508da28dd460dde9fb390c0441117cb7eae1fc0d40",
+      "raw_bytes": 62444499
+    },
+    {
+      "archive_bytes": 4390495,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-16",
+      "archive_sha256": "2185a6dfc26c86587ced925a7dbca4dedb2836a5a6fa447a057fb4396f4ffbac",
+      "bootstrap_sha256": "abc0d3fc898d3b429cd6a4ec1503624298682ead5d86fd57bdfd18c0512efb1e",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/31d830fb6c60f7c9b7aae7d37487c3ce387a59a1/research/incremental-demand-full-push-20261112-v16-16/restore_https.py",
+      "files": 363,
+      "fixed_archive_commit": "31d830fb6c60f7c9b7aae7d37487c3ce387a59a1",
+      "manifest_sha256": "cb23b999b38bd12337ae460f1ef0d307439e8911a14891edd3bab4e54e643c90",
+      "raw_bytes": 75045328
+    },
+    {
+      "archive_bytes": 5342812,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-17",
+      "archive_sha256": "bc5ade914e0e4504c4a906f2aee71f5d324764d5ddda47f43889726c19876dee",
+      "bootstrap_sha256": "2185680c5c389acca51e5feb0d2ad14486243e528be9622b6a180150f5d048c7",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/b7dc41314b1a6cd2d65d391e190e960e9af1718d/research/incremental-demand-full-push-20261112-v16-17/restore_https.py",
+      "files": 450,
+      "fixed_archive_commit": "b7dc41314b1a6cd2d65d391e190e960e9af1718d",
+      "manifest_sha256": "abe8fe2b42bc97928b9ddb6863651fd0e3e95adf0c334f3364a68f115da63597",
+      "raw_bytes": 72225089
+    },
+    {
+      "archive_bytes": 4468425,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-18",
+      "archive_sha256": "cc85c41da231088267cd274843a1234826e8f61551907d368dbddf62a6cce94b",
+      "bootstrap_sha256": "695574ca3c9e1e2c771a43b94bcc09a696fddf0845c42cf084d918ffc427b3f9",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/0887a42b2ad8ec3a1f9887e83606747e491f8bd8/research/incremental-demand-full-push-20261112-v16-18/restore_https.py",
+      "files": 103,
+      "fixed_archive_commit": "0887a42b2ad8ec3a1f9887e83606747e491f8bd8",
+      "manifest_sha256": "5bfa30fbaac30b3e95737d2800a823b4c6ff771ed88ae93555bc85620e064809",
+      "raw_bytes": 62442789
+    },
+    {
+      "archive_bytes": 2572537,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-19",
+      "archive_sha256": "b752cc0f62955fe9ffb9154a7d6329396def5a6bfacb7e9e026169e7147f73a9",
+      "bootstrap_sha256": "3d1ba942ae7c2100ccccdacd4caa042527f49fbc0e0db14d31f55eace724aed8",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/316c4bc76be69377fd691d3e75780e433080b95a/research/incremental-demand-full-push-20261112-v16-19/restore_https.py",
+      "files": 262,
+      "fixed_archive_commit": "316c4bc76be69377fd691d3e75780e433080b95a",
+      "manifest_sha256": "1bce68ac81d1682d21c05a358ca224431eff2401bfadc5ee03916a16656e797a",
+      "raw_bytes": 39854542
+    },
+    {
+      "archive_bytes": 9975993,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-20",
+      "archive_sha256": "cc767da874345d0c664aa0ee4534cd08c72317d42f2dd6c90f9dee3174041c6f",
+      "bootstrap_sha256": "2bbcadad20389b9e88ca9ae38e932618dea5a89dde68c9350acd7f5d14bd1815",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/44941508f2a820aa3aa18d7e36bb26f79f6a3664/research/incremental-demand-full-push-20261112-v16-20/restore_https.py",
+      "files": 1,
+      "fixed_archive_commit": "44941508f2a820aa3aa18d7e36bb26f79f6a3664",
+      "manifest_sha256": "de8a50924a3c380ce122f33442b53392fb2428b3f617ba80da502523c3804733",
+      "raw_bytes": 26245928
+    },
+    {
+      "archive_bytes": 9977180,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-21",
+      "archive_sha256": "e550550ce27fe1b7928888ba8035e576bbdad12e3094e33772940974b34619dc",
+      "bootstrap_sha256": "7582f833d43fb8240f718831a3d0ab94019c491a191b30ff0f6106d282ead81d",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/19d6009cceb75a228d26278be1934afc714b5814/research/incremental-demand-full-push-20261112-v16-21/restore_https.py",
+      "files": 1,
+      "fixed_archive_commit": "19d6009cceb75a228d26278be1934afc714b5814",
+      "manifest_sha256": "ddbef9155ef8e7e45f7dcac619a4a3c221ae000d46a9fbcc59071b5c1b780766",
+      "raw_bytes": 26249504
+    },
+    {
+      "archive_bytes": 16341726,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-22",
+      "archive_sha256": "0f088d2e60e8fc031c48eecf31f694647955b497df1728e4356d1f1ce6657dad",
+      "bootstrap_sha256": "5478dcbc3412db0f8e015848ab4b7861c8a7ed19684f6dfd9016c77ab03d8da0",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/ce22120920c3355163a30c2482cdbf6c4b6130dd/research/incremental-demand-full-push-20261112-v16-22/restore_https.py",
+      "files": 561,
+      "fixed_archive_commit": "ce22120920c3355163a30c2482cdbf6c4b6130dd",
+      "manifest_sha256": "d5d0baed271618845db40cb3bacb342443998948ff72a47555ae494c18705ab7",
+      "raw_bytes": 23513457
+    },
+    {
+      "archive_bytes": 124370,
+      "archive_path": "research/incremental-demand-full-push-20261112-v16-24",
+      "archive_sha256": "b19288916e055e911d01953bec2138baaf80a7b7841b8372cce1274bb35bbe44",
+      "bootstrap_sha256": "a24e1fe2562fad21c5be64e47d03a0ff68f353b43235171049d4b53578458714",
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/76fc8779fedf0c8f6a2ef5037fabc9a6dd0f1a8e/research/incremental-demand-full-push-20261112-v16-24/restore_https.py",
+      "files": 23,
+      "fixed_archive_commit": "76fc8779fedf0c8f6a2ef5037fabc9a6dd0f1a8e",
+      "manifest_sha256": "850dca5bad20d78f944c2736ffd04b70e60c6137b5f0fcfd0b0c894a2b5c8f95",
+      "raw_bytes": 558577
+    }
+  ],
+  "status": "all23_shards_fixed_remote_fresh_https_fully_verified",
+  "tools_parent": "7ec66697cb307bc46cecc60d682dfa07af139c2a",
+  "whole_assembled_fresh_qualifier_rerun": false
+}
