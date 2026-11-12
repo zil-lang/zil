@@ -48,3 +48,12 @@ LLVM23 的 [FirstRoundThinBackend](https://github.com/llvm/llvm-project/blob/7a9
 [MIRParser:370](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MIRParser/MIRParser.cpp#L370) 创建当前MF后才初始化，失败可能留partial MF。[MMI创建:89](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MachineModuleInfo.cpp#L89) 消耗NextFnNum，deleteMachineFunctionFor不回滚编号。局部删MF后继续fresh ISel仍可能改变后续编号及canonical labels；应在不接触当前MMI的临时owner预验证，或丢弃整次Module/MC/MMI尝试后干净重试，并计入真实重试成本。
 
 [Legacy FPPassManager](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/LegacyPassManager.cpp#L1350) 在runOnFunction后仍进行preserved-analysis检查、available-analysis登记和dead-pass释放。若新增hook跳过机器pass，不能把未执行的analysis登记成可用；被最终发射消费的实际provider闭包仍要在当前恢复MF上执行。[AsmPrinter的required analyses](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp#L516) 包括MORE、GC、LazyMBFI、MBPI等。合法重放协议需要覆盖这些生命周期，而不只是跳过某个run方法。
+
+
+## 精确函数恢复与 key 投影
+
+[Function::deleteBody](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/Function.h#L703) 会将 linkage 改为 external；[copyAttributesFrom](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/Function.cpp#L842) 经 [GlobalValue/GlobalObject](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/Globals.cpp#L66) 复制额外属性，并不恢复 linkage。旧结果正文经验证可解析，仍不足以证明恢复了当前函数的完整定义；恢复必须显式保持创建属性并核对当前结果，不能把 immutable owner 当语义 authority。
+
+[CloneModule 的 strip-definition 分支](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/Utils/CloneModule.cpp#L157) 把未复制的函数变为 external declaration，清 personality，且不走正常定义的 metadata/comdat 复制。因此用“克隆模块但不克隆函数体”构造全局 key 时，应补上原始真实 header 字段与 metadata 递归闭包。只打印根 MDNode 可能留下子节点 slot 引用而漏掉其实际值。
+
+MIR 的 [栈槽打印](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MIRPrinter.cpp#L415) 跳过 dead objects，[解析](https://github.com/llvm/llvm-project/blob/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MIRParser/MIRParser.cpp#L926) 将旧 YAML IDs 映射到新对象编号。目标私有 MFI 即使深复制后没有裸 owner 指针，其 FrameIndex/Register 数值仍可能属于旧编号域；应重映射或显式拒绝相关状态。当前无栈首域是工程边界，不能据此声称带 spill、CFI 或一般调用的发射已经增量化。

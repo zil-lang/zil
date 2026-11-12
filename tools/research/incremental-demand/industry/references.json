@@ -391,6 +391,24 @@
       "bytes": 43320,
       "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76",
       "local_relative_path": "llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/Function.cpp",
+      "bytes": 40013,
+      "sha256": "e4ca61e955466f31658db78cc4074a4f7b78ce935e3716f7232dd5c6403332e9",
+      "local_relative_path": "llvm23-runtime/llvm/lib/IR/Function.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/Globals.cpp",
+      "bytes": 27453,
+      "sha256": "03d8e0331afd3f18551307e7453e0103754b7f14a091d13945ce0a9535ce38bf",
+      "local_relative_path": "llvm23-runtime/llvm/lib/IR/Globals.cpp"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/Utils/CloneModule.cpp",
+      "bytes": 8842,
+      "sha256": "fc5fde10b9816267e365770fdf992f6c66acb16e7146dd2b1eaaced01135ea73",
+      "local_relative_path": "llvm23-runtime/llvm/lib/Transforms/Utils/CloneModule.cpp"
     }
   ],
   "limitations": [
