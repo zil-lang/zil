@@ -797,6 +797,24 @@
       "controls": "Same requestedCGU16/O2/jobs1 and exact425-function fixture; actual current units16 with archived contents/reuse, not partition equivalence. New Cargo vs residentZIL, LLVM23.1.1/23.1.4 and verification scope differences retained. Check/native separate sequential windows; no cleanup in request timing."
     },
     "final_evidence_review": "https://github.com/zil-lang/zil/blob/8581aafc943440f179ca94d52340eaae6af89d8f/tools/research/incremental-demand/full-pipeline-final-evidence-review.json",
-    "remaining_costs": "Central graph remains BodyKey; whole-project construction keys/PrivateImplementation, global admission/fingerprints/current inventories, source-position Lower/materialization, two distinct raw function-body encoding paths and current link probes remain. Shared Initialization/Hold/Verify buffers are not deep copies. Preserve full independent Verify/default limits/code quality; no main merge/default enablement."
+    "remaining_costs": "Central graph remains BodyKey; whole-project construction keys/PrivateImplementation, global admission/fingerprints/current inventories, source-position Lower/materialization, two distinct raw function-body encoding paths and current link probes remain. Shared Initialization/Hold/Verify buffers are not deep copies. Preserve full independent Verify/default limits/code quality; no main merge/default enablement.",
+    "strategic_directive": {
+      "date": "2026-11-12",
+      "read_goal": "16aa8b1179c893c7e06276c61b6d6f6a03e16fb5",
+      "objective": "显著超越Rust编译速度并拉开差距，而不只是逼近或追平",
+      "design_scope": [
+        "语言设计",
+        "全部编译器架构层",
+        "验证架构",
+        "持久化与产物合同",
+        "LLVM优化与机器码生成"
+      ],
+      "current_activity": "先理论分析，尚未实施新架构或运行新测量",
+      "proposal_commit": "39acbf08f1d2aea2a641778156b1db4ff7fd1d6a",
+      "proposal": "https://github.com/zil-lang/zil/blob/39acbf08f1d2aea2a641778156b1db4ff7fd1d6a/tools/research/incremental-demand/push-native-redesign.md",
+      "distinction": "Rust query是需求驱动pull；Zit是具体变化点逐层push；响应式read一致性pull是另一问题",
+      "requirements": "保留有意义的安全与代码质量；语义/构建合同变化显式说明；不降低优化/预算、不换简单样例、不合main或默认启用研究开关；保留失败负例与远端证据",
+      "numeric_target_status": "至少2倍领先是助手提出的初始工程目标，非用户指定数值、已有结果或预测"
+    }
   }
 }
