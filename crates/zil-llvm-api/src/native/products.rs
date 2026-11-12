@@ -54,6 +54,8 @@ mod enabled {
         }
     }
     unsafe extern "C" {
+        fn ZilNativeProductsSuspend() -> Handle;
+        fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
             module: Handle,
             machine: Handle,
@@ -66,6 +68,26 @@ mod enabled {
         fn ZilNativeProductsFinish(request: Handle, stats: *mut WireStats) -> Handle;
         fn ZilNativeProductsAbort(request: Handle, stats: *mut WireStats);
         fn ZilNativeProductsDispose(products: Handle);
+    }
+
+    /// A whole-compile guard. Declared before all LLVM owners so those owners
+    /// are destroyed before a suspended outer request can become current again.
+    /// Raw TLS tokens keep this guard !Send/Sync, including a null prior token.
+    pub(crate) struct Suspension(Handle);
+    impl Suspension {
+        pub(crate) fn new() -> Self {
+            // SAFETY: same-thread lexical save/suspend of optional native TLS.
+            // Missing extension capability is a no-op and still returns a valid
+            // token (possibly null) for the matching Resume operation.
+            Self(unsafe { ZilNativeProductsSuspend() })
+        }
+    }
+    impl Drop for Suspension {
+        fn drop(&mut self) {
+            // SAFETY: inner Scope and all LLVM owners have already died. Restore
+            // exactly the outer TLS token saved by this non-cloneable guard.
+            unsafe { ZilNativeProductsResume(self.0) }
+        }
     }
 
     #[derive(Debug)]
@@ -192,7 +214,7 @@ mod enabled {
 }
 
 #[cfg(feature = "native-products")]
-pub(crate) use enabled::{Product, Scope};
+pub(crate) use enabled::{Product, Scope, Suspension};
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared
@@ -217,5 +239,14 @@ impl<'a> Scope<'a> {
     }
     pub(crate) fn finish(self) -> Option<crate::NativeWorkProducts> {
         None
+    }
+}
+
+#[cfg(not(feature = "native-products"))]
+pub(crate) struct Suspension;
+#[cfg(not(feature = "native-products"))]
+impl Suspension {
+    pub(crate) fn new() -> Self {
+        Self
     }
 }
