@@ -2056,7 +2056,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Member { .. } => return self.expr_member_body(e, expected),
             _ => {}
         }
-        let result = self.expr_non_call_value(e, expected)?;
+        // A left-associated binary chain must not retain the general value
+        // dispatch frame at every operand. Short-circuit operators returned
+        // above; keep the same scalar visitor and common expected-type check.
+        let result = if matches!(&e.kind, CoreExprKind::Binary { .. }) {
+            self.scalar_expr_binary(e, expected)?
+        } else {
+            self.expr_non_call_value(e, expected)?
+        };
         if let Some(expected) = expected {
             self.same(&result.1, expected, e.span)?
         }
