@@ -651,8 +651,11 @@ impl AnalysisSession {
             return Ok(result);
         }
         self.product_capture = None;
-        let candidate =
-            Arc::new(self.analyze_input(&program.module, Some(program), limits, true, true)?);
+        let analyzed = self.analyze_input(&program.module, Some(program), limits, true, true);
+        // Failed complete obligations are still actual attempted work. Their
+        // diagnostics come from the original checker; no partial epoch commits.
+        self.stats.product_global_obligations_executed = 1;
+        let candidate = Arc::new(analyzed?);
         let recording = self
             .product_capture
             .take()
