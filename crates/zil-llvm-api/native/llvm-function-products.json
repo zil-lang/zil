@@ -1,7 +1,7 @@
 {
   "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
   "version": "23.1.4",
-  "patch_sha256": "3c816ec893011877582713cffb5f39a59e962828a1fcc001418a4a6e38168548",
+  "patch_sha256": "2487bf12716248e581ab170ce932a23a46f10c61640d40f616f7f4edff910c4a",
   "original_files": {
     "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
     "llvm/include/llvm/IR/PassManagerImpl.h": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527",
@@ -22,7 +22,9 @@
     "llvm/include/llvm/Analysis/AliasAnalysis.h": "9a46702ce182cb543dbf2e7629c4d31141704ffefc196ffc27c32a2f4ab26b7e",
     "llvm/include/llvm/Analysis/ProfileSummaryInfo.h": "34e5fbd8d37cd5d0785f00ec0d97a918c44699ad55cc2400cfef6a610be7e6c4",
     "llvm/lib/Transforms/Scalar/LoopPassManager.cpp": "cdba553f0d58ab1f53bb5a1565cb89f52dee0c8c5517cf70ff5a92daf469274b",
-    "llvm/include/llvm/IR/ValueSymbolTable.h": "a358a117bf6b27da4ba486b33cc6ee3d12e00eec437b1e4f9f56fbf15a0c2d8f"
+    "llvm/include/llvm/IR/ValueSymbolTable.h": "a358a117bf6b27da4ba486b33cc6ee3d12e00eec437b1e4f9f56fbf15a0c2d8f",
+    "llvm/lib/IR/AsmWriter.cpp": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
+    "llvm/include/llvm/IR/TypeFinder.h": "f38fd4918bf059fa7094dadbeac10c0626ec422be9e77883217faf6e36c50bff"
   },
   "compile_units": [
     {
@@ -65,6 +67,14 @@
       "include_dirs": [
         "llvm/include"
       ]
+    },
+    {
+      "source": "llvm/lib/IR/AsmWriter.cpp",
+      "archive": "libLLVMCore.a",
+      "member": "AsmWriter.cpp.o",
+      "include_dirs": [
+        "llvm/include"
+      ]
     }
   ],
   "header_overlays": [
@@ -82,7 +92,8 @@
     "llvm/include/llvm/CodeGen/MachineBasicBlock.h",
     "llvm/include/llvm/Analysis/AliasAnalysis.h",
     "llvm/include/llvm/Analysis/ProfileSummaryInfo.h",
-    "llvm/include/llvm/IR/ValueSymbolTable.h"
+    "llvm/include/llvm/IR/ValueSymbolTable.h",
+    "llvm/include/llvm/IR/TypeFinder.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
   "default_behavior": "No installed thread-local ABI 2 hook: original pass objects, order and invalidation. Every earlier experimental ABI layout is rejected before reading callbacks. AsmPrinter/streamer remain original. Explicit native_products=false by default.",

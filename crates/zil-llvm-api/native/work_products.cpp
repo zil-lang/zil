@@ -294,24 +294,25 @@ std::string declarationText(const Function &F) {
   return S;
 }
 std::string worldText(const Module &M, const Function *Subject) {
-  ValueToValueMapTy Map;
-  auto World = CloneModule(M, Map, [](const GlobalValue *G) { return !isa<Function>(G); });
-  // CloneModule canonicalizes stripped definitions to external declarations.
-  // Undo that canonicalization, and explicitly bind header fields/metadata it
-  // intentionally omits when not cloning a body. This projection is a key,
-  // never submitted as an executable LLVM module.
-  for (const Function &F : M) {
-    auto *D = cast<Function>(Map[&F]);
-    D->setLinkage(F.getLinkage());
-    if (F.hasPersonalityFn()) D->setPersonalityFn(MapValue(F.getPersonalityFn(), Map));
-    if (F.hasComdat()) {
-      auto *C = World->getOrInsertComdat(F.getComdat()->getName());
-      C->setSelectionKind(F.getComdat()->getSelectionKind()); D->setComdat(C);
+  using PrintHeaders = int (*)(const void *, void *);
+  static auto Print = reinterpret_cast<PrintHeaders>(dlsym(RTLD_DEFAULT, "ZilLLVMPrintModuleHeaders"));
+  std::string S; raw_string_ostream OS(S);
+  if (!Print || !Print(&M, &OS)) {
+    // Older SDKs and header references into bodies retain the complete prior
+    // conservative projection. A rejected new renderer writes no bytes.
+    ValueToValueMapTy Map;
+    auto World = CloneModule(M, Map, [](const GlobalValue *G) { return !isa<Function>(G); });
+    for (const Function &F : M) {
+      auto *D = cast<Function>(Map[&F]);
+      D->setLinkage(F.getLinkage());
+      if (F.hasPersonalityFn()) D->setPersonalityFn(MapValue(F.getPersonalityFn(), Map));
+      if (F.hasComdat()) {
+        auto *C = World->getOrInsertComdat(F.getComdat()->getName());
+        C->setSelectionKind(F.getComdat()->getSelectionKind()); D->setComdat(C);
+      }
     }
+    World->print(OS, nullptr, true);
   }
-  // Keep all function headers, including the subject. Its body is separately
-  // bound and its header participates in module-level analysis/configuration.
-  std::string S; raw_string_ostream OS(S); World->print(OS, nullptr, true);
   for (const Function &F : M) {
     SmallVector<std::pair<unsigned, MDNode *>, 4> MD;
     OS << "\n; original body-presence " << F.getName().size() << ':' << F.getName() << ':' << F.isDeclaration() << '\n';
@@ -812,4 +813,57 @@ extern "C" int ZilNativeProductsAttributeMetadataCounterexample() {
   if (zil::ownedUseSequence(*G, nullptr) || !zil::functionText(*G).empty()) return 0;
   Sum->setMetadata("zil.payload", nullptr);
   return !verifyModule(M, nullptr) && zil::ownedUseSequence(*G, nullptr);
+}
+
+extern "C" int ZilNativeProductsModuleHeaderCounterexample() {
+  using PrintHeaders = int (*)(const void *, void *);
+  auto Print = reinterpret_cast<PrintHeaders>(dlsym(RTLD_DEFAULT, "ZilLLVMPrintModuleHeaders"));
+  if (!Print) return 0;
+  LLVMContext Context; Module M("header-renderer", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *Global = new GlobalVariable(M, I32, true, GlobalValue::InternalLinkage,
+                                    ConstantInt::get(I32, 7), "global");
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  F->getArg(0)->setName("x"); F->addFnAttr(Attribute::NoUnwind);
+  IRBuilder<> B(BasicBlock::Create(Context, "entry", F));
+  auto *Add = cast<Instruction>(B.CreateAdd(F->getArg(0), B.getInt32(1), "sum"));
+  B.CreateRet(Add);
+  F->setMetadata("zil.header", MDNode::get(Context, {MDString::get(Context, "payload")}));
+  auto Headers = [&] {
+    std::string S; raw_string_ostream OS(S);
+    if (!Print(&M, &OS)) return std::string(); return S;
+  };
+  if (verifyModule(M, nullptr)) return 0;
+  std::string Full; raw_string_ostream FullOS(Full); M.print(FullOS, nullptr, true);
+  // Independent oracle: normal, unmodified LLVM module rendering, with the
+  // one actual body removed. No body-only attributes/types/MD exist here.
+  size_t Begin = Full.find("define "), Body = Full.find(" {", Begin);
+  size_t End = Full.find("}\n", Body);
+  if (Begin == std::string::npos || Body == std::string::npos || End == std::string::npos) return 0;
+  std::string Reference = Full.substr(0, Body) + "\n" + Full.substr(End + 2);
+  std::string Key = Headers();
+  if (Key.empty() || Key != Reference) return 0;
+  Add->setOperand(1, B.getInt32(2));
+  if (Headers() != Key) return 0; // the excluded body is a separate actual key
+  F->setLinkage(GlobalValue::InternalLinkage);
+  if (Headers() == Key) return 0;
+  F->setLinkage(GlobalValue::ExternalLinkage);
+  if (Headers() != Key) return 0;
+  F->addFnAttr(Attribute::NoFree);
+  if (Headers() == Key) return 0;
+  F->removeFnAttr(Attribute::NoFree);
+  F->setMetadata("zil.header", MDNode::get(Context, {MDString::get(Context, "changed")}));
+  if (Headers() == Key) return 0;
+  F->setMetadata("zil.header", MDNode::get(Context, {MDString::get(Context, "payload")}));
+  Global->setInitializer(B.getInt32(8));
+  if (Headers() == Key) return 0;
+  Global->setInitializer(B.getInt32(7));
+  if (Headers() != Key || verifyModule(M, nullptr)) return 0;
+  // Header references into function bodies cannot be rendered by this mode.
+  auto *Target = BasicBlock::Create(Context, "target", F);
+  IRBuilder<> TB(Target); TB.CreateRet(TB.getInt32(0));
+  auto *Address = BlockAddress::get(F, Target);
+  new GlobalVariable(M, Address->getType(), true, GlobalValue::ExternalLinkage, Address, "taken");
+  std::string Rejected; raw_string_ostream RejectedOS(Rejected);
+  return !verifyModule(M, nullptr) && !Print(&M, &RejectedOS) && Rejected.empty();
 }

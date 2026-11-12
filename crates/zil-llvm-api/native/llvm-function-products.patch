@@ -650,3 +650,188 @@
 +    return true;
 +  }
 +
+--- a/llvm/lib/IR/AsmWriter.cpp
++++ b/llvm/lib/IR/AsmWriter.cpp
+@@ -289,0 +290,48 @@
++  UseListOrderMap ULOM;
++  for (const auto &Pair : OM) {
++    const Value *V = Pair.first;
++    if (V->use_empty() || std::next(V->use_begin()) == V->use_end())
++      continue;
++
++    std::vector<unsigned> Shuffle =
++        predictValueUseListOrder(V, Pair.second, OM);
++    if (Shuffle.empty())
++      continue;
++
++    const Function *F = nullptr;
++    if (auto *I = dyn_cast<Instruction>(V))
++      F = I->getFunction();
++    if (auto *A = dyn_cast<Argument>(V))
++      F = A->getParent();
++    if (auto *BB = dyn_cast<BasicBlock>(V))
++      F = BB->getParent();
++    ULOM[F][V] = std::move(Shuffle);
++  }
++  return ULOM;
++}
++
++static OrderMap zilOrderHeaders(const Module *M) {
++  OrderMap OM;
++  for (const GlobalVariable &G : M->globals()) {
++    if (G.hasInitializer() && !isa<GlobalValue>(G.getInitializer()))
++      orderValue(G.getInitializer(), OM);
++    orderValue(&G, OM);
++  }
++  for (const GlobalAlias &A : M->aliases()) {
++    if (!isa<GlobalValue>(A.getAliasee())) orderValue(A.getAliasee(), OM);
++    orderValue(&A, OM);
++  }
++  for (const GlobalIFunc &I : M->ifuncs()) {
++    if (!isa<GlobalValue>(I.getResolver())) orderValue(I.getResolver(), OM);
++    orderValue(&I, OM);
++  }
++  for (const Function &F : *M) {
++    for (const Use &U : F.operands())
++      if (!isa<GlobalValue>(U.get())) orderValue(U.get(), OM);
++    orderValue(&F, OM);
++  }
++  return OM;
++}
++
++static UseListOrderMap zilPredictHeaderUseListOrder(const Module *M) {
++  OrderMap OM = zilOrderHeaders(M);
+@@ -552,0 +601,2 @@
++  void zilEnableHeaderMode() { NativeHeadersOnly = true; }
++
+@@ -573,0 +624 @@
++  bool NativeHeadersOnly = false;
+@@ -616,0 +668,2 @@
++  if (NativeHeadersOnly) NamedTypes.zilRunHeaders(*M);
++  else
+@@ -801,0 +855 @@
++  bool NativeHeadersOnly = false;
+@@ -845,0 +900,2 @@
++  void zilEnableHeaderMode() { NativeHeadersOnly = true; }
++
+@@ -1156,0 +1213,2 @@
++  if (NativeHeadersOnly) { FunctionProcessed = true; return; }
++
+@@ -1231,0 +1290 @@
++  if (NativeHeadersOnly) return;
+@@ -2884,0 +2944 @@
++  bool NativeHeadersOnly = false;
+@@ -2905,0 +2966,5 @@
++
++  void zilEnableHeaderMode() {
++    NativeHeadersOnly = true; Machine.zilEnableHeaderMode();
++    TypePrinter.zilEnableHeaderMode();
++  }
+@@ -3107,0 +3173,3 @@
++  if (NativeHeadersOnly)
++    UseListOrders = zilPredictHeaderUseListOrder(M);
++  else
+@@ -4272,0 +4341,11 @@
++  }
++
++  if (NativeHeadersOnly) {
++    if (!F->isDeclaration()) {
++      SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
++      F->getAllMetadata(MDs);
++      printMetadataAttachments(MDs, " ");
++    }
++    // This is a private projection, never parsed as executable LLVM IR.
++    // Keeping define vs declare and argument names preserves actual headers.
++    Out << '\n'; Machine.purgeFunction(); return;
+@@ -5550,0 +5630,86 @@
++
++// Private, additive native-product rendering entry. Every normal LLVM print
++// path above keeps its original mode. There is no clone, IR mutation, body
++// instruction/type/metadata scan, or retained LLVM owner in this projection.
++void TypeFinder::zilRunHeaders(const Module &M) {
++  OnlyNamed = false;
++  SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
++  auto Metadata = [&](const GlobalObject &G) {
++    MDs.clear(); G.getAllMetadata(MDs);
++    for (const auto &E : MDs) incorporateMDNode(E.second);
++  };
++  for (const GlobalVariable &G : M.globals()) {
++    incorporateType(G.getValueType());
++    if (G.hasInitializer()) incorporateValue(G.getInitializer());
++    Metadata(G);
++  }
++  for (const GlobalAlias &A : M.aliases()) {
++    incorporateType(A.getValueType());
++    if (const Value *V = A.getAliasee()) incorporateValue(V);
++  }
++  for (const GlobalIFunc &I : M.ifuncs()) {
++    incorporateType(I.getValueType()); incorporateValue(I.getResolver());
++    Metadata(I);
++  }
++  for (const Function &F : M) {
++    incorporateType(F.getFunctionType()); incorporateAttributes(F.getAttributes());
++    for (const Use &U : F.operands()) incorporateValue(U.get());
++    for (const Argument &A : F.args()) incorporateValue(&A);
++    Metadata(F);
++  }
++  for (const NamedMDNode &N : M.named_metadata())
++    for (const MDNode *MD : N.operands()) incorporateMDNode(MD);
++}
++
++namespace {
++bool zilHeadersHaveNoBodyReferences(const Module &M) {
++  SmallPtrSet<const Value *, 32> SeenValues;
++  SmallPtrSet<const Metadata *, 32> SeenMetadata;
++  SmallVector<const Value *, 32> Values;
++  SmallVector<const Metadata *, 32> Metadata;
++  SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
++  auto AddMetadata = [&](const GlobalObject &G) {
++    MDs.clear(); G.getAllMetadata(MDs);
++    for (const auto &E : MDs) Metadata.push_back(E.second);
++  };
++  for (const GlobalVariable &G : M.globals()) {
++    if (G.hasInitializer()) Values.push_back(G.getInitializer()); AddMetadata(G);
++  }
++  for (const GlobalAlias &A : M.aliases()) Values.push_back(A.getAliasee());
++  for (const GlobalIFunc &I : M.ifuncs()) {
++    Values.push_back(I.getResolver()); AddMetadata(I);
++  }
++  for (const Function &F : M) {
++    for (const Use &U : F.operands()) Values.push_back(U.get()); AddMetadata(F);
++  }
++  for (const NamedMDNode &N : M.named_metadata())
++    for (const MDNode *MD : N.operands()) Metadata.push_back(MD);
++  while (!Values.empty() || !Metadata.empty()) {
++    while (!Metadata.empty()) {
++      const auto *MD = Metadata.pop_back_val();
++      if (!MD || !SeenMetadata.insert(MD).second) continue;
++      if (const auto *N = dyn_cast<MDNode>(MD)) {
++        for (const MDOperand &O : N->operands()) Metadata.push_back(O.get());
++      } else if (const auto *V = dyn_cast<ConstantAsMetadata>(MD)) {
++        Values.push_back(V->getValue());
++      } else if (!isa<MDString>(MD)) return false;
++    }
++    while (!Values.empty()) {
++      const Value *V = Values.pop_back_val();
++      if (!V || !SeenValues.insert(V).second) continue;
++      if (isa<GlobalValue>(V)) continue;
++      if (!isa<Constant>(V) || isa<BlockAddress>(V)) return false;
++      for (const Use &U : cast<Constant>(V)->operands()) Values.push_back(U.get());
++    }
++  }
++  return true;
++}
++}
++extern "C" LLVM_ABI int ZilLLVMPrintModuleHeaders(const void *Input, void *Stream) {
++  if (!Input || !Stream) return 0;
++  const auto &M = *static_cast<const Module *>(Input);
++  if (!zilHeadersHaveNoBodyReferences(M)) return 0;
++  SlotTracker Slots(&M); formatted_raw_ostream OS(*static_cast<raw_ostream *>(Stream));
++  AssemblyWriter Writer(OS, Slots, &M, nullptr, false, true);
++  Writer.zilEnableHeaderMode(); Writer.printModule(&M); return 1;
++}
+--- a/llvm/include/llvm/IR/TypeFinder.h
++++ b/llvm/include/llvm/IR/TypeFinder.h
+@@ -45,0 +46,2 @@
++  // Private native work-product projection; no class-layout or vtable change.
++  LLVM_ABI void zilRunHeaders(const Module &M);
