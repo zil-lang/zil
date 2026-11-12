@@ -837,9 +837,9 @@
       "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
     },
     "full_push_native": {
-      "read_goal": "f316998f66f20d2502e604d69b6daf6810c3e3fb",
+      "read_goal": "77b630be162cb99879bac2d95036c8daec23d886",
       "branch": "research/full-push-native",
-      "checkpoint": "b85c5be4b",
+      "checkpoint": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
       "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
       "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
       "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
@@ -860,12 +860,12 @@
           "ignored": 0
         },
         "overlap": "前面的105/424测试与1588重叠，不累加",
-        "driver_actual_425": "Measured afc1319 real425 CGU16/O2/jobs1 diagnostic04:34valid/180native/15wholeELFequalpairs. Private633.931ms,78optstage reuses/300exec,507analyses,39MFreuse/3exec4875skips0fallback. No demonstrated new speed gain; cold8565/broad8893 negatives retained. Candidate-only profile single block, no current Rust claim.",
+        "driver_actual_425": "Latest measured c35e4c3815a1c25a4975b19b95c5022726c8f5f6/SDK14 diagnostic05:34valid/180native/15wholeELFequal. Private622.635ms,78opt-stage+39MFreuse0fallback; emit86.600ms, combined tiny-header/typed reconstruction14.433ms, opt247.009ms. cold9105/broad8652/recovery1152 negatives. No formal new speed/Rust claim. New SDK15/world/TLI/compact candidate real425 pending.",
         "latest_verify": "646 library tests passed through bd21; next exact raw_nodes run04 23/23 passed including symbol-header obligation; overlap not summed.",
         "latest_compile": "Frozen16a full workspace33groups completed32pass/1fail;6355tests passed/1 default-worker-stack overflow. Binary dispatch stack repaird298737e9 passes original complete generic214 and Types95. Not a new full frozen workspace pass.",
         "measurement_tools": "32 lightweight tests passed after actual per-arm mapped LLVM DSO binding; original main SDK and modified candidate SDK are separated and archived.",
-        "native": "SDKv13 full native07/08 53/0/0 with joint4stage/2MFreuse in actual complex reproducer; typed body first full09 also53/0/0, scratch255+numbering15+bundle7 actual1pass. New independent F12 confirmed local Use iteration order absent from Function.print(true) keys; current general input-binding acceptance pending explicit dependency+negative test. Old passes remain observations, not a proof closing F12.",
-        "raw_machine_history": "f46645e44 four successful raw epochs restore machine+entry/context/product identities atomically; backend library232pass/1 old last-only expectation fail, exact-budget corrected test separately1pass without budget/error/result weakening. Driver lifecycle still testing. Count4 cap is not RSS/byte cap.",
+        "native": "SDK15 buildPass; native15 58/0/0 and strict workspace/alltarget nativeClippy03pass at433. Direct-header independent bytes+fallback and TLI exactmemo/canonicalcaps, all original complex MIR/object equality and typed255/bundle7/numbering15 preserved. Native14 57/1 was fixture DSOLocal restoration error, fixed without changing renderer/assertions; failure retained. F12 explicitUse+hiddenBlockAddress and F13 completeCallAttrs/MD bounded source reviews close those recorded findings, not universal LLVM domain.",
+        "raw_machine_history": "Four successful raw epochs restore identities and values atomically; original backend232pass plus exact-budget failure/recovery test1pass; full real-driver mixed-role/lifecycle3pass. Driver successful disabled builds clear history; failure retains. Count4 cap, not byte/RSS. Current actual425restore has0bodylower/fullmodule hit.",
         "strict_clippy": "Default llvm-api all-workspace/all-target Clippy07 passes; native-products all-workspace/all-target Clippy01 passes. Later typed/history source requires final rerun."
       },
       "llvm_extension": {
@@ -874,7 +874,7 @@
         "status": "v2 four pinned LLVM TUs/three archives built and linked successfully; optimization and MIR native consumers remain unaccepted; Cargo native-products feature and runtime push switch both explicit/default off",
         "v2_patch_sha256": "0f92df0a1695b002c8676c6b5f23864fd3a2a1f33014f5cd359e52256486e195"
       },
-      "remaining": "F12 current dependency gap first; typedbody rawprob exactness+world/header/TLI projection dedup and raw-machine history actual425 integration still construction. Main/Rust balanced unprofiled final matrix pending, complete push/minimality not accepted.",
+      "remaining": "Current433 release05 and real425profile06 pending. Outer whole-project/global checks/positions and14fresh LLVMfunction stages/module+CGSCC work remain; complete push/minimality and final unprofiled balanced main/candidate/Rust matrices not accepted.",
       "raw": {
         "archive_commit": "b122d56f2a13a3e710ce3e56cdb70df6f843f037",
         "path": "research/incremental-demand-full-push-20261112-v5",
