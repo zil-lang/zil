@@ -642,8 +642,8 @@ mod enabled {
 pub(crate) use enabled::{Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
 pub(crate) use enabled::{
-    analysis_diagnostics_for_test, fail_next_finish_for_test, machine_numbering_tests_for_test,
-    stage_always_for_test,
+    analysis_diagnostics_for_test, fail_next_finish_for_test, machine_header_disabled_for_test,
+    machine_numbering_tests_for_test, stage_always_for_test,
 };
 
 #[cfg(all(test, feature = "native-products", feature = "text-reference"))]
