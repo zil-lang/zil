@@ -946,7 +946,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     if !f.returned_head_inputs.is_empty() {
         fee(b, f.returned_head_inputs.len())?;
     }
-    for (_,path) in &f.external_stable {fee(b,path.len().saturating_add(1))?;}
+    for (_, path) in &f.external_stable {
+        fee(b, path.len().saturating_add(1))?;
+    }
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -6752,10 +6754,12 @@ fn derive_cfg(
             }
             if b.receiver_borrows || b.mutable_capture_contexts {
                 for (base, rows) in &entry.external {
-                    let HoldRoot::Parameter(parameter)=base else {continue;};
+                    let HoldRoot::Parameter(parameter) = base else {
+                        continue;
+                    };
                     for path in rows.keys() {
-                        fee(b,path.len().saturating_add(1))?;
-                        actual.external_stable.insert((*parameter,path.clone()));
+                        fee(b, path.len().saturating_add(1))?;
+                        actual.external_stable.insert((*parameter, path.clone()));
                     }
                 }
             }
@@ -6774,17 +6778,28 @@ fn derive_cfg(
                     && *live
                     && matches!(block.terminator, Terminator::Return(_))
                 {
-                    let mut changed_rows=Vec::new();
-                    for (parameter,path) in &actual.external_stable {
-                        fee(b,path.len().saturating_add(1))?;
-                        let base=HoldRoot::Parameter(*parameter);
-                        let initial=entry.external.get(&base).and_then(|rows|rows.get(path));
-                        let terminal=outputs[bi].external.get(&base).and_then(|rows|rows.get(path));
-                        if let Some(value)=initial {permission_clone_work(value,b)?;}
-                        if let Some(value)=terminal {permission_clone_work(value,b)?;}
-                        if initial!=terminal {changed_rows.push((*parameter,path.clone()));}
+                    let mut changed_rows = Vec::new();
+                    for (parameter, path) in &actual.external_stable {
+                        fee(b, path.len().saturating_add(1))?;
+                        let base = HoldRoot::Parameter(*parameter);
+                        let initial = entry.external.get(&base).and_then(|rows| rows.get(path));
+                        let terminal = outputs[bi]
+                            .external
+                            .get(&base)
+                            .and_then(|rows| rows.get(path));
+                        if let Some(value) = initial {
+                            permission_clone_work(value, b)?;
+                        }
+                        if let Some(value) = terminal {
+                            permission_clone_work(value, b)?;
+                        }
+                        if initial != terminal {
+                            changed_rows.push((*parameter, path.clone()));
+                        }
                     }
-                    for row in changed_rows {actual.external_stable.remove(&row);}
+                    for row in changed_rows {
+                        actual.external_stable.remove(&row);
+                    }
                     for (base, slots) in &outputs[bi].external {
                         let HoldRoot::Parameter(index) = base else {
                             continue;

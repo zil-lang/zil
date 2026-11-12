@@ -6645,9 +6645,13 @@ fn solve_check(
         let mut relations = relation_index::Relations::new(f, b)?;
         let receiver_definition =
             captured_definition(module, f, b).filter(|d| receiver::declared(d));
-        let capture_result_definition = captured_definition(module, f, b).filter(|d|
-            d.storage_life.as_ref().is_some_and(|life|life.bindings.iter()
-                .any(|row| row.position.base == StorageBase::Result)));
+        let capture_result_definition = captured_definition(module, f, b).filter(|d| {
+            d.storage_life.as_ref().is_some_and(|life| {
+                life.bindings
+                    .iter()
+                    .any(|row| row.position.base == StorageBase::Result)
+            })
+        });
         for path in &s.receiver_results {
             let c = f
                 .storage_life
@@ -6663,10 +6667,14 @@ fn solve_check(
                 ));
             }
         }
-        let lender = captured_definition(module, f, b)
-            .filter(|d| super::stored_callables::lending(d)
-                && !d.storage_life.as_ref().is_some_and(|life| life.bindings.iter()
-                    .any(|row| row.position.base == StorageBase::Result)));
+        let lender = captured_definition(module, f, b).filter(|d| {
+            super::stored_callables::lending(d)
+                && !d.storage_life.as_ref().is_some_and(|life| {
+                    life.bindings
+                        .iter()
+                        .any(|row| row.position.base == StorageBase::Result)
+                })
+        });
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
             let mut fields = Vec::new();

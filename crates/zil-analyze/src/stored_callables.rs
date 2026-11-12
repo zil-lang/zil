@@ -91,7 +91,17 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
-    if lending(d) && !d.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position.base==StorageBase::Result)) { &Type::Unit } else { &d.result }
+    if lending(d)
+        && !d.storage_life.as_ref().is_some_and(|life| {
+            life.bindings
+                .iter()
+                .any(|row| row.position.base == StorageBase::Result)
+        })
+    {
+        &Type::Unit
+    } else {
+        &d.result
+    }
 }
 pub(super) fn result_is_receiver(d: &ClosureDefinition) -> bool {
     d.storage_life.as_ref().is_some_and(|life| {
@@ -107,6 +117,14 @@ pub(super) fn fixed_result(d: &ClosureDefinition) -> bool {
             Some(StorageBinder::Fixed(_))
         )
     })
+}
+
+pub(super) fn transferred(d: &ClosureDefinition) -> bool {
+    d.kind == CallableKind::FnOnce
+        && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
+        && fixed_result(d)
+        && !d.storage_life.as_ref().is_some_and(|life| life.bindings.iter()
+            .any(|row| row.position.base == StorageBase::Receiver))
 }
 
 // A scheduling tag, never qualification. definitions() rechecks the complete

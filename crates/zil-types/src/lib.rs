@@ -701,7 +701,7 @@ pub fn check(
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
-    let returned_life_bounds=std::mem::take(&mut closure_state.returned_life_bounds);
+    let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -752,7 +752,8 @@ pub fn check(
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
-    retained::populate_return_lives(&mut module,&returned_life_bounds,&mut remaining).map_err(|e|vec![e])?;
+    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining)
+        .map_err(|e| vec![e])?;
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
@@ -830,12 +831,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
-        if let Some(bound)=&f.callable_return
-            && (bound.life.is_some() || bound.source_life.is_some()) {
-            let mut remaining=closures.remaining_work();
-            inference::charge_returned_value_snapshot(bound,f.span,limits,&mut remaining)?;
-            closures.snapshot(closures.remaining_work()-remaining,f.span)?;
-            closures.returned_life_bounds.insert(id,bound.clone());
+        if let Some(bound) = &f.callable_return
+            && (bound.life.is_some() || bound.source_life.is_some())
+        {
+            let mut remaining = closures.remaining_work();
+            inference::charge_returned_value_snapshot(bound, f.span, limits, &mut remaining)?;
+            closures.snapshot(closures.remaining_work() - remaining, f.span)?;
+            closures.returned_life_bounds.insert(id, bound.clone());
         }
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)
