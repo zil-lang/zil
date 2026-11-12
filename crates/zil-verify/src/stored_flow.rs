@@ -6029,11 +6029,9 @@ fn summarize(
             task_address::summarize(f, payload, &mut summary, b)?;
             dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
             if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
-                add_sources(
-                    &mut summary.dyn_result_parents,
-                    &dyn_returns::parents(&payload.address, &solution.loans, b)?,
-                    b,
-                )?;
+                let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
+                dyn_returns::check_parent_escape(f, &parents, b)?;
+                add_sources(&mut summary.dyn_result_parents, &parents, b)?;
             }
         }
     }

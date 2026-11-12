@@ -501,6 +501,24 @@ pub(super) fn after(
 
 /// Preserve actual non-target parents across an ordinary call boundary. The
 /// source graph of each ancestor was reconstructed by this kernel's SSA pass.
+pub(super) fn check_parent_escape(
+    f: &TypedFunction,
+    sources: &[Source],
+    b: &mut Budget,
+) -> Check<()> {
+    source_work(sources, b)?;
+    for source in sources {
+        if matches!(source.base, HoldRoot::Local(_))
+            || f.environment.is_none() && matches!(source.base, HoldRoot::Capture(_))
+        {
+            return Err(bad(
+                "borrowed result retains an activation-local parent loan",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn parents(
     permission: &Permission,
     loans: &[Loan],
