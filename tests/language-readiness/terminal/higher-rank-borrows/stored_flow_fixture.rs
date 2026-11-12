@@ -56,6 +56,7 @@ fn function(
     result: u32,
 ) -> TypedFunction {
     TypedFunction {
+        resume_bound: zil_ir::TaskResumeBound::Local,
         storage_life: None,
         call_kind: CallKind::Direct,
         reference_return_bound: None,

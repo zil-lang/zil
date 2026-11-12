@@ -24,6 +24,7 @@ pub fn module() -> TypedModule {
         inner: Box::new(package),
     };
     let function = TypedFunction {
+        resume_bound: zil_ir::TaskResumeBound::Local,
         storage_life: None,
         call_kind: CallKind::Direct,
         reference_return_bound: None,
