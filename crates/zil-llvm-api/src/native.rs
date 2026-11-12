@@ -825,6 +825,7 @@ mod native_product_tests {
 
     #[test]
     fn installed_native_extension_reuses_real_o2_stages_and_machine_functions() {
+        let _diagnostics = products::analysis_diagnostics_for_test();
         let source = module(42);
         let (cold, _, products) = compile_products(&source, None);
         let stats = cold
