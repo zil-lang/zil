@@ -3,6 +3,30 @@
 use super::*;
 
 impl Expander<'_> {
+    pub(super) fn record_dyn_provider(&mut self, name: &str, function: NodeId, span: Span) {
+        let Some(catalog) = self.dynamic_catalog.filter(|catalog| !catalog.is_empty()) else {
+            return;
+        };
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let found = catalog.has_generated_provider(name, &mut budget, span);
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match found {
+            Ok(true) => self.record_dyn_method(usize::MAX, function, span),
+            Ok(false) => {}
+            Err(error) => self.diagnostics.push(error),
+        }
+    }
+
     pub(super) fn source_flat_life(
         &mut self,
         life: zil_ir::FunctionLifeContract,

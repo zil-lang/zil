@@ -22,14 +22,8 @@ pub(crate) struct Interface {
 }
 #[derive(Clone)]
 pub(crate) struct Provider {
+    pub(crate) generated: Option<String>,
     pub(crate) implementation: origins::DeclId,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Retained dyn provider recipe; runtime dispatch consumer is not implemented yet"
-        )
-    )]
     pub(crate) declaration: origins::MemberId,
     #[cfg_attr(
         not(test),
@@ -50,6 +44,9 @@ pub(crate) struct Provider {
 }
 #[derive(Clone)]
 pub(crate) struct Vtable {
+    pub(crate) qualified_self: Option<zil_ir::Type>,
+    pub(crate) ports: Vec<zil_ir::DynRetainedPortBinding>,
+    pub(crate) actuals: Vec<zil_ir::DynGenericActual>,
     pub(crate) interface: usize,
     pub(crate) implementation: origins::DeclId,
     pub(crate) self_type: TypeRef,
@@ -76,6 +73,27 @@ pub(in crate::generics) fn is_interface(ty: &TypeRef) -> bool {
     matches!(grouped(ty).kind, TypeKind::Dyn { .. })
 }
 impl Catalog {
+    pub(crate) fn has_generated_provider(
+        &self,
+        name: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<bool> {
+        for table in &self.vtables {
+            budget.node(span, 0)?;
+            for provider in &table.providers {
+                budget.node(span, 0)?;
+                if let Some(expected) = &provider.generated {
+                    budget.text(name, span)?;
+                    budget.text(expected, span)?;
+                    if expected == name {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
     pub(in crate::generics) fn materialize_context(
         &mut self,
         index: &Index<'_>,
@@ -85,7 +103,8 @@ impl Catalog {
         span: Span,
     ) -> R<(String, zil_ir::Type)> {
         let reference = index.dynamic_reference(target, budget)?;
-        let base = self.find(&reference, budget, span)?
+        let base = self
+            .find(&reference, budget, span)?
             .ok_or_else(|| error(span, "dyn Context has no actual trait recipe"))?;
         let mut selected = None;
         for (ordinal, interface) in self.interfaces.iter().enumerate() {
@@ -95,14 +114,23 @@ impl Catalog {
                 if let Some(existing) = &interface.context {
                     crate::stored_types::pay_type(existing, budget, span, 0)?;
                     crate::stored_types::pay_type(&context, budget, span, 0)?;
-                    if existing == &context { selected = Some(ordinal); break; }
+                    if existing == &context {
+                        selected = Some(ordinal);
+                        break;
+                    }
                 }
             }
         }
-        let ordinal = if let Some(ordinal) = selected { ordinal } else {
+        let ordinal = if let Some(ordinal) = selected {
+            ordinal
+        } else {
             let source = &self.interfaces[base];
-            for slot in &source.slots { budget.const_function(&slot.signature)?; }
-            for inherited in &source.inherited { pay_key(&inherited.key, budget, span)?; }
+            for slot in &source.slots {
+                budget.const_function(&slot.signature)?;
+            }
+            for inherited in &source.inherited {
+                pay_key(&inherited.key, budget, span)?;
+            }
             crate::stored_types::pay_type(&context, budget, span, 0)?;
             let mut interface = source.clone();
             interface.context = Some(context);
@@ -111,48 +139,79 @@ impl Catalog {
             self.interfaces.push(interface);
             for owned in [false, true] {
                 budget.text("$dyn_context_owned_00000000000000000000", span)?;
-                let symbol = format!("$dyn_context_{}_{ordinal}", if owned { "owned" } else { "view" });
+                let symbol = format!(
+                    "$dyn_context_{}_{ordinal}",
+                    if owned { "owned" } else { "view" }
+                );
                 self.context_types.push((symbol, ordinal, owned));
             }
             ordinal
         };
         budget.node(span, 0)?;
         self.owned_interfaces.push(reference);
-        let symbol = self.context_types.iter().find(|(_, at, owned)| *at == ordinal && *owned)
-            .ok_or_else(|| error(span, "materialized dyn Context token absent"))?.0.clone();
+        let symbol = self
+            .context_types
+            .iter()
+            .find(|(_, at, owned)| *at == ordinal && *owned)
+            .ok_or_else(|| error(span, "materialized dyn Context token absent"))?
+            .0
+            .clone();
         budget.text(&symbol, span)?;
-        Ok((symbol, zil_ir::Type::OwnedDyn { interface: self.interface_id(ordinal, budget, span)? }))
+        Ok((
+            symbol,
+            zil_ir::Type::OwnedDyn {
+                interface: self.interface_id(ordinal, budget, span)?,
+            },
+        ))
     }
 
     pub(in crate::generics) fn context_type(
-        &self, ty: &TypeRef, budget: &mut Budget<'_>,
+        &self,
+        ty: &TypeRef,
+        budget: &mut Budget<'_>,
     ) -> R<Option<zil_ir::Type>> {
-        let TypeKind::Named { path, args } = &ty.kind else { return Ok(None); };
-        if path.len() != 1 || !args.is_empty() { return Ok(None); }
+        let TypeKind::Named { path, args } = &ty.kind else {
+            return Ok(None);
+        };
+        if path.len() != 1 || !args.is_empty() {
+            return Ok(None);
+        }
         for (symbol, ordinal, owned) in &self.context_types {
             budget.text(symbol, ty.span)?;
             budget.text(&path[0], ty.span)?;
             if symbol == &path[0] {
                 let interface = self.interface_id(*ordinal, budget, ty.span)?;
-                return Ok(Some(if *owned { zil_ir::Type::OwnedDyn { interface } } else { zil_ir::Type::Dyn { interface } }));
+                return Ok(Some(if *owned {
+                    zil_ir::Type::OwnedDyn { interface }
+                } else {
+                    zil_ir::Type::Dyn { interface }
+                }));
             }
         }
         Ok(None)
     }
 
     pub(in crate::generics) fn context_view_token(
-        &self, owned: &str, budget: &mut Budget<'_>, span: Span,
+        &self,
+        owned: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
     ) -> R<String> {
         let mut ordinal = None;
         for (symbol, at, is_owned) in &self.context_types {
             budget.text(symbol, span)?;
             budget.text(owned, span)?;
-            if *is_owned && symbol == owned { ordinal = Some(*at); }
+            if *is_owned && symbol == owned {
+                ordinal = Some(*at);
+            }
         }
-        let ordinal = ordinal.ok_or_else(|| error(span, "owned Context token has no actual interface"))?;
+        let ordinal =
+            ordinal.ok_or_else(|| error(span, "owned Context token has no actual interface"))?;
         for (symbol, at, is_owned) in &self.context_types {
             budget.text(symbol, span)?;
-            if !*is_owned && *at == ordinal { return Ok(symbol.clone()); }
+            if !*is_owned && *at == ordinal {
+                return Ok(symbol.clone());
+            }
         }
         Err(error(span, "Context view token is absent"))
     }
@@ -211,7 +270,7 @@ impl Catalog {
             .transpose()
     }
 }
-fn copy_reference(
+pub(in crate::generics) fn copy_reference(
     reference: &trait_instances::Reference,
     budget: &mut Budget<'_>,
     span: Span,
@@ -239,7 +298,7 @@ fn owned_signature(
     Ok(signature)
 }
 impl Index<'_> {
-    fn dynamic_reference(
+    pub(in crate::generics) fn dynamic_reference(
         &self,
         ty: &TypeRef,
         budget: &mut Budget<'_>,
@@ -455,6 +514,7 @@ impl Index<'_> {
                 unreachable!()
             };
             providers.push(Provider {
+                generated: None,
                 implementation: self
                     .origin(selected_witness.item, budget)?
                     .ok_or_else(|| error(member.span, "dyn slot implementation origin absent"))?
@@ -466,6 +526,9 @@ impl Index<'_> {
         }
         budget.ty(&witness.actual)?;
         Ok(Vtable {
+            qualified_self: None,
+            ports: Vec::new(),
+            actuals: Vec::new(),
             interface,
             implementation: implementation_origin.declaration,
             self_type: witness.actual,
