@@ -4,6 +4,7 @@
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -25,6 +26,9 @@ namespace zil {
 namespace {
 using ID = const void *;
 thread_local bool MachineDiagnostics = false;
+thread_local bool MachineNumberingTests = false;
+thread_local bool MachineNumberingTestsRan = false;
+thread_local uint32_t MachineNumberingTestBits = 0;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -249,6 +253,90 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
   return Text;
 }
 
+// Invoked only by an explicit test scope. The scratch MF is never registered
+// with current MMI, and none of its blocks enter the actual emitted function.
+void testMachineNumbering(llvm::MachineFunction &Current,
+                          llvm::MachineModuleInfo &MMI) {
+  if (!MachineNumberingTests || MachineNumberingTestsRan) return;
+  MachineNumberingTestsRan = true;
+  llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
+                           Current.getSubtarget(), Current.getContext(), 37);
+  auto *A = MF.CreateMachineBasicBlock();
+  auto *B = MF.CreateMachineBasicBlock();
+  auto *C = MF.CreateMachineBasicBlock();
+  MF.push_back(A); MF.push_back(B); MF.push_back(C);
+  A->addSuccessor(B); B->addSuccessor(C);
+  const unsigned Numbers[] = {6, 1, 4};
+  const unsigned Analysis[] = {8, 2, 6};
+  const auto Restore = targetInfoAPI().restoreBlockNumbers;
+  auto Check = [](unsigned Bit, bool Good) {
+    if (Good) MachineNumberingTestBits |= uint32_t(1) << Bit;
+  };
+  auto Intact = [&]() {
+    return MF.size() == 3 && MF.getFunctionNumber() == 37 &&
+           MF.getNumBlockIDs() == 9 && MF.getMaxAnalysisBlockNumber() == 12 &&
+           MF.getAnalysisBlockNumberEpoch() == 7 &&
+           &MF.front() == A && &MF.back() == C &&
+           A->getNumber() == 6 && B->getNumber() == 1 && C->getNumber() == 4 &&
+           A->getAnalysisNumber() == 8 && B->getAnalysisNumber() == 2 &&
+           C->getAnalysisNumber() == 6 && MF.getBlockNumbered(6) == A &&
+           MF.getBlockNumbered(1) == B && MF.getBlockNumbered(4) == C;
+  };
+  if (!Restore(&MF, 9, 12, 7, Numbers, Analysis, 3) || !Intact()) return;
+  Check(0, true);
+  llvm::MachineDominatorTree DT;
+  DT.recalculate(MF);
+  Check(1, DT.dominates(A, C) && DT.dominates(B, C) &&
+           DT.getNode(A) && DT.getNode(C) &&
+           llvm::GraphTraits<llvm::MachineFunction *>::getMaxNumber(&MF) == 12 &&
+           llvm::GraphTraits<llvm::MachineFunction *>::getNumberEpoch(&MF) == 7);
+  const std::string Before = machineText(MMI, MF);
+  auto Reject = [&](unsigned Bit, unsigned Capacity, unsigned Next,
+                    const unsigned *IDs, const unsigned *AnalysisIDs, uint64_t Count) {
+    const bool Refused = !Restore(&MF, Capacity, Next, 99, IDs, AnalysisIDs, Count);
+    Check(Bit, Refused && Intact() && machineText(MMI, MF) == Before);
+  };
+  const unsigned DuplicateIDs[] = {6, 6, 4}, DuplicateAnalysis[] = {8, 8, 6};
+  const unsigned OutsideIDs[] = {9, 1, 4}, OutsideAnalysis[] = {12, 2, 6};
+  const unsigned NarrowingIDs[] = {~unsigned(0), 1, 4};
+  const unsigned TooLarge = MaxMachinePayload / sizeof(llvm::MachineBasicBlock *) + 1;
+  Reject(2, 9, 12, DuplicateIDs, Analysis, 3);
+  Reject(3, 9, 12, Numbers, DuplicateAnalysis, 3);
+  Reject(4, 9, 12, OutsideIDs, Analysis, 3);
+  Reject(5, 9, 12, Numbers, OutsideAnalysis, 3);
+  Reject(6, 9, 12, Numbers, Analysis, 2);
+  Reject(7, 9, 12, nullptr, Analysis, 3);
+  Reject(8, 9, 12, Numbers, nullptr, 3);
+  Reject(9, TooLarge, 12, Numbers, Analysis, 3);
+  Reject(10, 9, TooLarge, Numbers, Analysis, 3);
+  Reject(11, 9, 12, NarrowingIDs, Analysis, 3);
+  // Exercise allocation and analysis consumers after sparse restoration.
+  auto *D = MF.CreateMachineBasicBlock(); MF.push_back(D); C->addSuccessor(D);
+  DT.recalculate(MF);
+  Check(12, D->getNumber() == 9 && D->getAnalysisNumber() == 12 &&
+            MF.getBlockNumbered(9) == D && MF.getNumBlockIDs() == 10 &&
+            MF.getMaxAnalysisBlockNumber() == 13 && DT.dominates(B, D));
+  A->removeSuccessor(B); B->removeSuccessor(C); A->addSuccessor(C); MF.erase(B);
+  auto *E = MF.CreateMachineBasicBlock(); MF.push_back(E); D->addSuccessor(E);
+  DT.recalculate(MF);
+  Check(13, E->getNumber() == 10 && E->getAnalysisNumber() == 13 &&
+            MF.getBlockNumbered(6) == A && MF.getBlockNumbered(4) == C &&
+            MF.getBlockNumbered(9) == D && MF.getBlockNumbered(10) == E &&
+            MF.getNumBlockIDs() == 11 && MF.getMaxAnalysisBlockNumber() == 14 &&
+            MF.getAnalysisBlockNumberEpoch() == 7 && DT.dominates(A, E) &&
+            DT.dominates(C, E) && DT.dominates(D, E));
+  for (auto &BB : MF)
+    while (!BB.succ_empty()) BB.removeSuccessor(BB.succ_begin());
+  while (!MF.empty()) MF.erase(MF.begin());
+  const bool Empty = Restore(&MF, 0, 0, 9, nullptr, nullptr, 0);
+  auto *Fresh = MF.CreateMachineBasicBlock(); MF.push_back(Fresh);
+  DT.recalculate(MF);
+  Check(14, Empty && Fresh->getNumber() == 0 && Fresh->getAnalysisNumber() == 0 &&
+            MF.getBlockNumbered(0) == Fresh && MF.getNumBlockIDs() == 1 &&
+            MF.getMaxAnalysisBlockNumber() == 1 && MF.getAnalysisBlockNumberEpoch() == 9 &&
+            MF.getFunctionNumber() == 37 && DT.getNode(Fresh));
+}
+
 bool providers(Snapshot &S) {
   std::vector<ID> Pending;
   for (const auto &Step : S.sequence)
@@ -434,6 +522,8 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     return 1;
   }
   if (Printer) {
+    if (MachineNumberingTests)
+      if (auto *MF = MMI.getMachineFunction(F)) testMachineNumbering(*MF, MMI);
     ++R.stats.asm_printer_runs;
     C.emitted = true;
     if (!C.replay && C.recording) {
@@ -544,4 +634,18 @@ extern "C" int ZilNativeProductsMachineDiagnostics(int Enabled) {
   const bool Old = zil::MachineDiagnostics;
   zil::MachineDiagnostics = Enabled != 0;
   return Old;
+}
+
+extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
+  const bool Old = zil::MachineNumberingTests;
+  zil::MachineNumberingTests = Enabled != 0;
+  if (Enabled) {
+    zil::MachineNumberingTestsRan = false;
+    zil::MachineNumberingTestBits = 0;
+  }
+  return Old;
+}
+extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults() {
+  return zil::MachineNumberingTestBits |
+         (zil::MachineNumberingTestsRan ? uint32_t(0x80000000) : 0);
 }
