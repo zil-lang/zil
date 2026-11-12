@@ -121,8 +121,8 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     assert_eq!(stats.raw_shape_functions_reused, 1);
     assert_eq!(stats.raw_inventory_functions_reused, 15);
     assert_eq!(stats.raw_inventory_functions_checked, 1);
-    assert_eq!(stats.resource_inventory_functions_checked, 1);
-    assert_eq!(stats.resource_inventory_functions_reused, 15);
+    assert_eq!(stats.resource_inventory_functions_checked, 0);
+    assert_eq!(stats.resource_inventory_functions_reused, 16);
     assert_eq!(stats.region_functions_reused, 15);
     assert_eq!(stats.lexical_cleanup_functions_reused, 15);
     assert_eq!(stats.closure_instance_functions_checked, 0);
