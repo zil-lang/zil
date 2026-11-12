@@ -115,6 +115,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         vec![ContractProjection::RetainedPort(0)],
         dyn_ports::Port {
             parent_sources: Vec::new(),
+            head_sources: Vec::new(),
             permission: Permission {
                 sources: vec![source],
                 loans: vec![],
@@ -457,6 +458,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
                 loans: vec![4],
             },
             parent_sources: vec![],
+            head_sources: Vec::new(),
             known: true,
         },
     )]);
@@ -511,6 +513,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
                         loans: vec![],
                     },
                     parent_sources: vec![],
+                    head_sources: Vec::new(),
                     known: true,
                 },
             )]),
@@ -929,5 +932,256 @@ fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
     assert_eq!(
         b.dyn_static_classes[0].grounding,
         DynClassGrounding::Unknown
+    );
+}
+
+fn borrowed_owner_boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
+    let (module, mut f, mut actual) = boundary();
+    let owner = f.return_type.clone();
+    for local in &mut f.locals {
+        local.ty = Type::Address {
+            mutable: true,
+            inner: Box::new(owner.clone()),
+        };
+    }
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 1;
+    let output = life.classes[0].position.clone();
+    life.classes = vec![
+        SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        },
+        SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(1),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        },
+        SignatureLifeClassBinding {
+            position: output,
+            binder: StorageBinder::Fixed(0),
+        },
+    ];
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::ReborrowedLeaf {
+        source: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(0)],
+        },
+        head: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![],
+        },
+    }];
+    actual.0[0].1.permission.sources[0].retained_port = Some(PortOrigin::Dyn {
+        carrier: vec![],
+        port: 0,
+    });
+    (module, f, actual)
+}
+
+#[test]
+fn reborrow_keeps_data_fixed_class_and_rejects_a_same_typed_unrelated_head() {
+    let (module, mut f, actual) = borrowed_owner_boundary();
+    assert!(checked(&module, &f, &actual));
+    let output = &module.dyn_interfaces[0].retained_life.ports[0].leaf;
+    let (_, binder, selected) = atoms::resolve_output(
+        &module,
+        &f,
+        &f.retained_return_sources.as_ref().unwrap()[0].sources[0],
+        output,
+        &mut Budget::new(&Limits::default()),
+    )
+    .unwrap();
+    assert_eq!(binder, Some(StorageBinder::Fixed(0)));
+    assert_eq!(selected.sources(), &actual.0[0].1.permission.sources);
+    let head = selected.parent_head().unwrap();
+    assert_eq!(head.base, HoldRoot::Parameter(0));
+    assert!(head.retained_port.is_none());
+    assert_eq!(
+        f.storage_life.as_ref().unwrap().bindings[0].binder,
+        StorageBinder::Invocation(0)
+    );
+    let StorageSource::ReborrowedLeaf { head, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    head.base = StorageBase::Parameter(1);
+    assert!(
+        !checked(&module, &f, &actual),
+        "equal Type and Fixed class do not make this the actual owner head"
+    );
+}
+
+#[test]
+fn reborrow_weakened_mode_is_explicit_and_cannot_strengthen_a_shared_owner_or_data_leaf() {
+    let (mut module, mut f, actual) = borrowed_owner_boundary();
+    let mut exclusive = module.dyn_interfaces[0].clone();
+    exclusive.id.index += 1;
+    let Type::Address { mutable, .. } = &mut exclusive.retained_life.ports[0].leaf else {
+        unreachable!()
+    };
+    *mutable = true;
+    exclusive.retained_life.ports[0].mode = StoredBorrowMode::ExclusiveAddress;
+    let input = exclusive.id;
+    module.dyn_interfaces.push(exclusive);
+    let Type::Address { inner, mutable } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    **inner = Type::OwnedDyn { interface: input };
+    *mutable = false;
+    assert!(
+        checked(&module, &f, &actual),
+        "an explicit shared child may borrow exclusive data through a shared head"
+    );
+    let Type::Address { mutable, .. } = &mut module.dyn_interfaces[0].retained_life.ports[0].leaf
+    else {
+        unreachable!()
+    };
+    *mutable = true;
+    module.dyn_interfaces[0].retained_life.ports[0].mode = StoredBorrowMode::ExclusiveAddress;
+    assert!(!checked(&module, &f, &actual));
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = true;
+    assert!(checked(&module, &f, &actual));
+    let Type::Address { mutable, .. } = &mut module.dyn_interfaces[1].retained_life.ports[0].leaf
+    else {
+        unreachable!()
+    };
+    *mutable = false;
+    module.dyn_interfaces[1].retained_life.ports[0].mode = StoredBorrowMode::SharedAddress;
+    assert!(!checked(&module, &f, &actual));
+}
+
+#[test]
+fn reborrow_call_retains_distinct_head_and_data_children_without_publishing_head_as_data() {
+    let (module, callee, actual) = borrowed_owner_boundary();
+    let mut caller = callee.clone();
+    caller.parameters.clear();
+    caller.locals[0].ty = Type::I32;
+    caller.locals[1].ty = Type::I32;
+    caller.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "actual_owner".into(),
+        ty: callee.return_type.clone(),
+        mutable: true,
+        span: callee.span,
+    });
+    caller.values = vec![callee.locals[0].ty.clone(), callee.return_type.clone()];
+    let root = |id| Source {
+        base: HoldRoot::Local(LocalId(id)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    };
+    let mut state = Frame {
+        locals: vec![Payload::default(); 3],
+        ..Frame::default()
+    };
+    state.locals[2].dyn_ports = dyn_ports::Rows(vec![(
+        vec![ContractProjection::RetainedPort(0)],
+        dyn_ports::Port {
+            permission: Permission {
+                sources: vec![root(0)],
+                loans: vec![0],
+            },
+            parent_sources: vec![],
+            head_sources: vec![],
+            known: true,
+        },
+    )]);
+    let mut values = vec![Payload::default(); 2];
+    values[0].address = Permission {
+        sources: vec![root(2)],
+        loans: vec![1],
+    };
+    let mut loans = vec![
+        Loan {
+            sources: vec![root(0)],
+            ..Loan::default()
+        },
+        Loan {
+            sources: vec![root(2)],
+            exclusive: true,
+            ..Loan::default()
+        },
+    ];
+    let summary = Summary {
+        complete: true,
+        dyn_ports: actual,
+        ..Summary::default()
+    };
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let i = Instruction {
+        result: Some(ValueId(1)),
+        kind: InstructionKind::Call {
+            function: callee.id,
+            arguments: vec![ValueId(0), ValueId(0)],
+        },
+        span: callee.span,
+    };
+    let mut sites = dyn_leases::Sites::default();
+    let mut out = Payload::default();
+    dyn_ports::call(
+        &module,
+        &caller,
+        &callee,
+        &i,
+        &summary,
+        &[ValueId(0), ValueId(0)],
+        &values,
+        &state,
+        &mut out,
+        &mut sites,
+        &mut loans,
+        &mut b,
+    )
+    .unwrap();
+    let permission = &out.dyn_ports.0[0].1.permission;
+    assert_eq!(permission.sources, [root(0)]);
+    assert!(
+        !permission.sources.contains(&root(2)),
+        "head is not a data target"
+    );
+    let active = ancestry(&permission.loans, &loans, &mut b).unwrap();
+    assert!(
+        access(
+            &values[0].address,
+            true,
+            &active,
+            &loans,
+            &mut vec![],
+            &mut b
+        )
+        .is_err(),
+        "original &mut head SSA cannot delegate its own parent through the live view"
+    );
+    assert!(access(&values[0].address, true, &[], &loans, &mut vec![], &mut b).is_ok());
+    assert_eq!(
+        sites.head_sources(permission, &loans, &mut b).unwrap(),
+        [root(2)]
+    );
+    // Only actual head-site roles enter this additional symbolic directory.
+    let ordinary = Permission {
+        sources: vec![root(0)],
+        loans: vec![0],
+    };
+    assert!(
+        sites
+            .head_sources(&ordinary, &loans, &mut b)
+            .unwrap()
+            .is_empty()
     );
 }

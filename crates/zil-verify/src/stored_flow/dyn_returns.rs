@@ -48,6 +48,7 @@ pub(super) fn summarize(
     payload: &Payload,
     summary: &mut Summary,
     loans: &[Loan],
+    sites: &dyn_leases::Sites,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -68,6 +69,11 @@ pub(super) fn summarize(
         add_sources(
             &mut row.parent_sources,
             &parents(&row.permission, loans, b)?,
+            b,
+        )?;
+        add_sources(
+            &mut row.head_sources,
+            &sites.head_sources(&row.permission, loans, b)?,
             b,
         )?;
         row.permission.loans.clear();
@@ -190,11 +196,77 @@ pub(super) fn published_sources(
     let mut result = Vec::new();
     if let Some(row) = claim.iter().find(|row| row.position.path == path) {
         for atom in &row.sources {
-            let (_, _, source) = atoms::resolve(module, f, atom, b)?;
+            let (_, _, source) = if matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
+                atoms::resolve_output(module, f, atom, result_leaf(module, f, path, b)?, b)?
+            } else {
+                atoms::resolve(module, f, atom, b)?
+            };
             add_sources(&mut result, source.sources(), b)?;
         }
     }
     Ok(result)
+}
+/// A head is an additional real parent obligation, not a new data target.
+/// These positions are resolved only after the actual Return containment proof.
+pub(super) fn published_heads(
+    module: &TypedModule,
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    data: &Source,
+    b: &mut Budget,
+) -> Check<Vec<Source>> {
+    if !b.dyn_reborrow_sources {
+        return Ok(Vec::new());
+    }
+    let mut heads = Vec::new();
+    let claim = f
+        .retained_return_sources
+        .as_ref()
+        .ok_or_else(|| bad("reborrowed result source relation is Unknown"))?;
+    b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
+    if let Some(row) = claim.iter().find(|row| row.position.path == path) {
+        for atom in &row.sources {
+            if !matches!(atom, StorageSource::ReborrowedLeaf { .. }) {
+                continue;
+            }
+            let (_, _, selected) =
+                atoms::resolve_output(module, f, atom, result_leaf(module, f, path, b)?, b)?;
+            source_work(selected.sources(), b)?;
+            b.spend(
+                selected
+                    .sources()
+                    .len()
+                    .saturating_mul(width(data).saturating_add(1)),
+            )?;
+            if selected.sources().contains(data)
+                && let Some(head) = selected.parent_head()
+            {
+                add_sources(&mut heads, std::slice::from_ref(head), b)?;
+            }
+        }
+    }
+    Ok(heads)
+}
+fn result_leaf<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<&'a Type> {
+    let Some((ContractProjection::RetainedPort(port), carrier)) = path.split_last() else {
+        return Err(bad("result reborrow has no typed retained endpoint"));
+    };
+    let (Type::Dyn { interface } | Type::OwnedDyn { interface }) =
+        dyn_ports::carrier_type(module, &f.return_type, carrier, b)?
+    else {
+        return Err(bad("result reborrow has no actual Dyn carrier"));
+    };
+    crate::dynamic_ports::interface(module, *interface, b)?
+        .retained_life
+        .ports
+        .get(*port as usize)
+        .map(|port| &port.leaf)
+        .ok_or_else(|| bad("result reborrow selects an absent actual port"))
 }
 pub(super) fn validate(
     module: &TypedModule,
@@ -263,7 +335,7 @@ pub(super) fn validate(
             .ports[*port as usize];
         let (class_path, class) = class_key(module, &f.return_type, carrier, output.binder, 0, b)?;
         let output_binder = class_binding(f, StorageBase::Result, &class_path, class, b)?;
-        for parent in &actual.parent_sources {
+        for parent in actual.parent_sources.iter().chain(&actual.head_sources) {
             if !matches!(parent.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
                 return Err(bad("returned Dyn retains an activation-local parent loan"));
             }
@@ -271,7 +343,8 @@ pub(super) fn validate(
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for atom in &declared.sources {
-                let (leaf, binder, symbolic) = atoms::resolve(module, f, atom, b)?;
+                let (leaf, binder, symbolic) =
+                    atoms::resolve_output(module, f, atom, &output.leaf, b)?;
                 if matches!(atom, StorageSource::Static { .. })
                     && !actual.permission.sources.iter().any(static_target)
                 {
@@ -461,6 +534,7 @@ pub(super) fn after(
     state: &Frame,
     summary: &mut Summary,
     loans: &[Loan],
+    sites: &dyn_leases::Sites,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -502,6 +576,11 @@ pub(super) fn after(
                     ));
                 }
             }
+            add_sources(
+                &mut row.head_sources,
+                &sites.head_sources(&row.permission, loans, b)?,
+                b,
+            )?;
             row.permission.loans.clear();
             for source in &row.permission.sources {
                 if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {

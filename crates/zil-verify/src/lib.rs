@@ -382,6 +382,8 @@ struct Budget {
     task_origin_roots: bool,
     borrowed_task_ports: bool,
     dyn_contexts: bool,
+    // Paid source-expression inventory only; never an actual reborrow proof.
+    dyn_reborrow_sources: bool,
     pending_dyn_tables: BTreeSet<DynVtableId>,
     pending_dyn_returns: BTreeSet<FunctionId>,
     dyn_static_classes: Vec<stored_flow::DynStaticObligation>,
@@ -485,6 +487,7 @@ impl Budget {
             task_origin_roots: false,
             borrowed_task_ports: false,
             dyn_contexts: false,
+            dyn_reborrow_sources: false,
             pending_dyn_tables: BTreeSet::new(),
             pending_dyn_returns: BTreeSet::new(),
             dyn_static_classes: Vec::new(),

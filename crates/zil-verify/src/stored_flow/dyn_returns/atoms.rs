@@ -1,22 +1,32 @@
 //! Expressions select candidate uppers; only actual Return facts prove them.
 use super::*;
 mod owned;
+mod reborrow;
 
 pub(super) enum Selection {
     One(Source),
     Region(Vec<Source>),
+    Reborrow { data: Source, head: Source },
 }
 impl Selection {
     pub(super) fn sources(&self) -> &[Source] {
         match self {
             Self::One(source) => std::slice::from_ref(source),
             Self::Region(sources) => sources,
+            Self::Reborrow { data, .. } => std::slice::from_ref(data),
+        }
+    }
+    pub(super) fn parent_head(&self) -> Option<&Source> {
+        match self {
+            Self::Reborrow { head, .. } => Some(head),
+            _ => None,
         }
     }
     pub(super) fn into_sources(self) -> Sources {
         match self {
             Self::One(source) => Sources::One(std::iter::once(source)),
             Self::Region(sources) => Sources::Region(sources.into_iter()),
+            Self::Reborrow { data, .. } => Sources::One(std::iter::once(data)),
         }
     }
 }
@@ -138,5 +148,20 @@ pub(super) fn resolve(
             "source view requires independently reconstructed owned region and child scope",
             None,
         )),
+    }
+}
+
+pub(super) fn resolve_output(
+    module: &TypedModule,
+    f: &TypedFunction,
+    atom: &StorageSource,
+    output: &Type,
+    b: &mut Budget,
+) -> Check<(Type, Option<StorageBinder>, Selection)> {
+    if let StorageSource::ReborrowedLeaf { source, head } = atom {
+        dynamic_metadata::source(atom, b)?;
+        reborrow::resolve(module, f, source, head, output, b)
+    } else {
+        resolve(module, f, atom, b)
     }
 }

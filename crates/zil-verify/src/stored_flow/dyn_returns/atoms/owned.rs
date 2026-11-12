@@ -130,7 +130,7 @@ fn push<'a>(
     Ok(())
 }
 
-fn plain(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
+pub(super) fn plain(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
     b.spend(1)?;
     if depth > b.limits.max_call_depth.min(128) {
         return Err(limit("owned leaf exceeds selected qualified depth"));

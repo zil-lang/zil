@@ -11,6 +11,7 @@ pub(super) enum Destination {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Component {
     Summary(Source),
+    Head(Source),
     Slot(StoragePosition),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,13 +24,42 @@ struct Key {
 #[derive(Default)]
 pub(super) struct Sites(BTreeMap<Key, usize>);
 
+impl Sites {
+    pub(super) fn head_sources(
+        &self,
+        permission: &Permission,
+        loans: &[Loan],
+        b: &mut Budget,
+    ) -> Check<Vec<Source>> {
+        if !b.dyn_reborrow_sources {
+            return Ok(Vec::new());
+        }
+        let parents = ancestry(&permission.loans, loans, b)?;
+        let mut result = Vec::new();
+        b.spend(self.0.len())?;
+        for (key, id) in &self.0 {
+            if !matches!(key.component, Component::Head(_)) {
+                continue;
+            }
+            b.spend(parents.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+            if parents.binary_search(id).is_ok() {
+                let loan = loans
+                    .get(*id)
+                    .ok_or_else(|| err("head site exceeds the actual loan arena"))?;
+                add_sources(&mut result, &loan.sources, b)?;
+            }
+        }
+        Ok(result)
+    }
+}
+
 fn key_work(destination: &Destination, component: &Component) -> usize {
     let to = match destination {
         Destination::Result(path) => path.len(),
         Destination::After(position) => position.path.len().saturating_add(1),
     };
     let from = match component {
-        Component::Summary(source) => width(source),
+        Component::Summary(source) | Component::Head(source) => width(source),
         Component::Slot(position) => position.path.len().saturating_add(1),
     };
     to.saturating_add(from).saturating_add(4)

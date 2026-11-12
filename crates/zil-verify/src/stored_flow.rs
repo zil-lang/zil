@@ -6329,6 +6329,7 @@ fn summarize(
                 &solution.outputs[bi],
                 &mut summary,
                 &solution.loans,
+                &solution.dyn_sites,
                 b,
             )?;
         }
@@ -6353,7 +6354,15 @@ fn summarize(
                 result_row(&mut summary, path, &p.sources, b)?;
             }
             task_address::summarize(f, payload, &mut summary, b)?;
-            dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
+            dyn_returns::summarize(
+                module,
+                f,
+                payload,
+                &mut summary,
+                &solution.loans,
+                &solution.dyn_sites,
+                b,
+            )?;
             if (b.dyn_contexts || b.closure_receiver_borrows)
                 && matches!(f.return_type, Type::Address { .. })
             {
