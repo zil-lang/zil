@@ -673,7 +673,8 @@ fn private_array_ssa_without_a_local_carrier_is_rejected_raw_wire() {
             length: 1,
         },
         Type::I32,
-    ];
+    ]
+    .into();
     caller.blocks[0].instructions = vec![
         op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         op(

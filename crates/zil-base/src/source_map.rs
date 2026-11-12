@@ -78,6 +78,22 @@ impl SourceMap {
     /// targets, parent order, and quotas. Target AST existence remains the
     /// producer/consumer's job; this source table cannot certify a Core tree.
     pub fn validate(&self, sources: &[SourceUnit], limits: &Limits) -> CompileResult<()> {
+        self.validate_iter(sources.iter(), limits)
+    }
+
+    /// Validate the same current source bytes without copying their text.
+    /// Borrowing changes ownership only; the original identities, traversal and
+    /// budget checks below remain the authority for raw source-map admission.
+    pub fn validate_borrowed(&self, sources: &[&SourceUnit], limits: &Limits) -> CompileResult<()> {
+        self.validate_iter(sources.iter().copied(), limits)
+    }
+
+    /// Validate a sized borrowed source inventory without a temporary pointer list.
+    pub fn validate_iter<'a>(
+        &self,
+        sources: impl ExactSizeIterator<Item = &'a SourceUnit>,
+        limits: &Limits,
+    ) -> CompileResult<()> {
         if self.entries.len() > limits.max_nodes || sources.len() > limits.max_nodes {
             return Err(resource("source-map node budget exceeded"));
         }

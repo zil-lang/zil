@@ -151,7 +151,8 @@ fn fixture() -> TypedModule {
             ty: receiver.clone(),
             mutable: false,
             span: span(),
-        }],
+        }]
+        .into(),
         values: vec![
             receiver,
             Type::Address {
@@ -159,7 +160,8 @@ fn fixture() -> TypedModule {
                 inner: Box::new(Type::I32),
             },
             Type::I32,
-        ],
+        ]
+        .into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -190,7 +192,8 @@ fn fixture() -> TypedModule {
                 },
             ],
             terminator: Terminator::Return(Some(ValueId(2))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     });
@@ -261,7 +264,7 @@ fn call_candidate() -> (TypedModule, CandidatePlan) {
     };
     let main = &mut module.functions[0];
     main.locals[0].ty = self_type.clone();
-    main.values = vec![Type::I32, self_type, concrete, erased, Type::I32];
+    main.values = vec![Type::I32, self_type, concrete, erased, Type::I32].into();
     main.blocks[0].instructions = vec![
         Instruction {
             result: Some(ValueId(0)),
@@ -391,7 +394,7 @@ fn rejects_dyn_parent_root_substitution_even_with_fresh_fingerprint() {
 fn accepts_real_shared_receiver_body_and_constant_upper_bound() {
     let mut module = fixture();
     check(&module).unwrap();
-    module.functions[1].values = vec![Type::I32];
+    module.functions[1].values = vec![Type::I32].into();
     module.functions[1].blocks[0].instructions = vec![Instruction {
         result: Some(ValueId(0)),
         kind: InstructionKind::Constant(Constant::I32(9)),
@@ -407,7 +410,7 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
     let mut hidden = module.functions[1].clone();
     hidden.id = FunctionId(2);
     hidden.name = "literal_default".into();
-    hidden.values = vec![Type::I32];
+    hidden.values = vec![Type::I32].into();
     hidden.blocks[0].instructions = vec![Instruction {
         result: Some(ValueId(0)),
         kind: InstructionKind::Constant(Constant::I32(9)),
@@ -416,7 +419,7 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
     hidden.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     module.functions.push(hidden);
     let receiver = module.functions[1].locals[0].ty.clone();
-    module.functions[1].values = vec![receiver.clone(), receiver, Type::I32];
+    module.functions[1].values = vec![receiver.clone(), receiver, Type::I32].into();
     module.functions[1].blocks[0].instructions = vec![
         Instruction {
             result: Some(ValueId(0)),
@@ -447,7 +450,7 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
     ];
     module.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
     check(&module).unwrap();
-    module.functions[2].values = vec![module.functions[2].locals[0].ty.clone(), Type::I32];
+    module.functions[2].values = vec![module.functions[2].locals[0].ty.clone(), Type::I32].into();
     module.functions[2].blocks[0].instructions = vec![
         Instruction {
             result: Some(ValueId(0)),

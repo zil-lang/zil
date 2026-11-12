@@ -43,9 +43,9 @@ fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: zil_ir::PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
-        blocks: vec![],
+        locals: (vec![]).into(),
+        values: (vec![]).into(),
+        blocks: (vec![]).into(),
         entry: zil_ir::BlockId(0),
         span: Span::default(),
     }
@@ -60,13 +60,14 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         parameters: vec![LocalId(0), LocalId(1)],
-        locals: vec![
+        locals: (vec![
             local(0, f.clone()),
             local(1, body.clone()),
             local(2, Type::I32),
-        ],
+        ])
+        .into(),
         return_type: Type::I32,
-        values: vec![
+        values: (vec![
             Type::Address {
                 inner: Box::new(f),
                 mutable: true,
@@ -79,8 +80,9 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             Type::Bool,
             Type::I32,
             Type::Bool,
-        ],
-        blocks: vec![
+        ])
+        .into(),
+        blocks: (vec![
             zil_ir::BasicBlock {
                 id: zil_ir::BlockId(0),
                 instructions: vec![
@@ -162,7 +164,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
                 instructions: vec![],
                 terminator: Terminator::Return(Some(ValueId(7))),
             },
-        ],
+        ])
+        .into(),
         ..function(0, None)
     };
     let register = function(3, Some("test_register"));

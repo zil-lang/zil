@@ -214,6 +214,23 @@ pub fn build_view_with_cancellation_and_stable_names(
     cancelled: &(dyn Fn() -> bool + Sync),
     stable_names: Option<&[(FunctionId, String)]>,
 ) -> CompileResult<BuildArtifact> {
+    build_view_with_cancellation_and_session(verified, lir, options, cancelled, stable_names, None)
+}
+
+/// Session work products remain raw and require the current sealed verifier and
+/// exact LIR binding on every request. The caller may checkpoint by cloning.
+#[doc(hidden)]
+pub fn build_view_with_cancellation_and_session(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    stable_names: Option<&[(FunctionId, String)]>,
+    mut session: Option<&mut crate::BackendSession>,
+) -> CompileResult<BuildArtifact> {
+    if let Some(session) = session.as_deref_mut() {
+        session.begin();
+    }
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
@@ -248,97 +265,59 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    let (mut machine, collected_closed, mut task_work) =
-        crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
-            verified,
-            lir,
-            &options.emit,
-            options.optimization == Optimization::O2 && options.incremental_o2,
-            options.closed_executable
-                && options.backend == NativeBackend::LlvmApi
-                && options.codegen.units >= 2,
-            options.codegen.jobs,
-        )?;
+    let (mut machine, collected_closed, mut task_work) = crate::emit::lower_view_with_session(
+        verified,
+        lir,
+        &options.emit,
+        options.optimization == Optimization::O2 && options.incremental_o2,
+        options.closed_executable
+            && options.backend == NativeBackend::LlvmApi
+            && options.codegen.units >= 2,
+        options.codegen.jobs,
+        session.as_deref_mut().map(|session| &mut session.lower),
+    )?;
+    if let Some(session) = session.as_deref_mut() {
+        session.summary.lowered_functions = session.lower.misses;
+        session.summary.reused_functions = session.lower.hits;
+    }
     let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
-    if options.optimization == Optimization::O2 && options.incremental_o2 {
-        crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
-        crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
-    }
-    let mut stable = if options.closed_executable
-        && options.backend == NativeBackend::LlvmApi
-        && options.optimization == Optimization::O2
-        && options.incremental_o2
-        && options.codegen.units >= 2
-        && options.emit.entry == EntryPoint::Main
-        && lir.target.triple == "x86_64-unknown-linux-gnu"
-    {
-        stable_names.and_then(|names| {
-            if collected_closed {
-                crate::machine_stable_identity::prepare_collected(
-                    &machine,
-                    lir,
-                    names,
-                    options.codegen.units,
-                    cancelled,
-                )
-            } else {
-                crate::machine_stable_identity::prepare(
-                    &machine,
-                    lir,
-                    names,
-                    options.codegen.units,
-                    cancelled,
-                )
-            }
+    let transform_input = session
+        .as_ref()
+        .and_then(|session| session.lower.identity());
+    let reused_transform = session
+        .as_ref()
+        .and_then(|session| session.transformed.as_ref())
+        .filter(|cached| {
+            transform_input
+                .as_ref()
+                .is_some_and(|input| crate::incremental::same_identity(&cached.input, input))
         })
+        .cloned();
+    if let Some(cached) = reused_transform {
+        let fingerprint = machine.fingerprint.clone();
+        machine = cached.machine.clone();
+        machine.fingerprint = fingerprint;
+        if let Some(session) = session.as_deref_mut() {
+            session.summary.reused_machine_transforms = true;
+        }
     } else {
-        None
-    };
-    check_cancelled(cancelled)?;
-    if let Some(plan) = &mut stable {
-        plan.prune_unreachable_closed_definitions(&mut machine);
-        plan.rename(&mut machine);
+        if options.optimization == Optimization::O2 && options.incremental_o2 {
+            crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
+            crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
+        }
+        if let (Some(session), Some(input)) = (session.as_deref_mut(), transform_input) {
+            session.transformed = Some(std::sync::Arc::new(crate::incremental::TransformProduct {
+                input,
+                machine: machine.clone(),
+            }));
+        }
     }
-    // Diagnostic/reference output only. Each nonempty transform plan requires
-    // complete original-model preflight. Existing per-unit API preflight still runs
-    // immediately before its LLVMBuilder calls and cannot be bypassed.
-    let llvm = machine.to_text();
-    let mut pending_layout = None;
-    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
-        let trace =
-            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
-        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
-        (plan, Some(candidates), diagnostic)
-    } else if collected_closed {
-        (
-            crate::machine_cgu::Plan {
-                units: vec![machine],
-                fallback: None,
-            },
-            None,
-            None,
-        )
-    } else {
-        let (plan, pending) = crate::machine_cgu::partition_view_cached(
-            machine,
-            lir,
-            options.emit.entry,
-            options.codegen.units,
-            options.optimization == Optimization::O0 || options.incremental_o2,
-            crate::machine_cgu::CallImportPolicy::for_incremental_o2(
-                options.optimization == Optimization::O2 && options.incremental_o2,
-                options.function_merging,
-            ),
-            (options.backend == NativeBackend::LlvmApi)
-                .then_some(options.object_cache.as_deref())
-                .flatten(),
-        );
-        pending_layout = pending;
-        (plan, None, None)
-    };
+    // Source grouping and call-import policy are dependencies in addition to
+    // generated machine values. A changed body with equal machine output can
+    // stop here only when those partition dependencies also compare equally.
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -363,17 +342,150 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    if options.closed_executable {
-        if let Some(candidates) = stable_candidates {
-            crate::machine_cgu::internalize_closed_executable_names(&mut plan.units, &candidates);
-        } else {
-            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+    let partition_input = session.as_ref().map(|session| {
+        crate::incremental::PartitionInput::new(
+            options,
+            stable_names,
+            collected_closed,
+            lir,
+            &machine,
+            session.lower.identity(),
+        )
+    });
+    let cached_partition = session
+        .as_ref()
+        .and_then(|session| session.partition.as_ref())
+        .filter(|cached| {
+            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).is_none()
+                && Some(&cached.input) == partition_input.as_ref()
+        })
+        .cloned();
+    let (plan, llvm, pending_layout, stable_diagnostic, private_closures) = if let Some(cached) =
+        cached_partition
+    {
+        if let Some(session) = session.as_deref_mut() {
+            session.summary.reused_partition = true;
         }
-    }
-    // Anonymous closure bodies are not named source exports. Decide only after
-    // partition so a cross-unit caller/address retains its canonical symbol.
-    let private_closures =
-        crate::machine_closure_linkage::internalize(&mut plan.units, lir.closures);
+        (
+            crate::machine_cgu::Plan {
+                units: cached.units.clone(),
+                fallback: cached.fallback,
+            },
+            cached.diagnostic(&verified.fingerprint().to_hex()),
+            None,
+            None,
+            cached.private_closures,
+        )
+    } else {
+        let mut stable = if options.closed_executable
+            && options.backend == NativeBackend::LlvmApi
+            && options.optimization == Optimization::O2
+            && options.incremental_o2
+            && options.codegen.units >= 2
+            && options.emit.entry == EntryPoint::Main
+            && lir.target.triple == "x86_64-unknown-linux-gnu"
+        {
+            stable_names.and_then(|names| {
+                if collected_closed {
+                    crate::machine_stable_identity::prepare_collected(
+                        &machine,
+                        lir,
+                        names,
+                        options.codegen.units,
+                        cancelled,
+                    )
+                } else {
+                    crate::machine_stable_identity::prepare(
+                        &machine,
+                        lir,
+                        names,
+                        options.codegen.units,
+                        cancelled,
+                    )
+                }
+            })
+        } else {
+            None
+        };
+        check_cancelled(cancelled)?;
+        if let Some(plan) = &mut stable {
+            plan.prune_unreachable_closed_definitions(&mut machine);
+            plan.rename(&mut machine);
+        }
+        // Diagnostic/reference output only. Each nonempty transform plan requires
+        // complete original-model preflight. Existing per-unit API preflight still runs
+        // immediately before its LLVMBuilder calls and cannot be bypassed.
+        let llvm: crate::incremental::DiagnosticText =
+            if let Some(session) = session.as_deref_mut() {
+                session.render(&machine)
+            } else {
+                machine.to_text()
+            }
+            .into();
+        let mut pending_layout = None;
+        let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+            let trace =
+                std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
+            let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+            (plan, Some(candidates), diagnostic)
+        } else if collected_closed {
+            (
+                crate::machine_cgu::Plan {
+                    units: vec![machine],
+                    fallback: None,
+                },
+                None,
+                None,
+            )
+        } else {
+            let (plan, pending) = crate::machine_cgu::partition_view_cached(
+                machine,
+                lir,
+                options.emit.entry,
+                options.codegen.units,
+                options.optimization == Optimization::O0 || options.incremental_o2,
+                crate::machine_cgu::CallImportPolicy::for_incremental_o2(
+                    options.optimization == Optimization::O2 && options.incremental_o2,
+                    options.function_merging,
+                ),
+                (options.backend == NativeBackend::LlvmApi)
+                    .then_some(options.object_cache.as_deref())
+                    .flatten(),
+            );
+            pending_layout = pending;
+            (plan, None, None)
+        };
+        if options.closed_executable {
+            if let Some(candidates) = stable_candidates {
+                crate::machine_cgu::internalize_closed_executable_names(
+                    &mut plan.units,
+                    &candidates,
+                );
+            } else {
+                crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+            }
+        }
+        // Anonymous closure bodies are not named source exports. Decide only after
+        // partition so a cross-unit caller/address retains its canonical symbol.
+        let private_closures =
+            crate::machine_closure_linkage::internalize(&mut plan.units, lir.closures);
+        if let (Some(session), Some(input)) = (session.as_deref_mut(), partition_input) {
+            session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
+                input,
+                units: plan.units.clone(),
+                fallback: plan.fallback,
+                diagnostic: llvm.clone(),
+                private_closures,
+            }));
+        }
+        (
+            plan,
+            llvm,
+            pending_layout,
+            stable_diagnostic,
+            private_closures,
+        )
+    };
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
@@ -465,7 +577,7 @@ pub fn build_view_with_cancellation_and_stable_names(
     let ir_path = staging.0.join("module.ll");
     let executable_path = staging.0.join("program");
     let object_path = staging.0.join("module.obj");
-    fs::write(&ir_path, llvm.as_bytes())
+    llvm.write(&ir_path)
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
 
     let optimization = match options.optimization {
@@ -514,7 +626,7 @@ pub fn build_view_with_cancellation_and_stable_names(
         vec![object_path]
     } else {
         let units = plan.units;
-        let inputs = units
+        let mut inputs = units
             .into_iter()
             .enumerate()
             .map(|(id, module)| {
@@ -529,9 +641,46 @@ pub fn build_view_with_cancellation_and_stable_names(
                     input,
                     object,
                     module,
+                    key: None,
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
+        if let (Some(session), Some(cache)) = (session.as_deref_mut(), cache.as_ref()) {
+            let mut next = Vec::with_capacity(inputs.len());
+            let same_partition = session
+                .key_partition
+                .as_ref()
+                .zip(session.partition.as_ref())
+                .is_some_and(|(previous, current)| std::sync::Arc::ptr_eq(previous, current));
+            for (index, unit) in inputs.iter_mut().enumerate() {
+                let old = if same_partition {
+                    session
+                        .keys
+                        .get(index)
+                        .filter(|entry| entry.directory == cache.directory)
+                } else {
+                    session.keys.iter().find(|entry| {
+                        entry.directory == cache.directory
+                            && entry.module.triple == unit.module.triple
+                            && entry.module.items == unit.module.items
+                    })
+                };
+                let product = if let Some(old) = old {
+                    session.summary.reused_object_keys += 1;
+                    old.clone()
+                } else {
+                    std::sync::Arc::new(crate::incremental::KeyProduct {
+                        directory: cache.directory.clone(),
+                        module: unit.module.clone(),
+                        key: cache.key(&unit.module),
+                    })
+                };
+                unit.key = Some(product.key);
+                next.push(product);
+            }
+            session.keys = next;
+            session.key_partition = session.partition.clone();
+        }
         let compiled = compile_units(
             &inputs,
             &lir.target.triple,
@@ -558,33 +707,84 @@ pub fn build_view_with_cancellation_and_stable_names(
             .collect::<Vec<_>>()
     };
     check_cancelled(cancelled)?;
-    if let Some(config) = &options.windows {
-        let mut link = Command::new(&config.linker);
-        link.args([
-            "/machine:x64",
-            "/subsystem:windows",
-            "/entry:zil.pe.entry",
-            "/nodefaultlib",
-            "/timestamp:0",
-        ])
-        .arg(format!("/out:{}", executable_path.display()))
-        .args(&objects)
-        .args(imports);
-        commands.push(run_command(&mut link, "E-WIN64-LINK")?);
-    } else if split || options.backend == NativeBackend::LlvmApi {
-        let mut link = Command::new(&options.clang);
-        link.arg(format!("--target={}", lir.target.triple))
-            .arg(optimization)
-            .args(&objects)
-            .arg("-o")
-            .arg(&executable_path);
-        if scoped_threads {
-            link.arg("-pthread");
+    let link_key = session
+        .as_ref()
+        .filter(|_| options.backend == NativeBackend::LlvmApi && options.windows.is_none())
+        .and_then(|_| {
+            crate::link_cache::key(
+                &options.clang,
+                &lir.target.triple,
+                optimization,
+                &objects,
+                &executable_path,
+                scoped_threads,
+                &mut commands,
+            )
+        });
+    let previous_link = session
+        .as_ref()
+        .and_then(|session| session.link.as_ref())
+        .filter(|product| {
+            Some(product.key) == link_key
+                && codegen.object_cache.enabled
+                && codegen.object_cache.hits == actual_units
+        })
+        .cloned();
+    if let Some(product) = previous_link {
+        check_cancelled(cancelled)?;
+        product
+            .restore(&executable_path)
+            .map_err(|error| io_error("restore final link result", &executable_path, error))?;
+        if let Some(session) = session.as_deref_mut() {
+            session.summary.reused_link = true;
         }
-        commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
+    } else {
+        if let Some(config) = &options.windows {
+            let mut link = Command::new(&config.linker);
+            link.args([
+                "/machine:x64",
+                "/subsystem:windows",
+                "/entry:zil.pe.entry",
+                "/nodefaultlib",
+                "/timestamp:0",
+            ])
+            .arg(format!("/out:{}", executable_path.display()))
+            .args(&objects)
+            .args(imports);
+            commands.push(run_command(&mut link, "E-WIN64-LINK")?);
+        } else if split || options.backend == NativeBackend::LlvmApi {
+            let mut link = Command::new(&options.clang);
+            link.arg(format!("--target={}", lir.target.triple))
+                .arg(optimization)
+                .args(&objects)
+                .arg("-o")
+                .arg(&executable_path);
+            if scoped_threads {
+                link.arg("-pthread");
+            }
+            commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
+        }
+
+        if let (Some(session), Some(key)) = (session, link_key) {
+            // Recheck discovered external values after the subprocess before
+            // retaining its product; a concurrently changed dependency is red.
+            if crate::link_cache::key(
+                &options.clang,
+                &lir.target.triple,
+                optimization,
+                &objects,
+                &executable_path,
+                scoped_threads,
+                &mut commands,
+            ) == Some(key)
+            {
+                session.link = crate::link_cache::Product::capture(key, &executable_path)
+                    .map(std::sync::Arc::new);
+            }
+        }
     }
     check_cancelled(cancelled)?;
-    let recorded_command = commands[0].clone();
+    let recorded_command = commands.first().cloned().unwrap_or_default();
     if !executable_path.is_file() {
         return Err(infra(
             "E-LINK-MISSING-OUTPUT",
@@ -616,6 +816,7 @@ struct UnitInput {
     input: PathBuf,
     object: PathBuf,
     module: zil_llvm_api::model::Module,
+    key: Option<zil_base::Fingerprint>,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
@@ -778,7 +979,7 @@ fn compile_api_unit(
     };
     let mut access = None;
     if let Some(cache) = cache {
-        let (mut lookup, bytes) = cache.lookup(&unit.module);
+        let (mut lookup, bytes) = cache.lookup_with_key(&unit.module, unit.key);
         check_cancelled(cancelled)?;
         if let Some(bytes) = bytes {
             // A hit is not a native Builder invocation. Current machine checks

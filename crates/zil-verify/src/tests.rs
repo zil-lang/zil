@@ -35,8 +35,9 @@ pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
             ty: Type::I32,
             mutable: false,
             span: span(),
-        }],
-        values: vec![Type::I32, Type::I32, Type::I32, Type::I32],
+        }]
+        .into(),
+        values: vec![Type::I32, Type::I32, Type::I32, Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -60,7 +61,8 @@ pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
                 inst(Some(3), InstructionKind::Load(LocalId(0))),
             ],
             terminator: Terminator::Return(Some(ValueId(3))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     };
@@ -244,7 +246,7 @@ fn refuses_nonempty_responsibility_certificates() {
 fn branching() -> (TypedModule, CandidatePlan) {
     let (mut module, mut plan) = baseline();
     let f = &mut module.functions[0];
-    f.values = vec![Type::Bool, Type::I32, Type::I32, Type::I32];
+    f.values = vec![Type::Bool, Type::I32, Type::I32, Type::I32].into();
     f.locals[0].mutable = true;
     f.blocks = vec![
         BasicBlock {
@@ -292,7 +294,8 @@ fn branching() -> (TypedModule, CandidatePlan) {
             instructions: vec![inst(Some(3), InstructionKind::Load(LocalId(0)))],
             terminator: Terminator::Return(Some(ValueId(3))),
         },
-    ];
+    ]
+    .into();
     plan.module_fingerprint = module.fingerprint();
     plan.functions[0].blocks = vec![
         BlockPlan {
@@ -379,7 +382,8 @@ fn accepts_loop_fixed_point_and_rejects_budget_exhaustion() {
         Type::I32,
         Type::I32,
         Type::I32,
-    ];
+    ]
+    .into();
     f.blocks = vec![
         BasicBlock {
             id: BlockId(0),
@@ -442,7 +446,8 @@ fn accepts_loop_fixed_point_and_rejects_budget_exhaustion() {
             instructions: vec![inst(Some(6), InstructionKind::Load(LocalId(0)))],
             terminator: Terminator::Return(Some(ValueId(6))),
         },
-    ];
+    ]
+    .into();
     plan.module_fingerprint = module.fingerprint();
     plan.functions[0].holds = (0..module.functions[0].values.len())
         .map(|i| ValueHold {
@@ -498,13 +503,15 @@ fn checks_direct_call_signature_and_parameter_initialization() {
             ty: Type::I32,
             mutable: false,
             span: span(),
-        }],
-        values: vec![Type::I32],
+        }]
+        .into(),
+        values: vec![Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![inst(Some(0), InstructionKind::Load(LocalId(0)))],
             terminator: Terminator::Return(Some(ValueId(0))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     });

@@ -595,8 +595,9 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
                 ty: Type::I32,
                 mutable: false,
                 span,
-            }],
-            values: vec![Type::I32],
+            }]
+            .into(),
+            values: vec![Type::I32].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
@@ -605,7 +606,8 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
                     span,
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span,
         }],

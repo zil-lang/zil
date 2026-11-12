@@ -42,8 +42,8 @@ fn raw() -> TypedModule {
             protocol_contract: None,
             callable_return_contract: None,
             foreign: None,
-            locals: vec![],
-            values: vec![window.clone(), window, Type::I64],
+            locals: vec![].into(),
+            values: vec![window.clone(), window, Type::I64].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -65,7 +65,8 @@ fn raw() -> TypedModule {
                     },
                 ],
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         }],

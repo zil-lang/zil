@@ -47,8 +47,8 @@ fn module() -> TypedModule {
             name: "literal".into(),
             parameters: vec![],
             return_type: address(),
-            locals: vec![],
-            values: vec![address()],
+            locals: vec![].into(),
+            values: vec![address()].into(),
             entry: BlockId(0),
             span: span(),
             blocks: vec![BasicBlock {
@@ -60,7 +60,8 @@ fn module() -> TypedModule {
                     },
                 )],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }]
+            .into(),
         }],
     }
 }
@@ -75,7 +76,8 @@ fn stored_module() -> TypedModule {
         ty: address(),
         mutable: false,
         span: span(),
-    }];
+    }]
+    .into();
     probe.parameters = vec![LocalId(0)];
     probe.blocks[0].instructions = vec![inst(Some(0), InstructionKind::Load(LocalId(0)))];
     probe.storage_life = Some(StorageLifeContract {
@@ -113,8 +115,9 @@ fn helper_module() -> TypedModule {
         ty: address(),
         mutable: false,
         span: span(),
-    }];
-    f.values = vec![address(), address(), address()];
+    }]
+    .into();
+    f.values = vec![address(), address(), address()].into();
     f.blocks[0].instructions = vec![
         inst(
             Some(0),
@@ -267,7 +270,8 @@ fn bounded_module(stored: bool) -> TypedModule {
         ty: address(),
         mutable: false,
         span: span(),
-    }];
+    }]
+    .into();
     f.parameters = vec![LocalId(0)];
     f.reference_return_bound = Some(vec![0]);
     if stored {
@@ -329,7 +333,7 @@ fn mixed_module() -> TypedModule {
     let mut caller = f.clone();
     caller.id = FunctionId(1);
     caller.name = "mixed_caller".into();
-    caller.values = vec![address(), Type::Bool, address()];
+    caller.values = vec![address(), Type::Bool, address()].into();
     caller.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -344,7 +348,8 @@ fn mixed_module() -> TypedModule {
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(2))),
-    }];
+    }]
+    .into();
     m.functions.push(caller);
     m
 }

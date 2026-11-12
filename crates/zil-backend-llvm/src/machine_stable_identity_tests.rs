@@ -9,13 +9,16 @@ fn definition(name: String, value: i128) -> Item {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), vec![]),
         attrs: vec![],
-        blocks: Some(vec![Block {
-            name: "entry".into(),
-            instructions: vec![Inst::new(
-                None,
-                Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(value)))),
-            )],
-        }]),
+        blocks: Some(
+            (vec![Block {
+                name: "entry".into(),
+                instructions: vec![Inst::new(
+                    None,
+                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(value)))),
+                )],
+            }])
+            .into(),
+        ),
     })
 }
 
@@ -51,9 +54,9 @@ fn fixture(order: &[String]) -> (Module, LirModule, Vec<(FunctionId, String)>) {
             parameters: vec![],
             return_type: Type::I32,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![],
-            blocks: vec![],
+            locals: (vec![]).into(),
+            values: (vec![]).into(),
+            blocks: (vec![]).into(),
             entry: BlockId(0),
             span: Span::default(),
         });
@@ -72,31 +75,34 @@ fn fixture(order: &[String]) -> (Module, LirModule, Vec<(FunctionId, String)>) {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), vec![]),
         attrs: vec![],
-        blocks: Some(vec![Block {
-            name: "entry".into(),
-            instructions: vec![
-                Inst::new(
-                    Some("result".into()),
-                    Op::Call {
-                        result: Ty::Int(32),
-                        result_attrs: vec![],
-                        callee: Val::Global(source_symbol(entry.unwrap())),
-                        args: vec![],
-                        vararg: None,
-                    },
-                ),
-                Inst::new(
-                    None,
-                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Local("result".into())))),
-                ),
-            ],
-        }]),
+        blocks: Some(
+            (vec![Block {
+                name: "entry".into(),
+                instructions: vec![
+                    Inst::new(
+                        Some("result".into()),
+                        Op::Call {
+                            result: Ty::Int(32),
+                            result_attrs: vec![],
+                            callee: Val::Global(source_symbol(entry.unwrap())),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    ),
+                    Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Int(32), Val::Local("result".into())))),
+                    ),
+                ],
+            }])
+            .into(),
+        ),
     }));
     (
         Module {
             triple: source.target.triple.clone(),
             fingerprint: "same-model-comment".into(),
-            items,
+            items: items.into(),
         },
         source,
         hints,

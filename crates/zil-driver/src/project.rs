@@ -1273,16 +1273,28 @@ impl CompilationSession {
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
-            store.save(&typed, &candidate, options, &artifacts);
+            let publication = store.save(
+                &typed,
+                &candidate,
+                options,
+                &artifacts,
+                &mut self.semantic_publication,
+            );
+            if options.profile_compilation {
+                report.semantic_cache_publication = publication;
+            }
         }
         report.record_driver_cost("semantic_candidate_publication", persistence_start);
         let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &function_store
         {
-            let encoding = store.save(&self.function_types, options, &artifacts);
-            if options.profile_compilation {
-                report.function_cache_encoding = encoding.map(Box::new);
+            let publication = store.save(&self.function_types, options, &artifacts);
+            if options.profile_compilation
+                && let Some((encoding, stats)) = publication
+            {
+                report.function_cache_encoding = Some(Box::new(encoding));
+                report.function_cache_publication = Some(stats);
             }
         }
         report.record_driver_cost("function_cache_publication", persistence_start);

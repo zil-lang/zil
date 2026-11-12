@@ -6822,7 +6822,7 @@ mod tests {
             m.closures[0].parameters = vec![ty.clone()];
             let entry = &mut m.functions[0];
             entry.locals[0].ty = ty.clone();
-            entry.values = vec![ty.clone(), Type::I64];
+            entry.values = vec![ty.clone(), Type::I64].into();
             entry.blocks[0].instructions = vec![
                 instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
                 instruction(Some(1), InstructionKind::Constant(Constant::I64(42))),
@@ -6893,7 +6893,7 @@ mod tests {
             let entry = &mut m.functions[0];
             entry.locals[0].ty = ty.clone();
             entry.storage_life = Some(contract);
-            entry.values = vec![ty.clone(), Type::I64, ty.clone(), Type::I64, Type::I64];
+            entry.values = vec![ty.clone(), Type::I64, ty.clone(), Type::I64, Type::I64].into();
             entry.blocks[0].instructions = vec![
                 instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
                 instruction(

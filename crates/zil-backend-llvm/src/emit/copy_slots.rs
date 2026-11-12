@@ -410,9 +410,9 @@ mod tests {
             parameters: vec![],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values,
-            blocks,
+            locals: (vec![]).into(),
+            values: values.into(),
+            blocks: blocks.into(),
             entry: BlockId(0),
             span: Span::new(FileId(0), 0, 1),
         }

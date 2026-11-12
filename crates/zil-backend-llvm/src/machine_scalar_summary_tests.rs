@@ -25,7 +25,7 @@ fn function(name: &str, bits: u32, params: Vec<Param>, blocks: Option<Vec<Block>
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(bits), params),
         attrs: vec![],
-        blocks,
+        blocks: blocks.map(Into::into),
     })
 }
 fn call(name: &str, bits: u32, args: Vec<Arg>) -> Op {
@@ -62,7 +62,7 @@ fn inputs(bits: u32) -> (Module, BTreeSet<String>) {
     let module = Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "summary-model".into(),
-        items: vec![
+        items: (vec![
             function(
                 "entry",
                 bits,
@@ -140,7 +140,8 @@ fn inputs(bits: u32) -> (Module, BTreeSet<String>) {
                     ],
                 )]),
             ),
-        ],
+        ])
+        .into(),
     };
     (
         module,
@@ -201,12 +202,13 @@ fn empty_original_plan_skips_new_summary_even_for_large_constant_body() {
     let p = plan(&module, &sources, &[]);
     assert_eq!(p.count(), 0);
     let mut only = Module {
-        items: vec![function(
+        items: (vec![function(
             "standalone",
             32,
             vec![],
             Some(vec![block("entry", vec![ret(32, Val::Int(42))])]),
-        )],
+        )])
+        .into(),
         ..module
     };
     let before = only.clone();
@@ -218,36 +220,39 @@ fn empty_original_plan_skips_new_summary_even_for_large_constant_body() {
 fn classification_rejects_effects_in_untaken_reachable_branch() {
     let (mut module, sources) = inputs(32);
     module.items.push(function("foreign", 32, vec![], None));
-    fm(&mut module, "aggregate").blocks = Some(vec![
-        block(
-            "entry",
-            vec![inst(
-                None,
-                Op::CondBranch {
-                    condition: Val::Bool(true),
-                    yes: "yes".into(),
-                    no: "no".into(),
-                },
-            )],
-        ),
-        block(
-            "yes",
-            vec![
-                inst(
-                    Some("v"),
-                    call("leaf", 32, vec![Arg::new(Ty::Int(32), Val::Int(3))]),
-                ),
-                ret(32, local("v")),
-            ],
-        ),
-        block(
-            "no",
-            vec![
-                inst(Some("effect"), call("foreign", 32, vec![])),
-                ret(32, Val::Int(13)),
-            ],
-        ),
-    ]);
+    fm(&mut module, "aggregate").blocks = Some(
+        (vec![
+            block(
+                "entry",
+                vec![inst(
+                    None,
+                    Op::CondBranch {
+                        condition: Val::Bool(true),
+                        yes: "yes".into(),
+                        no: "no".into(),
+                    },
+                )],
+            ),
+            block(
+                "yes",
+                vec![
+                    inst(
+                        Some("v"),
+                        call("leaf", 32, vec![Arg::new(Ty::Int(32), Val::Int(3))]),
+                    ),
+                    ret(32, local("v")),
+                ],
+            ),
+            block(
+                "no",
+                vec![
+                    inst(Some("effect"), call("foreign", 32, vec![])),
+                    ret(32, Val::Int(13)),
+                ],
+            ),
+        ])
+        .into(),
+    );
     validate(&module);
     assert_eq!(changed_bodies(&module, &sources).count(), 0);
     let before = f(&module, "aggregate").blocks.as_ref().unwrap().len();
@@ -298,27 +303,30 @@ fn undef_poison_and_unknown_argument_are_never_virtual_constants() {
 #[test]
 fn reachable_cfg_and_call_cycles_miss_but_unreachable_valid_cycle_is_removable() {
     let (mut module, sources) = inputs(32);
-    fm(&mut module, "aggregate").blocks = Some(vec![
-        block(
-            "entry",
-            vec![
-                inst(
-                    Some("v"),
-                    call("leaf", 32, vec![Arg::new(Ty::Int(32), Val::Int(3))]),
-                ),
-                inst(
-                    None,
-                    Op::CondBranch {
-                        condition: Val::Bool(true),
-                        yes: "exit".into(),
-                        no: "loop".into(),
-                    },
-                ),
-            ],
-        ),
-        block("exit", vec![ret(32, local("v"))]),
-        block("loop", vec![inst(None, Op::Branch("loop".into()))]),
-    ]);
+    fm(&mut module, "aggregate").blocks = Some(
+        (vec![
+            block(
+                "entry",
+                vec![
+                    inst(
+                        Some("v"),
+                        call("leaf", 32, vec![Arg::new(Ty::Int(32), Val::Int(3))]),
+                    ),
+                    inst(
+                        None,
+                        Op::CondBranch {
+                            condition: Val::Bool(true),
+                            yes: "exit".into(),
+                            no: "loop".into(),
+                        },
+                    ),
+                ],
+            ),
+            block("exit", vec![ret(32, local("v"))]),
+            block("loop", vec![inst(None, Op::Branch("loop".into()))]),
+        ])
+        .into(),
+    );
     validate(&module);
     assert_eq!(changed_bodies(&module, &sources).count(), 0);
     fm(&mut module, "aggregate").blocks.as_mut().unwrap()[0].instructions[1].op =
@@ -459,73 +467,76 @@ fn checked_signed_boundaries_and_reached_trap_are_misses() {
             attrs: vec![],
             blocks: None,
         }));
-        fm(&mut module, "aggregate").blocks = Some(vec![
-            block(
-                "entry",
-                vec![
-                    inst(
-                        Some("l"),
-                        call("leaf", 8, vec![Arg::new(ty.clone(), Val::Int(3))]),
-                    ),
-                    inst(
-                        Some("pair"),
-                        Op::Call {
-                            result: pair.clone(),
-                            result_attrs: vec![],
-                            callee: global("llvm.sadd.with.overflow.i8"),
-                            args: vec![
-                                Arg::new(ty.clone(), local("l")),
-                                Arg::new(ty.clone(), Val::Int(constant)),
-                            ],
-                            vararg: None,
-                        },
-                    ),
-                    inst(
-                        Some("r"),
-                        Op::Extract {
-                            arg: Arg::new(pair.clone(), local("pair")),
-                            index: 0,
-                        },
-                    ),
-                    inst(
-                        Some("ov"),
-                        Op::Extract {
-                            arg: Arg::new(pair, local("pair")),
-                            index: 1,
-                        },
-                    ),
-                    inst(
-                        None,
-                        Op::CondBranch {
-                            condition: if forced_trap {
-                                Val::Bool(true)
-                            } else {
-                                local("ov")
+        fm(&mut module, "aggregate").blocks = Some(
+            (vec![
+                block(
+                    "entry",
+                    vec![
+                        inst(
+                            Some("l"),
+                            call("leaf", 8, vec![Arg::new(ty.clone(), Val::Int(3))]),
+                        ),
+                        inst(
+                            Some("pair"),
+                            Op::Call {
+                                result: pair.clone(),
+                                result_attrs: vec![],
+                                callee: global("llvm.sadd.with.overflow.i8"),
+                                args: vec![
+                                    Arg::new(ty.clone(), local("l")),
+                                    Arg::new(ty.clone(), Val::Int(constant)),
+                                ],
+                                vararg: None,
                             },
-                            yes: "trap".into(),
-                            no: "ok".into(),
-                        },
-                    ),
-                ],
-            ),
-            block("ok", vec![ret(8, local("r"))]),
-            block(
-                "trap",
-                vec![
-                    inst(
-                        None,
-                        Op::Call {
-                            result: Ty::Void,
-                            result_attrs: vec![],
-                            callee: global("llvm.trap"),
-                            args: vec![],
-                            vararg: None,
-                        },
-                    ),
-                    inst(None, Op::Unreachable),
-                ],
-            ),
-        ]);
+                        ),
+                        inst(
+                            Some("r"),
+                            Op::Extract {
+                                arg: Arg::new(pair.clone(), local("pair")),
+                                index: 0,
+                            },
+                        ),
+                        inst(
+                            Some("ov"),
+                            Op::Extract {
+                                arg: Arg::new(pair, local("pair")),
+                                index: 1,
+                            },
+                        ),
+                        inst(
+                            None,
+                            Op::CondBranch {
+                                condition: if forced_trap {
+                                    Val::Bool(true)
+                                } else {
+                                    local("ov")
+                                },
+                                yes: "trap".into(),
+                                no: "ok".into(),
+                            },
+                        ),
+                    ],
+                ),
+                block("ok", vec![ret(8, local("r"))]),
+                block(
+                    "trap",
+                    vec![
+                        inst(
+                            None,
+                            Op::Call {
+                                result: Ty::Void,
+                                result_attrs: vec![],
+                                callee: global("llvm.trap"),
+                                args: vec![],
+                                vararg: None,
+                            },
+                        ),
+                        inst(None, Op::Unreachable),
+                    ],
+                ),
+            ])
+            .into(),
+        );
         validate(&module);
         assert_eq!(
             !changed_bodies(&module, &sources).bodies.is_empty(),
@@ -543,24 +554,30 @@ fn checked_signed_boundaries_and_reached_trap_are_misses() {
 #[test]
 fn unadorned_boolean_constants_use_exact_width() {
     let (mut module, sources) = inputs(1);
-    fm(&mut module, "leaf").blocks = Some(vec![block("entry", vec![ret(1, local("x"))])]);
-    fm(&mut module, "aggregate").blocks = Some(vec![block(
-        "entry",
-        vec![
-            inst(
-                Some("v"),
-                call("leaf", 1, vec![Arg::new(Ty::Int(1), Val::Bool(true))]),
-            ),
-            ret(1, local("v")),
-        ],
-    )]);
-    fm(&mut module, "top").blocks = Some(vec![block(
-        "entry",
-        vec![
-            inst(Some("v"), call("aggregate", 1, vec![])),
-            ret(1, local("v")),
-        ],
-    )]);
+    fm(&mut module, "leaf").blocks = Some((vec![block("entry", vec![ret(1, local("x"))])]).into());
+    fm(&mut module, "aggregate").blocks = Some(
+        (vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("v"),
+                    call("leaf", 1, vec![Arg::new(Ty::Int(1), Val::Bool(true))]),
+                ),
+                ret(1, local("v")),
+            ],
+        )])
+        .into(),
+    );
+    fm(&mut module, "top").blocks = Some(
+        (vec![block(
+            "entry",
+            vec![
+                inst(Some("v"), call("aggregate", 1, vec![])),
+                ret(1, local("v")),
+            ],
+        )])
+        .into(),
+    );
     validate(&module);
     apply(&mut module, &sources);
     validate(&module);

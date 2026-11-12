@@ -112,7 +112,7 @@ fn partial(seed: usize) -> partial_places::State {
     use crate::place_replacements::fixture::{instruction as i, module};
     let mut module = module();
     let f = &mut module.functions[0];
-    f.values = vec![Type::I32, Type::I32, Type::Bool];
+    f.values = vec![Type::I32, Type::I32, Type::Bool].into();
     f.blocks[0].instructions = vec![
         i(
             Some(ValueId(0)),

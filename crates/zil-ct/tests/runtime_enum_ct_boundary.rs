@@ -101,13 +101,15 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
                 ty: ty.clone(),
                 mutable: false,
                 span,
-            }],
-            values: vec![Type::I32, ty, Type::I32],
+            }]
+            .into(),
+            values: vec![Type::I32, ty, Type::I32].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span,
         }],
@@ -234,7 +236,7 @@ fn unpack_and_drop_of_an_inactive_owned_payload_are_ct_forbidden() {
         };
         let f = &mut module.functions[0];
         f.locals[0].ty = ty.clone();
-        f.values = vec![Type::I32, ty];
+        f.values = vec![Type::I32, ty].into();
         let b = &mut f.blocks[0];
         b.instructions[3].kind = InstructionKind::MakeVariant {
             variant: 0,

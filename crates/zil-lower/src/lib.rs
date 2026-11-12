@@ -392,35 +392,23 @@ fn clone_function(
         entry,
         span,
     } = function;
-    let blocks = blocks
-        .iter()
-        .map(|block| {
-            let instructions = block
-                .instructions
-                .iter()
-                .map(|instruction| {
-                    if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
-                        budget.static_bytes(bytes.len())?;
-                    }
-                    if let zil_ir::InstructionKind::CallDynSlot { arguments, .. } =
-                        &instruction.kind
-                    {
-                        budget.static_bytes(
-                            arguments
-                                .len()
-                                .saturating_mul(std::mem::size_of::<zil_ir::ValueId>()),
-                        )?;
-                    }
-                    Ok(instruction.clone())
-                })
-                .collect::<CompileResult<_>>()?;
-            Ok(zil_ir::BasicBlock {
-                id: block.id,
-                instructions,
-                terminator: block.terminator.clone(),
-            })
-        })
-        .collect::<CompileResult<_>>()?;
+    // Replay the same current budget before retaining shared raw CFG arrays.
+    // Sharing is allocation ownership only; lower_view already checks the
+    // current sealed verifier and no cached capability is introduced.
+    for block in blocks {
+        for instruction in &block.instructions {
+            if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
+                budget.static_bytes(bytes.len())?;
+            }
+            if let zil_ir::InstructionKind::CallDynSlot { arguments, .. } = &instruction.kind {
+                budget.static_bytes(
+                    arguments
+                        .len()
+                        .saturating_mul(std::mem::size_of::<zil_ir::ValueId>()),
+                )?;
+            }
+        }
+    }
     Ok(TypedFunction {
         storage_life: storage_life.clone(),
         call_kind: *call_kind,
@@ -437,7 +425,7 @@ fn clone_function(
         result_mode: *result_mode,
         locals: locals.clone(),
         values: values.clone(),
-        blocks,
+        blocks: blocks.clone(),
         entry: *entry,
         span: *span,
     })
@@ -795,9 +783,9 @@ mod tests {
                 environment: None,
                 parameters: vec![],
                 return_type: Type::I32,
-                locals: vec![],
-                values: vec![Type::I32],
-                blocks: vec![BasicBlock {
+                locals: (vec![]).into(),
+                values: (vec![Type::I32]).into(),
+                blocks: (vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![Instruction {
                         result: Some(ValueId(0)),
@@ -805,7 +793,8 @@ mod tests {
                         span: Span::default(),
                     }],
                     terminator: Terminator::Return(Some(ValueId(0))),
-                }],
+                }])
+                .into(),
                 entry: BlockId(0),
                 span: Span::default(),
             }],
@@ -920,7 +909,8 @@ mod tests {
     #[test]
     fn preserves_the_verified_environment_table_and_closure_operands_exactly() {
         let mut module = checked(TargetProfile::host_llvm()).module().clone();
-        module.functions[0].values = vec![Type::I32, Type::Closure(ClosureId(0)), Type::I32];
+        module.functions[0].values =
+            (vec![Type::I32, Type::Closure(ClosureId(0)), Type::I32]).into();
         module.functions[0].blocks[0].instructions.extend([
             Instruction {
                 result: Some(ValueId(1)),
@@ -954,9 +944,9 @@ mod tests {
             environment: Some(ClosureId(0)),
             parameters: vec![],
             return_type: Type::I32,
-            locals: vec![],
-            values: vec![Type::I32],
-            blocks: vec![BasicBlock {
+            locals: (vec![]).into(),
+            values: (vec![Type::I32]).into(),
+            blocks: (vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(0)),
@@ -964,7 +954,8 @@ mod tests {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }])
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         });

@@ -120,19 +120,21 @@ fn fixture(mode: u8) -> zil_ir::TypedModule {
         environment: None,
         parameters: vec![],
         return_type: Type::I64,
-        locals: vec![zil_ir::LocalDecl {
+        locals: (vec![zil_ir::LocalDecl {
             id: LocalId(0),
             name: "stored".into(),
             ty: stored,
             mutable: false,
             span: Span::default(),
-        }],
-        values,
-        blocks: vec![zil_ir::BasicBlock {
+        }])
+        .into(),
+        values: values.into(),
+        blocks: (vec![zil_ir::BasicBlock {
             id: BlockId(0),
             instructions,
             terminator: Terminator::Return(Some(ValueId(answer))),
-        }],
+        }])
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
         storage_life: None,

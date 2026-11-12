@@ -1,9 +1,10 @@
 //! Process-local reuse of successful scalar expansion from sealed parser output.
 //! Receipts reproduce bounded work; they confer no type or safety authority.
 use super::*;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Instant;
-use zil_base::{FileId, Fingerprint, ModuleId, TargetProfile};
+use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId, TargetProfile};
 use zil_syntax::ParsedSource;
 
 #[derive(Clone, Debug)]
@@ -18,6 +19,7 @@ impl Eq for ModuleRevision {}
 pub struct ProducedProgram {
     core: Arc<CoreProgram>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
+    functions: BTreeMap<(ModuleId, String), FunctionInput>,
 }
 impl ProducedProgram {
     pub fn program(&self) -> &Arc<CoreProgram> {
@@ -26,10 +28,19 @@ impl ProducedProgram {
     pub fn module_revision(&self, module: ModuleId) -> Option<&ModuleRevision> {
         self.revisions.get(&module)
     }
+    /// Sealed scalar producer evidence for this exact declaration/body binding.
+    /// Context, signatures, budgets and current safety checks remain separate.
+    pub fn function_revision(&self, module: ModuleId, name: &str) -> Option<&ModuleRevision> {
+        Some(&self.functions.get(&(module, name.to_owned()))?.revision)
+    }
+    pub fn function_source_fingerprint(&self, module: ModuleId, name: &str) -> Option<Fingerprint> {
+        Some(self.functions.get(&(module, name.to_owned()))?.fingerprint)
+    }
 }
 pub struct ExpandedProgram {
     modules: Vec<(ProgramModule, Arc<SourceMap>)>,
     revisions: BTreeMap<ModuleId, ModuleRevision>,
+    functions: BTreeMap<(ModuleId, String), FunctionInput>,
 }
 impl ExpandedProgram {
     pub fn into_program(
@@ -46,6 +57,7 @@ impl ExpandedProgram {
                     modules,
                 }),
                 revisions: self.revisions,
+                functions: self.functions,
             },
             maps,
         )
@@ -92,6 +104,8 @@ statistics!(
     retained_lower_source_maps,
     cloned_source_map_entries,
     cloned_source_bytes,
+    function_input_hashes,
+    function_input_reuses,
     context_ns,
     production_ns,
     reuse_ns,
@@ -216,6 +230,11 @@ struct Receipt {
     nodes: usize,
     work: usize,
 }
+#[derive(Clone, Debug)]
+struct FunctionInput {
+    fingerprint: Fingerprint,
+    revision: ModuleRevision,
+}
 #[derive(Clone)]
 struct Entry {
     parsed: ParsedSource,
@@ -227,6 +246,7 @@ struct Entry {
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
     lower: Option<(Limits, Arc<ExpandedModule>)>,
     revision: ModuleRevision,
+    functions: BTreeMap<String, FunctionInput>,
 }
 #[derive(Clone, Default)]
 pub struct ExpandSession {
@@ -363,6 +383,13 @@ impl ExpandSession {
                     restored: None,
                     lower: None,
                     revision: ModuleRevision(Arc::new(())),
+                    // Only the complete compatible environment below can keep
+                    // a previous function's sealed lowering input evidence.
+                    functions: self
+                        .entries
+                        .get(&module.id)
+                        .map(|entry| entry.functions.clone())
+                        .unwrap_or_default(),
                 }
             };
             if !entry.scalar || entries.insert(module.id, entry).is_some() {
@@ -434,14 +461,14 @@ impl ExpandSession {
                 entry.restored = None;
                 entry.lower = None;
                 entry.revision = ModuleRevision(Arc::new(()));
+                entry.functions.clear();
             }
         }
         if let Some(start) = context_clock {
             self.stats.context_ns += nanos(start);
         }
         let assembly = self.profiling.then(Instant::now);
-        let sources: Vec<_> = parsed.iter().map(|p| p.source().clone()).collect();
-        self.stats.cloned_source_bytes += sources.iter().map(|s| s.text.len() as u64).sum::<u64>();
+        let sources: Vec<_> = parsed.iter().map(|p| p.source()).collect();
         if let Some(start) = assembly {
             self.stats.assembly_ns += nanos(start);
         }
@@ -463,13 +490,73 @@ impl ExpandSession {
         else {
             return Ok(None);
         };
+        let mut functions = BTreeMap::new();
+        for (module, _) in &modules {
+            let Some(entry) = entries.get_mut(&module.core.module_id) else {
+                return Ok(None);
+            };
+            if self
+                .entries
+                .get(&module.core.module_id)
+                .is_some_and(|old| old.revision == entry.revision)
+            {
+                self.stats.function_input_reuses += entry.functions.len() as u64;
+                functions.extend(
+                    entry.functions.iter().map(|(name, input)| {
+                        ((module.core.module_id, name.clone()), input.clone())
+                    }),
+                );
+                continue;
+            }
+            let source = entry.parsed.source();
+            let mut next_functions = BTreeMap::new();
+            for function in &module.core.functions {
+                // The scalar producer performs no CT/trait/generic rewrites.
+                // Preserve identity only for byte-identical declaration text,
+                // exact relocation IDs/spans and the complete compatible
+                // environment. Position or identity changes conservatively miss.
+                let Some(text) = source
+                    .text
+                    .get(function.span.start..function.span.end)
+                    .filter(|_| function.span.file == source.file_id)
+                else {
+                    return Ok(None);
+                };
+                let mut fingerprint = FingerprintBuilder::new();
+                source.module_id.hash(&mut fingerprint);
+                source.file_id.hash(&mut fingerprint);
+                function.id.hash(&mut fingerprint);
+                function.span.start.hash(&mut fingerprint);
+                function.span.end.hash(&mut fingerprint);
+                function.name.hash(&mut fingerprint);
+                fingerprint.update(text.as_bytes());
+                let fingerprint = fingerprint.digest();
+                self.stats.function_input_hashes += 1;
+                let input = entry
+                    .functions
+                    .get(&function.name)
+                    .filter(|previous| previous.fingerprint == fingerprint)
+                    .cloned()
+                    .unwrap_or_else(|| FunctionInput {
+                        fingerprint,
+                        revision: ModuleRevision(Arc::new(())),
+                    });
+                functions.insert((source.module_id, function.name.clone()), input.clone());
+                next_functions.insert(function.name.clone(), input);
+            }
+            entry.functions = next_functions;
+        }
         let revisions = entries
             .iter()
             .map(|(id, entry)| (*id, entry.revision.clone()))
             .collect();
         self.entries = entries;
         self.environment = Some(environment);
-        Ok(Some(ExpandedProgram { modules, revisions }))
+        Ok(Some(ExpandedProgram {
+            modules,
+            revisions,
+            functions,
+        }))
     }
 }
 // In the sealed scalar domain, Normalize's Index stores only names/publicness/

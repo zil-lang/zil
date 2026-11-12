@@ -929,7 +929,8 @@ fn observation_fixture() -> TypedModule {
             result: Box::new(owner.clone()),
         },
         owner,
-    ];
+    ]
+    .into();
     f.blocks[0].instructions = vec![
         i(
             Some(ValueId(0)),

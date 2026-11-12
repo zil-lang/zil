@@ -42,7 +42,8 @@ fn candidate() -> TypedModule {
                 ty: Type::Managed(Box::new(Type::ByteBuffer)),
                 mutable: false,
                 span,
-            }],
+            }]
+            .into(),
             values: vec![
                 Type::Managed(Box::new(Type::ByteBuffer)),
                 Type::Desc(Box::new(Type::ByteBuffer)),
@@ -58,7 +59,8 @@ fn candidate() -> TypedModule {
                         element: Box::new(Type::U8),
                     }),
                 },
-            ],
+            ]
+            .into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -103,7 +105,8 @@ fn candidate() -> TypedModule {
                     },
                 ],
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span,
         }],

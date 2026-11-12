@@ -89,9 +89,9 @@ fn function(
         environment: None,
         parameters: Vec::new(),
         return_type,
-        locals: Vec::new(),
-        values,
-        blocks,
+        locals: (Vec::new()).into(),
+        values: values.into(),
+        blocks: blocks.into(),
         entry: BlockId(0),
         span: Span::default(),
     }
@@ -1146,7 +1146,7 @@ fn loop_and_branch_execute_mutable_local_dataflow() {
             block(3, vec![load(9, 1)], Terminator::Return(Some(ValueId(9)))),
         ],
     );
-    sum.locals = vec![local(0, Type::I64, true), local(1, Type::I64, true)];
+    sum.locals = (vec![local(0, Type::I64, true), local(1, Type::I64, true)]).into();
     let initialized = vec![0, 1];
     let verified = checked(
         vec![sum],
@@ -1217,7 +1217,7 @@ fn recursion_and_direct_calls_use_identity_symbols_not_source_names() {
             ),
         ],
     );
-    factorial.locals = vec![local(0, Type::I64, false)];
+    factorial.locals = (vec![local(0, Type::I64, false)]).into();
     factorial.parameters = vec![LocalId(0)];
     let check = function(
         1,
@@ -1307,7 +1307,7 @@ fn unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification(
         )],
     );
     callee.parameters = vec![LocalId(0), LocalId(1)];
-    callee.locals = vec![local(0, Type::Unit, true), local(1, Type::Bool, false)];
+    callee.locals = (vec![local(0, Type::Unit, true), local(1, Type::Bool, false)]).into();
     let check = function(
         1,
         "check",
@@ -1527,11 +1527,12 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
         )],
     );
     calculate.parameters = vec![LocalId(0)];
-    calculate.locals = vec![
+    calculate.locals = (vec![
         local(0, Type::I64, true),
         local(1, closure_type.clone(), true),
         local(2, closure_type, false),
-    ];
+    ])
+    .into();
     let mut closure = function(
         2,
         "$closure0",
@@ -1549,7 +1550,7 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
     );
     closure.environment = Some(ClosureId(0));
     closure.parameters = vec![LocalId(0)];
-    closure.locals = vec![local(0, Type::I64, false)];
+    closure.locals = (vec![local(0, Type::I64, false)]).into();
     let verified = checked_with_closures(
         vec![check, calculate, closure],
         vec![ClosureDefinition {
@@ -1702,7 +1703,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         vec![block(0, vec![load(0, 0)], Terminator::Return(None))],
     );
     unit.environment = Some(ClosureId(1));
-    unit.locals = vec![local(0, Type::Unit, false)];
+    unit.locals = (vec![local(0, Type::Unit, false)]).into();
     unit.parameters = vec![LocalId(0)];
     let mut empty = function(
         3,
@@ -1716,7 +1717,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         )],
     );
     empty.environment = Some(ClosureId(2));
-    empty.locals = vec![local(0, Type::Unit, false), local(1, Type::I64, false)];
+    empty.locals = (vec![local(0, Type::Unit, false), local(1, Type::I64, false)]).into();
     empty.parameters = vec![LocalId(0), LocalId(1)];
     let mixed_initialized = (0..6).collect::<Vec<_>>();
     let verified = checked_with_closures(
@@ -1904,4 +1905,234 @@ fn false_presence_cannot_authorize_mutated_raw_lir_new_opcode() {
         ));
     let errors = emit(&verified, &changed).unwrap_err();
     assert_eq!(errors[0].code, "E-CODEGEN-UNBOUND-LIR");
+}
+
+#[test]
+fn incremental_machine_values_observe_equal_and_changed_scalar_results() {
+    fn fixture(left: i64, right: i64) -> VerifiedModule {
+        let mut caller = function(
+            0,
+            "caller",
+            Type::I64,
+            vec![Type::I64; 3],
+            vec![block(
+                0,
+                vec![
+                    instruction(
+                        Some(0),
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![],
+                        },
+                    ),
+                    load(1, 0),
+                    binary(2, BinaryOp::Add, 0, 1),
+                ],
+                Terminator::Return(Some(ValueId(2))),
+            )],
+        );
+        caller.parameters.push(LocalId(0));
+        caller.locals.push(local(0, Type::I64, false));
+        let mut callee = binary_function(BinaryOp::Add, Constant::I64(left), Constant::I64(right));
+        callee.id = FunctionId(1);
+        callee.name = "known".into();
+        let mut sibling = returning(Constant::I64(99));
+        sibling.id = FunctionId(2);
+        sibling.name = "sibling".into();
+        checked(
+            vec![caller, callee, sibling],
+            vec![
+                vec![(vec![0], vec![0])],
+                vec![(vec![], vec![])],
+                vec![(vec![], vec![])],
+            ],
+        )
+    }
+    let mut session = crate::emit::incremental::Session::default();
+    let options = EmitOptions {
+        entry: EntryPoint::None,
+    };
+    let first = fixture(3, 4);
+    let first_lir = lir(&first);
+    let (first_machine, _, _) = crate::emit::lower_view_with_session(
+        &first,
+        &first_lir.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap();
+    assert_eq!((session.hits, session.misses), (0, 3));
+    let first_identity = session.identity().unwrap();
+    let equal = fixture(2, 5); // changed raw callee, same published scalar result
+    let equal_lir = lir(&equal);
+    let (equal_machine, _, _) = crate::emit::lower_view_with_session(
+        &equal,
+        &equal_lir.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap();
+    assert_eq!((session.hits, session.misses), (2, 1));
+    assert_eq!(first_machine.items, equal_machine.items);
+    let equal_identity = session.identity().unwrap();
+    assert!(std::sync::Arc::ptr_eq(&first_identity.0, &equal_identity.0));
+    assert!(
+        first_identity
+            .1
+            .iter()
+            .zip(&equal_identity.1)
+            .all(|((lm, ls), (rm, rs))| std::sync::Arc::ptr_eq(lm, rm)
+                && std::sync::Arc::ptr_eq(ls, rs))
+    );
+    let changed = fixture(3, 5);
+    let mut changed_lir = lir(&changed);
+    let (changed_machine, _, _) = crate::emit::lower_view_with_session(
+        &changed,
+        &changed_lir.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap();
+    assert_eq!((session.hits, session.misses), (1, 2));
+    assert_ne!(changed_machine.items, equal_machine.items);
+    // A warmed session cannot authorize stale or substituted raw machine input.
+    changed_lir.functions[1].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I64(200));
+    let error = crate::emit::lower_view_with_session(
+        &changed,
+        &changed_lir.as_view(),
+        &options,
+        true,
+        false,
+        1,
+        Some(&mut session),
+    )
+    .unwrap_err();
+    assert_eq!(error[0].code, "E-CODEGEN-UNBOUND-LIR");
+}
+
+#[cfg(all(feature = "llvm-api", target_os = "linux"))]
+#[test]
+fn incremental_native_products_rebuild_current_outputs_and_reuse_complete_link() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = TestDirectory::new();
+    let mut source = returning(Constant::I64(42));
+    source.name = "main".into();
+    let verified = checked_simple(source);
+    let raw = lir(&verified);
+    let mut options = BuildOptions::new(directory.0.join("program"));
+    options.backend = NativeBackend::LlvmApi;
+    options.optimization = Optimization::O2;
+    options.incremental_o2 = true;
+    options.codegen.units = 2;
+    options.object_cache = Some(directory.0.join("cache"));
+    options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
+    let mut session = BackendSession::default();
+    let mut first = build_view_with_cancellation_and_session(
+        &verified,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        Some(&mut session),
+    )
+    .unwrap();
+    first.commit_object_cache();
+    assert_eq!(session.summary().lowered_functions, 1);
+    let original = fs::read(&first.executable).unwrap();
+    let mode = fs::metadata(&first.executable)
+        .unwrap()
+        .permissions()
+        .mode();
+    fs::write(&first.executable, b"obsolete output").unwrap();
+    fs::set_permissions(&first.executable, fs::Permissions::from_mode(0o600)).unwrap();
+    let mut warm = build_view_with_cancellation_and_session(
+        &verified,
+        &raw.as_view(),
+        &options,
+        &|| false,
+        None,
+        Some(&mut session),
+    )
+    .unwrap();
+    warm.commit_object_cache();
+    assert_eq!(session.summary().reused_functions, 1);
+    assert!(session.summary().reused_partition);
+    assert!(session.summary().reused_machine_transforms);
+    assert_eq!(
+        session.summary().reused_object_keys,
+        warm.codegen.actual_units
+    );
+    assert_eq!(warm.codegen.object_cache.hits, warm.codegen.actual_units);
+    // The controlled Linux GNU linker is fully discovered; other toolchains
+    // conservatively execute a fresh link instead of satisfying this fixture.
+    assert!(
+        session.summary().reused_link,
+        "current Linux toolchain did not satisfy complete final-link input discovery"
+    );
+    assert!(!warm.commands.is_empty());
+    assert!(warm.commands.iter().all(|command| {
+        command
+            .iter()
+            .any(|arg| arg == "-###" || arg == "--verbose")
+            || command
+                .first()
+                .is_some_and(|program| program.ends_with("/ldd"))
+    }));
+    assert_eq!(fs::read(&warm.executable).unwrap(), original);
+    assert_eq!(
+        fs::metadata(&warm.executable).unwrap().permissions().mode(),
+        mode
+    );
+    let output = Command::new(&warm.executable).output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"42\n");
+    assert!(
+        fs::read_to_string(&warm.llvm_ir)
+            .unwrap()
+            .contains(&verified.fingerprint().to_hex())
+    );
+}
+
+#[test]
+fn incremental_diagnostic_fragments_match_complete_renderer_after_local_change() {
+    let verified = checked_simple(returning(Constant::I64(42)));
+    let raw = lir(&verified);
+    let mut machine =
+        crate::emit::lower_with_options(&verified, &raw, &EmitOptions::default()).unwrap();
+    let mut session = BackendSession::default();
+    assert_eq!(session.render(&machine), machine.to_text());
+    assert_eq!(
+        session.summary().rendered_diagnostic_items,
+        machine.items.len()
+    );
+    session.begin();
+    machine.fingerprint = Fingerprint::of(b"current verified input").to_hex();
+    assert_eq!(session.render(&machine), machine.to_text());
+    assert_eq!(session.summary().rendered_diagnostic_items, 0);
+    assert_eq!(
+        session.summary().reused_diagnostic_items,
+        machine.items.len()
+    );
+    session.begin();
+    if let zil_llvm_api::model::Item::Function(function) = machine.items.last_mut().unwrap() {
+        function.name.push_str(".changed");
+    } else {
+        panic!("expected final source function");
+    }
+    assert_eq!(session.render(&machine), machine.to_text());
+    assert_eq!(session.summary().rendered_diagnostic_items, 1);
+    assert_eq!(
+        session.summary().reused_diagnostic_items,
+        machine.items.len() - 1
+    );
 }

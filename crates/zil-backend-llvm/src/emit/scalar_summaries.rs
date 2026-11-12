@@ -358,9 +358,12 @@ pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
         linkage: m::Linkage::External,
         signature: m::Signature::new(argument.ty.clone(), vec![]),
         attrs: vec![],
-        blocks: Some(vec![m::Block {
-            name: "entry".into(),
-            instructions: vec![m::Inst::new(None, m::Op::Return(Some(argument)))],
-        }]),
+        blocks: Some(
+            (vec![m::Block {
+                name: "entry".into(),
+                instructions: vec![m::Inst::new(None, m::Op::Return(Some(argument)))],
+            }])
+            .into(),
+        ),
     }
 }

@@ -651,8 +651,9 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
             ty: store.clone(),
             mutable: true,
             span,
-        }],
-        values: vec![store, Type::I32],
+        }]
+        .into(),
+        values: vec![store, Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -681,7 +682,8 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
                 },
             ],
             terminator: Terminator::Return(Some(ValueId(1))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span,
     });
@@ -1079,7 +1081,8 @@ fn pod_store_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
             result: Box::new(Type::Unit),
         },
         Type::I64,
-    ];
+    ]
+    .into();
     let span = f.span;
     let push = Instruction {
         result: Some(ValueId(2)),

@@ -30,8 +30,8 @@ fn function(
                 span: span(),
             })
             .collect(),
-        values: vec![],
-        blocks: vec![],
+        values: vec![].into(),
+        blocks: vec![].into(),
         entry: BlockId(0),
         return_type: result,
         result_mode: PassingMode::Infer,
@@ -75,14 +75,15 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         scoped_callback: Some(ScopedCallbackRole::Close),
     });
     let mut callback_entry = function(2, vec![Type::I32], Type::I32, Some(ClosureId(0)));
-    callback_entry.values = vec![Type::I32];
+    callback_entry.values = vec![Type::I32].into();
     callback_entry.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![instruction(Some(0), InstructionKind::Load(LocalId(0)))],
         terminator: Terminator::Return(Some(ValueId(0))),
-    }];
+    }]
+    .into();
     let mut body_entry = function(3, vec![], Type::I32, Some(ClosureId(1)));
-    body_entry.values = vec![Type::I32];
+    body_entry.values = vec![Type::I32].into();
     body_entry.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![instruction(
@@ -90,7 +91,8 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
             InstructionKind::Constant(Constant::I32(7)),
         )],
         terminator: Terminator::Return(Some(ValueId(0))),
-    }];
+    }]
+    .into();
     let pair = Type::Tuple(vec![Type::Bool, Type::I32]);
     let mut caller = function(4, vec![], pair.clone(), None);
     caller.locals = vec![LocalDecl {
@@ -99,7 +101,8 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         ty: Type::Closure(ClosureId(0)),
         mutable: true,
         span: span(),
-    }];
+    }]
+    .into();
     caller.values = vec![
         Type::Closure(ClosureId(0)),
         Type::Address {
@@ -108,7 +111,8 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         },
         Type::Closure(ClosureId(1)),
         pair,
-    ];
+    ]
+    .into();
     caller.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -152,7 +156,8 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
             instruction(None, InstructionKind::UnsafeExit { region: 7 }),
         ],
         terminator: Terminator::Return(Some(ValueId(3))),
-    }];
+    }]
+    .into();
     let module = TypedModule {
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
@@ -234,7 +239,7 @@ pub fn borrowed_closure_body(alias: bool) -> (TypedModule, CandidatePlan) {
         inner: Box::new(Type::Closure(ClosureId(0))),
     };
     m.closures[1].captures = vec![address.clone()];
-    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32];
+    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32].into();
     m.functions[3].blocks[0].instructions = vec![
         instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
         instruction(Some(1), InstructionKind::Constant(Constant::I32(9))),
@@ -328,7 +333,7 @@ pub fn borrowed_scalar_body() -> (TypedModule, CandidatePlan) {
         inner: Box::new(Type::I32),
     };
     m.closures[1].captures = vec![address.clone()];
-    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32, Type::I32];
+    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32, Type::I32].into();
     m.functions[3].blocks[0].instructions = vec![
         instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
         instruction(
@@ -434,12 +439,14 @@ pub fn wrapper() -> (TypedModule, CandidatePlan) {
             mutable: false,
             span: span(),
         },
-    ];
+    ]
+    .into();
     f.values = vec![
         address,
         Type::Closure(ClosureId(1)),
         Type::Tuple(vec![Type::Bool, Type::I32]),
-    ];
+    ]
+    .into();
     f.blocks[0].instructions = vec![
         instruction(Some(0), InstructionKind::Load(LocalId(0))),
         instruction(Some(1), InstructionKind::TakeLocal { local: LocalId(1) }),
@@ -782,7 +789,8 @@ pub fn ordinary_local_owner() -> (TypedModule, CandidatePlan) {
         Type::I32,
         f.locals[1].ty.clone(),
         Type::I32,
-    ];
+    ]
+    .into();
     f.return_type = Type::I32;
     let event = CallEvent {
         parameter: 0,
@@ -840,7 +848,7 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
         Type::Closure(ClosureId(1)),
         None,
     );
-    factory.values = vec![capture_type, Type::Closure(ClosureId(1))];
+    factory.values = vec![capture_type, Type::Closure(ClosureId(1))].into();
     let mut instructions = vec![
         instruction(Some(0), InstructionKind::TakeLocal { local: LocalId(0) }),
         instruction(
@@ -871,7 +879,8 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
         id: BlockId(0),
         instructions,
         terminator: Terminator::Return(Some(ValueId(1))),
-    }];
+    }]
+    .into();
     factory.callable_return_contract = Some(CallableReturnContract {
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),
@@ -990,7 +999,8 @@ pub fn role_capturing_local_handler() -> (TypedModule, CandidatePlan) {
         Type::Closure(ClosureId(2)),
         Type::Closure(ClosureId(2)),
         Type::I32,
-    ];
+    ]
+    .into();
     f.return_type = Type::I32;
     f.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
@@ -1037,7 +1047,7 @@ pub fn role_capturing_local_handler() -> (TypedModule, CandidatePlan) {
     ];
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
     let mut entry = function(5, vec![], Type::I32, Some(ClosureId(2)));
-    entry.values = vec![Type::Closure(ClosureId(0)), Type::I32, Type::I32];
+    entry.values = vec![Type::Closure(ClosureId(0)), Type::I32, Type::I32].into();
     entry.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -1052,7 +1062,8 @@ pub fn role_capturing_local_handler() -> (TypedModule, CandidatePlan) {
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(2))),
-    }];
+    }]
+    .into();
     m.functions.push(entry);
     m.closures.push(ClosureDefinition {
         storage_life: None,
@@ -1097,7 +1108,7 @@ pub fn local_child_handler() -> (TypedModule, CandidatePlan) {
         Type::I32,
         None,
     );
-    child.values = vec![Type::Closure(ClosureId(0)), Type::I32, Type::I32];
+    child.values = vec![Type::Closure(ClosureId(0)), Type::I32, Type::I32].into();
     child.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -1112,7 +1123,8 @@ pub fn local_child_handler() -> (TypedModule, CandidatePlan) {
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(2))),
-    }];
+    }]
+    .into();
     child.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
             life: None,
@@ -1178,7 +1190,7 @@ pub fn local_child_handler() -> (TypedModule, CandidatePlan) {
 pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
     let (mut m, mut p) = local_child_handler();
     let mut factory = function(6, vec![], Type::Closure(ClosureId(0)), None);
-    factory.values = vec![Type::Closure(ClosureId(0))];
+    factory.values = vec![Type::Closure(ClosureId(0))].into();
     factory.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![instruction(
@@ -1189,7 +1201,8 @@ pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
             },
         )],
         terminator: Terminator::Return(Some(ValueId(0))),
-    }];
+    }]
+    .into();
     factory.callable_return_contract = Some(CallableReturnContract {
         source: CallableReturnSource::Fresh,
         closure: ClosureId(0),
@@ -1329,7 +1342,7 @@ pub fn wrapped_role_capture(union: bool) -> (TypedModule, CandidatePlan) {
         }));
     // The entry leaves its captured aggregate intact for remaining cleanup;
     // no mismatched Read/Take projection is used to make the negative pass.
-    m.functions[5].values = vec![Type::I32];
+    m.functions[5].values = vec![Type::I32].into();
     m.functions[5].blocks[0].instructions = vec![instruction(
         Some(0),
         InstructionKind::Constant(Constant::I32(0)),
@@ -1385,7 +1398,7 @@ pub fn supplied_body_hidden_in_with(twice: bool) -> (TypedModule, CandidatePlan)
     let (mut m, mut p) = wrapper();
     m.closures[1].kind = CallableKind::Fn;
     let mut entry = function(5, vec![], Type::I32, Some(ClosureId(2)));
-    entry.values = vec![Type::Closure(ClosureId(1)), Type::I32, Type::I32];
+    entry.values = vec![Type::Closure(ClosureId(1)), Type::I32, Type::I32].into();
     entry.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -1410,7 +1423,8 @@ pub fn supplied_body_hidden_in_with(twice: bool) -> (TypedModule, CandidatePlan)
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(2))),
-    }];
+    }]
+    .into();
     m.functions.push(entry);
     m.closures.push(ClosureDefinition {
         storage_life: None,
@@ -1485,7 +1499,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
     };
     let mut factory = function(6, vec![package.clone()], Type::Closure(ClosureId(2)), None);
     factory.locals[0].mutable = true;
-    factory.values = vec![Type::Closure(ClosureId(1)), Type::Closure(ClosureId(2))];
+    factory.values = vec![Type::Closure(ClosureId(1)), Type::Closure(ClosureId(2))].into();
     factory.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -1515,7 +1529,8 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(1))),
-    }];
+    }]
+    .into();
     factory.callable_return_contract = Some(CallableReturnContract {
         source: CallableReturnSource::Fresh,
         closure: ClosureId(2),
@@ -1542,7 +1557,7 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
             .collect(),
     });
     let mut fresh = function(7, vec![], Type::Closure(ClosureId(1)), None);
-    fresh.values = vec![Type::Closure(ClosureId(1))];
+    fresh.values = vec![Type::Closure(ClosureId(1))].into();
     fresh.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![instruction(
@@ -1553,7 +1568,8 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
             },
         )],
         terminator: Terminator::Return(Some(ValueId(0))),
-    }];
+    }]
+    .into();
     fresh.callable_return_contract = Some(CallableReturnContract {
         source: CallableReturnSource::Fresh,
         closure: ClosureId(1),

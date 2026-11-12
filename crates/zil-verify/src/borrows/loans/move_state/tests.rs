@@ -51,12 +51,13 @@ fn fixture(width: usize) -> (TypedModule, FunctionGraph) {
                 span: span(0),
             })
             .collect(),
-        values: vec![Type::I32; width],
+        values: vec![Type::I32; width].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Trap,
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(99),
     };

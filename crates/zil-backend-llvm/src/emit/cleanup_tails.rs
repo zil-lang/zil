@@ -227,7 +227,7 @@ mod tests {
                     span: Span::default(),
                 })
                 .collect(),
-            values: vec![],
+            values: (vec![]).into(),
             blocks: sequences
                 .iter()
                 .enumerate()
@@ -314,7 +314,7 @@ mod tests {
         let sequences = vec![vec![0, 1, 2, 3]; 4];
         let mut f = input(&sequences);
         f.return_type = Type::I32;
-        f.values = vec![Type::I32; 4];
+        f.values = (vec![Type::I32; 4]).into();
         for (i, b) in f.blocks.iter_mut().enumerate() {
             b.instructions.insert(
                 0,

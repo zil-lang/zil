@@ -60,8 +60,8 @@ fn base(kind: CallableKind) -> TypedModule {
         parameters: vec![],
         return_type: Type::I32,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![Type::I32],
+        locals: vec![].into(),
+        values: vec![Type::I32].into(),
         blocks: vec![block(
             0,
             vec![op(
@@ -69,7 +69,8 @@ fn base(kind: CallableKind) -> TypedModule {
                 InstructionKind::Constant(Constant::I32(7)),
             )],
             Terminator::Return(Some(ValueId(0))),
-        )],
+        )]
+        .into(),
         entry: BlockId(0),
         span: s(),
     };
@@ -119,9 +120,9 @@ fn base(kind: CallableKind) -> TypedModule {
         parameters: vec![LocalId(0), LocalId(1)],
         return_type: closure.clone(),
         result_mode: PassingMode::Infer,
-        locals: vec![local(0, Type::Bool), local(1, closure.clone())],
-        values: vec![closure],
-        blocks: vec![block(0, instructions, Terminator::Return(Some(ValueId(0))))],
+        locals: vec![local(0, Type::Bool), local(1, closure.clone())].into(),
+        values: vec![closure].into(),
+        blocks: vec![block(0, instructions, Terminator::Return(Some(ValueId(0))))].into(),
         entry: BlockId(0),
         span: s(),
     };
@@ -265,7 +266,8 @@ fn branch_and_loop_keep_the_same_position_without_global_origin_union() {
             Type::Bool,
             Type::Closure(ClosureId(0)),
             Type::Closure(ClosureId(0)),
-        ];
+        ]
+        .into();
         let mut yes = vec![op(
             Some(ValueId(1)),
             InstructionKind::TakeLocal { local: LocalId(1) },
@@ -291,7 +293,8 @@ fn branch_and_loop_keep_the_same_position_without_global_origin_union() {
             ),
             block(1, yes, Terminator::Return(Some(ValueId(1)))),
             block(2, no, Terminator::Return(Some(ValueId(2)))),
-        ];
+        ]
+        .into();
         accepted(&m);
         m.functions[1].blocks[2].instructions[0].kind = InstructionKind::MakeClosure {
             closure: ClosureId(0),
@@ -300,7 +303,7 @@ fn branch_and_loop_keep_the_same_position_without_global_origin_union() {
         rejected(&m);
         let mut m = base(kind);
         let f = &mut m.functions[1];
-        f.values = vec![Type::Bool, Type::I32, Type::Closure(ClosureId(0))];
+        f.values = vec![Type::Bool, Type::I32, Type::Closure(ClosureId(0))].into();
         let calls = if kind == CallableKind::FnOnce {
             vec![]
         } else {
@@ -342,7 +345,8 @@ fn branch_and_loop_keep_the_same_position_without_global_origin_union() {
             ),
             block(2, body, Terminator::Jump(BlockId(1))),
             block(3, end, Terminator::Return(Some(ValueId(2)))),
-        ];
+        ]
+        .into();
         f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
             entry: 0,
             nodes: vec![
@@ -378,7 +382,8 @@ fn nested_return_substitutes_actual_source_and_never_upgrades_outer_once() {
         Type::Closure(ClosureId(0)),
         Type::Bool,
         Type::Closure(ClosureId(0)),
-    ];
+    ]
+    .into();
     wrapper.callable_return_contract.as_mut().unwrap().kind = CallableKind::Fn;
     wrapper.callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
     let mut instructions = vec![
@@ -397,7 +402,7 @@ fn nested_return_substitutes_actual_source_and_never_upgrades_outer_once() {
         ),
     ];
     instructions.extend(exit());
-    wrapper.blocks = vec![block(0, instructions, Terminator::Return(Some(ValueId(2))))];
+    wrapper.blocks = vec![block(0, instructions, Terminator::Return(Some(ValueId(2))))].into();
     m.functions.push(wrapper);
     accepted(&m);
     let f = &mut m.functions[2];
@@ -445,7 +450,8 @@ fn moving_a_returned_callable_cannot_revive_a_borrow_of_its_old_position() {
             inner: Box::new(Type::Closure(ClosureId(0))),
         },
         Type::I32,
-    ];
+    ]
+    .into();
     let mut instructions = vec![
         enter(),
         op(
@@ -507,7 +513,8 @@ fn owned_slot() -> TypedModule {
         },
         Type::I32,
         Type::Closure(ClosureId(0)),
-    ];
+    ]
+    .into();
     let mut instructions = vec![
         enter(),
         op(None, InstructionKind::StorageLive(LocalId(2))),
@@ -649,7 +656,8 @@ fn internal_owned_slot_can_restore_across_loop_but_not_replace_parameter_with_fr
         ),
         block(2, loop_body, Terminator::Jump(BlockId(1))),
         block(3, ending, Terminator::Return(Some(ValueId(4)))),
-    ];
+    ]
+    .into();
     f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
         entry: 0,
         nodes: vec![
@@ -780,7 +788,7 @@ fn returning_a_child_does_not_keep_a_borrow_of_its_old_capture_position_alive() 
     parent.id = FunctionId(2);
     parent.name = "parent".into();
     parent.environment = Some(ClosureId(1));
-    parent.locals = vec![local(0, Type::Closure(ClosureId(0)))];
+    parent.locals = vec![local(0, Type::Closure(ClosureId(0)))].into();
     parent.values = vec![
         Type::Address {
             mutable: true,
@@ -790,7 +798,8 @@ fn returning_a_child_does_not_keep_a_borrow_of_its_old_capture_position_alive() 
         Type::Bool,
         Type::Closure(ClosureId(0)),
         Type::I32,
-    ];
+    ]
+    .into();
     parent.blocks = vec![block(
         0,
         vec![
@@ -841,7 +850,8 @@ fn returning_a_child_does_not_keep_a_borrow_of_its_old_capture_position_alive() 
             ),
         ],
         Terminator::Return(Some(ValueId(4))),
-    )];
+    )]
+    .into();
     m.functions.push(parent);
     m.closures.push(ClosureDefinition {
         storage_life: None,
@@ -865,8 +875,8 @@ fn self_contained_forward_type_cannot_hide_different_actual_capture_operands() {
     bad.id = FunctionId(2);
     bad.name = "bad_constructor".into();
     bad.environment = None;
-    bad.locals = vec![local(0, Type::Closure(ClosureId(0)))];
-    bad.values = vec![Type::I32, Type::Closure(ClosureId(0))];
+    bad.locals = vec![local(0, Type::Closure(ClosureId(0)))].into();
+    bad.values = vec![Type::I32, Type::Closure(ClosureId(0))].into();
     bad.blocks = vec![block(
         0,
         vec![
@@ -901,7 +911,8 @@ fn self_contained_forward_type_cannot_hide_different_actual_capture_operands() {
             ),
         ],
         Terminator::Return(Some(ValueId(0))),
-    )];
+    )]
+    .into();
     m.functions.push(bad);
     let diagnostics = analyze(&m, &Limits::default()).unwrap_err();
     assert!(

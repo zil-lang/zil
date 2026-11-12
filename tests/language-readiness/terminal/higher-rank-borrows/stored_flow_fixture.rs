@@ -80,13 +80,13 @@ fn function(
                 span: s(),
             })
             .collect(),
-        values,
+        values: values.into(),
         entry: BlockId(0),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions,
             terminator: Terminator::Return(Some(ValueId(result))),
-        }],
+        }].into(),
         span: s(),
     }
 }
@@ -268,7 +268,7 @@ pub(super) fn module() -> TypedModule {
             mutable: true,
             span: s(),
         },
-    ];
+    ].into();
     let identity = function(
         4,
         vec![shared.clone()],
@@ -390,7 +390,7 @@ pub(super) fn mutable_holder() -> TypedModule {
     let make = &mut m.functions[0];
     make.locals[0].ty = address.clone();
     make.return_type = holder.clone();
-    make.values = vec![address.clone(), holder.clone()];
+    make.values = vec![address.clone(), holder.clone()].into();
     make.blocks[0].instructions = vec![
         instruction(Some(0), InstructionKind::Load(LocalId(0))),
         instruction(
@@ -405,7 +405,7 @@ pub(super) fn mutable_holder() -> TypedModule {
     let get = &mut m.functions[1];
     get.locals[0].ty = receiver.clone();
     get.return_type = address.clone();
-    get.values = vec![receiver.clone(), address.clone()];
+    get.values = vec![receiver.clone(), address.clone()].into();
     get.blocks[0].instructions[1].kind = InstructionKind::LoadStoredBorrow {
         storage: ValueId(0),
         path: vec![PlaceProjection::Field(0)],
@@ -414,7 +414,7 @@ pub(super) fn mutable_holder() -> TypedModule {
     let relay = &mut m.functions[2];
     relay.locals[0].ty = receiver.clone();
     relay.return_type = address.clone();
-    relay.values = vec![receiver.clone(), address.clone()];
+    relay.values = vec![receiver.clone(), address.clone()].into();
     let main = &mut m.functions[3];
     main.locals[1].ty = holder.clone();
     main.values[1] = address.clone();

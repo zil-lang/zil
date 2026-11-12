@@ -100,7 +100,8 @@ fn fixture() -> TypedModule {
             Type::I32,
             Type::Bool,
             Type::I32,
-        ],
+        ]
+        .into(),
         blocks: vec![
             BasicBlock {
                 id: BlockId(0),
@@ -167,7 +168,8 @@ fn fixture() -> TypedModule {
                 instructions: vec![],
                 terminator: Terminator::Trap,
             },
-        ],
+        ]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     };

@@ -2057,8 +2057,8 @@ mod frontier_tests {
                             span,
                         })
                         .collect(),
-                    values,
-                    blocks,
+                    values: values.into(),
+                    blocks: blocks.into(),
                     entry: BlockId(0),
                     span,
                 }

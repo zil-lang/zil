@@ -230,7 +230,7 @@ fn function(name: String, result: m::Ty, params: Vec<m::Param>, blocks: Vec<m::B
         linkage: m::Linkage::Internal,
         signature: m::Signature::new(result, params),
         attrs,
-        blocks: Some(blocks),
+        blocks: Some((blocks).into()),
     })
 }
 fn gep(v: &mut Vec<m::Inst>, name: &str, frame: &m::Ty, base: m::Val, index: u32) {
@@ -2387,7 +2387,7 @@ pub(super) fn exports(id: FunctionId, meter: &Meter) -> CompileResult<Vec<m::Ite
             linkage: m::Linkage::External,
             signature: m::Signature::new(returned, vec![m::Param::new(parameter, "input")]),
             attrs: vec![],
-            blocks: Some(vec![block("entry", body)]),
+            blocks: Some((vec![block("entry", body)]).into()),
         }));
     }
     Ok(result)
@@ -2417,7 +2417,7 @@ mod child_frame_tests {
                 vec![m::Param::new(m::Ty::Int(32), "arg")],
             ),
             attrs: vec![],
-            blocks: Some(vec![block("entry", instructions)]),
+            blocks: Some((vec![block("entry", instructions)]).into()),
         }
     }
     fn planned(children: usize, balance: usize) -> CompileResult<(usize, FramePlan)> {

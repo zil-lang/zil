@@ -700,7 +700,7 @@ fn fixture(fail: bool) -> TypedModule {
             l
         })
         .collect();
-    f.values = vec![Type::I32, tag];
+    f.values = vec![Type::I32, tag].into();
     f.blocks[0].instructions = vec![
         i(
             Some(ValueId(0)),

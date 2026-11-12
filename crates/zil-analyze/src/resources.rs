@@ -9,6 +9,7 @@ use std::collections::BinaryHeap;
 pub(super) fn head_address(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
+pub(super) mod incremental;
 mod order;
 pub(super) mod product;
 mod replacements;
@@ -4191,16 +4192,33 @@ fn infer_effects(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
+    infer_effects_with_reuse(module, graphs, budget, None)
+}
+fn infer_effects_with_reuse(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Request>,
+) -> CompileResult<Vec<Effect>> {
     if module.functions.len() >= 32 {
         summary_graph::solve(module, graphs, budget)
     } else {
-        infer_effects_frontier(module, graphs, budget)
+        infer_effects_frontier_with_reuse(module, graphs, budget, reuse)
     }
 }
+#[cfg(test)]
 fn infer_effects_frontier(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    infer_effects_frontier_with_reuse(module, graphs, budget, None)
+}
+fn infer_effects_frontier_with_reuse(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+    mut reuse: Option<&mut incremental::Request>,
 ) -> CompileResult<Vec<Effect>> {
     budget.spend(module.functions.len(), "resource effect table")?;
     let mut effects = vec![Effect::default(); module.functions.len()];
@@ -4213,14 +4231,12 @@ fn infer_effects_frontier(
         #[cfg(test)]
         TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
         let (_, reachable) = &graphs[index];
-        let found = analyze_function(
-            module,
-            &module.functions[index],
-            reachable,
-            &effects,
-            false,
-            budget,
-        )?;
+        let function = &module.functions[index];
+        let found = if let Some(reuse) = reuse.as_deref_mut() {
+            reuse.transfer(module, function, reachable, &effects, false, budget)?
+        } else {
+            analyze_function(module, function, reachable, &effects, false, budget)?
+        };
         if grow_effect(&mut effects[index], found, budget)? {
             budget.spend(consumers[index].len(), "resource effect notification")?;
             for &caller in &consumers[index] {
@@ -4268,6 +4284,14 @@ pub(super) fn check_module(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    check_module_with_reuse(module, graphs, budget, None)
+}
+pub(super) fn check_module_with_reuse(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    budget: &mut Budget,
+    mut reuse: Option<&mut incremental::Request>,
+) -> CompileResult<()> {
     budget.spend(module.closures.len(), "resource closure presence")?;
     if module.resources.is_empty() {
         // An absent raw table cannot bypass actual replacement obligations.
@@ -4302,9 +4326,17 @@ pub(super) fn check_module(
         }
     }
     if budget.replacement_functions.is_empty() {
-        let effects = infer_effects(module, graphs, budget)?;
+        let effects = if let Some(reuse) = reuse.as_deref_mut() {
+            infer_effects_with_reuse(module, graphs, budget, Some(reuse))?
+        } else {
+            infer_effects(module, graphs, budget)?
+        };
         for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
-            analyze_function(module, f, reachable, &effects, true, budget)?;
+            if let Some(reuse) = reuse.as_deref_mut() {
+                reuse.transfer(module, f, reachable, &effects, true, budget)?;
+            } else {
+                analyze_function(module, f, reachable, &effects, true, budget)?;
+            }
         }
     } else {
         let program = replacements::Program::new(module, graphs, budget)?;

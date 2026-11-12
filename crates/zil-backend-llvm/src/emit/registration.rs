@@ -997,17 +997,18 @@ mod tests {
             parameters: vec![LocalId(0)],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
-            locals: vec![LocalDecl {
+            locals: (vec![LocalDecl {
                 id: LocalId(0),
                 name: "owner".into(),
                 ty: owner.clone(),
                 mutable: true,
                 span: Span::default(),
-            }],
-            values: vec![owner, Type::Bool],
+            }])
+            .into(),
+            values: (vec![owner, Type::Bool]).into(),
             entry: BlockId(0),
             span: Span::default(),
-            blocks: vec![
+            blocks: (vec![
                 BasicBlock {
                     id: BlockId(0),
                     instructions: vec![instruction(InstructionKind::TakeLocal {
@@ -1036,7 +1037,8 @@ mod tests {
                     })],
                     terminator: Terminator::Return(None),
                 },
-            ],
+            ])
+            .into(),
         };
         // This is an internal planner fixture. The linked Source/native test
         // proves the actual checked finish and its branch cleanup end to end.
@@ -1097,9 +1099,9 @@ mod tests {
             parameters: vec![],
             return_type: Type::Unit,
             result_mode: zil_ir::PassingMode::Infer,
-            locals: vec![],
-            values: vec![Type::Closure(ClosureId(0)), Type::Unit],
-            blocks: vec![zil_ir::BasicBlock {
+            locals: (vec![]).into(),
+            values: (vec![Type::Closure(ClosureId(0)), Type::Unit]).into(),
+            blocks: (vec![zil_ir::BasicBlock {
                 id: zil_ir::BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(1)),
@@ -1112,7 +1114,8 @@ mod tests {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(None),
-            }],
+            }])
+            .into(),
             entry: zil_ir::BlockId(0),
             span: Span::default(),
         };

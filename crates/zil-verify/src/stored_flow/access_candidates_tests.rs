@@ -282,7 +282,7 @@ fn complete_call_oracle_preserves_held_leaf_argument_and_summary_checks() {
             second.name = "second".into();
             callee.locals.push(second);
             callee.parameters.push(LocalId(1));
-            module.functions[2].values = vec![ty.clone(), ty];
+            module.functions[2].values = vec![ty.clone(), ty].into();
             let caller = &module.functions[2];
             let mut b = Budget::new(&Limits::default());
             let mut values = Vec::new();

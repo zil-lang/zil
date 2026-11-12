@@ -361,8 +361,8 @@ mod tests {
                     span: parameter.span,
                 })
                 .collect(),
-            values: vec![],
-            blocks: vec![],
+            values: vec![].into(),
+            blocks: vec![].into(),
             entry: BlockId(0),
             span: function.span,
         }

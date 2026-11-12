@@ -85,12 +85,13 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
                     span: span(),
                 })
                 .collect(),
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
         });
@@ -230,8 +231,8 @@ fn history_fixture(
                 span: span(),
             })
             .collect(),
-        values: vec![ty; value_count],
-        blocks,
+        values: vec![ty; value_count].into(),
+        blocks: blocks.into(),
         entry: BlockId(0),
         span: span(),
     };

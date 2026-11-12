@@ -425,7 +425,8 @@ mod tests {
             tag,
             Type::Closure(ClosureId(0)),
             Type::I32,
-        ];
+        ]
+        .into();
         f.callable_contract = Some(CallableParameterContract {
             roles: vec![CallableRole {
                 life: Some(relation),

@@ -80,12 +80,13 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
                     span: span(),
                 })
                 .collect(),
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
         });

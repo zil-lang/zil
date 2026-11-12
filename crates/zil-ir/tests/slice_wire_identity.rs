@@ -38,8 +38,8 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
             protocol_contract: None,
             callable_return_contract: None,
             foreign: None,
-            locals: vec![],
-            values: vec![slice.clone(), slice, Type::I64],
+            locals: vec![].into(),
+            values: vec![slice.clone(), slice, Type::I64].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -61,7 +61,8 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
                     },
                 ],
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         }],

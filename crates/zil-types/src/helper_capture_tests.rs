@@ -109,12 +109,14 @@ fn fixture(
             capture_type,
             Type::Closure(ClosureId(2)),
             Type::Tuple(vec![Type::Bool, Type::I32]),
-        ],
+        ]
+        .into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions,
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         callable_contract: None,
         protocol_contract: None,

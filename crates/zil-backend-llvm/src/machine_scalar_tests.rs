@@ -23,7 +23,7 @@ fn function(name: &str, result: Ty, params: Vec<Param>, blocks: Option<Vec<Block
         linkage: Linkage::External,
         signature: Signature::new(result, params),
         attrs: vec![],
-        blocks,
+        blocks: blocks.map(Into::into),
     })
 }
 fn call(name: &str, result: Ty, args: Vec<Arg>) -> Op {
@@ -45,7 +45,7 @@ fn model(items: Vec<Item>) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "raw-test-only".into(),
-        items,
+        items: items.into(),
     }
 }
 fn machine_function(module: &Module, index: usize) -> &Function {
@@ -514,10 +514,13 @@ fn source_identity_and_intrinsic_definition_are_required() {
     let intrinsic = machine_function_mut(&mut module, 0);
     intrinsic.signature.params[0].name = Some("a".into());
     intrinsic.signature.params[1].name = Some("b".into());
-    intrinsic.blocks = Some(vec![block(
-        "entry",
-        vec![ret(Ty::Struct(vec![Ty::Int(32), Ty::Int(1)]), Val::Zero)],
-    )]);
+    intrinsic.blocks = Some(
+        (vec![block(
+            "entry",
+            vec![ret(Ty::Struct(vec![Ty::Int(32), Ty::Int(1)]), Val::Zero)],
+        )])
+        .into(),
+    );
     // This is a machine-model classification control, not valid LLVM intrinsic IR.
     assert!(overflow_declarations(&module).is_empty());
 }
@@ -574,46 +577,49 @@ fn ignored_overflow_and_non_dominating_argument_are_not_hidden() {
     assert_eq!(module, original);
 
     let mut module = checked_model(32, "sadd", 3, 4);
-    machine_function_mut(&mut module, 3).blocks = Some(vec![
-        block(
-            "entry",
-            vec![inst(
-                None,
-                Op::CondBranch {
-                    condition: Val::Bool(true),
-                    yes: "left".into(),
-                    no: "right".into(),
-                },
-            )],
-        ),
-        block(
-            "left",
-            vec![
-                inst(
-                    Some("sibling"),
-                    Op::Freeze(Arg::new(Ty::Int(32), Val::Int(3))),
-                ),
-                ret(Ty::Int(32), Val::Int(0)),
-            ],
-        ),
-        block(
-            "right",
-            vec![
-                inst(
-                    Some("answer"),
-                    call(
-                        "leaf",
-                        Ty::Int(32),
-                        vec![
-                            Arg::new(Ty::Int(32), local("sibling")),
-                            Arg::new(Ty::Int(32), Val::Int(4)),
-                        ],
+    machine_function_mut(&mut module, 3).blocks = Some(
+        (vec![
+            block(
+                "entry",
+                vec![inst(
+                    None,
+                    Op::CondBranch {
+                        condition: Val::Bool(true),
+                        yes: "left".into(),
+                        no: "right".into(),
+                    },
+                )],
+            ),
+            block(
+                "left",
+                vec![
+                    inst(
+                        Some("sibling"),
+                        Op::Freeze(Arg::new(Ty::Int(32), Val::Int(3))),
                     ),
-                ),
-                ret(Ty::Int(32), local("answer")),
-            ],
-        ),
-    ]);
+                    ret(Ty::Int(32), Val::Int(0)),
+                ],
+            ),
+            block(
+                "right",
+                vec![
+                    inst(
+                        Some("answer"),
+                        call(
+                            "leaf",
+                            Ty::Int(32),
+                            vec![
+                                Arg::new(Ty::Int(32), local("sibling")),
+                                Arg::new(Ty::Int(32), Val::Int(4)),
+                            ],
+                        ),
+                    ),
+                    ret(Ty::Int(32), local("answer")),
+                ],
+            ),
+        ])
+        .into(),
+    );
     let original = module.clone();
     let error = zil_llvm_api::validate_module(&module)
         .unwrap_err()
@@ -764,7 +770,7 @@ fn unvalidated_planner_is_read_only_and_preserves_malformed_first_errors() {
                     .instructions[0]
                     .op = Op::Branch("absent".into())
             }
-            3 => machine_function_mut(&mut module, 2).blocks = Some(vec![]),
+            3 => machine_function_mut(&mut module, 2).blocks = Some((vec![]).into()),
             4 => machine_function_mut(&mut module, 2)
                 .blocks
                 .as_mut()

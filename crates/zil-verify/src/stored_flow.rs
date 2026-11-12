@@ -5800,7 +5800,8 @@ mod tests {
                     if reserve { Type::I64 } else { Type::U8 },
                     Type::Bool,
                     qualified(pointee),
-                ];
+                ]
+                .into();
                 let kind = if reserve {
                     InstructionKind::ByteBufferReserve {
                         buffer: ValueId(0),
@@ -6387,7 +6388,7 @@ mod tests {
         m.closures[0].parameters[0] = receiver.clone();
         let entry = &mut m.functions[0];
         entry.locals[0].ty = receiver.clone();
-        entry.values = vec![Type::I64];
+        entry.values = vec![Type::I64].into();
         entry.blocks[0].instructions = vec![fixture::instruction(
             Some(0),
             InstructionKind::Constant(Constant::I64(0)),

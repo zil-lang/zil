@@ -506,15 +506,16 @@ mod tests {
             parameters: vec![LocalId(0)],
             return_type: Type::I32,
             result_mode: PassingMode::Infer,
-            locals: vec![LocalDecl {
+            locals: (vec![LocalDecl {
                 id: LocalId(0),
                 name: "x".into(),
                 ty: Type::I32,
                 mutable: false,
                 span: Span::default(),
-            }],
-            values: vec![Type::I32],
-            blocks: vec![BasicBlock {
+            }])
+            .into(),
+            values: (vec![Type::I32]).into(),
+            blocks: (vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(0)),
@@ -522,7 +523,8 @@ mod tests {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }])
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         };
@@ -534,38 +536,44 @@ mod tests {
                 vec![m::Param::new(m::Ty::Int(32), "arg.0")],
             ),
             attrs: vec![],
-            blocks: Some(vec![m::Block {
-                name: "entry".into(),
-                instructions: vec![
-                    m::Inst::new(
-                        Some("local.0".into()),
-                        m::Op::Alloca {
-                            ty: m::Ty::Int(32),
-                            align: 4,
-                        },
-                    ),
-                    m::Inst::new(
-                        None,
-                        m::Op::Store {
-                            arg: m::Arg::new(m::Ty::Int(32), m::local("arg.0".into())),
-                            ptr: m::local("local.0".into()),
-                            align: 4,
-                        },
-                    ),
-                    m::Inst::new(
-                        Some("v.0".into()),
-                        m::Op::Load {
-                            ty: m::Ty::Int(32),
-                            ptr: m::local("local.0".into()),
-                            align: 4,
-                        },
-                    ),
-                    m::Inst::new(
-                        None,
-                        m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), m::local("v.0".into())))),
-                    ),
-                ],
-            }]),
+            blocks: Some(
+                (vec![m::Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        m::Inst::new(
+                            Some("local.0".into()),
+                            m::Op::Alloca {
+                                ty: m::Ty::Int(32),
+                                align: 4,
+                            },
+                        ),
+                        m::Inst::new(
+                            None,
+                            m::Op::Store {
+                                arg: m::Arg::new(m::Ty::Int(32), m::local("arg.0".into())),
+                                ptr: m::local("local.0".into()),
+                                align: 4,
+                            },
+                        ),
+                        m::Inst::new(
+                            Some("v.0".into()),
+                            m::Op::Load {
+                                ty: m::Ty::Int(32),
+                                ptr: m::local("local.0".into()),
+                                align: 4,
+                            },
+                        ),
+                        m::Inst::new(
+                            None,
+                            m::Op::Return(Some(m::Arg::new(
+                                m::Ty::Int(32),
+                                m::local("v.0".into()),
+                            ))),
+                        ),
+                    ],
+                }])
+                .into(),
+            ),
         };
         (source, machine)
     }
@@ -657,7 +665,7 @@ mod tests {
         let (mut source, _) = fixture();
         source.parameters.clear();
         source.locals[0].mutable = true;
-        source.values = vec![Type::I32; 2];
+        source.values = (vec![Type::I32; 2]).into();
         source.blocks[0].terminator = Terminator::Jump(BlockId(0));
         source.blocks[0].instructions = vec![
             instruction(Some(0), I::Load(LocalId(0))),
@@ -694,7 +702,7 @@ mod tests {
     fn a_new_storage_activation_cannot_inherit_the_previous_value() {
         let (mut source, _) = fixture();
         source.parameters.clear();
-        source.values = vec![Type::I32; 2];
+        source.values = (vec![Type::I32; 2]).into();
         source.blocks[0].instructions = vec![
             instruction(None, I::StorageLive(LocalId(0))),
             instruction(Some(0), I::Constant(zil_ir::Constant::I32(7))),
@@ -715,8 +723,8 @@ mod tests {
     #[test]
     fn readonly_parameters_do_not_depend_on_source_block_order_or_reachability() {
         let (mut source, _) = fixture();
-        source.values = vec![Type::I32; 2];
-        source.blocks = vec![
+        source.values = (vec![Type::I32; 2]).into();
+        source.blocks = (vec![
             BasicBlock {
                 id: BlockId(2),
                 instructions: vec![
@@ -738,7 +746,8 @@ mod tests {
                 instructions: vec![],
                 terminator: Terminator::Jump(BlockId(2)),
             },
-        ];
+        ])
+        .into();
         let plan = source_plan(&source).unwrap();
         assert_eq!(resolve(&plan).unwrap(), vec![Some(Operand::Argument(0)); 2]);
     }
@@ -753,14 +762,15 @@ mod tests {
             mutable: false,
             span: Span::default(),
         });
-        source.values = vec![
+        source.values = (vec![
             Type::I32,
             Type::I32,
             Type::Address {
                 inner: Box::new(Type::I32),
                 mutable: false,
             },
-        ];
+        ])
+        .into();
         source.blocks[0].instructions = vec![
             instruction(Some(0), I::Load(LocalId(0))),
             instruction(

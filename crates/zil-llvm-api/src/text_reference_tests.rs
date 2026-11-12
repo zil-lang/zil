@@ -460,10 +460,11 @@ fn every_instruction_and_module_form_matches_original_bytes() {
     let mut module = Module {
         triple: "target\"\n".into(),
         fingerprint: "fingerprint\n".into(),
-        items: vec![
+        items: (vec![
             Item::NamedType("empty".into(), vec![]),
             Item::NamedType("full".into(), type_cases()),
-        ],
+        ])
+        .into(),
     };
     let types = type_cases();
     for (index, value) in value_cases().into_iter().enumerate() {
@@ -528,6 +529,7 @@ fn every_instruction_and_module_form_matches_original_bytes() {
                             instructions: instructions.clone(),
                         },
                     ]
+                    .into()
                 }),
             }));
         }

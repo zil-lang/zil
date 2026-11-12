@@ -27,9 +27,9 @@ fn source(count: u32) -> LirModule {
                 parameters: vec![],
                 return_type: zil_ir::Type::I32,
                 result_mode: zil_ir::PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![]).into(),
+                blocks: (vec![]).into(),
                 entry: zil_ir::BlockId(0),
                 span: zil_base::Span::default(),
             })
@@ -55,10 +55,13 @@ fn function(name: &str, params: Vec<Param>, instructions: Vec<Inst>) -> Item {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), params),
         attrs: vec![],
-        blocks: Some(vec![Block {
-            name: "entry".into(),
-            instructions,
-        }]),
+        blocks: Some(
+            (vec![Block {
+                name: "entry".into(),
+                instructions,
+            }])
+            .into(),
+        ),
     })
 }
 fn call(name: &str, args: Vec<Arg>) -> Op {
@@ -98,7 +101,7 @@ fn execute(name: &str, items: Vec<Item>, count: u32, c_source: &str, expected: &
     let module = Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "clone-control".into(),
-        items,
+        items: items.into(),
     };
     let source = source(count);
     let plan = partition_view(module, &source.as_view(), EntryPoint::None, 8, true, true);
@@ -302,68 +305,71 @@ fn mutual_recursion_preserves_each_direct_call_and_canonical_entry() {
             linkage: Linkage::External,
             signature: Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(32), "x")]),
             attrs: vec![],
-            blocks: Some(vec![
-                Block {
-                    name: "entry".into(),
-                    instructions: vec![
-                        instruction(
-                            "done",
-                            Op::Compare {
-                                predicate: "eq".into(),
-                                ty: Ty::Int(32),
-                                left: Val::Local("x".into()),
-                                right: Val::Int(0),
-                            },
-                        ),
-                        instruction(
-                            "",
-                            Op::CondBranch {
-                                condition: Val::Local("done".into()),
-                                yes: "base".into(),
-                                no: "step".into(),
-                            },
-                        ),
-                    ],
-                },
-                Block {
-                    name: "base".into(),
-                    instructions: vec![instruction(
-                        "",
-                        Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
-                    )],
-                },
-                Block {
-                    name: "step".into(),
-                    instructions: vec![
-                        instruction(
-                            "next",
-                            Op::Binary {
-                                opcode: "sub".into(),
-                                ty: Ty::Int(32),
-                                left: Val::Local("x".into()),
-                                right: Val::Int(1),
-                            },
-                        ),
-                        instruction(
-                            "value",
-                            call(
-                                &format!("zil.fn.{target}"),
-                                vec![argument(Ty::Int(32), "next")],
+            blocks: Some(
+                (vec![
+                    Block {
+                        name: "entry".into(),
+                        instructions: vec![
+                            instruction(
+                                "done",
+                                Op::Compare {
+                                    predicate: "eq".into(),
+                                    ty: Ty::Int(32),
+                                    left: Val::Local("x".into()),
+                                    right: Val::Int(0),
+                                },
                             ),
-                        ),
-                        instruction(
-                            "result",
-                            Op::Binary {
-                                opcode: "add".into(),
-                                ty: Ty::Int(32),
-                                left: Val::Local("value".into()),
-                                right: Val::Int(1),
-                            },
-                        ),
-                        instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
-                    ],
-                },
-            ]),
+                            instruction(
+                                "",
+                                Op::CondBranch {
+                                    condition: Val::Local("done".into()),
+                                    yes: "base".into(),
+                                    no: "step".into(),
+                                },
+                            ),
+                        ],
+                    },
+                    Block {
+                        name: "base".into(),
+                        instructions: vec![instruction(
+                            "",
+                            Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
+                        )],
+                    },
+                    Block {
+                        name: "step".into(),
+                        instructions: vec![
+                            instruction(
+                                "next",
+                                Op::Binary {
+                                    opcode: "sub".into(),
+                                    ty: Ty::Int(32),
+                                    left: Val::Local("x".into()),
+                                    right: Val::Int(1),
+                                },
+                            ),
+                            instruction(
+                                "value",
+                                call(
+                                    &format!("zil.fn.{target}"),
+                                    vec![argument(Ty::Int(32), "next")],
+                                ),
+                            ),
+                            instruction(
+                                "result",
+                                Op::Binary {
+                                    opcode: "add".into(),
+                                    ty: Ty::Int(32),
+                                    left: Val::Local("value".into()),
+                                    right: Val::Int(1),
+                                },
+                            ),
+                            instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
+                        ],
+                    },
+                ])
+                .into(),
+            ),
         });
     }
     items[0] = function(
@@ -402,75 +408,78 @@ fn direct_recursion_keeps_canonical_self_address_through_every_clone_call() {
             vec![Param::new(Ty::Ptr, "p"), Param::new(Ty::Int(32), "n")],
         ),
         attrs: vec![],
-        blocks: Some(vec![
-            Block {
-                name: "entry".into(),
-                instructions: vec![
-                    instruction(
-                        "done",
-                        Op::Compare {
-                            predicate: "eq".into(),
-                            ty: Ty::Int(32),
-                            left: Val::Local("n".into()),
-                            right: Val::Int(0),
-                        },
-                    ),
-                    instruction(
-                        "",
-                        Op::CondBranch {
-                            condition: Val::Local("done".into()),
-                            yes: "base".into(),
-                            no: "step".into(),
-                        },
-                    ),
-                ],
-            },
-            Block {
-                name: "base".into(),
-                instructions: vec![
-                    instruction(
-                        "same",
-                        Op::Compare {
-                            predicate: "eq".into(),
-                            ty: Ty::Ptr,
-                            left: Val::Local("p".into()),
-                            right: Val::Global("zil.fn.256".into()),
-                        },
-                    ),
-                    instruction(
-                        "result",
-                        Op::Cast {
-                            opcode: "zext".into(),
-                            arg: argument(Ty::Int(1), "same"),
-                            to: Ty::Int(32),
-                        },
-                    ),
-                    instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
-                ],
-            },
-            Block {
-                name: "step".into(),
-                instructions: vec![
-                    instruction(
-                        "next",
-                        Op::Binary {
-                            opcode: "sub".into(),
-                            ty: Ty::Int(32),
-                            left: Val::Local("n".into()),
-                            right: Val::Int(1),
-                        },
-                    ),
-                    instruction(
-                        "value",
-                        call(
-                            "zil.fn.256",
-                            vec![argument(Ty::Ptr, "p"), argument(Ty::Int(32), "next")],
+        blocks: Some(
+            (vec![
+                Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        instruction(
+                            "done",
+                            Op::Compare {
+                                predicate: "eq".into(),
+                                ty: Ty::Int(32),
+                                left: Val::Local("n".into()),
+                                right: Val::Int(0),
+                            },
                         ),
-                    ),
-                    instruction("", Op::Return(Some(argument(Ty::Int(32), "value")))),
-                ],
-            },
-        ]),
+                        instruction(
+                            "",
+                            Op::CondBranch {
+                                condition: Val::Local("done".into()),
+                                yes: "base".into(),
+                                no: "step".into(),
+                            },
+                        ),
+                    ],
+                },
+                Block {
+                    name: "base".into(),
+                    instructions: vec![
+                        instruction(
+                            "same",
+                            Op::Compare {
+                                predicate: "eq".into(),
+                                ty: Ty::Ptr,
+                                left: Val::Local("p".into()),
+                                right: Val::Global("zil.fn.256".into()),
+                            },
+                        ),
+                        instruction(
+                            "result",
+                            Op::Cast {
+                                opcode: "zext".into(),
+                                arg: argument(Ty::Int(1), "same"),
+                                to: Ty::Int(32),
+                            },
+                        ),
+                        instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
+                    ],
+                },
+                Block {
+                    name: "step".into(),
+                    instructions: vec![
+                        instruction(
+                            "next",
+                            Op::Binary {
+                                opcode: "sub".into(),
+                                ty: Ty::Int(32),
+                                left: Val::Local("n".into()),
+                                right: Val::Int(1),
+                            },
+                        ),
+                        instruction(
+                            "value",
+                            call(
+                                "zil.fn.256",
+                                vec![argument(Ty::Ptr, "p"), argument(Ty::Int(32), "next")],
+                            ),
+                        ),
+                        instruction("", Op::Return(Some(argument(Ty::Int(32), "value")))),
+                    ],
+                },
+            ])
+            .into(),
+        ),
     });
     items[0] = function(
         "zil.fn.0",

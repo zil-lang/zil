@@ -227,9 +227,13 @@ impl PreparedCache {
     pub(crate) fn key(&self, module: &Module) -> Fingerprint {
         machine_key(self.namespace, module)
     }
-    pub(crate) fn lookup(&self, module: &Module) -> (Access, Option<Vec<u8>>) {
+    pub(crate) fn lookup_with_key(
+        &self,
+        module: &Module,
+        key: Option<Fingerprint>,
+    ) -> (Access, Option<Vec<u8>>) {
         let t = Instant::now();
-        let key = self.key(module);
+        let key = key.unwrap_or_else(|| self.key(module));
         let key_ns = elapsed_ns(t);
         let t = Instant::now();
         let (bytes, corrupt) = match load(&self.directory, key) {
@@ -558,19 +562,23 @@ mod tests {
         Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "current-verify".into(),
-            items: vec![Item::Function(Function {
+            items: (vec![Item::Function(Function {
                 name: "f".into(),
                 linkage: Linkage::External,
                 signature: Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(32), "x")]),
                 attrs: vec![],
-                blocks: Some(vec![Block {
-                    name: "entry".into(),
-                    instructions: vec![Inst::new(
-                        None,
-                        Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(42)))),
-                    )],
-                }]),
-            })],
+                blocks: Some(
+                    (vec![Block {
+                        name: "entry".into(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(42)))),
+                        )],
+                    }])
+                    .into(),
+                ),
+            })])
+            .into(),
         }
     }
     fn key_matching_unbuffered(namespace: Fingerprint, module: &Module) -> Fingerprint {

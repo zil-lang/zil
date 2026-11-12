@@ -62,7 +62,14 @@ impl PreparedProgram {
     pub fn program(&self) -> &CoreProgram {
         &self.core
     }
-    pub(super) fn module_revision(
+    pub(super) fn function_revision(
+        &self,
+        module: zil_base::ModuleId,
+        name: &str,
+    ) -> Option<&zil_expand::ModuleRevision> {
+        self.producer.as_ref()?.function_revision(module, name)
+    }
+    pub fn module_revision(
         &self,
         module: zil_base::ModuleId,
     ) -> Option<&zil_expand::ModuleRevision> {

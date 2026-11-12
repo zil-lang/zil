@@ -58,9 +58,9 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
             environment: None,
             parameters: vec![],
             return_type: Type::I32,
-            locals: vec![],
-            values: vec![Type::I32],
-            blocks: vec![BasicBlock {
+            locals: (vec![]).into(),
+            values: (vec![Type::I32]).into(),
+            blocks: (vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![Instruction {
                     result: Some(ValueId(0)),
@@ -75,7 +75,8 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
                     span: Span::default(),
                 }],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }])
+            .into(),
             entry: BlockId(0),
             span: Span {
                 file: FileId(id as u32),

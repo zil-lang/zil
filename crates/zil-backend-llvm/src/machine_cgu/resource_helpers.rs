@@ -475,7 +475,7 @@ impl Recipe {
             output.push(Module {
                 triple: module.triple.clone(),
                 fingerprint: module.fingerprint.clone(),
-                items,
+                items: items.into(),
             });
         }
         Plan {

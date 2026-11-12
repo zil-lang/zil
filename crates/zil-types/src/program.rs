@@ -494,6 +494,9 @@ pub(super) fn check_resolved_program_with_reuse(
                     exports.push(export);
                 }
             }
+            if let Some(reuse) = &mut reuse {
+                reuse.observe(core.module_id, f, &typed);
+            }
             functions.push(typed);
         }
         exports.sort_by(|a, b| a.name.cmp(&b.name));

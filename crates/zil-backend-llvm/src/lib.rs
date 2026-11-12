@@ -25,6 +25,9 @@ mod build;
 #[cfg(test)]
 mod cgu;
 mod emit;
+mod incremental;
+mod link_cache;
+pub use incremental::{BackendSession, BackendSessionSummary};
 mod machine_cgu;
 mod machine_checked_add_chain;
 mod machine_closure_linkage;
@@ -44,7 +47,8 @@ use zil_ir::FunctionId;
 pub use build::{
     BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
     WindowsLinkOptions, build, build_view_with_cancellation,
-    build_view_with_cancellation_and_stable_names, build_with_cancellation,
+    build_view_with_cancellation_and_session, build_view_with_cancellation_and_stable_names,
+    build_with_cancellation,
 };
 pub use emit::{ct_layout_of_checked_type, emit, emit_with_options};
 

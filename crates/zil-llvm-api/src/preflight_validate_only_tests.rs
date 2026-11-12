@@ -19,7 +19,7 @@ fn function_item(name: &str, blocks: Vec<Block>) -> Item {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), vec![]),
         attrs: vec![],
-        blocks: Some(blocks),
+        blocks: Some((blocks).into()),
     })
 }
 
@@ -27,7 +27,7 @@ fn module(items: Vec<Item>) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "validate-only-ci".into(),
-        items,
+        items: items.into(),
     }
 }
 
@@ -1046,75 +1046,78 @@ fn compare_exchange_module(success: AtomicOrdering, failure: AtomicOrdering) -> 
             ],
         ),
         attrs: vec![],
-        blocks: Some(vec![block(
-            "entry",
-            vec![
-                inst(
-                    Some("answer"),
-                    Op::AtomicCompareExchange {
-                        result: answer.clone(),
-                        expected: Arg::new(Ty::Int(32), Val::Local("expected".into())),
-                        desired: Val::Local("desired".into()),
-                        ptr: Val::Local("cell".into()),
-                        align: 4,
-                        success,
-                        failure,
-                    },
-                ),
-                inst(
-                    Some("old"),
-                    Op::Extract {
-                        arg: Arg::new(answer.clone(), Val::Local("answer".into())),
-                        index: 0,
-                    },
-                ),
-                inst(
-                    Some("success"),
-                    Op::Extract {
-                        arg: Arg::new(answer, Val::Local("answer".into())),
-                        index: 1,
-                    },
-                ),
-                inst(
-                    Some("old.bits"),
-                    Op::Cast {
-                        opcode: "zext".into(),
-                        arg: Arg::new(Ty::Int(32), Val::Local("old".into())),
-                        to: Ty::Int(64),
-                    },
-                ),
-                inst(
-                    Some("success.wide"),
-                    Op::Cast {
-                        opcode: "zext".into(),
-                        arg: Arg::new(Ty::Int(1), Val::Local("success".into())),
-                        to: Ty::Int(64),
-                    },
-                ),
-                inst(
-                    Some("success.bits"),
-                    Op::Binary {
-                        opcode: "shl".into(),
-                        ty: Ty::Int(64),
-                        left: Val::Local("success.wide".into()),
-                        right: Val::Int(32),
-                    },
-                ),
-                inst(
-                    Some("packed"),
-                    Op::Binary {
-                        opcode: "or".into(),
-                        ty: Ty::Int(64),
-                        left: Val::Local("success.bits".into()),
-                        right: Val::Local("old.bits".into()),
-                    },
-                ),
-                inst(
-                    None,
-                    Op::Return(Some(Arg::new(Ty::Int(64), Val::Local("packed".into())))),
-                ),
-            ],
-        )]),
+        blocks: Some(
+            (vec![block(
+                "entry",
+                vec![
+                    inst(
+                        Some("answer"),
+                        Op::AtomicCompareExchange {
+                            result: answer.clone(),
+                            expected: Arg::new(Ty::Int(32), Val::Local("expected".into())),
+                            desired: Val::Local("desired".into()),
+                            ptr: Val::Local("cell".into()),
+                            align: 4,
+                            success,
+                            failure,
+                        },
+                    ),
+                    inst(
+                        Some("old"),
+                        Op::Extract {
+                            arg: Arg::new(answer.clone(), Val::Local("answer".into())),
+                            index: 0,
+                        },
+                    ),
+                    inst(
+                        Some("success"),
+                        Op::Extract {
+                            arg: Arg::new(answer, Val::Local("answer".into())),
+                            index: 1,
+                        },
+                    ),
+                    inst(
+                        Some("old.bits"),
+                        Op::Cast {
+                            opcode: "zext".into(),
+                            arg: Arg::new(Ty::Int(32), Val::Local("old".into())),
+                            to: Ty::Int(64),
+                        },
+                    ),
+                    inst(
+                        Some("success.wide"),
+                        Op::Cast {
+                            opcode: "zext".into(),
+                            arg: Arg::new(Ty::Int(1), Val::Local("success".into())),
+                            to: Ty::Int(64),
+                        },
+                    ),
+                    inst(
+                        Some("success.bits"),
+                        Op::Binary {
+                            opcode: "shl".into(),
+                            ty: Ty::Int(64),
+                            left: Val::Local("success.wide".into()),
+                            right: Val::Int(32),
+                        },
+                    ),
+                    inst(
+                        Some("packed"),
+                        Op::Binary {
+                            opcode: "or".into(),
+                            ty: Ty::Int(64),
+                            left: Val::Local("success.bits".into()),
+                            right: Val::Local("old.bits".into()),
+                        },
+                    ),
+                    inst(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Int(64), Val::Local("packed".into())))),
+                    ),
+                ],
+            )])
+            .into(),
+        ),
     })])
 }
 

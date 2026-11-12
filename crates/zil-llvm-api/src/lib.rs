@@ -5,6 +5,7 @@
 
 pub mod model;
 mod preflight;
+mod shared_vec;
 
 include!(concat!(env!("OUT_DIR"), "/llvm_version.rs"));
 

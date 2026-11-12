@@ -32,13 +32,14 @@ fn function(id: u32) -> TypedFunction {
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -77,7 +78,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
     second.environment = Some(ClosureId(1));
     let mut factory = function(2);
     factory.parameters = vec![LocalId(0)];
-    factory.locals = vec![local(0, input.clone())];
+    factory.locals = vec![local(0, input.clone())].into();
     factory.return_type = output.clone();
     factory.callable_return_contract = Some(CallableReturnContract {
         source: zil_ir::CallableReturnSource::Fresh,
@@ -90,7 +91,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
         lending_captures: vec![],
     });
     if retained {
-        factory.values = vec![input.clone(), output];
+        factory.values = vec![input.clone(), output].into();
         factory.blocks[0].instructions = vec![
             instruction(Some(0), InstructionKind::TakeLocal { local: LocalId(0) }),
             instruction(
@@ -104,7 +105,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
         ];
         factory.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
     } else {
-        factory.values = vec![output];
+        factory.values = vec![output].into();
         factory.blocks[0].instructions = vec![
             instruction(None, InstructionKind::DropClosure { local: LocalId(0) }),
             instruction(None, InstructionKind::StorageDead(LocalId(0))),

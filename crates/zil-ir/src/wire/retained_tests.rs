@@ -116,14 +116,16 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             ty: address.clone(),
             mutable: false,
             span: Span::default(),
-        }],
+        }]
+        .into(),
         values: vec![
             address,
             Type::Address {
                 mutable: false,
                 inner: Box::new(Type::I64),
             },
-        ],
+        ]
+        .into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -152,7 +154,8 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
                 },
             ],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     };

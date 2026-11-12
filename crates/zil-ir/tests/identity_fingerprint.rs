@@ -298,7 +298,7 @@ fn module(flag: bool) -> TypedModule {
                     span: Span::new(FileId(7), j, j + 1),
                 })
                 .collect(),
-            values: all_types.clone(),
+            values: all_types.clone().into(),
             blocks: terminators
                 .into_iter()
                 .enumerate()

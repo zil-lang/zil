@@ -15,8 +15,8 @@ fn fixture() -> (TypedModule, CandidatePlan) {
         parameters: vec![],
         return_type: Type::I32,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![Type::I32],
+        locals: vec![].into(),
+        values: vec![Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![Instruction {
@@ -25,7 +25,8 @@ fn fixture() -> (TypedModule, CandidatePlan) {
                 span: Span::default(),
             }],
             terminator: Terminator::Return(Some(ValueId(0))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     };
@@ -64,7 +65,8 @@ fn slots(module: &TypedModule, limits: &Limits) -> Vec<OnceLock<RawFunctionEncod
             if writer.function(function).is_ok() {
                 assert!(
                     slot.set(RawFunctionEncoding {
-                        bytes: writer.output,
+                        bytes: writer.output.into(),
+                        fingerprint: OnceLock::new(),
                         limits: limits.clone(),
                         nodes: limits.max_nodes - writer.nodes,
                     })
@@ -211,4 +213,52 @@ fn partial_publication_cannot_accumulate_one_byte_quota_per_entry() {
             .sum::<usize>(),
         retained
     );
+}
+
+#[test]
+fn segmented_publication_preserves_stream_limits_and_shared_fragments() {
+    let (module, plan) = fixture();
+    let limits = Limits::default();
+    let expected = encode_module_candidate(&module, &plan, &limits).unwrap();
+    let slots: Vec<_> = module.functions.iter().map(|_| OnceLock::new()).collect();
+    let functions: Vec<_> = module.functions.iter().zip(&slots).collect();
+    let mut stats = FunctionEncodingStats::default();
+    let cold =
+        encode_module_candidate_segments(&module, &plan, &functions, &limits, &mut stats).unwrap();
+    assert_eq!(stats.serialized_functions, 3);
+    let warm =
+        encode_module_candidate_segments(&module, &plan, &functions, &limits, &mut stats).unwrap();
+    for segments in [&cold, &warm] {
+        let actual: Vec<u8> = segments
+            .iter()
+            .flat_map(|s| s.bytes.iter().copied())
+            .collect();
+        assert_eq!(actual, expected);
+        assert!(
+            segments
+                .iter()
+                .all(|s| s.fingerprint == Fingerprint::of(&s.bytes))
+        );
+    }
+    for (a, b) in cold[1..4].iter().zip(&warm[1..4]) {
+        assert!(Arc::ptr_eq(&a.bytes, &b.bytes));
+    }
+    for bytes in [expected.len(), expected.len() - 1, expected.len() / 2] {
+        for nodes in [limits.max_nodes, 0, 1, 9] {
+            let selected = Limits {
+                max_source_bytes: bytes,
+                max_nodes: nodes,
+                ..limits.clone()
+            };
+            let result =
+                encode_module_candidate_segments(&module, &plan, &functions, &selected, &mut stats)
+                    .map(|segments| {
+                        segments
+                            .iter()
+                            .flat_map(|s| s.bytes.iter().copied())
+                            .collect::<Vec<_>>()
+                    });
+            assert_eq!(result, encode_module_candidate(&module, &plan, &selected));
+        }
+    }
 }

@@ -7,7 +7,7 @@ fn keep(actual: CallableKind, declared: CallableKind) -> Raw {
     let mut raw = fixture(actual, declared, false, 0, Type::I32);
     let function = &mut raw.module.functions[0];
     function.return_type = env();
-    function.values = vec![env()];
+    function.values = vec![env()].into();
     function.blocks[0].instructions = vec![op(
         Some(ValueId(0)),
         InstructionKind::TakeLocal { local: LocalId(0) },
@@ -62,7 +62,8 @@ fn owned_copy_fn_observation_counts_aliases_without_merging_local_instances() {
             env(),
             Type::I32,
             Type::I32,
-        ];
+        ]
+        .into();
         f.blocks[0].instructions = vec![
             op(None, InstructionKind::StorageLive(LocalId(1))),
             op(
@@ -147,7 +148,7 @@ fn same_type_is_not_the_input_instance() {
     // A second value of the same concrete environment type cannot stand in
     // for this invocation's actual parameter, even if it is a valid closure.
     let function = &mut raw.module.functions[0];
-    function.values = vec![Type::I32, env()];
+    function.values = vec![Type::I32, env()].into();
     function.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -225,7 +226,7 @@ fn symbolic_f_cannot_enter_state_and_also_return_the_same_ssa() {
         fields: vec![("token".into(), token.clone()), ("callback".into(), env())],
     };
     let function = &mut raw.module.functions[0];
-    function.values = vec![env(), Type::I32, token, state];
+    function.values = vec![env(), Type::I32, token, state].into();
     function.blocks[0].instructions = vec![
         op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         op(
@@ -273,7 +274,8 @@ fn symbolic_f_cannot_enter_general_array_and_also_return_the_same_ssa() {
             element: Box::new(env()),
             length: 2,
         },
-    ];
+    ]
+    .into();
     function.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -316,7 +318,7 @@ fn symbolic_f_cannot_enter_state_field_and_also_return_the_same_ssa() {
         mutable: true,
         span: span(),
     });
-    function.values = vec![Type::I32, owned(), Type::I32, env(), state, env()];
+    function.values = vec![Type::I32, owned(), Type::I32, env(), state, env()].into();
     function.blocks[0].instructions = vec![
         op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         op(None, InstructionKind::StorageLive(LocalId(1))),
@@ -409,7 +411,7 @@ fn slot_fixture() -> Raw {
         mutable: true,
         span: span(),
     });
-    function.values = vec![env(), slot_type(), env(), env(), env()];
+    function.values = vec![env(), slot_type(), env(), env(), env()].into();
     function.blocks[0].instructions = vec![
         op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         op(None, InstructionKind::StorageLive(LocalId(1))),
@@ -657,7 +659,7 @@ fn internal_slot_take_invalidates_its_prior_borrowed_callable_address() {
         mutable: true,
         span: span(),
     });
-    function.values = vec![env(), slot_type(), address(env(), true), Type::I32, env()];
+    function.values = vec![env(), slot_type(), address(env(), true), Type::I32, env()].into();
     function.blocks[0].instructions = vec![
         op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         op(None, InstructionKind::StorageLive(LocalId(1))),
@@ -734,7 +736,7 @@ fn fnmut_call_preserves_instance_but_fnonce_call_consumes_it() {
     let mut permitted = keep(CallableKind::FnMut, CallableKind::FnMut);
     let function = &mut permitted.module.functions[0];
     function.locals[0].mutable = true;
-    function.values = vec![Type::I32, env()];
+    function.values = vec![Type::I32, env()].into();
     function.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -761,7 +763,7 @@ fn fnmut_call_preserves_instance_but_fnonce_call_consumes_it() {
 
     let mut consumed = keep(CallableKind::FnOnce, CallableKind::FnOnce);
     let function = &mut consumed.module.functions[0];
-    function.values = vec![env(), Type::I32, env()];
+    function.values = vec![env(), Type::I32, env()].into();
     function.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -789,7 +791,7 @@ fn moved_f_cannot_leave_a_borrow_of_its_old_position_callable() {
     raw.module.resources.clear();
     let function = &mut raw.module.functions[0];
     function.locals[0].mutable = true;
-    function.values = vec![address(env(), true), Type::I32, env()];
+    function.values = vec![address(env(), true), Type::I32, env()].into();
     function.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -833,7 +835,7 @@ fn nested_keep_uses_actual_argument_and_does_not_upgrade_bound() {
     child.name = "child_keep".into();
     raw.module.functions.push(child);
     let parent = &mut raw.module.functions[0];
-    parent.values = vec![env(), env()];
+    parent.values = vec![env(), env()].into();
     parent.blocks[0].instructions = vec![
         op(
             Some(ValueId(0)),
@@ -877,7 +879,7 @@ fn each_branch_returns_this_instances_parameter() {
         span: span(),
     });
     function.parameters.push(LocalId(1));
-    function.values = vec![Type::Bool, env(), env()];
+    function.values = vec![Type::Bool, env(), env()].into();
     function.blocks = vec![
         BasicBlock {
             id: BlockId(0),
@@ -904,12 +906,13 @@ fn each_branch_returns_this_instances_parameter() {
             )],
             terminator: Terminator::Return(Some(ValueId(2))),
         },
-    ];
+    ]
+    .into();
     raw.accept();
 
     let mut mixed = raw.clone();
     let function = &mut mixed.module.functions[0];
-    function.values = vec![Type::Bool, env(), Type::I32, env()];
+    function.values = vec![Type::Bool, env(), Type::I32, env()].into();
     function.blocks[2].instructions = vec![
         op(
             Some(ValueId(2)),
@@ -938,7 +941,7 @@ fn owned_environment_returns_its_remaining_responsibility() {
     );
     let function = &mut raw.module.functions[0];
     function.return_type = env();
-    function.values = vec![env()];
+    function.values = vec![env()].into();
     function.blocks[0].instructions = vec![op(
         Some(ValueId(0)),
         InstructionKind::TakeLocal { local: LocalId(0) },

@@ -298,10 +298,10 @@ impl Products {
             && self.storage.project_functions.is_empty()
             && self.dynamic.is_empty())
     }
-    pub(crate) fn publish(
+    pub(crate) fn publish<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         &self,
         cores: &mut [(&mut CoreModule, &mut SourceMap)],
-        sources: &[zil_base::SourceUnit],
+        sources: &[S],
         limits: &Limits,
     ) -> CompileResult<()> {
         if !self.has_publications() {
@@ -334,10 +334,10 @@ impl Products {
         self.publish_inner(cores, sources, &mut budget)
             .map_err(|e| vec![e])
     }
-    fn publish_inner(
+    fn publish_inner<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         &self,
         cores: &mut [(&mut CoreModule, &mut SourceMap)],
-        sources: &[zil_base::SourceUnit],
+        sources: &[S],
         budget: &mut Budget<'_>,
     ) -> R<()> {
         for _source in sources {
@@ -356,8 +356,13 @@ impl Products {
                 budget.text(&f.name, f.span)?;
             }
         }
-        let owners: BTreeMap<FileId, ModuleId> =
-            sources.iter().map(|s| (s.file_id, s.module_id)).collect();
+        let owners: BTreeMap<FileId, ModuleId> = sources
+            .iter()
+            .map(|s| {
+                let source: &zil_base::SourceUnit = s.borrow();
+                (source.file_id, source.module_id)
+            })
+            .collect();
         let mut families = BTreeMap::new();
         let mut next = BTreeMap::new();
         for (core, map) in cores.iter() {

@@ -292,8 +292,8 @@ fn declaration(item: &Item) -> Option<(&str, bool, bool)> {
 }
 
 #[cfg(test)]
-pub(super) fn specialize(
-    sources: &[SourceUnit],
+pub(super) fn specialize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -306,8 +306,8 @@ pub(super) fn specialize(
             .collect()
     })
 }
-pub(super) fn specialize_with_context(
-    sources: &[SourceUnit],
+pub(super) fn specialize_with_context<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -316,8 +316,8 @@ pub(super) fn specialize_with_context(
 ) -> CompileResult<ModuleProducts> {
     specialize_with_runtime(sources, modules, imports, limits, products, context, None)
 }
-pub(super) fn specialize_with_runtime(
-    sources: &[SourceUnit],
+pub(super) fn specialize_with_runtime<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -331,8 +331,8 @@ pub(super) fn specialize_with_runtime(
     .map(|modules| modules.expect("raw normalizer owns its output"))
     .map_err(|e| vec![e])
 }
-pub(super) fn specialize_cached(
-    sources: &[SourceUnit],
+pub(super) fn specialize_cached<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -353,8 +353,8 @@ pub(super) fn specialize_cached(
     .map_err(|e| vec![e])
 }
 #[allow(clippy::too_many_arguments)] // Preserve original explicit contexts and the private reuse hook.
-fn normalize(
-    sources: &[SourceUnit],
+fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -376,6 +376,7 @@ fn normalize(
     }
     // Bound borrowed inputs before cloning any syntax or symbol table.
     for ((source, module), edges) in sources.iter().zip(modules).zip(imports) {
+        let source: &SourceUnit = source.borrow();
         if reuse.as_deref_mut().is_some_and(|reuse| {
             reuse.replay(
                 crate::incremental::Stage::Preflight,
@@ -455,6 +456,7 @@ fn normalize(
     for (position, ((source, module), edges)) in
         sources.iter().zip(modules).zip(imports).enumerate()
     {
+        let source: &SourceUnit = source.borrow();
         if files.insert(source.file_id, position).is_some()
             || index.symbols.contains_key(&module.id)
         {

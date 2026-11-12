@@ -47,8 +47,9 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
                     }]
                 } else {
                     vec![]
-                },
-                values: vec![Type::Unit; constants],
+                }
+                .into(),
+                values: vec![Type::Unit; constants].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: (0..constants)
@@ -59,7 +60,8 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
                         })
                         .collect(),
                     terminator: Terminator::Return(None),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: span(),
             })
@@ -280,8 +282,9 @@ fn initialization_facts_survive_a_branch_and_backedge() {
             mutable: true,
             span: span(),
         },
-    ];
-    function.values = vec![Type::I32, Type::Bool, Type::I32, Type::I32];
+    ]
+    .into();
+    function.values = vec![Type::I32, Type::Bool, Type::I32, Type::I32].into();
     let instruction = |result, kind| Instruction {
         result,
         kind,
@@ -342,7 +345,8 @@ fn initialization_facts_survive_a_branch_and_backedge() {
             )],
             terminator: Terminator::Return(Some(ValueId(3))),
         },
-    ];
+    ]
+    .into();
     let plan = analyze(&raw, &Limits::default()).unwrap();
     assert_eq!(plan.functions[0].blocks[0].initialized_in, vec![LocalId(0)]);
     for block in &plan.functions[0].blocks {

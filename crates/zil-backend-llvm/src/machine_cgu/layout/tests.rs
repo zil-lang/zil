@@ -30,10 +30,13 @@ fn function(name: &str, callee: Option<&str>) -> Function {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), vec![]),
         attrs: vec![],
-        blocks: Some(vec![Block {
-            name: "entry".into(),
-            instructions,
-        }]),
+        blocks: Some(
+            (vec![Block {
+                name: "entry".into(),
+                instructions,
+            }])
+            .into(),
+        ),
     }
 }
 fn fixture() -> (Module, LirModule) {
@@ -57,9 +60,9 @@ fn fixture() -> (Module, LirModule) {
                 parameters: vec![],
                 return_type: Type::I32,
                 result_mode: PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![]).into(),
+                blocks: (vec![]).into(),
                 entry: BlockId(0),
                 span: Span {
                     file: FileId(id % 2),
@@ -80,7 +83,7 @@ fn fixture() -> (Module, LirModule) {
     let module = Module {
         triple: source.target.triple.clone(),
         fingerprint: "current".into(),
-        items: vec![
+        items: (vec![
             Item::NamedType("shape".into(), vec![Ty::Int(32)]),
             Item::Function(function("foreign", None).declaration()),
             Item::Function(function("unused", None).declaration()),
@@ -96,7 +99,8 @@ fn fixture() -> (Module, LirModule) {
                 unnamed_addr: false,
                 alignment: 4,
             }),
-        ],
+        ])
+        .into(),
     };
     (module, source)
 }

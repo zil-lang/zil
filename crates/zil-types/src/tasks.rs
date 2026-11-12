@@ -718,9 +718,9 @@ mod snapshot_budget {
             parameters: vec![],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![ty],
-            blocks: vec![],
+            locals: vec![].into(),
+            values: vec![ty].into(),
+            blocks: vec![].into(),
             entry: BlockId(0),
             span: Span::default(),
         }

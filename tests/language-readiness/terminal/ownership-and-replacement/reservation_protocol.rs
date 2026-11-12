@@ -52,8 +52,9 @@ pub fn module() -> TypedModule {
                 mutable: true,
                 span: Span::default(),
             },
-        ],
-        values: vec![address, resource],
+        ]
+        .into(),
+        values: vec![address, resource].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -79,7 +80,8 @@ pub fn module() -> TypedModule {
                 ),
             ],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     };
@@ -145,7 +147,8 @@ pub fn module_with_relay_and_caller(fresh: bool) -> TypedModule {
         address,
         resource.clone(),
         resource,
-    ];
+    ]
+    .into();
     caller.blocks[0].instructions = vec![
         instruction(
             Some(ValueId(0)),

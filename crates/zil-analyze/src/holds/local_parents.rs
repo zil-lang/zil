@@ -505,7 +505,8 @@ mod tests {
                 mutable: false,
                 inner: Box::new(Type::I64),
             },
-        ];
+        ]
+        .into();
         let i = fixture::instruction;
         f.blocks[0].instructions = vec![
             i(

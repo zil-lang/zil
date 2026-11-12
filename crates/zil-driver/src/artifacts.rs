@@ -27,6 +27,7 @@ const DUMPS: &[(&str, &str, Stage)] = &[
 
 #[derive(Clone)]
 struct PlannedFile {
+    directory: bool,
     name: &'static str,
     path: PathBuf,
 }
@@ -44,10 +45,26 @@ impl ArtifactPlan {
         name: &'static str,
         path: &Path,
     ) -> CompileResult<PathBuf> {
+        self.cache_path(name, path, false)
+    }
+    pub(super) fn cache_directory(
+        &mut self,
+        name: &'static str,
+        path: &Path,
+    ) -> CompileResult<PathBuf> {
+        self.cache_path(name, path, true)
+    }
+    fn cache_path(
+        &mut self,
+        name: &'static str,
+        path: &Path,
+        directory: bool,
+    ) -> CompileResult<PathBuf> {
         let path = destination(path)?;
         self.files.push(PlannedFile {
             name,
             path: path.clone(),
+            directory,
         });
         self.validate()?;
         Ok(path)
@@ -62,6 +79,7 @@ impl ArtifactPlan {
         let mut directories = DestinationCache::default();
         for dependency in sources.iter().filter(|unit| unit.file_id != source.file_id) {
             dependencies.push(PlannedFile {
+                directory: false,
                 name: "source",
                 path: directories.resolve(Path::new(&dependency.path))?,
             });
@@ -72,6 +90,7 @@ impl ArtifactPlan {
     }
     pub(super) fn new(source: &SourceUnit, options: &CompileOptions) -> CompileResult<Self> {
         let mut files = vec![PlannedFile {
+            directory: false,
             name: "source",
             path: destination(Path::new(&source.path))?,
         }];
@@ -79,6 +98,7 @@ impl ArtifactPlan {
             for &(name, extension, stage) in DUMPS {
                 if stage <= options.stop_after {
                     files.push(PlannedFile {
+                        directory: false,
                         name,
                         path: destination(&root.join(format!("{name}.{extension}")))?,
                     });
@@ -96,10 +116,12 @@ impl ArtifactPlan {
                 .to_os_string();
             name.push(".ll");
             files.push(PlannedFile {
+                directory: false,
                 name: "sidecar",
                 path: executable.with_file_name(name),
             });
             files.push(PlannedFile {
+                directory: false,
                 name: "executable",
                 path: executable,
             });
@@ -126,7 +148,7 @@ impl ArtifactPlan {
         let identities = self
             .files
             .iter()
-            .map(|file| identity(&file.path, &mut directories))
+            .map(|file| identity(&file.path, file.directory, &mut directories))
             .collect::<CompileResult<Vec<_>>>()?;
         // Project sources precede the fixed-size output set. Check source
         // identities once, then compare each source only against outputs.
@@ -206,6 +228,22 @@ impl ArtifactPlan {
             return self.dump(report, options, name, "");
         }
         let contents = contents(report);
+        self.dump(report, options, name, &contents)
+    }
+
+    /// Read a native diagnostic artifact only when a dump was requested.
+    pub(super) fn dump_file(
+        &self,
+        report: &mut CompileReport,
+        options: &CompileOptions,
+        name: &str,
+        source: &Path,
+    ) -> CompileResult<()> {
+        if self.path(name).is_none() {
+            return self.dump(report, options, name, "");
+        }
+        let contents = fs::read_to_string(source)
+            .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         self.dump(report, options, name, &contents)
     }
 
@@ -354,13 +392,30 @@ struct FileIdentity {
     #[cfg(unix)]
     inode: Option<(u64, u64)>,
 }
-fn identity(path: &Path, directories: &mut DestinationCache) -> CompileResult<FileIdentity> {
+fn identity(
+    path: &Path,
+    directory: bool,
+    directories: &mut DestinationCache,
+) -> CompileResult<FileIdentity> {
     match fs::metadata(path) {
         Ok(metadata) => {
-            if !metadata.is_file() {
+            if if directory {
+                !metadata.is_dir()
+                    || !fs::symlink_metadata(path).is_ok_and(|m| !m.file_type().is_symlink())
+            } else {
+                !metadata.is_file()
+            } {
                 return Err(infra(
                     "E-OUTPUT-PATH",
-                    format!("{} must be a regular file", path.display()),
+                    format!(
+                        "{} must be a {}",
+                        path.display(),
+                        if directory {
+                            "real directory"
+                        } else {
+                            "regular file"
+                        }
+                    ),
                 ));
             }
             #[cfg(unix)]
@@ -590,6 +645,42 @@ impl Drop for NativePublication {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_namespace_accepts_directories_but_protects_sources_and_rejects_aliases() {
+        let directory = Staging::create(&std::env::temp_dir()).unwrap();
+        let source_path = directory.path.join("source.zil");
+        fs::write(&source_path, "fn main()->i32{return 1;}").unwrap();
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            source_path.to_string_lossy(),
+            "fn main()->i32{return 1;}",
+        );
+        let mut plan = ArtifactPlan::new(&source, &CompileOptions::default()).unwrap();
+        let namespace = directory.path.join("items");
+        plan.cache_directory("items", &namespace).unwrap();
+        fs::create_dir(&namespace).unwrap();
+        plan.validate().unwrap();
+        assert!(
+            plan.clone()
+                .cache_directory("source-parent", &directory.path)
+                .is_err()
+        );
+        assert!(
+            ArtifactPlan::new(&source, &CompileOptions::default())
+                .unwrap()
+                .cache_destination("file-only", &namespace)
+                .is_err()
+        );
+        #[cfg(unix)]
+        {
+            let moved = directory.path.join("moved-items");
+            fs::rename(&namespace, &moved).unwrap();
+            std::os::unix::fs::symlink(&moved, &namespace).unwrap();
+            assert!(plan.validate().is_err());
+        }
+    }
 
     #[test]
     fn one_parent_resolution_matches_the_uncached_resolver() {

@@ -570,7 +570,7 @@ fn checkpoint_real_public_helper_and_callback_publications_force_fresh_solves() 
         role.writes = vec![0];
     }
     let callback = &mut module.functions[2];
-    callback.values = vec![address, Type::I32, owner];
+    callback.values = vec![address, Type::I32, owner].into();
     callback.blocks[0].instructions = vec![
         fixture::instruction(Some(ValueId(0)), InstructionKind::ReadCapture { index: 0 }),
         fixture::instruction(
@@ -692,7 +692,7 @@ fn checkpoint_element_caller() -> TypedModule {
     }));
     let caller = &mut module.functions[0];
     caller.locals[0].ty = store.clone();
-    caller.values = vec![store, Type::Usize, address, helper.values[1].clone()];
+    caller.values = vec![store, Type::Usize, address, helper.values[1].clone()].into();
     caller.blocks[0].instructions = vec![
         fixture::instruction(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
         fixture::instruction(
@@ -937,7 +937,7 @@ fn direct_capture_fixture() -> (TypedModule, Vec<FunctionGraph>) {
     caller.locals.truncate(1);
     caller.locals[0].name = "condition".into();
     caller.locals[0].ty = Type::Bool;
-    caller.values = vec![dependency.clone(), captured.clone(), Type::Bool];
+    caller.values = vec![dependency.clone(), captured.clone(), Type::Bool].into();
     let mut entry = caller.blocks[0].clone();
     entry.instructions = vec![
         fixture::instruction(
@@ -967,13 +967,13 @@ fn direct_capture_fixture() -> (TypedModule, Vec<FunctionGraph>) {
     left.terminator = Terminator::Return(None);
     let mut right = left.clone();
     right.id = BlockId(2);
-    caller.blocks = vec![entry, left, right];
+    caller.blocks = vec![entry, left, right].into();
     helper.id = FunctionId(1);
     helper.name = "later_enum_publication".into();
     helper.parameters.clear();
     helper.locals.clear();
     helper.return_type = dependency.clone();
-    helper.values = vec![dependency];
+    helper.values = vec![dependency].into();
     helper.blocks[0].instructions = vec![fixture::instruction(
         Some(ValueId(0)),
         InstructionKind::MakeVariant {

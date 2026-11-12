@@ -51,20 +51,23 @@ mod tests {
             linkage: Linkage::External,
             signature: Signature::new(Ty::Int(32), vec![]),
             attrs: vec![],
-            blocks: Some(vec![Block {
-                name: "entry".into(),
-                instructions: vec![Inst::new(
-                    None,
-                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
-                )],
-            }]),
+            blocks: Some(
+                (vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
+                    )],
+                }])
+                .into(),
+            ),
         })
     }
     fn module(items: Vec<Item>) -> Module {
         Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
-            items,
+            items: items.into(),
         }
     }
     fn linkage(unit: &Module, name: &str) -> Linkage {

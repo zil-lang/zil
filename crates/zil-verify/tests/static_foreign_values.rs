@@ -997,13 +997,14 @@ impl Body {
                 foreign: None,
                 parameters: vec![],
                 return_type: result,
-                locals: vec![],
-                values: vec![],
+                locals: vec![].into(),
+                values: vec![].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![],
                     terminator: Terminator::Return(None),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: span(),
             },

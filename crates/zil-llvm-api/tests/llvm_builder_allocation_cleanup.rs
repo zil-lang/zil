@@ -15,7 +15,7 @@ fn bounded_fragments_match_one_event_stream_and_manual_items() {
         Event::End,
     ]);
     let mut expected = f;
-    expected.blocks = Some(vec![b("entry", body)]);
+    expected.blocks = Some((vec![b("entry", body)]).into());
     assert_eq!(
         code.clone().into_items().unwrap(),
         vec![Item::Function(expected)]
@@ -30,7 +30,7 @@ fn bounded_fragments_match_one_event_stream_and_manual_items() {
     separate.extend(second.into_items().unwrap());
     let module =
         Module::from_code("x86_64-unknown-linux-gnu".into(), "test".into(), together).unwrap();
-    assert_eq!(module.items, separate);
+    assert_eq!(module.items, separate.into());
     validate_module(&module).unwrap();
 }
 

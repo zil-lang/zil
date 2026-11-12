@@ -29,7 +29,10 @@ mod helpers;
 mod incremental;
 mod inference;
 mod interface_identity;
-pub use incremental::{FunctionSession, FunctionStats};
+pub use incremental::{
+    FunctionChanges, FunctionItem, FunctionItemProducts, FunctionProduct, FunctionSession,
+    FunctionStats,
+};
 mod lending;
 mod lifetimes;
 mod managed_slots;
@@ -774,13 +777,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 environment: None,
                 parameters: vec![],
                 return_type: f.return_type.clone(),
-                locals: vec![],
-                values: vec![],
+                locals: vec![].into(),
+                values: vec![].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![],
                     terminator: Terminator::Unreachable,
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: f.span,
             },

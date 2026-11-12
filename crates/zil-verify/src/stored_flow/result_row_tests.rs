@@ -259,7 +259,7 @@ fn fixture_for(payloads: Vec<Payload>) -> (TypedModule, TypedFunction, FunctionG
     f.locals.clear();
     f.parameters.clear();
     f.return_type = fixture::address(Type::I32, false);
-    f.values = vec![f.return_type.clone(); payloads.len()];
+    f.values = vec![f.return_type.clone(); payloads.len()].into();
     let mut block = f.blocks[0].clone();
     block.instructions.clear();
     f.blocks = (0..payloads.len())

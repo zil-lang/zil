@@ -39,9 +39,9 @@ fn source(count: u32) -> LirModule {
                 parameters: vec![],
                 return_type: Type::I64,
                 result_mode: PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![]).into(),
+                blocks: (vec![]).into(),
                 entry: zil_ir::BlockId(0),
                 span: Span {
                     file: FileId(id),
@@ -75,10 +75,13 @@ fn function(name: &str, linkage: Linkage, body: Vec<Inst>) -> Item {
         linkage,
         signature: Signature::new(Ty::Int(64), vec![Param::new(Ty::Int(64), "x")]),
         attrs: vec![],
-        blocks: Some(vec![Block {
-            name: "entry".into(),
-            instructions: body,
-        }]),
+        blocks: Some(
+            (vec![Block {
+                name: "entry".into(),
+                instructions: body,
+            }])
+            .into(),
+        ),
     })
 }
 fn caller(id: u32, callee: &str) -> Item {
@@ -119,7 +122,7 @@ fn module(items: Vec<Item>) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: String::new(),
-        items,
+        items: items.into(),
     }
 }
 fn input() -> Module {
@@ -549,44 +552,47 @@ fn same_argument_return_dispatch_preserves_optimizer_locality_not_function_ident
     let Item::Function(function) = &mut dispatch else {
         unreachable!()
     };
-    function.blocks = Some(vec![
-        Block {
-            name: "entry".into(),
-            instructions: vec![
-                inst(
-                    Some("test"),
-                    Op::Compare {
-                        predicate: "eq".into(),
-                        ty: Ty::Int(64),
-                        left: local("x"),
-                        right: Val::Int(0),
-                    },
-                ),
-                inst(
-                    None,
-                    Op::CondBranch {
-                        condition: local("test"),
-                        yes: "left".into(),
-                        no: "right".into(),
-                    },
-                ),
-            ],
-        },
-        Block {
-            name: "left".into(),
-            instructions: vec![
-                inst(Some("a"), call("zil.fn.1")),
-                inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("a"))))),
-            ],
-        },
-        Block {
-            name: "right".into(),
-            instructions: vec![
-                inst(Some("b"), call("zil.fn.2")),
-                inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("b"))))),
-            ],
-        },
-    ]);
+    function.blocks = Some(
+        (vec![
+            Block {
+                name: "entry".into(),
+                instructions: vec![
+                    inst(
+                        Some("test"),
+                        Op::Compare {
+                            predicate: "eq".into(),
+                            ty: Ty::Int(64),
+                            left: local("x"),
+                            right: Val::Int(0),
+                        },
+                    ),
+                    inst(
+                        None,
+                        Op::CondBranch {
+                            condition: local("test"),
+                            yes: "left".into(),
+                            no: "right".into(),
+                        },
+                    ),
+                ],
+            },
+            Block {
+                name: "left".into(),
+                instructions: vec![
+                    inst(Some("a"), call("zil.fn.1")),
+                    inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("a"))))),
+                ],
+            },
+            Block {
+                name: "right".into(),
+                instructions: vec![
+                    inst(Some("b"), call("zil.fn.2")),
+                    inst(None, Op::Return(Some(Arg::new(Ty::Int(64), local("b"))))),
+                ],
+            },
+        ])
+        .into(),
+    );
     let mut input = module(vec![
         dispatch,
         caller(1, "helper"),

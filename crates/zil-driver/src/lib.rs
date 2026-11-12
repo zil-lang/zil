@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
-//! Shared CLI/editor scheduling. The session reuses only raw phase snapshots;
-//! each complete compilation obtains a fresh independent verifier capability.
+//! Shared CLI/editor scheduling. Raw phase snapshots never grant authority;
+//! each complete compilation obtains current independent verifier capability.
+//! Optional verifier-owned receipts discharge only completely bound obligations.
 
 mod artifacts;
 mod contracts;
@@ -14,6 +15,7 @@ pub use project_manifest::ProjectManifest;
 /// Explicit module import destinations keyed by the source module that imports.
 pub type ScopedImports = BTreeMap<(ModuleId, Vec<String>), ModuleId>;
 mod semantic_cache;
+pub use semantic_cache::{FunctionPublicationStats, SemanticPublicationStats};
 mod session;
 mod stable_source_identity;
 pub use project::{ProjectSources, compile_project, discover_tests};
@@ -264,6 +266,12 @@ pub struct CompileReport {
     /// Encoding work in the final attempt only; None means not observed.
     /// These counters never represent Verify or successful disk publication.
     pub function_cache_encoding: Option<Box<zil_ir::wire::FunctionEncodingStats>>,
+    pub function_cache_publication: Option<FunctionPublicationStats>,
+    pub semantic_cache_publication: Option<SemanticPublicationStats>,
+    /// Actual work in the final attempt; verifier-owned proof reuse is distinct
+    /// from entering current independent verification (`verification_runs`).
+    pub verification_work: Option<zil_verify::VerifyStats>,
+    pub backend_work: Option<zil_backend_llvm::BackendSessionSummary>,
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
@@ -298,6 +306,10 @@ impl CompileReport {
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
             scalar_interfaces: Vec::new(),
             function_cache_encoding: None,
+            function_cache_publication: None,
+            semantic_cache_publication: None,
+            verification_work: None,
+            backend_work: None,
             function_type_work: None,
             producer_work: None,
             materialization_work: None,
@@ -311,7 +323,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"function_cache_encoding\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -361,6 +373,18 @@ impl CompileReport {
             self.function_cache_encoding.as_ref().map_or_else(|| "null".into(), |stats| format!(
                 "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
                 stats.serialized_functions, stats.reused_functions)),
+            self.function_cache_publication.map_or_else(|| "null".into(), |stats| format!(
+                "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{}}}",
+                stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes)),
+            self.semantic_cache_publication.map_or_else(|| "null".into(), |stats| format!(
+                "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{}}}",
+                stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes)),
+            self.verification_work.map_or_else(|| "null".into(), |stats| format!(
+                "{{\"full_receipts_reused\":{},\"function_proofs_checked\":{},\"function_proofs_reused\":{},\"instruction_proofs_reused\":{}}}",
+                stats.full_receipts_reused, stats.function_proofs_checked, stats.function_proofs_reused, stats.instruction_proofs_reused)),
+            self.backend_work.as_ref().map_or_else(|| "null".into(), |stats| format!(
+                "{{\"lowered_functions\":{},\"reused_functions\":{},\"reused_machine_transforms\":{},\"reused_partition\":{},\"reused_object_keys\":{},\"reused_link\":{},\"rendered_diagnostic_items\":{},\"reused_diagnostic_items\":{}}}",
+                stats.lowered_functions, stats.reused_functions, stats.reused_machine_transforms, stats.reused_partition, stats.reused_object_keys, stats.reused_link, stats.rendered_diagnostic_items, stats.reused_diagnostic_items)),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -422,6 +446,8 @@ impl CompileReport {
         next.producer_work = None;
         next.materialization_work = None;
         next.initialization_work = None;
+        next.verification_work = None;
+        next.backend_work = None;
         next.phase_timings_ns.clear();
         next.driver_timings_ns.clear();
         next.materialization_ns = 0;
@@ -461,6 +487,36 @@ impl CompileReport {
                     .saturating_add(work.executed_functions);
                 total.reused_functions =
                     total.reused_functions.saturating_add(work.reused_functions);
+                total.candidate_reused_functions = total
+                    .candidate_reused_functions
+                    .saturating_add(work.candidate_reused_functions);
+                total.candidate_executed_functions = total
+                    .candidate_executed_functions
+                    .saturating_add(work.candidate_executed_functions);
+                total.equal_function_results = total
+                    .equal_function_results
+                    .saturating_add(work.equal_function_results);
+                total.changed_function_results = total
+                    .changed_function_results
+                    .saturating_add(work.changed_function_results);
+                total.shared_program_reuses = total
+                    .shared_program_reuses
+                    .saturating_add(work.shared_program_reuses);
+                total.initialization_inputs_built = total
+                    .initialization_inputs_built
+                    .saturating_add(work.initialization_inputs_built);
+                total.candidate_inputs_built = total
+                    .candidate_inputs_built
+                    .saturating_add(work.candidate_inputs_built);
+                total.dependency_signatures_checked = total
+                    .dependency_signatures_checked
+                    .saturating_add(work.dependency_signatures_checked);
+                total.resource_transfers_executed = total
+                    .resource_transfers_executed
+                    .saturating_add(work.resource_transfers_executed);
+                total.resource_transfers_reused = total
+                    .resource_transfers_reused
+                    .saturating_add(work.resource_transfers_reused);
             }
             for (phase, nanos) in &attempt.phase_timings_ns {
                 *self.phase_timings_ns.entry(*phase).or_default() += nanos;
@@ -480,6 +536,8 @@ impl CompileReport {
         }
         if let Some(total) = &mut self.initialization_work {
             total.retained_queries = final_analysis.map_or(0, |work| work.retained_queries);
+            total.retained_candidate_queries =
+                final_analysis.map_or(0, |work| work.retained_candidate_queries);
         }
     }
     fn record_phase_time(&mut self, phase: Phase, start: std::time::Instant) {
@@ -595,8 +653,8 @@ fn frontend_stats_json(
         || "null".into(),
         |stats| {
             format!(
-                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{}}}",
-                stats.executed_functions, stats.reused_functions, stats.retained_queries,
+                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{}}}",
+                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries,
             )
         },
     );
@@ -632,6 +690,8 @@ fn add_function_work(
         inventory_functions_visited,
         reused_functions,
         executed_functions,
+        cfg_same_span_reuses,
+        cfg_relocated_functions,
         body_key_executions,
         body_key_reuses,
         core_function_eq_comparisons,
@@ -762,6 +822,7 @@ mod report_attempt_tests {
             executed_functions: 3,
             reused_functions: 2,
             retained_queries: 50,
+            ..Default::default()
         });
         report.phase_timings_ns.insert(Phase::Types, 11);
         report.verification_runs = 1;
@@ -788,6 +849,7 @@ mod report_attempt_tests {
             executed_functions: 5,
             reused_functions: 1,
             retained_queries: 4,
+            ..Default::default()
         });
         report.phase_timings_ns.insert(Phase::Types, 13);
         report.verification_runs += 1;
@@ -805,7 +867,8 @@ mod report_attempt_tests {
             zil_analyze::AnalysisStats {
                 executed_functions: 8,
                 reused_functions: 3,
-                retained_queries: 4
+                retained_queries: 4,
+                ..Default::default()
             }
         );
         assert_eq!(report.phase_timings_ns[&Phase::Types], 24);

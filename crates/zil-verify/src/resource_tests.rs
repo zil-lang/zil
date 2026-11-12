@@ -49,8 +49,8 @@ fn function() -> TypedFunction {
         parameters: vec![],
         return_type: Type::I32,
         result_mode: PassingMode::Infer,
-        locals: vec![local(0, owned())],
-        values: vec![Type::I32, owned(), desc(), Type::I32],
+        locals: vec![local(0, owned())].into(),
+        values: vec![Type::I32, owned(), desc(), Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -84,7 +84,8 @@ fn function() -> TypedFunction {
                 i(None, InstructionKind::StorageDead(LocalId(0))),
             ],
             terminator: Terminator::Return(Some(ValueId(3))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -111,6 +112,46 @@ fn module() -> TypedModule {
         }],
         unsupported: vec![],
     }
+}
+
+#[test]
+fn incremental_flow_proof_keeps_current_resource_obligations() {
+    let mut module = module();
+    let mut candidate = plan(&module);
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    session
+        .verify_shared_module(
+            Arc::new(module.clone()),
+            Arc::new(candidate.clone()),
+            &module.target,
+            &limits,
+        )
+        .unwrap();
+    session
+        .verify_shared_module(
+            Arc::new(module.clone()),
+            Arc::new(candidate.clone()),
+            &module.target,
+            &limits,
+        )
+        .unwrap();
+    assert_eq!(session.stats().function_proofs_reused, 1);
+    // A module-level resource declaration is not a local CFG dependency. The
+    // current global definition checker must still reject its removal.
+    module.resources.clear();
+    candidate.module_fingerprint = module.fingerprint();
+    let fresh =
+        verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap_err();
+    let warm = session
+        .verify_shared_module(
+            Arc::new(module.clone()),
+            Arc::new(candidate),
+            &module.target,
+            &limits,
+        )
+        .unwrap_err();
+    assert_eq!(warm, fresh);
 }
 
 // Initialization and empty Address Hold claims are fixture plumbing. Tests below
@@ -282,7 +323,7 @@ fn create_cannot_launder_incoming_responsibility_but_give_can_transfer_it() {
     f.parameters = vec![LocalId(0)];
     f.return_type = owned();
     f.result_mode = PassingMode::Create;
-    f.values = vec![owned()];
+    f.values = vec![owned()].into();
     f.blocks[0].instructions = vec![i(Some(0), InstructionKind::TakeLocal { local: LocalId(0) })];
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     rejected(m.clone(), "create result is not independently proven fresh");
@@ -334,8 +375,8 @@ fn with_teardown() -> TypedModule {
         parameters: vec![LocalId(0)],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![local(0, desc())],
-        values: vec![desc(), Type::I32],
+        locals: vec![local(0, desc())].into(),
+        values: vec![desc(), Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -349,7 +390,8 @@ fn with_teardown() -> TypedModule {
                 ),
             ],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     });
@@ -446,13 +488,14 @@ fn consume_function(id: u32) -> TypedFunction {
         parameters: vec![LocalId(0)],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![local(0, owned())],
-        values: vec![],
+        locals: vec![local(0, owned())].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![i(None, InstructionKind::DropManaged { local: LocalId(0) })],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -523,7 +566,7 @@ fn giving_an_owner_and_its_description_in_one_call_is_rejected() {
     let mut callee = consume_function(1);
     callee.locals.push(local(1, desc()));
     callee.parameters.push(LocalId(1));
-    callee.values = vec![desc(), Type::I32];
+    callee.values = vec![desc(), Type::I32].into();
     callee.blocks[0]
         .instructions
         .insert(0, i(Some(0), InstructionKind::Load(LocalId(1))));
@@ -636,7 +679,8 @@ fn resource_loop() -> TypedModule {
             instructions: vec![],
             terminator: Terminator::Return(None),
         },
-    ];
+    ]
+    .into();
     f.return_type = Type::Unit;
     m
 }
@@ -655,7 +699,7 @@ fn backedge_to_entry_does_not_recreate_owned_parameters() {
     m.functions.push(consume_function(1));
     let f = &mut m.functions[0];
     f.parameters = vec![LocalId(0)];
-    f.values = vec![owned()];
+    f.values = vec![owned()].into();
     f.return_type = Type::Unit;
     f.blocks = vec![BasicBlock {
         id: BlockId(0),
@@ -670,7 +714,8 @@ fn backedge_to_entry_does_not_recreate_owned_parameters() {
             ),
         ],
         terminator: Terminator::Jump(BlockId(0)),
-    }];
+    }]
+    .into();
     rejected(m, "give requires a live owned position");
 }
 
@@ -679,8 +724,8 @@ fn two_description_parameters_may_alias_for_sequential_short_operations() {
     let mut m = module();
     let f = &mut m.functions[0];
     f.parameters = vec![LocalId(0), LocalId(1)];
-    f.locals = vec![local(0, desc()), local(1, desc())];
-    f.values = vec![desc(), desc(), Type::I32, Type::I32];
+    f.locals = vec![local(0, desc()), local(1, desc())].into();
+    f.values = vec![desc(), desc(), Type::I32, Type::I32].into();
     f.blocks[0].instructions = vec![
         i(Some(0), InstructionKind::Load(LocalId(0))),
         i(Some(1), InstructionKind::Load(LocalId(1))),

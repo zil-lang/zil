@@ -91,8 +91,8 @@ impl Visitor for Discovery<'_, '_> {
     }
 }
 
-pub(crate) fn capture_original_impl(
-    sources: &[SourceUnit],
+pub(crate) fn capture_original_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
@@ -100,8 +100,8 @@ pub(crate) fn capture_original_impl(
     capture_impl(sources, modules, context, limits, false)
 }
 
-pub(crate) fn capture_required_impl(
-    sources: &[SourceUnit],
+pub(crate) fn capture_required_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
@@ -114,8 +114,8 @@ pub(crate) fn capture_required_impl(
     })
 }
 
-fn capture_impl(
-    sources: &[SourceUnit],
+fn capture_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&Module],
     context: SourceIdentityContext<'_>,
     limits: &Limits,
@@ -148,6 +148,7 @@ fn capture_impl(
             // This paid traversal also discovers whether an output consumer needs
             // nominal identity. Feature-free inputs avoid constructing a namespace.
             for (source, module) in sources.iter().zip(modules) {
+                let source: &SourceUnit = source.borrow();
                 budget.node(module.span, 0)?;
                 if source.module_id != module.id {
                     return Err(bad(module.span, "original source/module owner differs"));

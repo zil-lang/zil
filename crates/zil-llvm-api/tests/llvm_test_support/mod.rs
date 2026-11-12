@@ -18,14 +18,14 @@ pub fn f(name: &str, params: Vec<Param>, result: Ty, blocks: Vec<Block>) -> Func
         linkage: Linkage::External,
         signature: Signature::new(result, params),
         attrs: vec![],
-        blocks: Some(blocks),
+        blocks: Some((blocks).into()),
     }
 }
 pub fn m(items: Vec<Item>) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "llvm-api-test".into(),
-        items,
+        items: items.into(),
     }
 }
 pub fn simple() -> Module {

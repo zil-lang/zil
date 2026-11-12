@@ -1050,9 +1050,10 @@ fn producer_restart_and_corrupt_disk_cache_still_require_current_types_and_verif
         successful(&original.compile_project(&initial, &options));
         for corrupt in [false, true] {
             if corrupt {
-                let files: Vec<_> = fs::read_dir(dir.0.join("cache/function-types-v1"))
+                let files: Vec<_> = fs::read_dir(dir.0.join("cache/function-types-v2"))
                     .unwrap()
                     .map(|entry| entry.unwrap().path())
+                    .filter(|path| path.is_file())
                     .collect();
                 assert!(!files.is_empty());
                 for path in files {
@@ -1067,4 +1068,59 @@ fn producer_restart_and_corrupt_disk_cache_still_require_current_types_and_verif
             compare(&restarted, &current, &project, &options);
         }
     }
+}
+
+#[test]
+fn actual_function_products_reach_analysis_and_independent_verification() {
+    let dir = Directory::new();
+    let options = options(true);
+    let mut session = CompilationSession::default();
+    let initial = dir.scalar(MAIN, LEFT, RIGHT);
+    let cold = session.compile_project(&initial, &options);
+    successful(&cold);
+    assert_eq!(
+        cold.initialization_work
+            .unwrap()
+            .candidate_executed_functions,
+        5
+    );
+    assert_eq!(cold.verification_work.unwrap().function_proofs_checked, 5);
+    let warm = session.compile_project(&initial, &options);
+    successful(&warm);
+    assert_eq!(warm.verification_work.unwrap().full_receipts_reused, 1);
+
+    // A wider private edit shifts the sibling function's diagnostic positions.
+    // Its raw source binding must change without forcing its semantic analyses.
+    let changed = dir.scalar(MAIN, &LEFT.replacen("x+1", "x+11", 1), RIGHT);
+    let current = session.compile_project(&changed, &options);
+    successful(&current);
+    compare(&session, &current, &changed, &options);
+    let cfg = current.function_type_work.as_ref().unwrap();
+    assert_eq!((cfg.executed_functions, cfg.reused_functions), (1, 4));
+    assert!(cfg.cfg_relocated_functions > 0);
+    let analysis = current.initialization_work.unwrap();
+    assert_eq!(
+        (
+            analysis.candidate_executed_functions,
+            analysis.candidate_reused_functions
+        ),
+        (1, 4)
+    );
+    let verification = current.verification_work.unwrap();
+    assert_eq!(
+        (
+            verification.function_proofs_checked,
+            verification.function_proofs_reused
+        ),
+        (1, 4)
+    );
+    assert_eq!(verification.full_receipts_reused, 0);
+
+    let broken = dir.scalar(MAIN, &LEFT.replacen("x+1", "missing(x)", 1), RIGHT);
+    let failed = session.compile_project(&broken, &options);
+    assert_ne!(failed.status, ResultCategory::Success);
+    let recovered = session.compile_project(&changed, &options);
+    successful(&recovered);
+    compare(&session, &recovered, &changed, &options);
+    assert_eq!(recovered.verification_work.unwrap().full_receipts_reused, 1);
 }

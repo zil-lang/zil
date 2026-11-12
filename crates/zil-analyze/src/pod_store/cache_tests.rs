@@ -217,7 +217,7 @@ fn successful_module_and_actual_type_nodes_still_recheck_all_dynamic_store_instr
     let mut b = budget();
     preflight(&m, &mut b).unwrap();
     let mut raw = fixture::module().functions.remove(0);
-    raw.values = vec![Type::I32];
+    raw.values = vec![Type::I32].into();
     let i = fixture::instruction(
         Some(ValueId(0)),
         InstructionKind::OwnedStoreLen { store: ValueId(0) },

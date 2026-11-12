@@ -28,13 +28,14 @@ fn function(index: usize) -> TypedFunction {
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -158,7 +159,8 @@ fn bind_package_view(module: &mut TypedModule) {
         ty: module.closures[0].captures[0].clone(),
         mutable: true,
         span: span(),
-    }];
+    }]
+    .into();
     entry.blocks[0].instructions = [
         InstructionKind::ScopeEnter { scope: ScopeId(0) },
         InstructionKind::BindPackageCapture {

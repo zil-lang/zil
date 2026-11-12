@@ -3477,7 +3477,17 @@ pub(super) fn infer_module(
     store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    infer_module_with_reuse(module, graphs, store_profiles, budget, None)
+}
+
+pub(super) fn infer_module_with_reuse(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    store_profiles: &[bool],
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<Vec<Vec<ValueHold>>> {
+    let result = infer_module_inner(module, graphs, store_profiles, budget, reuse)?;
     super::borrowed_fp::targets(module, graphs, &result, budget)?;
     super::lifetimes::returns(module, graphs, &result, budget)?;
     if !budget.shared_product_capture {
@@ -3593,6 +3603,7 @@ fn infer_module_inner(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     store_profiles: &[bool],
     budget: &mut Budget,
+    mut reuse: Option<&mut incremental::Reuse<'_>>,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     capture_inventory(module, budget)?;
     if !module.functions.iter().enumerate().any(|(index, f)| {
@@ -3609,17 +3620,20 @@ fn infer_module_inner(
                 if !budget.composition_stored.is_empty() && budget.composition_stored[index] {
                     return Ok(Vec::new());
                 }
-                infer(
-                    module,
-                    &[],
-                    f,
-                    preds,
-                    reachable,
-                    f.environment.is_some_and(|id| {
-                        store_profiles.get(id.0 as usize).copied().unwrap_or(false)
-                    }) || ordinary_store_function(index, budget)?,
-                    budget,
-                )
+                let store_windows = f
+                    .environment
+                    .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
+                    || ordinary_store_function(index, budget)?;
+                let execute = |budget: &mut Budget| {
+                    infer(module, &[], f, preds, reachable, store_windows, budget)
+                };
+                match reuse
+                    .as_deref_mut()
+                    .and_then(|reuse| reuse.candidates.as_deref_mut())
+                {
+                    Some(candidates) => candidates.holds(f, budget, execute),
+                    None => execute(budget),
+                }
             })
             .collect();
     }
@@ -3942,8 +3956,8 @@ mod frontier_tests {
                             span,
                         })
                         .collect(),
-                    values,
-                    blocks,
+                    values: values.into(),
+                    blocks: blocks.into(),
                     entry: BlockId(0),
                     span,
                 }
@@ -4192,18 +4206,20 @@ mod product_parameter_dependency_tests {
             parameters: vec![],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
-            locals: vec![],
+            locals: vec![].into(),
             values: vec![
                 Type::Desc(Box::new(Type::OwnedStore {
                     element: Box::new(Type::I32),
                 })),
                 Type::I64,
-            ],
+            ]
+            .into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
             callable_contract: None,

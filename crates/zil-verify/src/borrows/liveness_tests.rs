@@ -605,8 +605,8 @@ fn fixture(
                 span: Span::default(),
             })
             .collect(),
-        values: vec![Type::I64; values],
-        blocks,
+        values: vec![Type::I64; values].into(),
+        blocks: blocks.into(),
         entry: BlockId(0),
         span: Span::default(),
     };

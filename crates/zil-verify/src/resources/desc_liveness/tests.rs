@@ -96,8 +96,8 @@ fn fixture(
                 span: span(),
             })
             .collect(),
-        values: vec![ty; value_count],
-        blocks,
+        values: vec![ty; value_count].into(),
+        blocks: blocks.into(),
         entry: BlockId(0),
         span: span(),
     };

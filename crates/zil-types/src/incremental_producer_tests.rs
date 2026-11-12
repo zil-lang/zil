@@ -217,3 +217,190 @@ fn failure_cannot_publish_partial_versions_and_profiled_costs_are_nested_once() 
     assert_eq!(simple.last_stats().body_key_executions, 3);
     assert_eq!(graph.last_stats().body_key_executions, 3);
 }
+
+fn parse_functions(text: &str) -> ParsedSource {
+    let source = Arc::new(zil_base::SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "module0.zil",
+        text,
+    ));
+    let parsed = ParsedSource::parse(source, &Limits::default(), &AttributeContext::default());
+    assert!(parsed.parsed().is_ok(), "{:?}", parsed.parsed().diagnostics);
+    parsed
+}
+
+#[test]
+fn a_private_edit_propagates_actual_cfg_products_inside_one_module() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}}";
+    let mut producer = ExpandSession::default();
+    let mut simple = FunctionSession::default();
+    let mut graph = FunctionSession::default();
+    let mut prior_g = None;
+    for (text, executions, changed) in [
+        (original.to_owned(), 2, 2),
+        (original.to_owned(), 0, 0),
+        (original.replace("x+1", "x+2"), 1, 1),
+    ] {
+        let produced = expand(&mut producer, &[parse_functions(&text)]);
+        let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+            .unwrap()
+            .into_prepared();
+        let expected = check_program(
+            prepared.program(),
+            &TargetProfile::default(),
+            &Limits::default(),
+        )
+        .unwrap();
+        for (session, use_graph) in [(&mut simple, false), (&mut graph, true)] {
+            let actual = check(session, &prepared, use_graph).unwrap();
+            assert_eq!(actual, expected);
+            assert_eq!(session.last_stats().body_key_executions, executions);
+            assert_eq!(session.last_stats().executed_functions, executions);
+            assert_eq!(session.last_products().len(), actual.module.functions.len());
+            assert_eq!(session.last_changes().changed.len(), changed);
+            assert_eq!(
+                session.last_changes().changed.len() + session.last_changes().reused.len(),
+                2
+            );
+            let g = session
+                .last_products()
+                .iter()
+                .find(|p| p.name == "g")
+                .unwrap();
+            assert!(g.input_key.is_some());
+            assert!(g.function.is_some());
+            if let Some(previous) = &prior_g
+                && !use_graph
+            {
+                assert!(Arc::ptr_eq(previous, g.function.as_ref().unwrap()));
+            }
+            if !use_graph {
+                prior_g = g.function.clone();
+            }
+        }
+    }
+}
+
+#[test]
+fn equal_reexecution_stops_result_changes_but_relocation_stays_explicit() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}";
+    let mut producer = ExpandSession::default();
+    let mut session = FunctionSession::default();
+    let mut prior = None;
+    for text in [original.to_owned(), format!("\n{original}")] {
+        let produced = expand(&mut producer, &[parse_functions(&text)]);
+        let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+            .unwrap()
+            .into_prepared();
+        let result = check(&mut session, &prepared, false).unwrap();
+        assert_eq!(
+            result,
+            check_program(
+                prepared.program(),
+                &TargetProfile::default(),
+                &Limits::default()
+            )
+            .unwrap()
+        );
+        let product = &session.last_products()[0];
+        if let Some(fingerprint) = prior {
+            assert_eq!(product.result_fingerprint, fingerprint);
+            assert!(session.last_changes().changed.is_empty());
+            assert_eq!(session.last_changes().relocated, [product.id]);
+        }
+        prior = Some(product.result_fingerprint);
+    }
+}
+
+#[test]
+fn failed_request_cannot_publish_cfg_products_or_change_sets() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}";
+    let mut producer = ExpandSession::default();
+    let mut session = FunctionSession::default();
+    let produced = expand(&mut producer, &[parse_functions(original)]);
+    let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    check(&mut session, &prepared, false).unwrap();
+    let old = session.last_products()[0].result_fingerprint;
+    let old_function = session.last_products()[0].function.clone().unwrap();
+    let rejected = expand(
+        &mut producer,
+        &[parse_functions(&original.replace("x+1", "absent_name"))],
+    );
+    let prepared = preparation::infer_produced_program_for_ct(&rejected, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    assert!(check(&mut session, &prepared, false).is_err());
+    assert_eq!(session.last_products()[0].result_fingerprint, old);
+    assert!(Arc::ptr_eq(
+        session.last_products()[0].function.as_ref().unwrap(),
+        &old_function
+    ));
+    assert_eq!(session.last_changes().changed.len(), 1);
+}
+
+#[test]
+fn same_span_cfg_hits_share_all_body_vectors_and_position_moves_copy_on_write() {
+    let original = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}}";
+    let mut producer = ExpandSession::default();
+    let mut session = FunctionSession::default();
+    let produced = expand(&mut producer, &[parse_functions(original)]);
+    let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    let cold = check(&mut session, &prepared, false).unwrap();
+    let warm = check(&mut session, &prepared, false).unwrap();
+    assert_eq!(session.last_stats().cfg_same_span_reuses, 1);
+    assert_eq!(session.last_stats().cfg_relocated_functions, 0);
+    let left = &cold.module.functions[0];
+    let right = &warm.module.functions[0];
+    assert!(SharedVec::ptr_eq(&left.locals, &right.locals));
+    assert!(SharedVec::ptr_eq(&left.values, &right.values));
+    assert!(SharedVec::ptr_eq(&left.blocks, &right.blocks));
+    let product = &session.last_products()[0];
+    let current = product.function.as_ref().unwrap();
+    assert_eq!(current.as_ref(), right);
+    assert!(SharedVec::ptr_eq(&right.blocks, &current.blocks));
+
+    let shifted = expand(&mut producer, &[parse_functions(&format!("\n{original}"))]);
+    let prepared = preparation::infer_produced_program_for_ct(&shifted, &Limits::default())
+        .unwrap()
+        .into_prepared();
+    let moved = check(&mut session, &prepared, false).unwrap();
+    assert_eq!(session.last_stats().cfg_relocated_functions, 1);
+    let moved_again = check(&mut session, &prepared, false).unwrap();
+    assert_eq!(session.last_stats().cfg_same_span_reuses, 1);
+    assert_eq!(session.last_stats().cfg_relocated_functions, 0);
+    assert_eq!(
+        moved,
+        check_program(
+            prepared.program(),
+            &TargetProfile::default(),
+            &Limits::default()
+        )
+        .unwrap()
+    );
+    assert!(!SharedVec::ptr_eq(
+        &left.locals,
+        &moved.module.functions[0].locals
+    ));
+    assert!(!SharedVec::ptr_eq(
+        &left.blocks,
+        &moved.module.functions[0].blocks
+    ));
+    assert!(SharedVec::ptr_eq(
+        &left.values,
+        &moved.module.functions[0].values
+    ));
+    assert!(SharedVec::ptr_eq(
+        &moved.module.functions[0].locals,
+        &moved_again.module.functions[0].locals
+    ));
+    assert!(SharedVec::ptr_eq(
+        &moved.module.functions[0].blocks,
+        &moved_again.module.functions[0].blocks
+    ));
+    assert_eq!(cold.module.functions[0].span, left.span);
+}

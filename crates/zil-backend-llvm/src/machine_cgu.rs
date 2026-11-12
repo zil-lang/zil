@@ -109,7 +109,8 @@ fn small_caller_components(
         remaining = remaining.checked_sub(1)?;
         let cost = match &module.items[definition.index] {
             Item::Function(function) => {
-                remaining = remaining.checked_sub(function.blocks.as_ref().map_or(0, Vec::len))?;
+                remaining = remaining
+                    .checked_sub(function.blocks.as_ref().map_or(0, |blocks| blocks.len()))?;
                 function.cost()
             }
             _ => 1,
@@ -778,17 +779,20 @@ mod tests {
             linkage: Linkage::External,
             signature: Signature::new(result.clone(), vec![]),
             attrs: vec![],
-            blocks: Some(vec![Block {
-                name: "entry".into(),
-                instructions: vec![Inst::new(None, Op::Return(Some(Arg::new(result, value))))],
-            }]),
+            blocks: Some(
+                (vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![Inst::new(None, Op::Return(Some(Arg::new(result, value))))],
+                }])
+                .into(),
+            ),
         })
     }
     fn m(items: Vec<Item>) -> Module {
         Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "test".into(),
-            items,
+            items: items.into(),
         }
     }
     fn call_function(name: &str, result: Ty, target: &str) -> Item {
@@ -797,25 +801,28 @@ mod tests {
             linkage: Linkage::External,
             signature: Signature::new(result.clone(), vec![]),
             attrs: vec![],
-            blocks: Some(vec![Block {
-                name: "entry".into(),
-                instructions: vec![
-                    Inst::new(
-                        Some("value".into()),
-                        Op::Call {
-                            result: result.clone(),
-                            result_attrs: vec![],
-                            callee: Val::Global(target.into()),
-                            args: vec![],
-                            vararg: None,
-                        },
-                    ),
-                    Inst::new(
-                        None,
-                        Op::Return(Some(Arg::new(result, Val::Local("value".into())))),
-                    ),
-                ],
-            }]),
+            blocks: Some(
+                (vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        Inst::new(
+                            Some("value".into()),
+                            Op::Call {
+                                result: result.clone(),
+                                result_attrs: vec![],
+                                callee: Val::Global(target.into()),
+                                args: vec![],
+                                vararg: None,
+                            },
+                        ),
+                        Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(result, Val::Local("value".into())))),
+                        ),
+                    ],
+                }])
+                .into(),
+            ),
         })
     }
     fn definitions(m: &Module) -> BTreeSet<&str> {
@@ -847,9 +854,9 @@ mod tests {
                 parameters: vec![],
                 return_type: zil_ir::Type::I32,
                 result_mode: zil_ir::PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![]).into(),
+                blocks: (vec![]).into(),
                 entry: zil_ir::BlockId(0),
                 span: zil_base::Span::default(),
             });
@@ -904,7 +911,7 @@ mod tests {
         let mut source = candidate_lir(&(0..600).collect::<Vec<_>>());
         source.functions[0].name = "main".into();
         for (caller, callee) in [(0, 256), (256, 512)] {
-            source.functions[caller].blocks = vec![zil_ir::BasicBlock {
+            source.functions[caller].blocks = (vec![zil_ir::BasicBlock {
                 id: zil_ir::BlockId(0),
                 instructions: vec![zil_ir::Instruction {
                     result: Some(zil_ir::ValueId(0)),
@@ -915,7 +922,8 @@ mod tests {
                     span: zil_base::Span::default(),
                 }],
                 terminator: zil_ir::Terminator::Return(Some(zil_ir::ValueId(0))),
-            }];
+            }])
+            .into();
         }
         let mut items = (0..600)
             .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
@@ -1059,7 +1067,7 @@ mod tests {
             plan.fallback,
             Some("complete O2 call closure requires a local definition")
         );
-        assert_eq!(plan.units[0].items, items);
+        assert_eq!(plan.units[0].items.as_slice(), items.as_slice());
         let Item::Global(global) = items.last_mut().unwrap() else {
             panic!()
         };
@@ -1150,25 +1158,28 @@ mod tests {
             linkage: Linkage::External,
             signature: Signature::new(Ty::Ptr, vec![]),
             attrs: vec![],
-            blocks: Some(vec![Block {
-                name: "entry".into(),
-                instructions: vec![
-                    Inst::new(
-                        Some("result".into()),
-                        Op::Call {
-                            result: Ty::Ptr,
-                            result_attrs: vec![],
-                            callee: Val::Global("f".into()),
-                            args: vec![Arg::new(Ty::Ptr, Val::Global("f".into()))],
-                            vararg: None,
-                        },
-                    ),
-                    Inst::new(
-                        None,
-                        Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into())))),
-                    ),
-                ],
-            }]),
+            blocks: Some(
+                (vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        Inst::new(
+                            Some("result".into()),
+                            Op::Call {
+                                result: Ty::Ptr,
+                                result_attrs: vec![],
+                                callee: Val::Global("f".into()),
+                                args: vec![Arg::new(Ty::Ptr, Val::Global("f".into()))],
+                                vararg: None,
+                            },
+                        ),
+                        Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into())))),
+                        ),
+                    ],
+                }])
+                .into(),
+            ),
         };
         rewrite_direct_calls(
             &mut function,
@@ -1565,9 +1576,9 @@ mod tests {
                 environment: None,
                 parameters: vec![],
                 return_type: zil_ir::Type::I32,
-                locals: vec![],
-                values: vec![],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![]).into(),
+                blocks: (vec![]).into(),
                 entry: zil_ir::BlockId(0),
                 span: zil_base::Span::default(),
             })

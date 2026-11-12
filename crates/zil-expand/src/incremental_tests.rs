@@ -657,3 +657,71 @@ fn producer_retained_body_receipt_shortfall_reenters_complete_restore_input() {
     );
     assert!(session.last_stats().receipt_budget_misses > 0);
 }
+
+#[test]
+fn producer_tracks_unchanged_functions_inside_a_changed_module_without_source_copies() {
+    let limits = Limits::default();
+    let cold_text = "fn first(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn second(x:i32)->i32{if x<10{return x+3;}else{return x*4;}}";
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &[parsed(0, cold_text)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let current = checked(
+        &mut session,
+        &[parsed(0, &cold_text.replace("x+1", "x+2"))],
+        &limits,
+    )
+    .into_program(ModuleId(0), Fingerprint::ZERO)
+    .0;
+    assert_ne!(
+        cold.function_revision(ModuleId(0), "first"),
+        current.function_revision(ModuleId(0), "first")
+    );
+    assert_eq!(
+        cold.function_revision(ModuleId(0), "second"),
+        current.function_revision(ModuleId(0), "second")
+    );
+    assert_eq!(
+        cold.function_source_fingerprint(ModuleId(0), "second"),
+        current.function_source_fingerprint(ModuleId(0), "second")
+    );
+    assert_eq!(session.last_stats().cloned_source_bytes, 0);
+
+    // Identical text at a different source position is a distinct relocation
+    // binding, even when semantic BodyKey projection can later compare equal.
+    let moved = checked(
+        &mut session,
+        &[parsed(0, &format!("\n{cold_text}"))],
+        &limits,
+    )
+    .into_program(ModuleId(0), Fingerprint::ZERO)
+    .0;
+    assert_ne!(
+        cold.function_revision(ModuleId(0), "second"),
+        moved.function_revision(ModuleId(0), "second")
+    );
+    assert_eq!(session.last_stats().cloned_source_bytes, 0);
+}
+
+#[test]
+fn function_revision_does_not_survive_a_changed_declaration_environment() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    let original = "    fn first(x:i32)->i32=>x+1; fn second(x:i32)->i32=>x+2;";
+    let cold = checked(&mut session, &[parsed(0, original)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    // Publicness participates in the complete source environment even though
+    // the untouched second body and its source span remain byte-identical.
+    let current = checked(
+        &mut session,
+        &[parsed(0, &original.replace("    fn first", "pub fn first"))],
+        &limits,
+    )
+    .into_program(ModuleId(0), Fingerprint::ZERO)
+    .0;
+    assert_ne!(
+        cold.function_revision(ModuleId(0), "second"),
+        current.function_revision(ModuleId(0), "second")
+    );
+}

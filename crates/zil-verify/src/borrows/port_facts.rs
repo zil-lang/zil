@@ -1087,12 +1087,13 @@ mod tests {
                 .collect(),
             return_type: result,
             result_mode: PassingMode::Create,
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(returned)),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
             storage_life: None,

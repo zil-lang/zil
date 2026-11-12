@@ -35,14 +35,16 @@ fn candidate() -> (TypedModule, CandidatePlan) {
             ty: Type::Closure(closure),
             mutable: false,
             span: span(),
-        }],
+        }]
+        .into(),
         values: vec![
             Type::I32,
             Type::Closure(closure),
             Type::Closure(closure),
             Type::I32,
             Type::I32,
-        ],
+        ]
+        .into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -72,7 +74,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
                 ),
             ],
             terminator: Terminator::Return(Some(ValueId(4))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     };
@@ -96,8 +99,9 @@ fn candidate() -> (TypedModule, CandidatePlan) {
             ty: Type::I32,
             mutable: false,
             span: span(),
-        }],
-        values: vec![Type::I32, Type::I32, Type::I32],
+        }]
+        .into(),
+        values: vec![Type::I32, Type::I32, Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -113,7 +117,8 @@ fn candidate() -> (TypedModule, CandidatePlan) {
                 ),
             ],
             terminator: Terminator::Return(Some(ValueId(2))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     };

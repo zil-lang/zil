@@ -80,12 +80,13 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
                     span: span(),
                 })
                 .collect(),
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
         });
@@ -666,7 +667,8 @@ fn pod_cfg_priority_retains_copy_sum_guards_and_invalidation() {
                     mutable: false,
                     inner: Box::new(Type::I32),
                 },
-            ];
+            ]
+            .into();
             let invalidate = || {
                 instruction(
                     None,
@@ -728,7 +730,8 @@ fn pod_cfg_priority_retains_copy_sum_guards_and_invalidation() {
                     instructions: vec![],
                     terminator: Terminator::Return(Some(ValueId(1))),
                 },
-            ];
+            ]
+            .into();
             let graph = FunctionGraph {
                 successors: vec![vec![1, 2], vec![], vec![]],
                 predecessors: vec![vec![], vec![0], vec![0]],

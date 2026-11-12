@@ -8,7 +8,7 @@
 //! `zil-verify` independently checks every claim before creating VerifiedCTIR.
 
 use crate::*;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
 pub const WIRE_VERSION: u32 = 46;
@@ -220,15 +220,81 @@ pub fn encode_module_candidate(
 /// limits. This is transport data, and carries no Verify authority. Keep its
 /// cache slot with the immutable function that produced it.
 pub struct RawFunctionEncoding {
-    bytes: Vec<u8>,
+    bytes: Arc<[u8]>,
     limits: Limits,
     nodes: usize,
+    fingerprint: OnceLock<Fingerprint>,
 }
 
 impl RawFunctionEncoding {
     fn byte_len(&self) -> usize {
         self.bytes.len()
     }
+    /// Raw transport only. Integrity does not grant independent Verify authority.
+    pub fn shared_bytes(&self) -> Arc<[u8]> {
+        self.bytes.clone()
+    }
+    pub fn node_cost(&self) -> usize {
+        self.nodes
+    }
+    pub fn content_fingerprint(&self) -> Fingerprint {
+        *self
+            .fingerprint
+            .get_or_init(|| Fingerprint::of(&self.bytes))
+    }
+    pub fn matches_limits(&self, limits: &Limits) -> bool {
+        self.limits == *limits
+    }
+}
+
+/// Encode one raw function fragment; the enclosing publication must separately
+/// charge aggregate node and byte limits across all fragments and metadata.
+pub fn encode_raw_function(
+    function: &TypedFunction,
+    limits: &Limits,
+) -> CompileResult<RawFunctionEncoding> {
+    public((|| {
+        let mut writer = Writer::new(limits);
+        writer.function(function)?;
+        Ok(RawFunctionEncoding {
+            nodes: limits.max_nodes - writer.nodes,
+            bytes: writer.output.into(),
+            limits: limits.clone(),
+            fingerprint: OnceLock::new(),
+        })
+    })())
+}
+
+/// Decode a bounded raw fragment with exact consumption. No proof is restored.
+pub fn decode_raw_function(bytes: &[u8], limits: &Limits) -> CompileResult<(TypedFunction, usize)> {
+    public((|| {
+        let mut reader = Reader::new(bytes, limits)?;
+        let function = reader.function()?;
+        reader.finish()?;
+        Ok((function, limits.max_nodes - reader.nodes))
+    })())
+}
+
+/// Restore the fragment and its accounting receipt together from bounded raw
+/// bytes. The aggregate caller supplies its remaining node budget. This is an
+/// encoder/decoder receipt only and never authorizes Verify.
+pub fn decode_raw_function_shared(
+    bytes: Arc<[u8]>,
+    limits: &Limits,
+    remaining_nodes: usize,
+) -> CompileResult<(TypedFunction, RawFunctionEncoding)> {
+    let mut remaining = limits.clone();
+    remaining.max_nodes = remaining_nodes.min(limits.max_nodes);
+    let (function, nodes) = decode_raw_function(&bytes, &remaining)?;
+    Ok((
+        function,
+        RawFunctionEncoding {
+            bytes,
+            limits: limits.clone(),
+            nodes,
+            fingerprint: OnceLock::new(),
+        },
+    ))
 }
 
 /// Counts actual function traversals and fragment copies during publication.
@@ -271,6 +337,46 @@ pub fn encode_module_candidate_with_function_encodings(
         )?;
         writer.plan(plan)?;
         Ok(writer.output)
+    })())
+}
+
+/// Content-addressed pieces of the exact ordinary Wire stream. These are raw
+/// transport bytes, not a verifier receipt or a semantic authentication token.
+#[derive(Clone, Debug)]
+pub struct WireSegment {
+    pub bytes: Arc<[u8]>,
+    pub fingerprint: Fingerprint,
+}
+
+/// Preserve the complete ordinary Wire stream and aggregate quota checks while
+/// retaining immutable function fragments rather than copying them into a new
+/// whole-project buffer. The caller serializes publication of shared cache slots.
+pub fn encode_module_candidate_segments(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    functions: &[(&TypedFunction, &OnceLock<RawFunctionEncoding>)],
+    limits: &Limits,
+    stats: &mut FunctionEncodingStats,
+) -> CompileResult<Vec<WireSegment>> {
+    public((|| {
+        let mut writer = Writer::new(limits);
+        writer.segments = Some(Vec::new());
+        writer.header(MODULE_MAGIC)?;
+        let retained_bytes = functions.iter().fold(0usize, |bytes, (_, cache)| {
+            bytes.saturating_add(cache.get().map_or(0, RawFunctionEncoding::byte_len))
+        });
+        let mut cache_bytes = limits.max_source_bytes.saturating_sub(retained_bytes);
+        writer.module_with_functions(
+            module,
+            functions
+                .iter()
+                .map(|(function, cache)| (*function, Some(*cache))),
+            &mut cache_bytes,
+            stats,
+        )?;
+        writer.plan(plan)?;
+        writer.flush_segment();
+        Ok(writer.segments.expect("segmented writer"))
     })())
 }
 
@@ -348,6 +454,8 @@ struct Writer<'a> {
     output: Vec<u8>,
     limits: &'a Limits,
     nodes: usize,
+    segments: Option<Vec<WireSegment>>,
+    written: usize,
 }
 impl<'a> Writer<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -355,12 +463,45 @@ impl<'a> Writer<'a> {
             output: Vec::new(),
             limits,
             nodes: limits.max_nodes,
+            segments: None,
+            written: 0,
         }
+    }
+    fn total_len(&self) -> usize {
+        self.written + self.output.len()
+    }
+    fn flush_segment(&mut self) {
+        if let Some(segments) = &mut self.segments
+            && !self.output.is_empty()
+        {
+            let bytes: Arc<[u8]> = std::mem::take(&mut self.output).into();
+            let fingerprint = Fingerprint::of(&bytes);
+            self.written += bytes.len();
+            segments.push(WireSegment { bytes, fingerprint });
+        }
+    }
+    fn shared_fragment(&mut self, encoding: &RawFunctionEncoding) -> WireResult<()> {
+        if self.segments.is_none() {
+            return self.bytes(&encoding.bytes);
+        }
+        self.flush_segment();
+        if self
+            .total_len()
+            .checked_add(encoding.bytes.len())
+            .is_none_or(|n| n > self.limits.max_source_bytes)
+        {
+            return Err(quota("candidate wire byte quota exceeded"));
+        }
+        self.written += encoding.bytes.len();
+        self.segments.as_mut().unwrap().push(WireSegment {
+            bytes: encoding.shared_bytes(),
+            fingerprint: encoding.content_fingerprint(),
+        });
+        Ok(())
     }
     fn bytes(&mut self, bytes: &[u8]) -> WireResult<()> {
         if self
-            .output
-            .len()
+            .total_len()
             .checked_add(bytes.len())
             .is_none_or(|n| n > self.limits.max_source_bytes)
         {
@@ -1048,34 +1189,54 @@ impl<'a> Writer<'a> {
                 encoding.limits == *self.limits
                     && encoding.nodes <= self.nodes
                     && self
-                        .output
-                        .len()
+                        .total_len()
                         .checked_add(encoding.bytes.len())
                         .is_some_and(|length| length <= self.limits.max_source_bytes)
             }) {
                 self.charge(encoding.nodes)?;
-                self.bytes(&encoding.bytes)?;
+                self.shared_fragment(encoding)?;
                 stats.reused_functions += 1;
             } else {
                 // A fragment cannot reproduce the first failure within a
                 // function when the remaining aggregate quota is insufficient.
                 // Use the original traversal in that case, or on limits changes.
+                self.flush_segment();
                 let start = self.output.len();
                 let nodes = self.nodes;
                 stats.serialized_functions += 1;
                 self.function(function)?;
                 let length = self.output.len() - start;
-                if let Some(cache) = cache.filter(|cache| cache.get().is_none())
-                    && length <= *cache_bytes
-                {
-                    let encoding = RawFunctionEncoding {
-                        bytes: self.output[start..].to_vec(),
+                let encoding = if let Some(segments) = &mut self.segments {
+                    let bytes: Arc<[u8]> = std::mem::take(&mut self.output).into();
+                    let fingerprint = Fingerprint::of(&bytes);
+                    self.written += bytes.len();
+                    segments.push(WireSegment {
+                        bytes: bytes.clone(),
+                        fingerprint,
+                    });
+                    Some(RawFunctionEncoding {
+                        bytes,
                         limits: self.limits.clone(),
                         nodes: nodes - self.nodes,
-                    };
-                    if cache.set(encoding).is_ok() {
-                        *cache_bytes -= length;
-                    }
+                        fingerprint: OnceLock::from(fingerprint),
+                    })
+                } else if cache.is_some_and(|cache| cache.get().is_none()) && length <= *cache_bytes
+                {
+                    Some(RawFunctionEncoding {
+                        bytes: self.output[start..].into(),
+                        limits: self.limits.clone(),
+                        nodes: nodes - self.nodes,
+                        fingerprint: OnceLock::new(),
+                    })
+                } else {
+                    None
+                };
+                if let Some(cache) = cache.filter(|cache| cache.get().is_none())
+                    && length <= *cache_bytes
+                    && let Some(encoding) = encoding
+                    && cache.set(encoding).is_ok()
+                {
+                    *cache_bytes -= length;
                 }
             }
         }
@@ -3749,9 +3910,9 @@ impl<'a> Reader<'a> {
             environment,
             parameters,
             return_type,
-            locals,
-            values,
-            blocks,
+            locals: locals.into(),
+            values: values.into(),
+            blocks: blocks.into(),
             entry: BlockId(self.u32()?),
             span: self.span()?,
         })

@@ -16,6 +16,8 @@ mod dynamic_fingerprint;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
 mod program;
+mod shared_vec;
+pub use shared_vec::SharedVec;
 pub mod wire;
 pub use program::*;
 
@@ -1605,10 +1607,10 @@ pub struct TypedFunction {
     pub parameters: Vec<LocalId>,
     pub return_type: Type,
     pub result_mode: PassingMode,
-    pub locals: Vec<LocalDecl>,
+    pub locals: SharedVec<LocalDecl>,
     /// ValueId is the index here. Every entry must have exactly one definition.
-    pub values: Vec<Type>,
-    pub blocks: Vec<BasicBlock>,
+    pub values: SharedVec<Type>,
+    pub blocks: SharedVec<BasicBlock>,
     pub entry: BlockId,
     pub span: Span,
 }

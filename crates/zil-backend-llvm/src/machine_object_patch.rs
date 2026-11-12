@@ -859,10 +859,13 @@ mod tests {
             linkage: Linkage::External,
             signature: Signature::new(Ty::Int(32), vec![]),
             attrs: vec![],
-            blocks: Some(vec![Block {
-                name: "entry".into(),
-                instructions,
-            }]),
+            blocks: Some(
+                (vec![Block {
+                    name: "entry".into(),
+                    instructions,
+                }])
+                .into(),
+            ),
         })
     }
     fn sample() -> Module {
@@ -874,7 +877,7 @@ mod tests {
         Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "current".into(),
-            items,
+            items: items.into(),
         }
     }
     #[test]

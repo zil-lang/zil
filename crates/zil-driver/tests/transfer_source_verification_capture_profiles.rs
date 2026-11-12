@@ -71,7 +71,7 @@ fn module() -> TypedModule {
         assert!(f.parameters.is_empty());
         f.locals.truncate(1);
         assert_eq!(f.locals[0].id, LocalId(0));
-        f.values = vec![Type::I32];
+        f.values = vec![Type::I32].into();
         let instruction = |result, kind| Instruction {
             result,
             kind,
@@ -108,7 +108,8 @@ fn module() -> TypedModule {
                 ),
             ],
             terminator: Terminator::Return(Some(ValueId(0))),
-        }];
+        }]
+        .into();
         f.entry = BlockId(0);
     }
     module

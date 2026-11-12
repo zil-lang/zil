@@ -1363,11 +1363,12 @@ mod tests {
             f.locals[0].ty = input.clone();
             f.return_type = Type::Unit;
             let result = if local { 0 } else { 1 };
-            f.values = if local {
+            f.values = (if local {
                 vec![output.clone()]
             } else {
                 vec![input.clone(), output.clone()]
-            };
+            })
+            .into();
             f.blocks.truncate(1);
             f.blocks[0].instructions = vec![fixture::instruction(Some(result), kind)];
             f.blocks[0].terminator = Terminator::Return(None);
@@ -1449,7 +1450,7 @@ mod tests {
         f.parameters.clear();
         f.locals.clear();
         f.return_type = Type::Unit;
-        f.values = vec![input.clone(), output];
+        f.values = (vec![input.clone(), output]).into();
         f.blocks.truncate(1);
         f.blocks[0].instructions = vec![fixture::instruction(
             Some(1),

@@ -131,8 +131,8 @@ impl Body {
                 parameters: vec![],
                 return_type: result,
                 result_mode: PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
+                locals: vec![].into(),
+                values: vec![].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![Instruction {
@@ -141,7 +141,8 @@ impl Body {
                         span: span(),
                     }],
                     terminator: Terminator::Return(None),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: span(),
             },

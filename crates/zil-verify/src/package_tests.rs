@@ -58,13 +58,14 @@ impl Body {
             parameters: vec![],
             return_type: result,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![],
+            locals: vec![].into(),
+            values: vec![].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![ins(None, InstructionKind::ScopeEnter { scope: ScopeId(0) })],
                 terminator: Terminator::Trap,
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
         })

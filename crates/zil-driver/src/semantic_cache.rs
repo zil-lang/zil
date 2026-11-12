@@ -1,7 +1,7 @@
 //! Opt-in, explicitly trusted local frontend candidates. Integrity hashes do
 //! not authenticate writers. Restored Analyze claims still pass current Verify.
 use super::*;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use zil_db::{ArtifactCache, CacheRead, QueryKey};
 use zil_ir::{
     CandidatePlan, FunctionId, PassingMode, ScalarFunction, ScalarInterface, TaskExport,
@@ -9,12 +9,18 @@ use zil_ir::{
 };
 
 const MAGIC: &[u8; 8] = b"ZILSEM04";
+#[path = "semantic_items.rs"]
+mod items;
+pub(super) use items::SemanticPublicationSession;
+pub use items::SemanticPublicationStats;
+
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
 pub(super) struct Store {
     root: PathBuf,
     key: Fingerprint,
     maximum: usize,
+    segmented: bool,
 }
 
 impl Store {
@@ -31,17 +37,29 @@ impl Store {
         {
             return None;
         }
-        let root = options.semantic_cache.as_ref()?.join("semantic-v4");
+        let root = options
+            .semantic_cache
+            .as_ref()?
+            .join(if options.producer_reuse {
+                "semantic-v5"
+            } else {
+                "semantic-v4"
+            });
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec();
+        let mut bytes = if options.producer_reuse {
+            b"ZIL-TRUSTED-SEMANTIC-v5\0".to_vec()
+        } else {
+            b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec()
+        };
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
         Some(Self {
             root,
             key: Fingerprint::of(&bytes),
             maximum: options.limits.max_source_bytes,
+            segmented: options.producer_reuse,
         })
     }
 
@@ -64,6 +82,7 @@ impl Store {
             .inspect_candidate(self.key)
             .ok()?
         {
+            CacheRead::Candidate(bytes) if self.segmented => self.load_segments(&bytes, options),
             CacheRead::Candidate(bytes) => decode(&bytes, &options.limits),
             _ => None,
         }
@@ -73,28 +92,31 @@ impl Store {
     /// a failure. No filesystem write happens for failed/cancelled requests.
     pub(super) fn save(
         &self,
-        typed: &TypedProgram,
+        typed: &Arc<TypedProgram>,
         candidate: &CandidatePlan,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
-    ) {
-        if options.cancellation.is_cancelled() || plan.validate().is_err() {
-            return;
+        publication: &mut SemanticPublicationSession,
+    ) -> Option<SemanticPublicationStats> {
+        if self.segmented {
+            return self.save_segments(typed, candidate, options, plan, publication);
         }
-        let Some(bytes) = encode(typed, candidate, &options.limits) else {
-            return;
-        };
+        if options.cancellation.is_cancelled() || plan.validate().is_err() {
+            return None;
+        }
+        let bytes = encode(typed, candidate, &options.limits)?;
         if options.cancellation.is_cancelled()
             || plan.validate().is_err()
             || !private_directory(&self.root, true)
         {
-            return;
+            return None;
         }
         let _ = ArtifactCache::with_limit(&self.root, self.maximum).write_candidate_cancellable(
             self.key,
             &bytes,
             &options.cancellation,
         );
+        None
     }
 }
 
@@ -202,6 +224,15 @@ fn encode(program: &TypedProgram, candidate: &CandidatePlan, limits: &Limits) ->
     out.put(MAGIC)?;
     out.number(wire.len())?;
     out.put(&wire)?;
+    out.put(&encode_metadata(program, limits)?)?;
+    Some(out.bytes)
+}
+
+fn encode_metadata(program: &TypedProgram, limits: &Limits) -> Option<Vec<u8>> {
+    let mut out = Writer {
+        bytes: Vec::new(),
+        maximum: limits.max_source_bytes,
+    };
     out.number(program.interfaces.len())?;
     for interface in &program.interfaces {
         if interface.callable_returns.is_some()
@@ -667,7 +698,18 @@ fn metadata_budget(program: &TypedProgram, limits: &Limits) -> Option<()> {
 
 /// One bounded previous Types epoch, separately keyed from exact whole-project
 /// candidates. Body work products bind current complete declaration contexts.
-pub(super) struct FunctionStore(Store);
+pub(super) struct FunctionStore {
+    store: Store,
+    items: bool,
+    corrupt: std::cell::RefCell<std::collections::BTreeSet<Fingerprint>>,
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FunctionPublicationStats {
+    pub written_functions: usize,
+    pub existing_functions: usize,
+    pub written_bytes: usize,
+    pub manifest_bytes: usize,
+}
 impl FunctionStore {
     pub(super) fn new(
         options: &CompileOptions,
@@ -681,27 +723,56 @@ impl FunctionStore {
         input.extend_from_slice(root.path.as_bytes());
         stable.input = Fingerprint::of(&input);
         let mut store = Store::new(options, &stable)?;
-        store.root = store.root.parent()?.join("function-types-v1");
-        Some(Self(store))
+        store.root = store.root.parent()?.join(if options.producer_reuse {
+            "function-types-v2"
+        } else {
+            "function-types-v1"
+        });
+        Some(Self {
+            store,
+            items: options.producer_reuse,
+            corrupt: Default::default(),
+        })
     }
     pub(super) fn path(&self) -> PathBuf {
-        self.0.path()
+        self.store.path()
     }
     pub(super) fn bind_path(&mut self, path: &Path) {
-        self.0.bind_path(path);
+        self.store.bind_path(path);
     }
     pub(super) fn restore(
         &self,
         session: &mut zil_types::FunctionSession,
         options: &CompileOptions,
     ) {
-        if !session.is_empty() || !private_directory(&self.0.root, false) {
+        if !session.is_empty() || !private_directory(&self.store.root, false) {
             return;
         }
         if let Ok(CacheRead::Candidate(bytes)) =
-            ArtifactCache::with_limit(&self.0.root, self.0.maximum).inspect_candidate(self.0.key)
+            ArtifactCache::with_limit(&self.store.root, self.store.maximum)
+                .inspect_candidate(self.store.key)
         {
-            session.restore_work_products(&bytes, &options.target, &options.limits);
+            if self.items {
+                let root = self.store.root.join("items");
+                if !private_directory(&root, false) {
+                    return;
+                }
+                let cache = ArtifactCache::with_limit(&root, self.store.maximum);
+                session.restore_item_products(
+                    &bytes,
+                    &mut |key| match cache.inspect_candidate(key) {
+                        Ok(CacheRead::Candidate(bytes)) => Some(bytes.into()),
+                        _ => {
+                            self.corrupt.borrow_mut().insert(key);
+                            None
+                        }
+                    },
+                    &options.target,
+                    &options.limits,
+                );
+            } else {
+                session.restore_work_products(&bytes, &options.target, &options.limits);
+            }
         }
     }
     pub(super) fn save(
@@ -709,7 +780,13 @@ impl FunctionStore {
         session: &zil_types::FunctionSession,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
-    ) -> Option<zil_ir::wire::FunctionEncodingStats> {
+    ) -> Option<(
+        zil_ir::wire::FunctionEncodingStats,
+        FunctionPublicationStats,
+    )> {
+        if self.items {
+            return self.save_items(session, options, plan);
+        }
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return None;
         }
@@ -721,13 +798,78 @@ impl FunctionStore {
         )?;
         if options.cancellation.is_cancelled()
             || plan.validate().is_err()
-            || !private_directory(&self.0.root, true)
+            || !private_directory(&self.store.root, true)
         {
             return None;
         }
-        let _ = ArtifactCache::with_limit(&self.0.root, self.0.maximum)
-            .write_candidate_cancellable(self.0.key, &bytes, &options.cancellation);
-        Some(stats)
+        let _ = ArtifactCache::with_limit(&self.store.root, self.store.maximum)
+            .write_candidate_cancellable(self.store.key, &bytes, &options.cancellation);
+        Some((stats, FunctionPublicationStats::default()))
+    }
+
+    fn save_items(
+        &self,
+        session: &zil_types::FunctionSession,
+        options: &CompileOptions,
+        plan: &artifacts::ArtifactPlan,
+    ) -> Option<(
+        zil_ir::wire::FunctionEncodingStats,
+        FunctionPublicationStats,
+    )> {
+        if options.cancellation.is_cancelled() || plan.validate().is_err() {
+            return None;
+        }
+        let mut guarded = plan.clone();
+        // Guard the entire item namespace once. Any source/output under this
+        // directory conflicts, including all content-addressed children.
+        let root = guarded
+            .cache_directory("function-items", &self.store.root.join("items"))
+            .ok()?;
+        let mut encoding = zil_ir::wire::FunctionEncodingStats::default();
+        let products =
+            session.encode_item_products(&options.target, &options.limits, &mut encoding)?;
+        if !private_directory(&self.store.root, true) || !private_directory(&root, true) {
+            return None;
+        }
+        let cache = ArtifactCache::with_limit(&root, self.store.maximum);
+        let mut stats = FunctionPublicationStats::default();
+        for item in products.items {
+            if options.cancellation.is_cancelled() {
+                return None;
+            }
+            let path = root.join(format!("{}.candidate", item.content_fingerprint));
+            // Existing optional raw entries need not be read/hash-copied merely
+            // to publish another manifest. Loading always checks their complete
+            // digest and bounded decoding; corruption is a miss, never authority.
+            let exists = !self.corrupt.borrow().contains(&item.content_fingerprint)
+                && fs::symlink_metadata(&path)
+                    .is_ok_and(|m| m.is_file() && m.len() == item.bytes.len() as u64 + 80);
+            if exists {
+                stats.existing_functions += 1;
+            } else {
+                if guarded.validate().is_err() {
+                    return None;
+                }
+                cache
+                    .write_candidate_cancellable(
+                        item.content_fingerprint,
+                        &item.bytes,
+                        &options.cancellation,
+                    )
+                    .ok()?;
+                stats.written_functions += 1;
+                stats.written_bytes += item.bytes.len();
+            }
+        }
+        if options.cancellation.is_cancelled() || guarded.validate().is_err() {
+            return None;
+        }
+        // Install a complete manifest only after every required raw item exists.
+        ArtifactCache::with_limit(&self.store.root, self.store.maximum)
+            .write_candidate_cancellable(self.store.key, &products.manifest, &options.cancellation)
+            .ok()?;
+        stats.manifest_bytes = products.manifest.len();
+        Some((encoding, stats))
     }
 }
 
@@ -738,7 +880,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-    fn raw(path: &Path) -> (TypedProgram, CandidatePlan) {
+    pub(super) fn raw(path: &Path) -> (TypedProgram, CandidatePlan) {
         let mut session = CompilationSession::default();
         let report = session.compile_path(
             path,

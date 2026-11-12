@@ -1,7 +1,6 @@
 use super::artifacts::ArtifactPlan;
 use super::*;
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -17,9 +16,9 @@ use zil_db::{
 use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
-/// Only unverified, immutable data can be retained across requests. There is no
-/// VerifiedModule/VerifiedCTIR variant. The explicit trusted semantic cache can
-/// restore raw ProjectTyped and Candidate values, followed by current Verify.
+/// The query database retains raw immutable data only. It has no Verified
+/// variant. Disk restoration cannot grant authority; current Verify owns and
+/// independently binds its private, process-local proof receipts.
 #[derive(Clone, Debug)]
 pub(super) enum RawSnapshot {
     Parse(Arc<ParseResult>),
@@ -32,7 +31,7 @@ pub(super) enum RawSnapshot {
     ProjectTyped(Arc<zil_ir::TypedProgram>),
 }
 /// Shared raw ownership never carries verification authority. Each request
-/// independently checks the embedded module with its current limits and target.
+/// enters independent Verify with its current inputs, complete limits and target.
 pub(super) enum TypedInput {
     Module(Arc<TypedModule>),
     Program(Arc<TypedProgram>),
@@ -65,7 +64,25 @@ impl TypedInput {
         &self,
         candidate: Arc<CandidatePlan>,
         options: &CompileOptions,
+        session: Option<&mut zil_verify::VerifySession>,
     ) -> CompileResult<zil_verify::VerifiedModule> {
+        if let Some(session) = session {
+            return match self {
+                Self::Module(m) => session.verify_shared_module(
+                    m.clone(),
+                    candidate,
+                    &options.target,
+                    &options.limits,
+                ),
+                Self::Program(p) | Self::CachedProgram(p, _) => session
+                    .verify_shared_program_module(
+                        p.clone(),
+                        candidate,
+                        &options.target,
+                        &options.limits,
+                    ),
+            };
+        }
         match self {
             Self::Module(m) => zil_verify::verify_shared_module(
                 m.clone(),
@@ -162,6 +179,9 @@ pub struct CompilationSession {
     recency: BTreeMap<QueryKey, u64>,
     clock: u64,
     analysis: zil_analyze::AnalysisSession,
+    verification: zil_verify::VerifySession,
+    backend: zil_backend_llvm::BackendSession,
+    pub(super) semantic_publication: super::semantic_cache::SemanticPublicationSession,
     pub(super) function_types: Box<zil_types::FunctionSession>,
     pub(super) producer: Box<zil_expand::ExpandSession>,
     pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
@@ -181,6 +201,9 @@ impl CompilationSession {
             recency: BTreeMap::new(),
             clock: 0,
             analysis: zil_analyze::AnalysisSession::default(),
+            verification: zil_verify::VerifySession::default(),
+            backend: zil_backend_llvm::BackendSession::default(),
+            semantic_publication: Default::default(),
             function_types: Box::default(),
             producer: Box::default(),
             materializer: super::ct_artifact::ScalarMaterializationSession::default(),
@@ -193,6 +216,9 @@ impl CompilationSession {
         self.recency.clear();
         self.clock = 0;
         self.analysis.clear();
+        self.verification = Default::default();
+        self.backend = Default::default();
+        self.semantic_publication = Default::default();
         self.function_types.clear();
         *self.producer = Default::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
@@ -861,13 +887,24 @@ impl CompilationSession {
                 report,
                 observer,
                 || {
-                    let result = if let Some(program) = typed.program() {
-                        analysis.analyze_program(program, &options.limits)
-                    } else {
-                        analysis.analyze(typed.module(), &options.limits)
+                    let result = match &typed {
+                        TypedInput::Program(program) if options.producer_reuse => {
+                            analysis.analyze_shared_program(program, &options.limits)
+                        }
+                        _ => {
+                            if let Some(program) = typed.program() {
+                                analysis
+                                    .analyze_program(program, &options.limits)
+                                    .map(Arc::new)
+                            } else {
+                                analysis
+                                    .analyze(typed.module(), &options.limits)
+                                    .map(Arc::new)
+                            }
+                        }
                     };
                     initialization_work = Some(analysis.last_stats());
-                    result.map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                    result.map(RawSnapshot::Candidate)
                 },
             );
             report.initialization_work = initialization_work;
@@ -897,7 +934,9 @@ impl CompilationSession {
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
         let verify_start = Instant::now();
-        let verified = typed.verify(candidate, options);
+        let mut verification = options.producer_reuse.then(|| self.verification.clone());
+        let verified = typed.verify(candidate, options, verification.as_mut());
+        report.verification_work = verification.as_ref().map(zil_verify::VerifySession::stats);
         report.record_phase_time(Phase::Verify, verify_start);
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
@@ -905,6 +944,9 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         let verified = verified?;
+        if let Some(verification) = verification {
+            self.verification = verification;
+        }
         let project = typed.program();
         report.phase = Phase::Verify;
         super::contracts::publish(&verified, &mut report.scalar_interfaces)?;
@@ -1022,13 +1064,16 @@ impl CompilationSession {
         // until the last cancellation check and all fallible dumps have finished.
         let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
         let codegen_start = Instant::now();
-        let built = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
+        let mut backend = options.producer_reuse.then(|| self.backend.clone());
+        let built = zil_backend_llvm::build_view_with_cancellation_and_session(
             &verified,
             &lir,
             &build,
             &|| options.cancellation.check(Phase::Link).is_err(),
             stable_names.as_deref(),
+            backend.as_mut(),
         );
+        report.backend_work = backend.as_ref().map(|session| session.summary().clone());
         report.record_phase_time(Phase::Codegen, codegen_start);
         let mut artifact = built?;
         // Layout work products are optional. Protect their actual destination
@@ -1046,10 +1091,8 @@ impl CompilationSession {
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
         }
-        let llvm = fs::read_to_string(&artifact.llvm_ir)
-            .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         report.phase = Phase::Link;
-        artifacts.dump(report, options, "llvm", &llvm)?;
+        artifacts.dump_file(report, options, "llvm", &artifact.llvm_ir)?;
         artifacts.dump_lazy(report, options, "task-abi", |_| {
             format!(
                 "[{}]",
@@ -1075,6 +1118,9 @@ impl CompilationSession {
             artifact.discard_partition_cache();
         }
         artifact.commit_object_cache();
+        if let Some(backend) = backend {
+            self.backend = backend;
+        }
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
             .artifacts

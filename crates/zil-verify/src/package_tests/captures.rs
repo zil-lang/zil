@@ -605,7 +605,7 @@ fn package_capture_needs_unused_binding_contiguous_prefix_and_no_entry_edges() {
             },
         ),
     ];
-    f.values = vec![Type::I32];
+    f.values = vec![Type::I32].into();
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     rejected(m, "every Package capture requires");
     let mut m = read_candidate(CallableKind::Fn);

@@ -154,70 +154,73 @@ impl Prepared {
                 vec![m::Param::new(scalar.clone(), "arg.0")],
             ),
             attrs: vec![],
-            blocks: Some(vec![
-                m::Block {
-                    name: "entry".into(),
-                    instructions: vec![
-                        m::Inst::new(
-                            Some("tmp.0".into()),
-                            m::Op::Call {
-                                result: pair.clone(),
-                                result_attrs: vec![],
-                                callee: m::global(format!(
-                                    "llvm.{operation}.with.overflow.i{bits}"
-                                )),
-                                args: arguments,
-                                vararg: None,
-                            },
-                        ),
-                        m::Inst::new(
-                            Some(result.clone()),
-                            m::Op::Extract {
-                                arg: m::Arg::new(pair.clone(), m::local("tmp.0".into())),
-                                index: 0,
-                            },
-                        ),
-                        m::Inst::new(
-                            Some("tmp.1".into()),
-                            m::Op::Extract {
-                                arg: m::Arg::new(pair, m::local("tmp.0".into())),
-                                index: 1,
-                            },
-                        ),
-                        m::Inst::new(
+            blocks: Some(
+                (vec![
+                    m::Block {
+                        name: "entry".into(),
+                        instructions: vec![
+                            m::Inst::new(
+                                Some("tmp.0".into()),
+                                m::Op::Call {
+                                    result: pair.clone(),
+                                    result_attrs: vec![],
+                                    callee: m::global(format!(
+                                        "llvm.{operation}.with.overflow.i{bits}"
+                                    )),
+                                    args: arguments,
+                                    vararg: None,
+                                },
+                            ),
+                            m::Inst::new(
+                                Some(result.clone()),
+                                m::Op::Extract {
+                                    arg: m::Arg::new(pair.clone(), m::local("tmp.0".into())),
+                                    index: 0,
+                                },
+                            ),
+                            m::Inst::new(
+                                Some("tmp.1".into()),
+                                m::Op::Extract {
+                                    arg: m::Arg::new(pair, m::local("tmp.0".into())),
+                                    index: 1,
+                                },
+                            ),
+                            m::Inst::new(
+                                None,
+                                m::Op::CondBranch {
+                                    condition: m::local("tmp.1".into()),
+                                    yes: "zil.trap".into(),
+                                    no: "checked.0".into(),
+                                },
+                            ),
+                        ],
+                    },
+                    m::Block {
+                        name: "checked.0".into(),
+                        instructions: vec![m::Inst::new(
                             None,
-                            m::Op::CondBranch {
-                                condition: m::local("tmp.1".into()),
-                                yes: "zil.trap".into(),
-                                no: "checked.0".into(),
-                            },
-                        ),
-                    ],
-                },
-                m::Block {
-                    name: "checked.0".into(),
-                    instructions: vec![m::Inst::new(
-                        None,
-                        m::Op::Return(Some(m::Arg::new(scalar, m::local(result)))),
-                    )],
-                },
-                m::Block {
-                    name: "zil.trap".into(),
-                    instructions: vec![
-                        m::Inst::new(
-                            None,
-                            m::Op::Call {
-                                result: m::Ty::Void,
-                                result_attrs: vec![],
-                                callee: m::global("llvm.trap".into()),
-                                args: vec![],
-                                vararg: None,
-                            },
-                        ),
-                        m::Inst::new(None, m::Op::Unreachable),
-                    ],
-                },
-            ]),
+                            m::Op::Return(Some(m::Arg::new(scalar, m::local(result)))),
+                        )],
+                    },
+                    m::Block {
+                        name: "zil.trap".into(),
+                        instructions: vec![
+                            m::Inst::new(
+                                None,
+                                m::Op::Call {
+                                    result: m::Ty::Void,
+                                    result_attrs: vec![],
+                                    callee: m::global("llvm.trap".into()),
+                                    args: vec![],
+                                    vararg: None,
+                                },
+                            ),
+                            m::Inst::new(None, m::Op::Unreachable),
+                        ],
+                    },
+                ])
+                .into(),
+            ),
         };
         intrinsics.insert((operation, bits));
         function

@@ -26,7 +26,7 @@ pub(super) fn public_callback_input_fixture() -> TypedModule {
     callback.environment = Some(ClosureId(0));
     callback.return_type = Type::I32;
     callback.result_mode = PassingMode::Infer;
-    callback.values = vec![desc.clone(), Type::I32];
+    callback.values = vec![desc.clone(), Type::I32].into();
     callback.blocks[0].instructions = vec![
         fixture::instruction(Some(ValueId(0)), InstructionKind::ReadCapture { index: 0 }),
         fixture::instruction(
@@ -53,7 +53,7 @@ pub(super) fn public_callback_input_fixture() -> TypedModule {
             span: template.span,
         })
         .collect();
-    helper.values = vec![callback_address, target, resource, Type::I32];
+    helper.values = vec![callback_address, target, resource, Type::I32].into();
     helper.return_type = Type::I32;
     helper.result_mode = PassingMode::Infer;
     helper.callable_contract = Some(CallableParameterContract {

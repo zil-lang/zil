@@ -582,8 +582,8 @@ fn source_exports(
 /// Specialize a resolved project as one bounded syntax input, then expand each
 /// declaration in its original module. The import graph contains source-level
 /// identities, while hygienic names only disambiguate syntax during this pass.
-pub fn expand_program_with_limits(
-    sources: &[SourceUnit],
+pub fn expand_program_with_limits<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -597,8 +597,8 @@ pub fn expand_program_with_limits(
     )
 }
 
-pub fn expand_program_with_limits_target(
-    sources: &[SourceUnit],
+pub fn expand_program_with_limits_target<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -608,8 +608,8 @@ pub fn expand_program_with_limits_target(
 }
 /// The snapshot mode requires the complete original closed request. Explicit
 /// mode additionally supplies canonical logical module identities.
-pub fn expand_program_with_limits_target_context(
-    sources: &[SourceUnit],
+pub fn expand_program_with_limits_target_context<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -628,8 +628,8 @@ pub fn expand_program_with_limits_target_context(
 }
 /// Expand with a source-authenticated CT consumer at the runtime instantiation
 /// boundary. Ordinary callers preserve the existing specialization path.
-pub fn expand_program_with_runtime_ct(
-    sources: &[SourceUnit],
+pub fn expand_program_with_runtime_ct<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -647,8 +647,8 @@ pub fn expand_program_with_runtime_ct(
         Some(runtime_ct),
     )
 }
-fn expand_program_with_limits_target_impl(
-    sources: &[SourceUnit],
+fn expand_program_with_limits_target_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -668,8 +668,8 @@ fn expand_program_with_limits_target_impl(
     })
 }
 #[allow(clippy::too_many_arguments)]
-fn expand_program_cached(
-    sources: &[SourceUnit],
+fn expand_program_cached<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -689,8 +689,8 @@ fn expand_program_cached(
     )
 }
 #[allow(clippy::too_many_arguments)]
-fn expand_program_impl(
-    sources: &[SourceUnit],
+fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     syntax: &[&s::Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
@@ -772,6 +772,7 @@ fn expand_program_impl(
     for ((source, (module, module_imports)), source_imports) in
         sources.iter().zip(&specialized).zip(imports)
     {
+        let source: &SourceUnit = source.borrow();
         let lower_input_limits = reuse.as_ref().map(|_| remaining.clone());
         let cached = reuse
             .as_deref_mut()
@@ -1054,11 +1055,11 @@ fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> De
     declarations
 }
 
-fn expand_inner_project(
+fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     source: &SourceUnit,
     module: &s::Module,
     imports_resolved: bool,
-    sources: &[SourceUnit],
+    sources: &[S],
     project: ProjectLowering<'_>,
     budgets: (&Limits, &Limits),
     project_defaults: Option<&ProjectDefaults>,
@@ -1127,7 +1128,8 @@ fn expand_inner_project(
     if !e.diagnostics.is_empty() {
         return Err(e.diagnostics);
     }
-    e.source_map.validate(sources, limits)?;
+    e.source_map
+        .validate_iter(sources.iter().map(|source| source.borrow()), limits)?;
     let owner_nodes = owner_limits.max_nodes - e.member_owner_nodes;
     let lowering_demand = LoweringDemand {
         work: (e.callable_initial_work - e.callable_work)

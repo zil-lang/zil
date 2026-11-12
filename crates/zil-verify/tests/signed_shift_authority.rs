@@ -35,8 +35,8 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
             foreign: None,
             parameters: vec![],
             return_type: ty.clone(),
-            locals: vec![],
-            values: vec![left.ty(), right.ty(), ty],
+            locals: vec![].into(),
+            values: vec![left.ty(), right.ty(), ty].into(),
             entry: BlockId(0),
             span,
             blocks: vec![BasicBlock {
@@ -63,7 +63,8 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
                     },
                 ],
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
         }],
     }
 }

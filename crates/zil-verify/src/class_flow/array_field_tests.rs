@@ -163,7 +163,8 @@ fn setup(count: usize, members: bool, grounded: bool) -> (TypedFunction, Ports, 
             }],
             nominal_arguments: vec![],
         },
-    }];
+    }]
+    .into();
     (f, parent, out, e)
 }
 fn flow(e: &Equations, parent: &Ports, out: &Ports, missing_edge: bool) -> Flow {

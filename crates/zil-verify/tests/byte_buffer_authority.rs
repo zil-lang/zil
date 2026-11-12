@@ -89,8 +89,8 @@ impl Body {
                 parameters: vec![],
                 return_type: result,
                 result_mode: PassingMode::Infer,
-                locals: vec![],
-                values: vec![],
+                locals: vec![].into(),
+                values: vec![].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![Instruction {
@@ -99,7 +99,8 @@ impl Body {
                         span: span(),
                     }],
                     terminator: Terminator::Return(None),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: span(),
             },
@@ -981,7 +982,8 @@ fn reserve_capacity_must_dominate_a_real_control_flow_join() {
             instructions: instructions[cap_pos + 1..].to_vec(),
             terminator,
         },
-    ];
+    ]
+    .into();
     t.plan.functions[0].blocks = (0..4)
         .map(|id| BlockPlan {
             block: BlockId(id),

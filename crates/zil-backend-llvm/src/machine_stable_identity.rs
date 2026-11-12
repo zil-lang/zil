@@ -719,7 +719,7 @@ impl Prepared {
             units.push(Module {
                 triple: module.triple.clone(),
                 fingerprint: module.fingerprint.clone(),
-                items: prelude,
+                items: (prelude).into(),
             });
         }
         (

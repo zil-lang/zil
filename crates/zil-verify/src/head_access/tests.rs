@@ -170,7 +170,7 @@ fn sparse_head_body_equals_original_dense_rounds_and_contracts() {
         // readonly row, then preserve it through a backedge and mutating use.
         let mut f = module.functions[0].clone();
         let shared = fixture::address(Type::I64, false);
-        f.values = vec![shared.clone(), shared.clone(), Type::I64];
+        f.values = vec![shared.clone(), shared.clone(), Type::I64].into();
         f.locals.resize(width, f.locals[0].clone());
         for (id, local) in f.locals.iter_mut().enumerate() {
             local.id = LocalId(id as u32);
@@ -240,7 +240,8 @@ fn sparse_head_body_equals_original_dense_rounds_and_contracts() {
                 )],
                 terminator: Terminator::Jump(BlockId(3)),
             },
-        ];
+        ]
+        .into();
         let result = compare(
             &module,
             &f,
@@ -420,7 +421,7 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
         f.parameters = vec![LocalId(0)];
         f.locals.truncate(1);
         f.locals[0].ty = fixture::address(Type::ByteBuffer, false);
-        f.values = vec![f.locals[0].ty.clone(), Type::I64];
+        f.values = vec![f.locals[0].ty.clone(), Type::I64].into();
         f.blocks = vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![fixture::instruction(
@@ -428,7 +429,8 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
                 InstructionKind::Load(LocalId(0)),
             )],
             terminator: Terminator::Return(Some(ValueId(0))),
-        }];
+        }]
+        .into();
         f.entry = BlockId(0);
         match attack {
             0 => {}

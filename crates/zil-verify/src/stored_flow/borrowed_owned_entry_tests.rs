@@ -32,8 +32,9 @@ fn module() -> TypedModule {
         ty: input.clone(),
         mutable: false,
         span: Span::new(FileId(0), 0, 1),
-    }];
-    entry.values = vec![bytes, result.clone()];
+    }]
+    .into();
+    entry.values = vec![bytes, result.clone()].into();
     entry.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -46,7 +47,8 @@ fn module() -> TypedModule {
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(1))),
-    }];
+    }]
+    .into();
     module.functions = vec![entry];
     module.closures = vec![ClosureDefinition {
         storage_life: None,

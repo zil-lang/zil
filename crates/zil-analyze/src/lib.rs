@@ -12,6 +12,7 @@ mod address_sums;
 mod borrowed_fp;
 mod budget;
 mod callable_fields;
+mod candidate_queries;
 mod class_flow;
 mod composition;
 #[cfg(test)]
@@ -55,6 +56,7 @@ use zil_base::{CompileResult, Diagnostic, Limits, Phase};
 use zil_ir::*;
 
 use budget::{Budget, preflight};
+pub use candidate_queries::AnalysisFunctionResult;
 pub use incremental::{AnalysisSession, AnalysisStats};
 
 fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
@@ -89,6 +91,12 @@ fn analyze_budgeted(
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
     dyn_dispatch::check(module, budget)?;
     lifetimes::headers(module, budget)?;
+    if let Some(candidates) = reuse
+        .as_deref_mut()
+        .and_then(|reuse| reuse.candidates.as_deref_mut())
+    {
+        candidates.prepare(module, budget);
+    }
     let mut plan = CandidatePlan::empty_for(module);
     let mut hold_graphs = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
@@ -117,9 +125,16 @@ fn analyze_budgeted(
         } = initialization;
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
-        retained::check_function(module, f, &reachable, budget)?;
-        address_sums::check(module, f, &reachable, limits, budget)?;
-        mixed_address_sums::check(module, f, &reachable, limits, budget)?;
+        if let Some(candidates) = reuse
+            .as_deref_mut()
+            .and_then(|reuse| reuse.candidates.as_deref_mut())
+        {
+            candidates.local_checks(module, f, &reachable, limits, budget)?;
+        } else {
+            retained::check_function(module, f, &reachable, budget)?;
+            address_sums::check(module, f, &reachable, limits, budget)?;
+            mixed_address_sums::check(module, f, &reachable, limits, budget)?;
+        }
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,
@@ -199,7 +214,14 @@ fn analyze_budgeted(
     tasks::check(module, budget)?;
     registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
-        scopes::check(module, function, package, budget)?;
+        if let Some(candidates) = reuse
+            .as_deref_mut()
+            .and_then(|reuse| reuse.candidates.as_deref_mut())
+        {
+            candidates.scopes(module, function, package, budget)?;
+        } else {
+            scopes::check(module, function, package, budget)?;
+        }
     }
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
@@ -239,11 +261,23 @@ fn analyze_budgeted(
             }
         }
     }
-    resources::check_module(module, &hold_graphs, budget)?;
+    if let Some(candidates) = reuse
+        .as_deref_mut()
+        .and_then(|reuse| reuse.candidates.as_deref_mut())
+    {
+        resources::check_module_with_reuse(
+            module,
+            &hold_graphs,
+            budget,
+            Some(&mut candidates.resources),
+        )?;
+    } else {
+        resources::check_module(module, &hold_graphs, budget)?;
+    }
     let mut actual_holds = if let Some(rows) = early_holds {
         rows
     } else {
-        holds::infer_module(module, &hold_graphs, &store_profiles, budget)?
+        holds::infer_module_with_reuse(module, &hold_graphs, &store_profiles, budget, reuse)?
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
@@ -654,13 +688,15 @@ mod tests {
                     ty: Type::I32,
                     mutable: false,
                     span: s(),
-                }],
-                values,
+                }]
+                .into(),
+                values: values.into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions,
                     terminator: Terminator::Return(Some(v)),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: s(),
             }],

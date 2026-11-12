@@ -340,7 +340,7 @@ fn callback_environment_and_ordinary_input_effects_propagate_in_the_original_rou
         role.writes = vec![0];
     }
     let callback = &mut module.functions[2];
-    callback.values = vec![address, Type::I32, owner];
+    callback.values = vec![address, Type::I32, owner].into();
     callback.blocks[0].instructions = vec![
         fixture::instruction(Some(ValueId(0)), InstructionKind::ReadCapture { index: 0 }),
         fixture::instruction(
@@ -399,7 +399,7 @@ fn element_caller() -> TypedModule {
     }));
     let caller = &mut module.functions[0];
     caller.locals[0].ty = store.clone();
-    caller.values = vec![store, Type::Usize, address, helper.values[1].clone()];
+    caller.values = vec![store, Type::Usize, address, helper.values[1].clone()].into();
     caller.blocks[0].instructions = vec![
         fixture::instruction(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
         fixture::instruction(

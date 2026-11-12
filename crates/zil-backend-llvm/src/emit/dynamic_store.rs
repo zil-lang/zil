@@ -1596,11 +1596,11 @@ mod pod_tests {
             parameters: vec![],
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![Type::Bool; count],
+            locals: (vec![]).into(),
+            values: (vec![Type::Bool; count]).into(),
             entry: BlockId(0),
             span,
-            blocks: vec![BasicBlock {
+            blocks: (vec![BasicBlock {
                 id: BlockId(0),
                 terminator: Terminator::Return(None),
                 instructions: (0..count)
@@ -1610,7 +1610,8 @@ mod pod_tests {
                         span,
                     })
                     .collect(),
-            }],
+            }])
+            .into(),
         };
         let mut available = usize::MAX;
         let plans = plan(&[resource(1)], &Limits::default(), &mut available).unwrap();

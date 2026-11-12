@@ -11,7 +11,7 @@ fn function(blocks: Vec<Block>) -> Function {
         linkage: Linkage::External,
         signature: Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(1), "c")]),
         attrs: vec![],
-        blocks: Some(blocks),
+        blocks: Some((blocks).into()),
     }
 }
 fn block(n: &str, instructions: Vec<Inst>) -> Block {
@@ -24,7 +24,7 @@ fn module(f: Function) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "machine-test".into(),
-        items: vec![Item::Function(f)],
+        items: (vec![Item::Function(f)]).into(),
     }
 }
 fn diamond() -> Module {

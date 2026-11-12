@@ -1,5 +1,6 @@
 //! Backend-neutral, owned machine IR. No LLVM pointers and no assembly parser.
 //! Text is a diagnostic/reference rendering; native codegen consumes these nodes.
+pub use crate::shared_vec::SharedVec;
 use std::collections::BTreeSet;
 use std::fmt::{self, Write};
 
@@ -580,7 +581,7 @@ pub struct Function {
     pub signature: Signature,
     pub attrs: Vec<Attr>,
     /// None is a declaration, Some blocks is a definition.
-    pub blocks: Option<Vec<Block>>,
+    pub blocks: Option<SharedVec<Block>>,
 }
 impl Function {
     pub fn declaration(&self) -> Self {
@@ -656,7 +657,7 @@ pub enum Item {
 pub struct Module {
     pub triple: String,
     pub fingerprint: String,
-    pub items: Vec<Item>,
+    pub items: SharedVec<Item>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Event {
@@ -707,7 +708,7 @@ impl Code {
         for event in self.0 {
             match event {
                 Event::Begin(mut f) if active.is_none() => {
-                    f.blocks = Some(vec![]);
+                    f.blocks = Some(Vec::new().into());
                     active = Some(f);
                 }
                 Event::Label(name) => {
@@ -749,7 +750,7 @@ impl Module {
         Ok(Self {
             triple,
             fingerprint,
-            items: code.into_items()?,
+            items: code.into_items()?.into(),
         })
     }
     pub fn to_text(&self) -> String {
@@ -1214,5 +1215,64 @@ pub fn type_name(ty: &Ty) -> String {
         name.clone()
     } else {
         "invalid.named.type".into()
+    }
+}
+
+#[cfg(test)]
+mod sharing_tests {
+    use super::*;
+    #[test]
+    fn machine_module_and_function_clones_keep_immutable_body_allocations() {
+        let function = Function {
+            name: "body".into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Void, vec![]),
+            attrs: vec![],
+            blocks: Some(
+                vec![Block {
+                    name: "entry".into(),
+                    instructions: vec![Inst::new(None, Op::Return(None))],
+                }]
+                .into(),
+            ),
+        };
+        let original = Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: String::new(),
+            items: vec![Item::Function(function.clone())].into(),
+        };
+        let mut clone = original.clone();
+        assert!(original.items.ptr_eq(&clone.items));
+        let Item::Function(changed) = &mut clone.items[0] else {
+            unreachable!()
+        };
+        // COW of the module copies function headers while retaining CFG storage.
+        assert!(
+            function
+                .blocks
+                .as_ref()
+                .unwrap()
+                .ptr_eq(changed.blocks.as_ref().unwrap())
+        );
+        changed.name.push_str(".renamed");
+        assert!(!original.items.ptr_eq(&clone.items));
+        let Item::Function(original_function) = &original.items[0] else {
+            unreachable!()
+        };
+        assert_eq!(original_function.name, "body");
+        let Item::Function(changed) = &mut clone.items[0] else {
+            unreachable!()
+        };
+        changed.blocks.as_mut().unwrap()[0]
+            .name
+            .push_str(".changed");
+        assert!(
+            !original_function
+                .blocks
+                .as_ref()
+                .unwrap()
+                .ptr_eq(changed.blocks.as_ref().unwrap())
+        );
+        assert_eq!(original_function.blocks.as_ref().unwrap()[0].name, "entry");
     }
 }

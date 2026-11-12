@@ -467,7 +467,7 @@ fn package_capture_repeatable_restoration_is_a_return_obligation_not_a_trap_obli
     entry.id = FunctionId(0);
     entry.return_type = Type::Unit;
     entry.values.clear();
-    entry.locals = vec![local];
+    entry.locals = vec![local].into();
     let ins = |kind| Instruction {
         result: None,
         kind,
@@ -495,7 +495,8 @@ fn package_capture_repeatable_restoration_is_a_return_obligation_not_a_trap_obli
             }),
         ],
         terminator: Terminator::Trap,
-    }];
+    }]
+    .into();
     entry.entry = BlockId(0);
     module.functions = vec![entry];
     module.closures[0].function = FunctionId(0);

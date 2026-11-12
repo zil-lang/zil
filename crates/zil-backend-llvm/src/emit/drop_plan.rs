@@ -972,9 +972,9 @@ mod owned_sum_drop_plan_tests {
                 name: "recipe".into(),
                 parameters: vec![],
                 return_type: Type::Unit,
-                locals: vec![],
-                values: vec![packet()],
-                blocks: vec![],
+                locals: (vec![]).into(),
+                values: (vec![packet()]).into(),
+                blocks: (vec![]).into(),
                 entry: zil_ir::BlockId(0),
                 span: Span::default(),
                 foreign: None,
@@ -1058,7 +1058,7 @@ mod owned_sum_drop_plan_tests {
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
-            items: code.into_items().unwrap(),
+            items: (code.into_items().unwrap()).into(),
         }
         .to_text();
         assert!(text.contains("icmp eq i32"));
@@ -1109,7 +1109,7 @@ mod owned_sum_drop_plan_tests {
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
-            items: code.into_items().unwrap(),
+            items: (code.into_items().unwrap()).into(),
         }
         .to_text();
         assert!(text.contains(&format!("define internal void @{}", symbol(actual_root))));

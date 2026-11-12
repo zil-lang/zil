@@ -530,7 +530,8 @@ fn scoped_helper(body_kind: CallableKind) -> TypedModule {
             mutable: false,
             span: s(),
         },
-    ];
+    ]
+    .into();
     f.0.parameters = vec![LocalId(0), LocalId(1)];
     let callback = f.value(f.0.locals[0].ty.clone(), InstructionKind::Load(LocalId(0)));
     let body = f.value(
@@ -1287,13 +1288,14 @@ impl Body {
             parameters: vec![],
             return_type: Type::I32,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![],
+            locals: vec![].into(),
+            values: vec![].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![],
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: s(),
         })
@@ -2406,7 +2408,8 @@ fn concrete_local_child_mixed_roles_preserve_actual_f_order_raw_wire() {
             mutable: false,
             span: s(),
         },
-    ];
+    ]
+    .into();
     entry.0.parameters = vec![LocalId(0), LocalId(1)];
     let callback = entry.value(callback_type, InstructionKind::Load(LocalId(0)));
     let number = entry.constant(1);
@@ -2818,7 +2821,8 @@ fn concrete_local_same_closure_id_never_revives_or_merges_actual_roots_raw_wire(
             ],
             terminator: Terminator::Return(Some(ValueId(3))),
         },
-    ];
+    ]
+    .into();
     let error = analyze(&mixed, &Limits::default()).unwrap_err();
     assert_eq!(
         error[0].message,

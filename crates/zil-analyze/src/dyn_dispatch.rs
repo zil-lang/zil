@@ -917,7 +917,7 @@ mod tests {
             parameters: vec![LocalId(0)],
             return_type: Type::I32,
             result_mode: PassingMode::Infer,
-            locals: vec![local(0, address.clone())],
+            locals: vec![local(0, address.clone())].into(),
             values: vec![
                 address.clone(),
                 Type::Address {
@@ -925,7 +925,8 @@ mod tests {
                     inner: Box::new(Type::I32),
                 },
                 Type::I32,
-            ],
+            ]
+            .into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -945,7 +946,8 @@ mod tests {
                     ),
                 ],
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         };
@@ -963,8 +965,8 @@ mod tests {
             parameters: vec![],
             return_type: Type::I32,
             result_mode: PassingMode::Infer,
-            locals: vec![local(0, owner.clone())],
-            values: vec![address, dyn_address, Type::I32],
+            locals: vec![local(0, owner.clone())].into(),
+            values: vec![address, dyn_address, Type::I32].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -989,7 +991,8 @@ mod tests {
                     ),
                 ],
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         };

@@ -105,7 +105,7 @@ fn tiny(bits: u32, signed: bool, constants: &[i128]) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
         fingerprint: "diagnostic-model-fixture".into(),
-        items: vec![
+        items: (vec![
             Item::Function(declaration("llvm.trap".into(), Ty::Void, vec![])),
             Item::Function(declaration(
                 intrinsic,
@@ -117,9 +117,10 @@ fn tiny(bits: u32, signed: bool, constants: &[i128]) -> Module {
                 linkage: Linkage::External,
                 signature: Signature::new(ty.clone(), vec![Param::new(ty, "x")]),
                 attrs: vec![],
-                blocks: Some(blocks),
+                blocks: Some((blocks).into()),
             }),
-        ],
+        ])
+        .into(),
     }
 }
 fn function(module: &mut Module) -> &mut Function {

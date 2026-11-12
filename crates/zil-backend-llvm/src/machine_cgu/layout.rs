@@ -108,7 +108,7 @@ impl Layout {
             units.push(Module {
                 triple: module.triple.clone(),
                 fingerprint: module.fingerprint.clone(),
-                items,
+                items: items.into(),
             });
         }
         units

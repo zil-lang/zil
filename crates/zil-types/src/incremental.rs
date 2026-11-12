@@ -8,6 +8,170 @@ use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId};
 use zil_db::reactive::{GraphError, ReactiveGraph, ReactiveStats};
 
+/// Actual raw CFG result observed in the latest successful Types request.
+/// Shared `function` storage has the exact current spans and diagnostic label;
+/// `source_span` also exposes its source binding. It grants no Verify authority.
+#[derive(Clone, Debug)]
+pub struct FunctionProduct {
+    pub module: Option<ModuleId>,
+    pub name: String,
+    pub id: FunctionId,
+    pub input_key: Option<Fingerprint>,
+    pub result_fingerprint: Fingerprint,
+    pub source_span: Span,
+    /// Actual CFG cache use, distinct from result equality after reexecution.
+    pub reused: bool,
+    pub function: Option<Arc<TypedFunction>>,
+}
+#[derive(Clone, Debug, Default)]
+pub struct FunctionChanges {
+    /// Different actual raw CFG content, or a newly introduced function owner.
+    pub changed: Vec<FunctionId>,
+    /// Equal actual raw result under the same function owner in the prior epoch.
+    pub reused: Vec<FunctionId>,
+    pub relocated: Vec<FunctionId>,
+    pub removed: Vec<FunctionId>,
+}
+#[derive(Clone)]
+struct ProductBinding {
+    module: ModuleId,
+    name: String,
+    source_span: Span,
+    input_key: Option<Fingerprint>,
+    reused: bool,
+}
+struct FingerprintWriter(FingerprintBuilder);
+impl std::fmt::Write for FingerprintWriter {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        self.0.update(text.as_bytes());
+        Ok(())
+    }
+}
+// Compiler-local, complete structural result identity. Debug writes every raw
+// field into the digest without an intermediate whole-function text allocation.
+// It is not a wire format, safety receipt, or cross-compiler cache namespace.
+fn raw_result_fingerprint(function: &TypedFunction) -> Fingerprint {
+    use std::fmt::Write;
+    let mut writer = FingerprintWriter(FingerprintBuilder::new());
+    write!(&mut writer, "{function:?}").expect("infallible fingerprint sink");
+    writer.0.digest()
+}
+// Every scalar CFG field is matched exhaustively, so a schema addition must
+// update this result identity. Spans are streamed relative to their actual
+// source function without copying or mutating shared locals/instructions.
+fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<Fingerprint> {
+    use std::fmt::Write;
+    let TypedFunction {
+        storage_life,
+        call_kind,
+        reference_return_bound,
+        callable_return_contract,
+        callable_contract,
+        protocol_contract,
+        id,
+        name,
+        foreign,
+        environment,
+        parameters,
+        return_type,
+        result_mode,
+        locals,
+        values,
+        blocks,
+        entry,
+        span,
+    } = function;
+    let relative = |span: Span| -> Option<Span> {
+        if span.file != origin.file
+            || span.start < origin.start
+            || span.end > origin.end
+            || span.start > span.end
+        {
+            return None;
+        }
+        Some(Span::new(
+            FileId(0),
+            span.start - origin.start,
+            span.end - origin.start,
+        ))
+    };
+    let mut writer = FingerprintWriter(FingerprintBuilder::new());
+    write!(
+        &mut writer,
+        "scalar-cfg-result-v1:{:?}",
+        (
+            storage_life,
+            call_kind,
+            reference_return_bound,
+            callable_return_contract,
+            callable_contract,
+            protocol_contract,
+            id,
+            name,
+            foreign,
+            environment
+        )
+    )
+    .ok()?;
+    write!(
+        &mut writer,
+        "header:{:?}",
+        (
+            parameters,
+            return_type,
+            result_mode,
+            values,
+            entry,
+            relative(*span)?
+        )
+    )
+    .ok()?;
+    for local in locals {
+        let LocalDecl {
+            id,
+            name,
+            ty,
+            mutable,
+            span,
+        } = local;
+        write!(
+            &mut writer,
+            "local:{:?}",
+            (id, name, ty, mutable, relative(*span)?)
+        )
+        .ok()?;
+    }
+    for block in blocks {
+        let BasicBlock {
+            id,
+            instructions,
+            terminator,
+        } = block;
+        write!(&mut writer, "block:{id:?}:{terminator:?}").ok()?;
+        for instruction in instructions {
+            let Instruction { result, kind, span } = instruction;
+            write!(
+                &mut writer,
+                "instruction:{:?}",
+                (result, kind, relative(*span)?)
+            )
+            .ok()?;
+        }
+    }
+    Some(writer.0.digest())
+}
+
+fn labeled_result_fingerprint(raw: Fingerprint, label: &str) -> Fingerprint {
+    let mut fingerprint = FingerprintBuilder::new();
+    fingerprint.update(&raw.0);
+    fingerprint.update(label.as_bytes());
+    fingerprint.digest()
+}
+
+#[path = "incremental_items.rs"]
+mod items;
+pub use items::{FunctionItem, FunctionItemProducts};
+
 type FunctionFingerprints = BTreeMap<(ModuleId, String), Fingerprint>;
 type SignatureObserver<'a> = Option<&'a mut dyn FnMut(ModuleId, &str) -> Option<()>>;
 
@@ -30,6 +194,8 @@ pub struct FunctionStats {
     pub producer_version_reuses: usize,
     pub inventory_functions_visited: usize,
     pub reused_functions: usize,
+    pub cfg_same_span_reuses: usize,
+    pub cfg_relocated_functions: usize,
     pub executed_functions: usize,
     pub body_key_executions: usize,
     pub body_key_reuses: usize,
@@ -64,9 +230,11 @@ impl FunctionStats {
             self.inventory_functions_visited,
         );
         format!(
-            "{{{},\"reused_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            "{{{},\"reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
             timings,
             self.reused_functions,
+            self.cfg_same_span_reuses,
+            self.cfg_relocated_functions,
             self.executed_functions,
             self.body_key_executions,
             self.body_key_reuses,
@@ -164,10 +332,31 @@ fn elapsed_cost(start: Option<Instant>) -> u64 {
 }
 
 struct Entry {
-    // All spans are relative to the source function; IDs remain explicitly bound.
-    function: TypedFunction,
+    // Retain a real bound CFG. Same-span requests share its immutable vectors;
+    // source-relative transport is produced lazily and never used as authority.
+    function: Arc<TypedFunction>,
+    origin: Span,
+    last_bound: Mutex<Option<Arc<TypedFunction>>>,
+    canonical: OnceLock<Option<Arc<TypedFunction>>>,
+    result_fingerprint: Fingerprint,
     cost: [usize; 6],
     encoding: OnceLock<zil_ir::wire::RawFunctionEncoding>,
+    encoding_fingerprint: OnceLock<Fingerprint>,
+}
+impl Entry {
+    fn canonical(&self) -> Option<&Arc<TypedFunction>> {
+        self.canonical
+            .get_or_init(|| {
+                let length = self.origin.end.checked_sub(self.origin.start)?;
+                let canonical_span = Span::new(FileId(0), 0, length);
+                if self.origin == canonical_span {
+                    return Some(self.function.clone());
+                }
+                let mut function = self.function.as_ref().clone();
+                rebase(&mut function, self.origin, canonical_span).then(|| Arc::new(function))
+            })
+            .as_ref()
+    }
 }
 
 /// Holds only the most recent successful scalar Types epoch, not an unbounded
@@ -184,6 +373,8 @@ pub struct FunctionSession {
     projections: Projections,
     producer_memo: ProducerMemo,
     cost_profiling: bool,
+    products: Arc<Vec<FunctionProduct>>,
+    changes: FunctionChanges,
 }
 impl FunctionSession {
     pub fn set_cost_profiling(&mut self, enabled: bool) {
@@ -204,7 +395,15 @@ impl FunctionSession {
             projections: Projections::default(),
             producer_memo: ProducerMemo::default(),
             cost_profiling: self.cost_profiling,
+            products: self.products.clone(),
+            changes: self.changes.clone(),
         }
+    }
+    pub fn last_products(&self) -> &[FunctionProduct] {
+        &self.products
+    }
+    pub fn last_changes(&self) -> &FunctionChanges {
+        &self.changes
     }
     pub fn last_stats(&self) -> FunctionStats {
         self.stats
@@ -300,6 +499,7 @@ impl FunctionSession {
             self.producer_memo = ProducerMemo::default();
         }
         let mut next = BTreeMap::new();
+        let mut bindings = BTreeMap::new();
         let mut stats = FunctionStats {
             cost_profiled: self.cost_profiling,
             shape_resolution_ns,
@@ -310,6 +510,8 @@ impl FunctionSession {
             next: &mut next,
             stats: &mut stats,
             keys: None,
+            bindings: &mut bindings,
+            reused_ids: BTreeSet::new(),
             reactive: owners.filter(|_| graph).map(|owners| ReactiveRequest {
                 state: &mut self.projections,
                 owners,
@@ -323,7 +525,8 @@ impl FunctionSession {
         };
         let result =
             program::check_resolved_program_with_reuse(program, target, limits, Some(&mut reuse));
-        if result.is_ok() {
+        if let Ok(program) = &result {
+            self.publish_products(program, &next, &bindings);
             self.entries = Arc::new(next);
             if owners.is_some() && graph {
                 self.projections.source = Some(prepared.clone());
@@ -337,6 +540,76 @@ impl FunctionSession {
         stats.total_ns = elapsed_cost(total_started);
         self.stats = stats;
         result
+    }
+
+    fn publish_products(
+        &mut self,
+        program: &TypedProgram,
+        next: &BTreeMap<Fingerprint, Arc<Entry>>,
+        bindings: &BTreeMap<FunctionId, ProductBinding>,
+    ) {
+        let previous: BTreeMap<_, _> = self.products.iter().map(|p| (p.id, p)).collect();
+        let mut products = Vec::with_capacity(program.module.functions.len());
+        let mut changes = FunctionChanges::default();
+        for function in &program.module.functions {
+            let binding = bindings.get(&function.id);
+            // Sealed scalar CFGs have no post-builder life/protocol rewriting.
+            // Any richer final shape takes the complete actual result path.
+            let entry = binding
+                .and_then(|b| b.input_key)
+                .and_then(|key| next.get(&key))
+                .filter(|_| scalar_typed(function));
+            let result_fingerprint = entry.map_or_else(
+                || raw_result_fingerprint(function),
+                |entry| labeled_result_fingerprint(entry.result_fingerprint, &function.name),
+            );
+            let product = FunctionProduct {
+                module: binding.map(|b| b.module),
+                name: binding.map_or_else(|| function.name.clone(), |b| b.name.clone()),
+                id: function.id,
+                input_key: binding.and_then(|b| b.input_key),
+                result_fingerprint,
+                source_span: binding.map_or(function.span, |b| b.source_span),
+                reused: binding.is_some_and(|b| b.reused),
+                function: entry.map(|_| {
+                    previous
+                        .get(&function.id)
+                        .filter(|old| {
+                            old.module == binding.map(|b| b.module)
+                                && old.name
+                                    == binding
+                                        .map_or_else(|| function.name.clone(), |b| b.name.clone())
+                                && old.result_fingerprint == result_fingerprint
+                                && old.source_span
+                                    == binding.map_or(function.span, |b| b.source_span)
+                        })
+                        .and_then(|old| old.function.clone())
+                        .unwrap_or_else(|| Arc::new(function.clone()))
+                }),
+            };
+            if let Some(old) = previous
+                .get(&product.id)
+                .filter(|old| old.module == product.module && old.name == product.name)
+            {
+                if old.result_fingerprint == result_fingerprint {
+                    changes.reused.push(product.id);
+                } else {
+                    changes.changed.push(product.id);
+                }
+                if old.source_span != product.source_span {
+                    changes.relocated.push(product.id);
+                }
+            } else {
+                changes.changed.push(product.id);
+            }
+            products.push(product);
+        }
+        let present: BTreeSet<_> = products.iter().map(|p| p.id).collect();
+        changes
+            .removed
+            .extend(previous.keys().filter(|id| !present.contains(id)).copied());
+        self.products = Arc::new(products);
+        self.changes = changes;
     }
 
     /// Optional transport of raw, explicitly trusted local work products. The
@@ -376,7 +649,7 @@ impl FunctionSession {
             if bytes.len() > limits.max_source_bytes {
                 return None;
             }
-            functions.push((&entry.function, &entry.encoding));
+            functions.push((entry.canonical()?.as_ref(), &entry.encoding));
         }
         let module = TypedModule {
             life_declarations: Vec::new(),
@@ -424,6 +697,9 @@ impl FunctionSession {
         };
         self.entries = Arc::new(entries);
         self.projections = Projections::default();
+        self.producer_memo = ProducerMemo::default();
+        self.products = Arc::default();
+        self.changes = FunctionChanges::default();
         self.stats = FunctionStats::default();
         true
     }
@@ -487,9 +763,14 @@ fn decode(
             .insert(
                 key,
                 Arc::new(Entry {
-                    function,
+                    result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
+                    origin: function.span,
+                    function: Arc::new(function),
+                    last_bound: Mutex::new(None),
+                    canonical: OnceLock::new(),
                     cost,
                     encoding: OnceLock::new(),
+                    encoding_fingerprint: OnceLock::new(),
                 }),
             )
             .is_some()
@@ -505,6 +786,8 @@ pub(super) struct Reuse<'a> {
     next: &'a mut BTreeMap<Fingerprint, Arc<Entry>>,
     stats: &'a mut FunctionStats,
     keys: Option<FunctionFingerprints>,
+    bindings: &'a mut BTreeMap<FunctionId, ProductBinding>,
+    reused_ids: BTreeSet<FunctionId>,
     reactive: Option<ReactiveRequest<'a>>,
     producer: Option<ProducerRequest<'a>>,
 }
@@ -533,6 +816,28 @@ impl Reuse<'_> {
             Some(request) => request.keys(program, tables, target, limits, self.stats),
             None => keys(program, tables, target, limits, self.stats),
         };
+    }
+    pub(super) fn observe(
+        &mut self,
+        module: ModuleId,
+        source: &CoreFunction,
+        typed: &TypedFunction,
+    ) {
+        let input_key = self
+            .keys
+            .as_ref()
+            .and_then(|keys| keys.get(&(module, source.name.clone())))
+            .copied();
+        self.bindings.insert(
+            typed.id,
+            ProductBinding {
+                module,
+                name: source.name.clone(),
+                source_span: source.span,
+                input_key,
+                reused: self.reused_ids.contains(&typed.id),
+            },
+        );
     }
     pub(super) fn get(
         &mut self,
@@ -593,24 +898,38 @@ impl Reuse<'_> {
             };
             replay[i] = left;
         }
-        let mut typed = entry.function.clone();
-        if !rebase(
-            &mut typed,
-            Span::new(
-                FileId(0),
-                0,
-                match function.span.end.checked_sub(function.span.start) {
-                    Some(n) => n,
-                    None => return Ok(None),
-                },
-            ),
-            function.span,
-        ) || !state.replay_accounting(replay)
-        {
+        // A matching binding needs no CFG traversal or span rewriting. Shared
+        // vectors turn this clone into three Arc increments plus small headers.
+        let cached = entry
+            .last_bound
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .as_ref()
+            .filter(|cached| cached.span == function.span)
+            .cloned();
+        let mut typed = cached.as_ref().unwrap_or(&entry.function).as_ref().clone();
+        let relocated = typed.span != function.span;
+        if relocated {
+            let old = typed.span;
+            if !rebase(&mut typed, old, function.span) {
+                return Ok(None);
+            }
+            *entry
+                .last_bound
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(typed.clone()));
+        }
+        if !state.replay_accounting(replay) {
             return Ok(None);
+        }
+        if relocated {
+            self.stats.cfg_relocated_functions += 1;
+        } else {
+            self.stats.cfg_same_span_reuses += 1;
         }
         self.next.insert(*key, entry.clone());
         self.stats.reused_functions += 1;
+        self.reused_ids.insert(typed.id);
         Ok(Some(typed))
     }
     pub(super) fn save(
@@ -649,13 +968,9 @@ impl Reuse<'_> {
         if !scalar_typed(function) {
             return;
         }
-        let mut function = function.clone();
-        let Some(length) = source.span.end.checked_sub(source.span.start) else {
+        let Some(result_fingerprint) = scalar_result_fingerprint(function, source.span) else {
             return;
         };
-        if !rebase(&mut function, source.span, Span::new(FileId(0), 0, length)) {
-            return;
-        }
         let mut cost = [0; 6];
         for i in 0..6 {
             let Some(delta) = after[i].checked_sub(before[i]) else {
@@ -666,9 +981,14 @@ impl Reuse<'_> {
         self.next.insert(
             *key,
             Arc::new(Entry {
-                function,
+                result_fingerprint,
+                origin: source.span,
+                function: Arc::new(function.clone()),
+                last_bound: Mutex::new(None),
+                canonical: OnceLock::new(),
                 cost,
                 encoding: OnceLock::new(),
+                encoding_fingerprint: OnceLock::new(),
             }),
         );
     }
@@ -712,7 +1032,9 @@ impl ProducerRequest<'_> {
                     module: path.clone(),
                     function: function.name.clone(),
                 };
-                let revision = self.prepared.module_revision(module.core.module_id);
+                let revision = self
+                    .prepared
+                    .function_revision(module.core.module_id, &function.name);
                 let signature = *context
                     .declarations
                     .get(&module.core.module_id)?
@@ -872,7 +1194,9 @@ impl ReactiveRequest<'_> {
                 if !worthwhile(function) {
                     continue;
                 }
-                let producer = self.prepared.module_revision(module.core.module_id);
+                let producer = self
+                    .prepared
+                    .function_revision(module.core.module_id, &function.name);
                 let prior = self.state.bindings.get(&owner).and_then(|binding| {
                     if producer.is_some() && producer == binding.producer.as_ref() {
                         stats.producer_version_reuses += 1;
@@ -1072,6 +1396,7 @@ fn scalar(ty: &Type) -> bool {
 }
 fn scalar_typed(f: &TypedFunction) -> bool {
     f.storage_life.is_none()
+        && f.protocol_contract.is_none()
         && f.foreign.is_none()
         && f.environment.is_none()
         && f.callable_contract.is_none()
@@ -1733,7 +2058,7 @@ mod reactive_tests {
             if bytes.len() > limits.max_source_bytes {
                 return None;
             }
-            functions.push(entry.function.clone());
+            functions.push(entry.canonical()?.as_ref().clone());
         }
         let module = TypedModule {
             life_declarations: vec![],

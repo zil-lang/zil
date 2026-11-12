@@ -70,6 +70,8 @@ mod head_access;
 #[cfg(test)]
 mod helper_tests;
 mod helpers;
+mod incremental;
+pub use incremental::{VerifySession, VerifyStats};
 mod mixed_address_sums;
 mod native_values;
 mod owned_callbacks;
@@ -594,12 +596,22 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
+    verify_inputs_with_reuse(inputs, expected_target, limits, None)
+}
+
+fn verify_inputs_with_reuse(
+    inputs: VerifiedInputs,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> CompileResult<VerifiedModule> {
     match check_module(
         inputs.module(),
         inputs.plan(),
         expected_target,
         limits,
         inputs.program(),
+        reuse,
     ) {
         Ok(checked) => Ok(VerifiedModule {
             inputs,
@@ -679,6 +691,7 @@ fn check_module(
     expected_target: &TargetProfile,
     limits: &Limits,
     program: Option<&TypedProgram>,
+    mut reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
@@ -1109,7 +1122,14 @@ fn check_module(
                 "candidate function order or identity is incorrect",
             ));
         }
-        let graph = check_function(module, function, function_plan, &mut budget, limits)?;
+        let graph = check_function_with_reuse(
+            module,
+            function,
+            function_plan,
+            &mut budget,
+            limits,
+            reuse.as_deref_mut(),
+        )?;
         if budget
             .private_slot_functions
             .as_ref()
@@ -1972,12 +1992,24 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
     Ok(())
 }
 
+#[cfg(test)]
 fn check_function(
     module: &TypedModule,
     function: &TypedFunction,
     plan: &FunctionPlan,
     budget: &mut Budget,
     limits: &Limits,
+) -> Check<FunctionGraph> {
+    check_function_with_reuse(module, function, plan, budget, limits, None)
+}
+
+fn check_function_with_reuse(
+    module: &TypedModule,
+    function: &TypedFunction,
+    plan: &FunctionPlan,
+    budget: &mut Budget,
+    limits: &Limits,
+    mut reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<FunctionGraph> {
     let fail = |code, message| reject(code, Some(function.span), message);
     let n = function.blocks.len();
@@ -2073,6 +2105,9 @@ fn check_function(
             Some(function.span),
         ));
     }
+    let instruction_proofs = reuse
+        .as_deref_mut()
+        .and_then(|reuse| reuse.instructions(function, &module.target, limits));
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
@@ -2119,7 +2154,18 @@ fn check_function(
                 InstructionKind::VariantTagAddress { .. }
                     | InstructionKind::BorrowVariantAddress { .. }
             );
-            check_instruction(module, function, instruction, budget)?;
+            let checked_instruction = check_instruction_with_reuse(
+                module,
+                function,
+                instruction,
+                budget,
+                instruction_proofs.as_ref(),
+            );
+            if let (Some(reuse), Some(proofs)) = (reuse.as_deref_mut(), instruction_proofs.as_ref())
+            {
+                reuse.record_instructions(proofs);
+            }
+            checked_instruction?;
             if let InstructionKind::Store { local, .. }
             | InstructionKind::BindPackageCapture { local, .. } = instruction.kind
             {
@@ -2202,161 +2248,25 @@ fn check_function(
             predecessors[target].push(block_index);
         }
     }
-    if definitions.iter().any(Option::is_none) {
-        return Err(fail("E-VERIFY-SSA", "declared SSA value has no definition"));
-    }
-    let reachable = reachability(function.entry.0 as usize, &successors, budget)?;
-    let mut role_data_uses = Vec::new();
-    for (b, block) in function.blocks.iter().enumerate() {
-        if reachable[b] && matches!(block.terminator, Terminator::Unreachable) {
-            return Err(fail(
-                "E-VERIFY-UNREACHABLE",
-                "reachable Unreachable is not a safe runtime exit",
-            ));
-        }
-    }
-    // Bounding matrix cells before allocation closes a memory-exhaustion path.
-    let cells = n.checked_mul(n).and_then(|x| {
-        n.checked_mul(m)
-            .and_then(|y| x.checked_add(y.saturating_mul(2)))
-    });
-    if cells.is_none_or(|x| x > limits.max_analysis_steps) {
-        return Err(limit(
-            "verification data-flow matrices exceed the work/memory budget",
-        ));
-    }
-    let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
-    if addressed_sums {
-        address_sums::check(function, &successors, &reachable, budget)?;
-    }
-    if mixed_address_sums {
-        mixed_address_sums::check(function, &successors, &reachable, budget)?;
-    }
-    let (initialized_in, initialized_out) =
-        initialization(function, &predecessors, &reachable, &parameters, budget)?;
-    for (b, block) in function.blocks.iter().enumerate() {
-        check_claimed_set(
-            &plan.blocks[b].initialized_in,
-            &initialized_in[b],
-            function.span,
-        )?;
-        check_claimed_set(
-            &plan.blocks[b].initialized_out,
-            &initialized_out[b],
-            function.span,
-        )?;
-        let mut initialized = initialized_in[b].clone();
-        for (i, instruction) in block.instructions.iter().enumerate() {
-            budget.spend(1)?;
-            for operand in instruction_operands(&instruction.kind) {
-                budget.spend(1)?;
-                check_use(operand, b, i, &definitions, &dominators, instruction.span)?;
-                // Reuse this already-paid operand visit. Only actual callable
-                // data transfers allocate a new private use-site; ordinary
-                // data and the independently checked Parameter slot stay on
-                // their existing exact budget path.
-                if helpers::role_data_operand(function, instruction, operand) {
-                    budget.spend(1)?;
-                    role_data_uses.push(operand);
-                }
-            }
-            if matches!(instruction.kind, InstructionKind::TakeErrorUnion { .. }) {
-                errors::check_take_tag(
-                    function,
-                    b,
-                    instruction,
-                    &predecessors,
-                    &definitions,
-                    budget,
-                )?;
-            }
-            match instruction.kind {
-                InstructionKind::Load(local)
-                | InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. }
-                | InstructionKind::BorrowVariantLocal { local, .. }
-                | InstructionKind::BorrowFieldLocal { local, .. }
-                | InstructionKind::BorrowPlaceLocal { local, .. }
-                | InstructionKind::PlaceTagLocal { local, .. }
-                | InstructionKind::TakeTupleField { local, .. }
-                | InstructionKind::TakeVariantField { local, .. }
-                | InstructionKind::RegisterDefer { local, .. }
-                | InstructionKind::DescribeLocal { local }
-                | InstructionKind::ReadPackageField { local, .. }
-                | InstructionKind::DescribePackageField { local, .. }
-                | InstructionKind::TakePackageField { local, .. }
-                | InstructionKind::DropPackageField { local, .. }
-                | InstructionKind::StorePackageField { local, .. }
-                | InstructionKind::ProjectOwnedArrayField { local, .. }
-                | InstructionKind::TakeOwnedArrayElement { local, .. }
-                | InstructionKind::DropOwnedArrayElement { local, .. }
-                | InstructionKind::StoreOwnedArrayElement { local, .. }
-                | InstructionKind::BorrowOwnedArrayElement { local, .. }
-                | InstructionKind::BorrowPackageField { local, .. }
-                | InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local }
-                | InstructionKind::TakeLocal { local }
-                | InstructionKind::CallClosureMut { callee: local, .. }
-                | InstructionKind::CallClosureShared { callee: local, .. }
-                    if !initialized[local.0 as usize] =>
-                {
-                    return Err(reject(
-                        "E-VERIFY-INITIALIZATION",
-                        Some(instruction.span),
-                        "load may read a local before initialization",
-                    ));
-                }
-                InstructionKind::Store { local, .. }
-                | InstructionKind::BindPackageCapture { local, .. } => {
-                    initialized[local.0 as usize] = true
-                }
-                InstructionKind::UnpackVariant {
-                    local, ref fields, ..
-                }
-                | InstructionKind::UnpackTuple { local, ref fields } => {
-                    if !initialized[local.0 as usize] {
-                        return Err(reject(
-                            "E-VERIFY-INITIALIZATION",
-                            Some(instruction.span),
-                            "Unpack source is not initialized",
-                        ));
-                    }
-                    initialized[local.0 as usize] = false;
-                    budget.spend(fields.len())?;
-                    for target in fields {
-                        initialized[target.0 as usize] = true;
-                    }
-                }
-                InstructionKind::TakeLocal { local }
-                | InstructionKind::DropManaged { local }
-                | InstructionKind::DropClosure { local }
-                | InstructionKind::DropErrorUnion { local }
-                | InstructionKind::DropEnum { local }
-                | InstructionKind::DropTuple { local }
-                | InstructionKind::DropPackage { local }
-                | InstructionKind::DropOwnedArray { local }
-                | InstructionKind::EndPackageCapture { local, .. }
-                | InstructionKind::StorageLive(local)
-                | InstructionKind::StorageDead(local) => initialized[local.0 as usize] = false,
-                _ => {}
-            }
-        }
-        let term_use = match block.terminator {
-            Terminator::Return(value) => value,
-            Terminator::Branch { condition, .. } => Some(condition),
-            _ => None,
-        };
-        if let Some(value) = term_use {
-            check_use(
-                value,
-                b,
-                block.instructions.len(),
-                &definitions,
-                &dominators,
-                function.span,
-            )?;
-        }
-    }
+    let flow = incremental::FlowInputs {
+        function,
+        plan,
+        predecessors: &predecessors,
+        successors: &successors,
+        definitions: &definitions,
+        parameters: &parameters,
+        addressed_sums,
+        mixed_address_sums,
+    };
+    let proof = if let Some(reuse) = reuse {
+        reuse.check_flow(flow, &module.target, budget, limits)?
+    } else {
+        incremental::check_flow(flow, budget, limits)?
+    };
+    let incremental::FlowProof {
+        reachable,
+        role_data_uses,
+    } = proof;
     let package_views = packages::capture_views(module, function, &predecessors, budget)?;
     let graph = FunctionGraph {
         successors,
@@ -2392,11 +2302,22 @@ fn local_type(function: &TypedFunction, local: LocalId, span: Option<Span>) -> C
             )
         })
 }
+#[cfg(test)]
 fn check_instruction(
     module: &TypedModule,
     function: &TypedFunction,
     instruction: &Instruction,
     budget: &mut Budget,
+) -> Check<()> {
+    check_instruction_with_reuse(module, function, instruction, budget, None)
+}
+
+fn check_instruction_with_reuse(
+    module: &TypedModule,
+    function: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+    proofs: Option<&incremental::InstructionProofs<'_>>,
 ) -> Check<()> {
     let span = Some(instruction.span);
     if let InstructionKind::Call { function, .. } = instruction.kind
@@ -2412,6 +2333,9 @@ fn check_instruction(
     }
     if budget.stored_borrows {
         stored_flow::instruction_work(function, instruction, budget)?;
+    }
+    if proofs.is_some_and(|proofs| proofs.local(&instruction.kind)) {
+        return Ok(());
     }
     let expected = match &instruction.kind {
         InstructionKind::AsyncRegistrationStart { .. }
@@ -3067,6 +2991,12 @@ fn check_instruction(
                     span,
                     "teardown is callable only by a checked cleanup activation",
                 ));
+            }
+            if proofs.is_some_and(|proofs| proofs.call(callee)) {
+                if callee.return_type != Type::Unit {
+                    budget.array_snapshot(&callee.return_type, &callee.return_type)?;
+                }
+                return Ok(());
             }
             if callee.foreign.is_some() {
                 return Err(reject(

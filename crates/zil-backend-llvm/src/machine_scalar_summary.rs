@@ -492,13 +492,16 @@ impl Plan {
             let name = function.blocks.as_ref().expect("preflighted original")[0]
                 .name
                 .clone();
-            function.blocks = Some(vec![Block {
-                name,
-                instructions: vec![Inst::new(
-                    None,
-                    Op::Return(Some(Arg::new(Ty::Int(value.bits), value.value()))),
-                )],
-            }]);
+            function.blocks = Some(
+                (vec![Block {
+                    name,
+                    instructions: vec![Inst::new(
+                        None,
+                        Op::Return(Some(Arg::new(Ty::Int(value.bits), value.value()))),
+                    )],
+                }])
+                .into(),
+            );
         }
     }
 }

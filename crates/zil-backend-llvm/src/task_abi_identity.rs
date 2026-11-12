@@ -362,7 +362,7 @@ mod tests {
         let make = |name: String| m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "cas".into(),
-            items: vec![m::Item::Function(m::Function {
+            items: (vec![m::Item::Function(m::Function {
                 name: "cas_identity".into(),
                 linkage: m::Linkage::External,
                 signature: m::Signature::new(
@@ -374,38 +374,45 @@ mod tests {
                     ],
                 ),
                 attrs: vec![],
-                blocks: Some(vec![m::Block {
-                    name: "entry".into(),
-                    instructions: vec![
-                        m::Inst::new(
-                            Some("answer".into()),
-                            m::Op::AtomicCompareExchange {
-                                result: observed.clone(),
-                                expected: m::Arg::new(m::Ty::Int(32), m::Val::Local(name)),
-                                desired: m::Val::Int(9),
-                                ptr: m::Val::Local("cell".into()),
-                                align: 4,
-                                success: m::AtomicOrdering::SeqCst,
-                                failure: m::AtomicOrdering::SeqCst,
-                            },
-                        ),
-                        m::Inst::new(
-                            Some("old".into()),
-                            m::Op::Extract {
-                                arg: m::Arg::new(observed.clone(), m::Val::Local("answer".into())),
-                                index: 0,
-                            },
-                        ),
-                        m::Inst::new(
-                            None,
-                            m::Op::Return(Some(m::Arg::new(
-                                m::Ty::Int(32),
-                                m::Val::Local("old".into()),
-                            ))),
-                        ),
-                    ],
-                }]),
-            })],
+                blocks: Some(
+                    (vec![m::Block {
+                        name: "entry".into(),
+                        instructions: vec![
+                            m::Inst::new(
+                                Some("answer".into()),
+                                m::Op::AtomicCompareExchange {
+                                    result: observed.clone(),
+                                    expected: m::Arg::new(m::Ty::Int(32), m::Val::Local(name)),
+                                    desired: m::Val::Int(9),
+                                    ptr: m::Val::Local("cell".into()),
+                                    align: 4,
+                                    success: m::AtomicOrdering::SeqCst,
+                                    failure: m::AtomicOrdering::SeqCst,
+                                },
+                            ),
+                            m::Inst::new(
+                                Some("old".into()),
+                                m::Op::Extract {
+                                    arg: m::Arg::new(
+                                        observed.clone(),
+                                        m::Val::Local("answer".into()),
+                                    ),
+                                    index: 0,
+                                },
+                            ),
+                            m::Inst::new(
+                                None,
+                                m::Op::Return(Some(m::Arg::new(
+                                    m::Ty::Int(32),
+                                    m::Val::Local("old".into()),
+                                ))),
+                            ),
+                        ],
+                    }])
+                    .into(),
+                ),
+            })])
+            .into(),
         };
         let paid = |module: &m::Module, n| {
             let mut left = n;
@@ -473,7 +480,7 @@ mod tests {
         m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "input".into(),
-            items: vec![
+            items: (vec![
                 m::Item::NamedType("long_type".repeat(symbols), vec![t.clone()]),
                 m::Item::Global(m::Global {
                     name: "long_global".repeat(symbols),
@@ -492,18 +499,22 @@ mod tests {
                         vec![m::Param::new(t.clone(), "long_parameter".repeat(symbols))],
                     ),
                     attrs: vec![],
-                    blocks: Some(vec![m::Block {
-                        name: "entry".into(),
-                        instructions: vec![m::Inst::new(
-                            None,
-                            m::Op::Return(Some(m::Arg::new(
-                                t,
-                                m::Val::Local("long_parameter".repeat(symbols)),
-                            ))),
-                        )],
-                    }]),
+                    blocks: Some(
+                        (vec![m::Block {
+                            name: "entry".into(),
+                            instructions: vec![m::Inst::new(
+                                None,
+                                m::Op::Return(Some(m::Arg::new(
+                                    t,
+                                    m::Val::Local("long_parameter".repeat(symbols)),
+                                ))),
+                            )],
+                        }])
+                        .into(),
+                    ),
                 }),
-            ],
+            ])
+            .into(),
         }
     }
     #[test]

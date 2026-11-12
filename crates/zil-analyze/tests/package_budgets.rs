@@ -148,12 +148,13 @@ fn candidate(copy: Type, operation: Operation, repetitions: usize) -> TypedModul
                     span,
                 })
                 .collect(),
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(None),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span,
         }],

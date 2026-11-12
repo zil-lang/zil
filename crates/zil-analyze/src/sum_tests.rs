@@ -42,13 +42,14 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         parameters: if parameter { vec![LocalId(0)] } else { vec![] },
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) })],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     };
@@ -68,7 +69,7 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         }
     }
     if !parameter {
-        f.values = vec![Type::I32, leaf(), leaf(), ty.clone()];
+        f.values = vec![Type::I32, leaf(), leaf(), ty.clone()].into();
         f.blocks[0].instructions.extend([
             op(
                 Some(ValueId(0)),
@@ -129,7 +130,7 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         },
     ));
     if parameter {
-        f.values = vec![Type::I32, Type::I32, Type::Bool];
+        f.values = vec![Type::I32, Type::I32, Type::Bool].into();
         f.blocks[0].instructions.extend([
             op(
                 Some(ValueId(0)),
@@ -784,7 +785,7 @@ fn product_store_inside_sum_and_error_union_checks_actual_canonical_definition()
     f.locals.truncate(1);
     f.locals[0].ty = ty.clone();
     f.return_type = ty.clone();
-    f.values = vec![ty];
+    f.values = vec![ty].into();
     f.blocks = vec![BasicBlock {
         id: BlockId(0),
         instructions: vec![
@@ -803,7 +804,8 @@ fn product_store_inside_sum_and_error_union_checks_actual_canonical_definition()
             ),
         ],
         terminator: Terminator::Return(Some(ValueId(0))),
-    }];
+    }]
+    .into();
     for r in both(&union) {
         r.unwrap();
     }
@@ -943,13 +945,14 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     });
@@ -1078,8 +1081,9 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
                 ty: sum(),
                 mutable: false,
                 span: Span::default(),
-            }],
-            values: vec![sum()],
+            }]
+            .into(),
+            values: vec![sum()].into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -1098,7 +1102,8 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
                     ),
                 ],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: Span::default(),
         };
@@ -1219,7 +1224,7 @@ fn ordinary_value_calls_do_not_export_private_created_leaf_freshness() {
         if identity {
             callee.locals.truncate(1);
             callee.parameters = vec![LocalId(0)];
-            callee.values = vec![sum()];
+            callee.values = vec![sum()].into();
             callee.blocks = vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![
@@ -1238,7 +1243,8 @@ fn ordinary_value_calls_do_not_export_private_created_leaf_freshness() {
                     ),
                 ],
                 terminator: Terminator::Return(Some(ValueId(0))),
-            }];
+            }]
+            .into();
         } else {
             let at = callee.blocks[0]
                 .instructions
@@ -1446,8 +1452,8 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
         parameters: vec![],
         return_type: leaf(),
         result_mode: PassingMode::Create,
-        locals: vec![],
-        values: vec![Type::I32, leaf()],
+        locals: vec![].into(),
+        values: vec![Type::I32, leaf()].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -1463,7 +1469,8 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
                 ),
             ],
             terminator: Terminator::Return(Some(ValueId(1))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     });
@@ -1538,9 +1545,9 @@ fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
         parameters: vec![],
         return_type: sum(),
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
-        blocks: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
+        blocks: vec![].into(),
         entry: BlockId(0),
         span: Span::default(),
     });
@@ -1570,7 +1577,8 @@ fn consistent_union_drop(ty: Type) -> TypedModule {
             ),
         ],
         terminator: Terminator::Return(None),
-    }];
+    }]
+    .into();
     m
 }
 fn invalid_union_slots() -> Vec<Type> {
@@ -1706,8 +1714,9 @@ fn state_with_extra(ty: Type) -> TypedModule {
                 mutable: false,
                 span: Span::default(),
             },
-        ],
-        values: vec![Type::I32, leaf(), Type::Closure(ClosureId(0)), state],
+        ]
+        .into(),
+        values: vec![Type::I32, leaf(), Type::Closure(ClosureId(0)), state].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -1744,7 +1753,8 @@ fn state_with_extra(ty: Type) -> TypedModule {
                 ),
             ],
             terminator: Terminator::Return(Some(ValueId(3))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     });
@@ -1772,8 +1782,8 @@ fn state_with_extra(ty: Type) -> TypedModule {
         parameters: vec![],
         return_type: Type::I32,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![Type::I32],
+        locals: vec![].into(),
+        values: vec![Type::I32].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![op(
@@ -1781,7 +1791,8 @@ fn state_with_extra(ty: Type) -> TypedModule {
                 InstructionKind::Constant(Constant::I32(7)),
             )],
             terminator: Terminator::Return(Some(ValueId(0))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: Span::default(),
     });

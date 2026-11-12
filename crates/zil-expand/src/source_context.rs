@@ -22,8 +22,8 @@ pub(crate) use lineage::capture_original_impl;
 /// limits debit discovery, namespace construction and row allocation; producers
 /// must continue that remainder and move rows with their actual AST items.
 /// These untrusted identities grant no visibility, life or call permission.
-pub fn capture_original(
-    sources: &[SourceUnit],
+pub fn capture_original<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&zil_syntax::ast::Module],
     context: SourceIdentityContext<'_>,
     limits: &zil_base::Limits,
@@ -35,8 +35,8 @@ pub fn capture_original(
 /// invocation needs identity even though discovery found no nominal life use.
 /// This preserves the ordinary capture fast path and uses the same bounded
 /// source traversal and canonical namespace, never reconstructed output rows.
-pub fn capture_original_required(
-    sources: &[SourceUnit],
+pub fn capture_original_required<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
     modules: &[&zil_syntax::ast::Module],
     context: SourceIdentityContext<'_>,
     limits: &zil_base::Limits,
@@ -169,15 +169,16 @@ fn compare(
     }
     Ok((!a.root, &a.aliases).cmp(&(!b.root, &b.aliases)))
 }
-fn snapshot(
+fn snapshot<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     root: ModuleId,
     aliases: &BTreeMap<Vec<String>, ModuleId>,
-    sources: &[SourceUnit],
+    sources: &[S],
     budget: &mut Budget<'_>,
 ) -> R<String> {
     let span = Span::default();
     let mut positions = BTreeMap::new();
     for (index, source) in sources.iter().enumerate() {
+        let source: &SourceUnit = source.borrow();
         budget.node(span, 0)?;
         lookup_work(positions.len(), budget, span)?;
         if positions.insert(source.module_id, index).is_some() {
@@ -193,10 +194,13 @@ fn snapshot(
     }
     let mut groups = sources
         .iter()
-        .map(|source| Group {
-            source,
-            root: source.module_id == root,
-            aliases: Vec::new(),
+        .map(|source| {
+            let source: &SourceUnit = source.borrow();
+            Group {
+                source,
+                root: source.module_id == root,
+                aliases: Vec::new(),
+            }
         })
         .collect::<Vec<_>>();
     for (path, module) in aliases {
@@ -293,9 +297,9 @@ fn snapshot(
     Ok(format!("closed-snapshot:v1:{}", hash.digest()))
 }
 impl<'a> SourceIdentityContext<'a> {
-    pub(crate) fn resolve(
+    pub(crate) fn resolve<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         self,
-        sources: &[SourceUnit],
+        sources: &[S],
         budget: &mut Budget<'_>,
     ) -> R<ResolvedSourceIdentityContext<'a>> {
         let package = match self {
@@ -314,6 +318,7 @@ impl<'a> SourceIdentityContext<'a> {
                 }
                 let mut ids = BTreeSet::new();
                 for source in sources {
+                    let source: &SourceUnit = source.borrow();
                     budget.node(Span::default(), 0)?;
                     lookup_work(ids.len(), budget, Span::default())?;
                     if !ids.insert(source.module_id) {
@@ -409,8 +414,8 @@ mod tests {
     fn source(id: u32, path: &str, text: &str) -> SourceUnit {
         SourceUnit::new(FileId(id), ModuleId(id), path, text)
     }
-    fn closed(
-        sources: &[SourceUnit],
+    fn closed<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+        sources: &[S],
         root: u32,
         aliases: &BTreeMap<Vec<String>, ModuleId>,
         limits: &Limits,

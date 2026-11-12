@@ -273,7 +273,8 @@ mod tests {
                     instructions: vec![],
                     terminator: Terminator::Jump(BlockId(4)),
                 },
-            ];
+            ]
+            .into();
             let outputs = compare(&module, &f);
             assert!(
                 outputs[5].at(width - 1).unwrap(),
@@ -292,7 +293,8 @@ mod tests {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Return(None),
-        }];
+        }]
+        .into();
         // First test a truly empty CFG row.
         let mut b = budget();
         let before = b.remaining();

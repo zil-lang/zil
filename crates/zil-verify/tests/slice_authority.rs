@@ -96,13 +96,14 @@ impl Body {
                 foreign: None,
                 parameters: vec![],
                 return_type: result,
-                locals: vec![],
-                values: vec![],
+                locals: vec![].into(),
+                values: vec![].into(),
                 blocks: vec![BasicBlock {
                     id: BlockId(0),
                     instructions: vec![],
                     terminator: Terminator::Return(None),
-                }],
+                }]
+                .into(),
                 entry: BlockId(0),
                 span: span(),
             },
@@ -315,7 +316,8 @@ fn review_third_range_operand_must_dominate_across_a_real_cfg_join() {
                 instructions: instructions[3..5].to_vec(),
                 terminator: Terminator::Return(Some(length)),
             },
-        ];
+        ]
+        .into();
         plan.blocks = (0..4)
             .map(|id| BlockPlan {
                 block: BlockId(id),
@@ -748,7 +750,8 @@ fn branch_joins_preserve_all_slice_return_origins_and_mutable_carrier_state() {
                 instructions: ops[7..].to_vec(),
                 terminator: Terminator::Return(Some(returned)),
             },
-        ];
+        ]
+        .into();
         let params = vec![LocalId(0), LocalId(1)];
         let all = vec![LocalId(0), LocalId(1), selected];
         plan.blocks = vec![

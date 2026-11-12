@@ -71,15 +71,16 @@ impl Body {
             parameters: vec![],
             return_type: result,
             result_mode: PassingMode::Infer,
-            locals: vec![],
-            values: vec![],
+            locals: vec![].into(),
+            values: vec![].into(),
             entry: BlockId(0),
             span: span(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions: vec![enter(0)],
                 terminator: Terminator::Trap,
-            }],
+            }]
+            .into(),
         })
     }
     fn op(&mut self, kind: InstructionKind) {

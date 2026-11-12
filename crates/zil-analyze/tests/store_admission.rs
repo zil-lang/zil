@@ -37,13 +37,14 @@ fn function(id: u32) -> TypedFunction {
         parameters: vec![],
         return_type: Type::Unit,
         result_mode: PassingMode::Infer,
-        locals: vec![],
-        values: vec![],
+        locals: vec![].into(),
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Return(None),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -74,7 +75,7 @@ fn fixture(element: Type, environments: usize) -> TypedModule {
     };
     let mut probe = function(0);
     probe.parameters = vec![LocalId(0)];
-    probe.locals = vec![local(0, Type::Managed(Box::new(store.clone())))];
+    probe.locals = vec![local(0, Type::Managed(Box::new(store.clone())))].into();
     probe.blocks[0].instructions = vec![
         ins(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
         ins(None, InstructionKind::DropManaged { local: LocalId(0) }),
@@ -393,7 +394,7 @@ fn new_store_return(element: Type, environments: usize, error_union: bool) -> Ty
         element: Box::new(element.clone()),
     }));
     let f = &mut raw.functions[0];
-    f.values = vec![owned.clone()];
+    f.values = vec![owned.clone()].into();
     f.blocks[0].instructions.insert(
         1,
         ins(Some(ValueId(0)), InstructionKind::OwnedStoreNew { element }),
@@ -469,7 +470,7 @@ fn window(mutable: bool, kind: CallableKind, lending: bool) -> TypedModule {
         raw.closures[0].lending_captures = vec![0];
         let body = &mut raw.functions[1];
         body.return_type = call_result.clone();
-        body.values = vec![Type::Desc(Box::new(Type::ByteBuffer)), call_result.clone()];
+        body.values = vec![Type::Desc(Box::new(Type::ByteBuffer)), call_result.clone()].into();
         body.blocks[0].instructions = vec![
             ins(
                 Some(ValueId(0)),
@@ -492,7 +493,8 @@ fn window(mutable: bool, kind: CallableKind, lending: bool) -> TypedModule {
         address(element(1)),
         address(Type::Closure(ClosureId(0))),
         address(Type::Closure(ClosureId(0))),
-    ];
+    ]
+    .into();
     let mut operations = vec![
         ins(
             Some(ValueId(0)),
@@ -650,7 +652,8 @@ fn scalar_window(element: Type, mutable: bool) -> TypedModule {
         },
         element,
         Type::Bool,
-    ];
+    ]
+    .into();
     f.blocks[0].instructions.splice(
         1..1,
         [
@@ -1165,7 +1168,8 @@ fn pod_window() -> TypedModule {
         },
         element,
         Type::Bool,
-    ];
+    ]
+    .into();
     f.blocks[0].instructions.splice(
         1..1,
         [
@@ -1543,7 +1547,8 @@ fn pod_mutable_helper_reborrow_ends_at_the_call_last_use() {
             inner: Box::new(Type::I32),
         },
         Type::I32,
-    ];
+    ]
+    .into();
     helper.blocks[0].instructions = vec![
         ins(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
         ins(
@@ -1672,8 +1677,8 @@ fn pod_store_helper_distinct_roots_and_conservative_same_call_limit() {
     let desc = raw.functions[0].values[0].clone();
     let mut helper = function(1);
     helper.parameters = vec![LocalId(0), LocalId(1)];
-    helper.locals = vec![local(0, address.clone()), local(1, desc.clone())];
-    helper.values = vec![address, desc, Type::I64, Type::Bool, pod_element()];
+    helper.locals = vec![local(0, address.clone()), local(1, desc.clone())].into();
+    helper.values = vec![address, desc, Type::I64, Type::Bool, pod_element()].into();
     helper.blocks[0].instructions = vec![
         ins(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
         ins(Some(ValueId(1)), InstructionKind::Load(LocalId(1))),
@@ -1761,7 +1766,7 @@ fn pod_cfg_order_matches_legacy_transfer_on_diamonds_and_backedges() {
                 _ => unreachable!(),
             };
             let cleanup = f.blocks[0].instructions[1..].to_vec();
-            f.values = vec![Type::Bool, desc];
+            f.values = vec![Type::Bool, desc].into();
             f.blocks = vec![
                 BasicBlock {
                     id: BlockId(0),
@@ -1813,7 +1818,8 @@ fn pod_cfg_order_matches_legacy_transfer_on_diamonds_and_backedges() {
                     .collect(),
                     terminator: Terminator::Return(None),
                 },
-            ];
+            ]
+            .into();
             let mut ordered = legacy.clone();
             // An unused, fully checked POD definition selects the new private
             // scheduling lane while all executable IR stays byte-identical.

@@ -93,12 +93,13 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
                     span: span(),
                 })
                 .collect(),
-            values,
+            values: values.into(),
             blocks: vec![BasicBlock {
                 id: BlockId(0),
                 instructions,
                 terminator: Terminator::Return(Some(ValueId(2))),
-            }],
+            }]
+            .into(),
             entry: BlockId(0),
             span: span(),
         });
@@ -310,7 +311,7 @@ fn layout_fixture() -> (TypedModule, Vec<FunctionGraph>) {
             span: span(),
         })
         .collect();
-    f.values = types;
+    f.values = types.into();
     f.blocks[0].instructions.clear();
     f.blocks[0].terminator = Terminator::Trap;
     module.closures = vec![

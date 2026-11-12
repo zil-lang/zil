@@ -47,12 +47,13 @@ fn function(id: u32, result: Type, locals: &[Type], parameters: &[u32]) -> Typed
                 span: span(),
             })
             .collect(),
-        values: vec![],
+        values: vec![].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![],
             terminator: Terminator::Trap,
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span: span(),
     }
@@ -68,7 +69,8 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         env.clone(),
         Type::I32,
         Type::I32,
-    ];
+    ]
+    .into();
     helper.blocks[0].instructions = vec![
         op(None, InstructionKind::StorageLive(LocalId(1))),
         op(Some(0), InstructionKind::Constant(Constant::I32(5))),
@@ -136,7 +138,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
         }]),
     });
     let mut factory = function(1, env.clone(), &[Type::I32], &[0]);
-    factory.values = vec![Type::I32, env];
+    factory.values = vec![Type::I32, env].into();
     factory.blocks[0].instructions = vec![
         op(Some(0), InstructionKind::Load(LocalId(0))),
         op(
@@ -160,7 +162,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     });
     let mut entry = function(2, Type::I32, &[], &[]);
     entry.environment = Some(ClosureId(0));
-    entry.values = vec![Type::I32];
+    entry.values = vec![Type::I32].into();
     entry.blocks[0].instructions = vec![op(Some(0), InstructionKind::ReadCapture { index: 0 })];
     entry.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     TypedModule {

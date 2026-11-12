@@ -33,13 +33,14 @@ fn function(
         parameters: vec![],
         return_type: Type::I32,
         result_mode: zil_ir::PassingMode::Infer,
-        locals: vec![],
-        values,
-        blocks: vec![zil_ir::BasicBlock {
+        locals: (vec![]).into(),
+        values: values.into(),
+        blocks: (vec![zil_ir::BasicBlock {
             id: zil_ir::BlockId(0),
             instructions,
             terminator: Terminator::Return(Some(ValueId(returned))),
-        }],
+        }])
+        .into(),
         entry: zil_ir::BlockId(0),
         span: Span::default(),
     }

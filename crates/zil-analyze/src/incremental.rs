@@ -1,5 +1,5 @@
-//! Content queries for the function-local initialization semantics. No cached
-//! value includes a diagnostic, source position, module fingerprint or authority.
+//! Initialization and complete function candidate queries. No cached value
+//! carries a diagnostic or Verify authority.
 use super::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -9,24 +9,92 @@ pub struct AnalysisStats {
     pub reused_functions: usize,
     pub executed_functions: usize,
     pub retained_queries: usize,
+    pub candidate_reused_functions: usize,
+    pub candidate_executed_functions: usize,
+    pub equal_function_results: usize,
+    pub changed_function_results: usize,
+    pub shared_program_reuses: usize,
+    pub initialization_inputs_built: usize,
+    pub retained_candidate_queries: usize,
+    pub candidate_inputs_built: usize,
+    pub dependency_signatures_checked: usize,
+    pub resource_transfers_executed: usize,
+    pub resource_transfers_reused: usize,
 }
 
-/// Retains only the distinct initialization inputs used by the most recent
-/// successful analysis. All other analyses and the consumer's Verify stay fresh.
+#[derive(Clone)]
+struct SharedEntry {
+    program: Arc<TypedProgram>,
+    limits: Limits,
+    candidate: Arc<CandidatePlan>,
+}
+
+/// Retains the most recent successful candidate epoch. Function queries bind
+/// actual signature dependencies; domains without complete local dependencies
+/// retain the original whole-module checks. Verify remains independent.
 #[derive(Clone, Default)]
 pub struct AnalysisSession {
     entries: Arc<BTreeMap<Input, Arc<Entry>>>,
+    candidate_entries: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Entry>>>,
+    resource_entries: resources::incremental::State,
+    initialization_items: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>>,
+    function_results: Arc<Vec<AnalysisFunctionResult>>,
+    shared: Option<Arc<SharedEntry>>,
     stats: AnalysisStats,
 }
 
 impl AnalysisSession {
     pub fn clear(&mut self) {
-        self.entries = Arc::default();
-        self.stats = AnalysisStats::default();
+        *self = Self::default();
     }
 
     pub fn last_stats(&self) -> AnalysisStats {
         self.stats
+    }
+
+    pub fn last_function_results(&self) -> &[AnalysisFunctionResult] {
+        &self.function_results
+    }
+
+    /// Reuse the complete raw candidate only for the same retained immutable
+    /// program and exact limits. This includes program interfaces and all
+    /// resource/generic checks; no Verified capability is cached or created.
+    pub fn analyze_shared_program(
+        &mut self,
+        program: &Arc<TypedProgram>,
+        limits: &Limits,
+    ) -> CompileResult<Arc<CandidatePlan>> {
+        if let Some(shared) = &self.shared
+            && Arc::ptr_eq(&shared.program, program)
+            && shared.limits == *limits
+        {
+            self.stats = AnalysisStats {
+                retained_queries: self.entries.len(),
+                retained_candidate_queries: self.candidate_entries.len(),
+                candidate_reused_functions: program.module.functions.len(),
+                equal_function_results: program.module.functions.len(),
+                shared_program_reuses: 1,
+                ..AnalysisStats::default()
+            };
+            self.function_results = Arc::new(
+                self.function_results
+                    .iter()
+                    .map(|result| AnalysisFunctionResult {
+                        reused: true,
+                        ..*result
+                    })
+                    .collect(),
+            );
+            return Ok(shared.candidate.clone());
+        }
+        let candidate =
+            Arc::new(self.analyze_input(&program.module, Some(program), limits, true)?);
+        self.shared = Some(Arc::new(SharedEntry {
+            program: program.clone(),
+            limits: limits.clone(),
+            candidate: candidate.clone(),
+        }));
+        Ok(candidate)
     }
 
     pub fn analyze(
@@ -34,7 +102,7 @@ impl AnalysisSession {
         module: &TypedModule,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
-        self.analyze_input(module, None, limits)
+        self.analyze_input(module, None, limits, false)
     }
 
     pub fn analyze_program(
@@ -42,7 +110,7 @@ impl AnalysisSession {
         program: &TypedProgram,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
-        self.analyze_input(&program.module, Some(program), limits)
+        self.analyze_input(&program.module, Some(program), limits, false)
     }
 
     fn analyze_input(
@@ -50,13 +118,22 @@ impl AnalysisSession {
         module: &TypedModule,
         program: Option<&TypedProgram>,
         limits: &Limits,
+        function_queries: bool,
     ) -> CompileResult<CandidatePlan> {
         let mut next = BTreeMap::new();
         let mut stats = AnalysisStats::default();
+        let mut candidates = candidate_queries::Queries::new(
+            self.candidate_entries.clone(),
+            self.function_results.clone(),
+            self.resource_entries.clone(),
+            self.initialization_items.clone(),
+            limits,
+        );
         let mut reuse = Reuse {
             prior: &self.entries,
             next: &mut next,
             stats: &mut stats,
+            candidates: function_queries.then_some(&mut candidates),
         };
         let mut budget = Budget::new(limits);
         let result =
@@ -68,10 +145,27 @@ impl AnalysisSession {
             });
         // A later resource/effect error must not publish partially computed
         // initialization queries. The previous complete epoch remains intact.
-        if result.is_ok() {
+        if let Ok(plan) = &result {
             self.entries = Arc::new(next);
+            if function_queries {
+                (
+                    self.candidate_entries,
+                    self.function_results,
+                    self.resource_entries,
+                    self.initialization_items,
+                ) = candidates.finish(module, plan, &mut stats);
+            } else {
+                self.candidate_entries = Arc::default();
+                self.function_results = Arc::default();
+                self.resource_entries = resources::incremental::State::default();
+                self.initialization_items = Arc::default();
+            }
+            self.shared = None;
+        } else if function_queries {
+            candidates.record_stats(&mut stats);
         }
         stats.retained_queries = self.entries.len();
+        stats.retained_candidate_queries = self.candidate_entries.len();
         self.stats = stats;
         result
     }
@@ -81,6 +175,7 @@ pub(super) struct Reuse<'a> {
     prior: &'a BTreeMap<Input, Arc<Entry>>,
     next: &'a mut BTreeMap<Input, Arc<Entry>>,
     stats: &'a mut AnalysisStats,
+    pub(super) candidates: Option<&'a mut candidate_queries::Queries>,
 }
 
 impl Reuse<'_> {
@@ -89,15 +184,31 @@ impl Reuse<'_> {
         function: &TypedFunction,
         budget: &mut Budget,
     ) -> CompileResult<Initialization> {
+        if let Some(candidates) = self.candidates.as_deref_mut()
+            && let Some(result) = candidates.initialization(function, None, budget)?
+        {
+            self.stats.reused_functions += 1;
+            return Ok(result);
+        }
         // Whole-module preflight has already bounded the raw input before this
         // projection can allocate or compare anything.
         let input = Input::of(function);
+        self.stats.initialization_inputs_built += 1;
+        if let Some(candidates) = self.candidates.as_deref_mut()
+            && let Some(result) = candidates.initialization(function, Some(&input), budget)?
+        {
+            self.stats.reused_functions += 1;
+            return Ok(result);
+        }
         if let Some(entry) = self.next.get(&input).or_else(|| self.prior.get(&input))
             && entry.cost <= budget.remaining()
         {
             budget.spend(entry.cost, "cached initialization")?;
             let result = entry.result.clone();
             let entry = entry.clone();
+            if let Some(candidates) = self.candidates.as_deref_mut() {
+                candidates.save_initialization(function, input.clone(), entry.clone());
+            }
             self.next.entry(input).or_insert(entry);
             self.stats.reused_functions += 1;
             return Ok(result);
@@ -107,24 +218,25 @@ impl Reuse<'_> {
         let before = budget.remaining();
         self.stats.executed_functions += 1;
         let result = initialize(function, budget)?;
-        self.next.insert(
-            input,
-            Arc::new(Entry {
-                cost: before - budget.remaining(),
-                result: result.clone(),
-            }),
-        );
+        let entry = Arc::new(Entry {
+            cost: before - budget.remaining(),
+            result: result.clone(),
+        });
+        if let Some(candidates) = self.candidates.as_deref_mut() {
+            candidates.save_initialization(function, input.clone(), entry.clone());
+        }
+        self.next.insert(input, entry);
         Ok(result)
     }
 }
 
-struct Entry {
-    cost: usize,
-    result: Initialization,
+pub(super) struct Entry {
+    pub(super) cost: usize,
+    pub(super) result: Initialization,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Input {
+pub(super) struct Input {
     locals: usize,
     parameters: Vec<LocalId>,
     entry: BlockId,

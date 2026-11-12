@@ -57,8 +57,9 @@ pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
         ty: Type::Closure(ClosureId(0)),
         mutable: true,
         span,
-    }];
-    main.values = vec![Type::Closure(ClosureId(0))];
+    }]
+    .into();
+    main.values = vec![Type::Closure(ClosureId(0))].into();
     let mut body = vec![
         op(None, InstructionKind::StorageLive(LocalId(0)), span),
         op(
@@ -162,7 +163,8 @@ fn empty_function(template: &TypedFunction, id: u32, result: Type) -> TypedFunct
         id: BlockId(0),
         instructions: vec![],
         terminator: Terminator::Trap,
-    }];
+    }]
+    .into();
     f
 }
 

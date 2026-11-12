@@ -15,6 +15,7 @@ pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
 mod generic_mutex;
+pub(crate) mod incremental;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
@@ -149,6 +150,26 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     closed_scalar_collection: bool,
     jobs: usize,
 ) -> CompileResult<(m::Module, bool, usize)> {
+    lower_view_with_session(
+        verified,
+        lir,
+        options,
+        incremental_scalar_policy,
+        closed_scalar_collection,
+        jobs,
+        None,
+    )
+}
+
+pub(crate) fn lower_view_with_session(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+    jobs: usize,
+    session: Option<&mut incremental::Session>,
+) -> CompileResult<(m::Module, bool, usize)> {
     let mut remaining_work = verified.limits().max_analysis_steps;
     stored_borrows::reserve_callable_metadata(
         verified.module(),
@@ -256,24 +277,65 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     } else {
         (jobs, None)
     };
-    let batches = parallel_lowering::ordered_batches(lir.functions, jobs, |start, batch| {
-        lower_function_batch(
-            batch,
-            lir,
-            options,
-            incremental_scalar_policy,
-            &functions,
-            &closures,
-            summaries.as_ref(),
-            collected.as_ref(),
-            prepared_leaves
-                .as_ref()
-                .map(|leaves| &leaves[start..start + batch.len()]),
-            &copy_plans,
-            verified,
-            &task_meter,
-        )
-    })?;
+    let session = session.and_then(|session| {
+        session
+            .prepare(lir, verified, options, incremental_scalar_policy)
+            .then_some(session)
+    });
+    let batches = if let Some(session) = session {
+        let mut batches = Vec::with_capacity(lir.functions.len().max(1));
+        for function in lir.functions {
+            batches.push(session.lower(
+                function,
+                summaries.as_ref(),
+                collected.as_ref(),
+                &task_meter,
+                || {
+                    lower_function_batch(
+                        std::slice::from_ref(function),
+                        lir,
+                        options,
+                        incremental_scalar_policy,
+                        &functions,
+                        &closures,
+                        summaries.as_ref(),
+                        collected.as_ref(),
+                        None,
+                        &copy_plans,
+                        verified,
+                        &task_meter,
+                    )
+                },
+            )?);
+        }
+        if batches.is_empty() {
+            batches.push(FunctionBatch {
+                body: Vec::new().into(),
+                intrinsics: BTreeSet::new(),
+                task_machines: Vec::new(),
+            });
+        }
+        batches
+    } else {
+        parallel_lowering::ordered_batches(lir.functions, jobs, |start, batch| {
+            lower_function_batch(
+                batch,
+                lir,
+                options,
+                incremental_scalar_policy,
+                &functions,
+                &closures,
+                summaries.as_ref(),
+                collected.as_ref(),
+                prepared_leaves
+                    .as_ref()
+                    .map(|leaves| &leaves[start..start + batch.len()]),
+                &copy_plans,
+                verified,
+                &task_meter,
+            )
+        })?
+    };
     let mut batches = batches.into_iter();
     let FunctionBatch {
         mut body,
@@ -529,15 +591,16 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         m::Module {
             triple: lir.target.triple.clone(),
             fingerprint: verified.fingerprint().to_hex(),
-            items,
+            items: items.into(),
         },
         collected.is_some(),
         task_meter.remaining(),
     ))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionBatch {
-    body: Vec<m::Item>,
+    body: m::SharedVec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
     task_machines: Vec<(FunctionId, m::Function)>,
 }
@@ -691,7 +754,7 @@ fn lower_function_batch(
         }
     }
     Ok(FunctionBatch {
-        body,
+        body: body.into(),
         intrinsics,
         task_machines,
     })

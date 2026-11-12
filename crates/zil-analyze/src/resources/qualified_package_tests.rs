@@ -66,7 +66,7 @@ fn fixture() -> TypedModule {
                 span,
             })
             .collect(),
-        values: vec![owner, address(), qualified(), qualified()],
+        values: vec![owner, address(), qualified(), qualified()].into(),
         blocks: vec![BasicBlock {
             id: BlockId(0),
             instructions: vec![
@@ -88,7 +88,8 @@ fn fixture() -> TypedModule {
                 instruction(Some(3), InstructionKind::TakeLocal { local: LocalId(2) }),
             ],
             terminator: Terminator::Return(Some(ValueId(3))),
-        }],
+        }]
+        .into(),
         entry: BlockId(0),
         span,
     };
