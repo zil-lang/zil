@@ -551,7 +551,10 @@ fn check(
                         byte_buffers::is_owned(&f.values[value.0 as usize])
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                            || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || matches!(
+                                f.values[value.0 as usize],
+                                Type::Closure(_) | Type::OwnedDyn { .. }
+                            )
                             || (budget.pod_stores
                                 && matches!(
                                     f.values[value.0 as usize],
@@ -881,6 +884,16 @@ fn reconstruct(
                             }
                             InstructionKind::BorrowPackageField { local, index, .. } => {
                                 row.push(field_root(f, *local, *index, budget)?);
+                            }
+                            InstructionKind::BorrowDynOwned { local, .. }
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Address { .. }
+                                ) =>
+                            {
+                                if let Some(actual) = state.get(local) {
+                                    roots_join(&mut row, actual, budget)?;
+                                }
                             }
                             InstructionKind::BorrowLocal { local }
                             | InstructionKind::BorrowLocalMut { local }

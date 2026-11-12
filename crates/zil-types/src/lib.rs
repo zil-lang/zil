@@ -3015,7 +3015,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             &outer,
             self.signatures,
             self.imports,
-            self.enums,
+            closures::Catalog {
+                enums: self.enums,
+                dyn_interfaces: self.dyn_interfaces,
+                dyn_declarations: self.dyn_declarations,
+            },
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
         if let Some(expression) = source_expression {
@@ -3315,6 +3319,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         )?;
         builder.imports = self.imports;
         builder.enums = self.enums;
+        builder.dyn_declarations = self.dyn_declarations;
         builder.dyn_interfaces = self.dyn_interfaces;
         builder.dyn_vtables = self.dyn_vtables;
         builder.function.environment = Some(id);
@@ -3429,10 +3434,23 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if matches!(stored, Type::OwnedDyn { .. }) {
                 if builder.closures.pending[id.0 as usize].callable_kind() != CallableKind::FnOnce {
-                    return Err(unsupported(
+                    let address = Type::Address {
+                        mutable: capture.written,
+                        inner: Box::new(stored),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: capture.written,
+                        },
+                        address,
                         capture.span,
-                        "owned dyn capture requires its consuming entry",
-                    ));
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, capture.ty.clone());
+                    continue;
                 }
                 let local =
                     builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;

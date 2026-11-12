@@ -289,19 +289,21 @@ fn prove_scalar_read(
             }
         }
         seen.push(current.id);
-        if slot.receiver.mutable && current.body.statements.len() == 2 {
+        if slot.receiver.mutable
+            && matches!(current.body.statements.len(), 1 | 2)
+            && matches!(
+                current.body.statements[0].kind,
+                zil_ir::CoreStatementKind::Assign { .. }
+            )
+        {
             for aggregate in &owner.aggregates {
                 budget.node(aggregate.span, 0)?;
             }
             for parameter in &current.parameters {
                 budget.node(parameter.span, 0)?;
             }
-            let [assignment, returned] = current.body.statements.as_slice() else {
-                return Err(unsupported(
-                    current.span,
-                    "mutable dyn provider needs a proven field update and return",
-                ));
-            };
+            let assignment = &current.body.statements[0];
+            let returned = current.body.statements.get(1);
             let zil_ir::CoreStatementKind::Assign { target, value } = &assignment.kind else {
                 return Err(unsupported(
                     assignment.span,
@@ -369,20 +371,22 @@ fn prove_scalar_read(
                     "mutable dyn field/value lacks finite Copy proof",
                 ));
             }
-            let returns_unit = matches!(
-                &returned.kind,
-                zil_ir::CoreStatementKind::Return(None)
-                    | zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
-                        kind: zil_ir::CoreExprKind::Unit,
-                        ..
-                    }))
-            ) && slot.result == zil_ir::Type::Unit;
-            let returns_field = matches!(&returned.kind, zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr { kind: zil_ir::CoreExprKind::Member { object, member: result_member, owner: None }, .. }))
+            let returns_unit = returned.is_none_or(|returned| {
+                matches!(
+                    &returned.kind,
+                    zil_ir::CoreStatementKind::Return(None)
+                        | zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
+                            kind: zil_ir::CoreExprKind::Unit,
+                            ..
+                        }))
+                )
+            }) && slot.result == zil_ir::Type::Unit;
+            let returns_field = returned.is_some_and(|returned| matches!(&returned.kind, zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr { kind: zil_ir::CoreExprKind::Member { object, member: result_member, owner: None }, .. }))
                 if matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                    && aggregate.fields.iter().any(|f| f.name == *result_member && f.ty == slot.result));
+                    && aggregate.fields.iter().any(|f| f.name == *result_member && f.ty == slot.result)));
             if !returns_unit && !returns_field {
                 return Err(unsupported(
-                    returned.span,
+                    returned.map_or(current.span, |r| r.span),
                     "mutable dyn result lacks actual Self source",
                 ));
             }

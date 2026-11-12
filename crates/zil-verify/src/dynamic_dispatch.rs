@@ -929,23 +929,28 @@ pub(super) fn instruction(
         }
         InstructionKind::BorrowDynOwned { local, mutable } => {
             budget.spend(function.locals.len().saturating_add(1))?;
-            let Some(Type::OwnedDyn { interface }) =
-                function.locals.get(local.0 as usize).map(|l| &l.ty)
-            else {
-                return Err(bad("owned dyn borrow lacks its actual owner local", span));
+            let actual = function
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| bad("owned dyn borrow lacks its actual owner local", span))?;
+            let (interface, exclusive) = match &actual.ty {
+                Type::OwnedDyn { interface } => (*interface, actual.mutable),
+                Type::Address { mutable, inner } => match inner.as_ref() {
+                    Type::OwnedDyn { interface } => (*interface, *mutable),
+                    _ => return Err(bad("owned dyn borrow address has no owner pointee", span)),
+                },
+                _ => return Err(bad("owned dyn borrow lacks its actual owner local", span)),
             };
-            if *mutable && !function.locals[local.0 as usize].mutable {
+            if *mutable && !exclusive {
                 return Err(bad(
                     "exclusive owned dyn borrow needs a mutable owner local",
                     span,
                 ));
             }
-            type_owned(module, *interface, budget)?;
+            type_owned(module, interface, budget)?;
             Ok(Some(Type::Address {
                 mutable: *mutable,
-                inner: Box::new(Type::Dyn {
-                    interface: *interface,
-                }),
+                inner: Box::new(Type::Dyn { interface }),
             }))
         }
         InstructionKind::DropDynOwned { local } => {

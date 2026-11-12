@@ -601,7 +601,7 @@ impl Type {
     /// bounds, liveness, permissions and the supported target profile.
     pub fn is_address_pointee(&self) -> bool {
         self.is_copy_value()
-            || matches!(self, Self::Dyn { .. })
+            || matches!(self, Self::Dyn { .. } | Self::OwnedDyn { .. })
             || matches!(self, Self::Slice { element } if element.is_copy_value())
     }
     /// Structural eligibility for a shared actual user-resource header. This

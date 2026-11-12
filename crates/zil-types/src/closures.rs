@@ -380,6 +380,12 @@ fn tuple_pattern_takes_owner(
     }
 }
 
+pub(super) struct Catalog<'a> {
+    pub enums: Option<&'a BTreeMap<String, Type>>,
+    pub dyn_interfaces: &'a [DynInterface],
+    pub dyn_declarations: &'a [DynDeclaration],
+}
+
 pub(super) struct Input<'a> {
     pub defer_action: bool,
     pub move_capture: bool,
@@ -839,7 +845,7 @@ impl State {
         outer: &BTreeMap<String, (LocalId, Type)>,
         signatures: &BTreeMap<String, Signature>,
         imports: Option<&program::Imports<'_>>,
-        enums: Option<&BTreeMap<String, Type>>,
+        catalog: Catalog<'_>,
         declared: Option<&BTreeMap<LocalId, CallableKind>>,
     ) -> R<ClosureId> {
         let function = self.allocate_function(input.span)?;
@@ -862,12 +868,14 @@ impl State {
                 resource_writes: &self.resource_writes,
                 closures: &self.pending,
                 declared,
+                dyn_interfaces: catalog.dyn_interfaces,
+                dyn_declarations: catalog.dyn_declarations,
             },
             &self.limits,
             &mut self.work_left,
             &mut self.nodes_left,
         )?;
-        checker.enums = enums;
+        checker.enums = catalog.enums;
         checker.block(input.body, 0)?;
         checker.graph.solve()?;
         package_effects::classify(
@@ -2550,6 +2558,8 @@ impl LocalType {
 }
 
 struct Functions<'a> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     closures: &'a [Pending],
     signatures: &'a BTreeMap<String, Signature>,
     imports: Option<&'a program::Imports<'a>>,
@@ -2557,6 +2567,8 @@ struct Functions<'a> {
     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
 }
 struct InferBuilder<'a, 'b> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     closures: &'a [Pending],
     resource_writes: &'a resource_effects::Writes,
     graph: Graph,
@@ -2632,6 +2644,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             graph.bind(result, ty, input.span)?;
         }
         let mut this = Self {
+            dyn_interfaces: functions.dyn_interfaces,
+            dyn_declarations: functions.dyn_declarations,
             closures: functions.closures,
             resource_writes: functions.resource_writes,
             graph,
@@ -3632,7 +3646,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 }
                             }
                         }
-                    } else if matches!(ty, Type::Package { .. }) {
+                    } else if matches!(ty, Type::Package { .. } | Type::OwnedDyn { .. }) {
                         // The existing Package capture path requires explicit
                         // ownership transfer and records FnMut environment use.
                         // Its field address does not turn the Package into Copy.

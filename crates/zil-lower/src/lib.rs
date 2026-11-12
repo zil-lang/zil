@@ -199,7 +199,7 @@ fn lower_view_with_budget(
         for ty in &closure.captures {
             let legacy_capture = {
                 ty.is_copy_value()
-                    || (closure.kind == CallableKind::FnOnce && matches!(ty, Type::OwnedDyn { .. }))
+                    || matches!(ty, Type::OwnedDyn { .. })
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty))

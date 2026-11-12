@@ -638,6 +638,11 @@ fn local_value(
     {
         return Ok(false);
     }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return local_value(inner, span, module, budget);
+    }
     if let Type::OwnedDyn { interface } = ty {
         budget.lookup(budget.dyn_interfaces.len(), "owned dyn interface")?;
         if !budget.dyn_interfaces.contains(interface) {
@@ -1491,9 +1496,6 @@ pub(super) fn preflight(
 
         for ty in &closure.captures {
             if matches!(ty, Type::OwnedDyn { .. }) {
-                if closure.kind != zil_ir::CallableKind::FnOnce {
-                    return Err(bad("owned dyn capture requires a consuming entry"));
-                }
                 local_value(ty, Span::default(), module, budget)?;
                 continue;
             }

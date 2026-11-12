@@ -663,7 +663,10 @@ impl Slots {
                     || closure.captures.iter().any(|ty| {
                         matches!(
                             ty,
-                            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                            Type::Managed(_)
+                                | Type::Package { .. }
+                                | Type::Closure(_)
+                                | Type::OwnedDyn { .. }
                         )
                     }),
             );
@@ -721,7 +724,7 @@ impl Slots {
                 || (!managed && matches!(ty, Type::Address { inner, .. }
                     if matches!(inner.as_ref(), Type::MutexGuard { .. })))
                 || (!managed && matches!(ty, Type::Address { inner, .. }
-                    if matches!(inner.as_ref(), Type::Dyn { .. })))
+                    if matches!(inner.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. })))
                 || (managed
                 && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
@@ -1351,16 +1354,31 @@ impl Transfer<'_> {
                     fresh_result = Some(FRESH);
                 }
                 InstructionKind::BorrowDynOwned { local, .. } => {
-                    let owner = slots.managed_local[local.0 as usize]
-                        .ok_or_else(|| bad(span, "owned dyn borrow lacks real owner debt"))?;
-                    if validate && state.debt[owner] != LIVE {
-                        return Err(bad(span, "owned dyn borrow requires live owner"));
-                    }
+                    let roots = if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                        let src = slots.desc_local[local.0 as usize].ok_or_else(|| {
+                            bad(span, "owned dyn address lacks actual description")
+                        })?;
+                        if validate {
+                            if state.desc[src].is_empty() {
+                                return Err(bad(span, "owner address has no real source"));
+                            }
+                            description_live(state, slots, src, span, budget)?;
+                        }
+                        budget.spend(state.desc[src].len())?;
+                        state.desc[src].clone()
+                    } else {
+                        let owner = slots.managed_local[local.0 as usize]
+                            .ok_or_else(|| bad(span, "owned dyn borrow lacks real owner debt"))?;
+                        if validate && state.debt[owner] != LIVE {
+                            return Err(bad(span, "owned dyn borrow requires live owner"));
+                        }
+                        BTreeSet::from([Root::Local(*local)])
+                    };
                     let dst = instruction
                         .result
                         .and_then(|v| slots.desc_value[v.0 as usize])
                         .ok_or_else(|| bad(span, "owned dyn borrow has no description slot"))?;
-                    state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                    state.desc[dst] = roots;
                 }
                 InstructionKind::MutexLock { mutex } => {
                     let src = slots.desc_value[mutex.0 as usize]
@@ -1918,6 +1936,22 @@ impl Transfer<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. }) =>
+                {
+                    let debt = slots.managed_local[local.0 as usize]
+                        .ok_or_else(|| bad(span, "owner address lacks actual owner debt"))?;
+                    if validate && state.debt[debt] != LIVE {
+                        return Err(bad(span, "owner address requires a live owner"));
+                    }
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .ok_or_else(|| bad(span, "owner address lacks actual description slot"))?;
+                    budget.spend(1)?;
+                    state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
@@ -2326,7 +2360,12 @@ impl Transfer<'_> {
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
-                    let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
+                    let index = slots.managed_local[local.0 as usize].ok_or_else(|| {
+                        bad(
+                            span,
+                            "cleanup has no independently reconstructed owner debt",
+                        )
+                    })?;
                     if validate && f.call_kind == CallKind::Direct && state.debt[index] & LIVE != 0
                     {
                         tasks::require_synchronous_drop(
