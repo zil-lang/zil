@@ -67,6 +67,7 @@ fn private_edit_reuses_unchanged_function_and_rebinds_current_spans() {
             raw_shape_ranges_reused: 0,
             raw_result_modes_checked: 2,
             raw_result_modes_reused: 0,
+            raw_function_headers_reused: 2,
             resource_inventory_functions_checked: 0,
             resource_inventory_functions_reused: 2,
             resource_inventory_ranges_reused: 2,

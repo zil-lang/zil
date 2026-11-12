@@ -815,6 +815,9 @@ fn check_module(
         closures::check_definitions(module, limits, &mut budget)?;
     }
     foreign::check_declarations(module, &mut budget, reuse.as_deref_mut())?;
+    let headers_match = reuse
+        .as_deref()
+        .is_some_and(|attempt| attempt.function_headers_match(module, limits, budget.remaining));
     let mut names = BTreeSet::new();
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
         (0usize, 0usize, 0usize, 0usize);
@@ -826,26 +829,33 @@ fn check_module(
         retained::check_claim(module, function, limits, &mut budget)?;
         let mut private_slot = false;
         budget.spend(function.name.len().saturating_add(1))?;
-        if function.id.0 as usize != index {
-            return Err(reject(
-                "E-VERIFY-ID",
-                Some(function.span),
-                "FunctionId must equal its vector index",
-            ));
-        }
-        if !names.insert(&function.name) {
-            return Err(reject(
-                "E-VERIFY-SYMBOL",
-                Some(function.span),
-                "duplicate function name",
-            ));
-        }
-        if function.name.is_empty() {
-            return Err(reject(
-                "E-VERIFY-SYMBOL",
-                Some(function.span),
-                "empty function name",
-            ));
+        if headers_match {
+            reuse
+                .as_deref_mut()
+                .expect("current independent header proof")
+                .record_function_header();
+        } else {
+            if function.id.0 as usize != index {
+                return Err(reject(
+                    "E-VERIFY-ID",
+                    Some(function.span),
+                    "FunctionId must equal its vector index",
+                ));
+            }
+            if !names.insert(&function.name) {
+                return Err(reject(
+                    "E-VERIFY-SYMBOL",
+                    Some(function.span),
+                    "duplicate function name",
+                ));
+            }
+            if function.name.is_empty() {
+                return Err(reject(
+                    "E-VERIFY-SYMBOL",
+                    Some(function.span),
+                    "empty function name",
+                ));
+            }
         }
         if !matches!(function.return_type, Type::Closure(_)) {
             check_function_signature_type(

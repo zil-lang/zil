@@ -47,6 +47,7 @@ pub struct VerifyStats {
     pub raw_shape_ranges_reused: usize,
     pub raw_result_modes_checked: usize,
     pub raw_result_modes_reused: usize,
+    pub raw_function_headers_reused: usize,
     pub resource_inventory_functions_checked: usize,
     pub resource_inventory_functions_reused: usize,
     pub resource_inventory_ranges_reused: usize,
@@ -362,6 +363,38 @@ pub(super) struct Attempt<'a> {
 }
 
 impl<'a> Attempt<'a> {
+    /// Dense IDs, nonempty names and module-wide uniqueness are a complete
+    /// table obligation. A complete raw delta with unchanged header projections
+    /// preserves that obligation. Any header or cardinality edit takes the old
+    /// full ordered checker; no uncharged current name is cloned or sorted.
+    pub(crate) fn function_headers_match(
+        &self,
+        module: &TypedModule,
+        limits: &Limits,
+        remaining: usize,
+    ) -> bool {
+        let Some(delta) = &self.delta else {
+            return false;
+        };
+        let Some(previous) = self.previous_inputs else {
+            return false;
+        };
+        previous.limits() == limits && previous.module().target == module.target
+            && delta.functions.ptr_eq(&module.functions)
+            && delta.previous_functions.len() == module.functions.len()
+            // Only changed headers require byte equality. Do not speculatively
+            // compare even bounded historical names beyond current credit.
+            && delta.changed_functions().iter().try_fold(0usize, |work, &index| {
+                work.checked_add(delta.previous_functions.get(index)?.name.len().saturating_add(1)).filter(|work| *work <= remaining)
+            }).is_some()
+            && delta.changed_functions().iter().all(|&index| {
+                matches!((delta.previous_functions.get(index), module.functions.get(index)), (Some(old),Some(current)) if old.id == current.id && old.name == current.name)
+            })
+    }
+    pub(crate) fn record_function_header(&mut self) {
+        self.stats.raw_function_headers_reused += 1;
+    }
+
     pub(crate) fn begin_empty_borrow_phase(&mut self) {
         self.empty_borrow_phase_entered = true;
     }
