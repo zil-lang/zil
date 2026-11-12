@@ -1,0 +1,19 @@
+{
+  "archive_sha256": "9d84c82310b24abcd369eb368636bff59db3dc75785ef4b857e9e0be837e7f88",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Shard of V23; restore all fixed shard commits in final union receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 75982,
+    "sha256": "7cf94a080c15d2272a89be355d781191b0cb1e5a6ad33910218580032a8946bf"
+  },
+  "schema": 1,
+  "scope": "V23 latest unique SDK17 failure/SDK18 build success custody only. Originalprefixes16/17/18,source,Git,immutable binaries never retired. SDK17 firstsource37970c4c7124c9149f2e9b7baf40a4f794d8a91c/controller1/Fail compile-extension7 missingconfig.h; actualobject0..6 only preserved with all logs/receipt/source/archives/emptyfailedobject7dir. SDK18 source01d93d81b854ce985576230bd8a4fe3a40577df8/controller0/Pass contains9actualTUs/6replacementarchives/DSO785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2/fullsourcesflagslogsenvaliasreceipt. BuildPass is NOT nativeproducts/integration/native/performance testPass. Entire regularfilemasters and lexical alias/directory manifests frozen before archive. Each fixedshard freshlyHTTPS fully restores SHA/size/mode; only its new restored/downloadduplicates retire. Metadata bounded at37970/e58/01d and frozenAstra2afcomponent/reviews/proofs, verifiedFunctiondesignonly, V1 120B sourcewiring and initial ineffectiveformatcommand no cargo/test. Do not chase pendingtwooracles/newmain or later source.",
+  "source_commits": {
+    "SDK17_failed": "37970c4c7124c9149f2e9b7baf40a4f794d8a91c",
+    "SDK18_build": "01d93d81b854ce985576230bd8a4fe3a40577df8",
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
