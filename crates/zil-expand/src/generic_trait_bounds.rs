@@ -1102,6 +1102,22 @@ impl<'a> Index<'a> {
             {
                 continue;
             }
+            // A shared emitted spelling does not declare a member. Keep the
+            // selected method's actual provider when companion bounds contain
+            // unrelated methods, while retaining real duplicate ambiguity.
+            let (_, declaration) = self.declaration_item(reference);
+            let mut declared = false;
+            for candidate in &declaration.members {
+                budget.node(candidate.span, 0)?;
+                if let ItemKind::Function(method) = &candidate.kind {
+                    budget.text(&method.name, candidate.span)?;
+                    budget.text(member, span)?;
+                    declared |= method.name == member;
+                }
+            }
+            if !declared {
+                continue;
+            }
             trait_instances::copy_key(&reference.key, budget, span)?;
             for argument in &reference.arguments {
                 budget.ty(argument)?;

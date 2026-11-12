@@ -1331,6 +1331,17 @@ impl Check<'_, '_, '_> {
                 Ok(roots)
             }
             ExprKind::Call { callee, arguments } => {
+                // The sealed Store projection borrows the actual manager place.
+                // This is only a symbolic source bound: the ordinary call check
+                // still establishes the Store element and access mode, and both
+                // CFG kernels reconstruct the concrete manager/element loan.
+                if matches!(stores::call_name(callee), Some("store_at" | "store_at_mut"))
+                    && let [manager, index] = arguments.as_slice()
+                    && !manager.spread
+                    && !index.spread
+                {
+                    return self.life_place(&manager.value, state);
+                }
                 if let Some(roots) = self.life_method_expression(callee, arguments, state)? {
                     return Ok(roots);
                 }
@@ -1428,6 +1439,29 @@ impl Check<'_, '_, '_> {
                 self.budget.node(callee.span, 0)?;
                 self.budget.text(&function.name, callee.span)?;
                 let result = function.return_type.as_ref().map(group);
+                let result = if let Some(TypeRef {
+                    kind: TypeKind::Named { path, args },
+                    span,
+                }) = result
+                    && (path.as_slice() == [super::options::TEMPLATE]
+                        || path.as_slice() == ["Option"])
+                {
+                    self.budget.node(*span, 0)?;
+                    self.budget.text(&path[0], *span)?;
+                    match args.as_slice() {
+                        [GenericArg::Type(payload)]
+                            if matches!(
+                                group(payload).kind,
+                                TypeKind::Reference { mutable: false, .. }
+                            ) =>
+                        {
+                            Some(group(payload))
+                        }
+                        _ => None,
+                    }
+                } else {
+                    result
+                };
                 let Some(TypeRef {
                     kind:
                         TypeKind::Reference {
