@@ -97,7 +97,10 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![],
-        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+        }])
+        .into_iter()
+        .map(zil_ir::StorageSource::Exact)
+        .collect(),
     }]);
     let source = Source {
         retained_port: None,
@@ -131,11 +134,68 @@ fn dyn_result_upper_keeps_actual_same_type_input_and_rejects_local_escape() {
     let (module, f, rows) = boundary();
     assert!(checked(&module, &f, &rows));
     let mut forged = f.clone();
-    forged.retained_return_sources.as_mut().unwrap()[0].sources[0].base = StorageBase::Parameter(1);
+    let StorageSource::Exact(position) =
+        &mut forged.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    position.base = StorageBase::Parameter(1);
     assert!(!checked(&module, &forged, &rows));
     let mut forged = rows.clone();
     forged.0[0].1.permission.sources[0].base = HoldRoot::Local(LocalId(0));
     assert!(!checked(&module, &f, &forged));
+}
+#[test]
+fn exact_root_address_is_the_complete_parameter_value_not_a_stored_pointee() {
+    let (module, mut f, rows) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(f.locals[0].ty.clone()),
+    };
+    let position = StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![],
+    };
+    let (leaf, _) = input(&module, &f, &position, &mut Budget::new(&Limits::default())).unwrap();
+    assert_eq!(leaf, f.locals[0].ty);
+    assert!(!checked(&module, &f, &rows));
+}
+
+#[test]
+fn exact_does_not_take_a_scalar_field_address_or_weaken_mutability() {
+    let (module, mut f, rows) = boundary();
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = true;
+    assert!(!checked(&module, &f, &rows));
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32)],
+        }),
+    };
+    let position = StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+    };
+    assert!(input(&module, &f, &position, &mut Budget::new(&Limits::default())).is_err());
+}
+
+#[test]
+fn static_is_a_real_target_and_never_an_empty_or_unrelated_exact_upper() {
+    let (module, mut f, mut rows) = boundary();
+    rows.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    assert!(!checked(&module, &f, &rows));
+    f.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .clear();
+    assert!(!checked(&module, &f, &rows));
+    f.retained_return_sources = Some(vec![]);
+    assert!(!checked(&module, &f, &rows));
+    rows.0[0].1.permission.sources.clear();
+    assert!(checked(&module, &f, &rows));
 }
 #[test]
 fn dyn_result_unknown_missing_and_empty_are_distinct() {
@@ -156,7 +216,10 @@ fn dyn_result_unknown_missing_and_empty_are_distinct() {
             base: StorageBase::Result,
             path: vec![ContractProjection::RetainedPort(0)],
         },
-        sources: (vec![]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+        sources: (vec![])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
     }]);
     assert!(!checked(&module, &claim, &rows));
     actual.0[0].1.known = true;

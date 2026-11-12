@@ -85,6 +85,20 @@ fn input(
     };
     b.spend(position.path.len().saturating_add(1))?;
     let root = parameter(f, index)?;
+    if position.path.is_empty() && matches!(root, Type::Address { .. }) {
+        dynamic_metadata::ty(root, b)?;
+        return Ok((
+            root.clone(),
+            Source {
+                base: HoldRoot::Parameter(index),
+                retained_port: None,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+                heap_parents: Vec::new(),
+                heap_element: None,
+            },
+        ));
+    }
     if let Some((ContractProjection::RetainedPort(port), carrier)) = position.path.split_last() {
         let endpoint = dyn_ports::carrier_type(module, root, carrier, b)?;
         let (Type::Dyn { interface } | Type::OwnedDyn { interface }) = endpoint else {
@@ -130,9 +144,6 @@ fn input(
     };
     if matches!(endpoint, Type::Address { .. } | Type::Desc(_)) {
         Ok((endpoint.clone(), source))
-    } else if position.path.is_empty() && matches!(root, Type::Address { .. }) {
-        dynamic_metadata::ty(root, b)?;
-        Ok((root.clone(), source))
     } else {
         Err(bad(
             "result upper does not select an actual borrowed input leaf",
@@ -156,7 +167,7 @@ pub(super) fn published_sources(
     let mut result = Vec::new();
     if let Some(row) = claim.iter().find(|row| row.position.path == path) {
         for atom in &row.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             let (_, source) = input(module, f, source, b)?;
             add_sources(&mut result, &[source], b)?;
         }
@@ -237,7 +248,7 @@ pub(super) fn validate(
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for atom in &declared.sources {
-                let source=crate::exact_storage_source(atom)?;
+                let source = crate::exact_storage_source(atom)?;
                 let (leaf, symbolic) = input(module, f, source, b)?;
                 dynamic_metadata::ty(&output.leaf, b)?;
                 let HoldRoot::Parameter(parameter) = symbolic.base else {
@@ -273,14 +284,6 @@ pub(super) fn validate(
         }
         for source in &actual.permission.sources {
             source_work(std::slice::from_ref(source), b)?;
-            if source.base == HoldRoot::Static
-                && source.retained_port.is_none()
-                && source.leaf.is_empty()
-                && source.inline.is_empty()
-                && source.heap_element.is_none()
-            {
-                continue;
-            }
             if !matches!(source.base, HoldRoot::Parameter(_)) {
                 return Err(bad("returned Dyn retains activation or capture storage"));
             }

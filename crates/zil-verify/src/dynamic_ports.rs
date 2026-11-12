@@ -556,21 +556,6 @@ fn position_leaf(
         )),
     }
 }
-fn compatible(actual: &Type, expected: &Type) -> bool {
-    match (actual, expected) {
-        (
-            Type::Address {
-                mutable: a,
-                inner: x,
-            },
-            Type::Address {
-                mutable: z,
-                inner: y,
-            },
-        ) => (!*z || *a) && x == y,
-        _ => actual == expected,
-    }
-}
 fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Check<()> {
     let c = &slot.contract;
     let requires = c
@@ -655,7 +640,7 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
             return Err(bad("shared receiver cannot change owning source slots"));
         }
         for atom in &row.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
             dynamic_metadata::ty(&port.leaf, b)?;
             if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf {
@@ -679,17 +664,9 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
             let result = crate::signature_life::outer(life, StorageBase::Result)
                 .ok_or_else(|| bad("method borrowed result has no class binding"))?;
             for atom in sources {
-                let source=crate::exact_storage_source(atom)?;
-                let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
-                if head {
-                    if result != StorageBinder::Invocation(0) {
-                        return Err(bad("receiver head cannot authorize a longer Fixed result"));
-                    }
-                } else if !compatible(&leaf, &slot.result)
-                    || binder != result
-                        && !(source.base == StorageBase::Parameter(0)
-                            && result == StorageBinder::Invocation(0))
-                {
+                let source = crate::exact_storage_source(atom)?;
+                let (leaf, binder, _) = position_leaf(iface, slot, source, b)?;
+                if leaf != slot.result || binder != result {
                     return Err(bad(
                         "method result source has a different full leaf, mode or class",
                     ));
