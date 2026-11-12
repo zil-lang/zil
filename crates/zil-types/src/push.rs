@@ -30,6 +30,8 @@ impl TypesPushStats {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunctionChange {
     pub function: FunctionId,
+    /// The old dense slot is absent from the complete current snapshot.
+    pub removed: bool,
     /// Complete actual relative CFG inequality, conservatively including local
     /// diagnostic positions. Equal public digests never authorize this result.
     pub result_changed: bool,
@@ -94,16 +96,33 @@ impl TypesPushSession {
         let context = prepared
             .produced()
             .and_then(|produced| recording.finish(produced, program.clone(), target, limits));
-        let changes = program
+        let mut changes: Vec<_> = program
             .module
             .functions
             .iter()
             .map(|f| TypedFunctionChange {
                 function: f.id,
+                removed: false,
                 result_changed: true,
                 position_changed: true,
             })
             .collect();
+        if let Some(previous) = &self.current {
+            for function in previous
+                .program
+                .module
+                .functions
+                .iter()
+                .skip(program.module.functions.len())
+            {
+                changes.push(TypedFunctionChange {
+                    function: function.id,
+                    removed: true,
+                    result_changed: true,
+                    position_changed: true,
+                });
+            }
+        }
         let update = TypedUpdate {
             stats: TypesPushStats {
                 context_rebuilds: 1,
@@ -204,6 +223,7 @@ impl TypesPushSession {
             stats.retained_functions = stats.retained_functions.checked_sub(1)?;
             changes.push(TypedFunctionChange {
                 function: id,
+                removed: false,
                 result_changed,
                 position_changed,
             });
