@@ -277,6 +277,7 @@ pub fn build_view_with_cancellation_and_session(
 ) -> CompileResult<BuildArtifact> {
     let build_started = std::time::Instant::now();
     let mut next_native_products = std::collections::BTreeMap::new();
+    let mut native_activity = Vec::new();
     let mut timings = BackendTimings::default();
     if let Some(session) = session.as_deref_mut() {
         session.begin();
@@ -841,6 +842,7 @@ pub fn build_view_with_cancellation_and_session(
         )?;
         let mut next_preflights = Vec::new();
         for (unit, result) in inputs.iter().zip(compiled) {
+            result.record_native_activity(unit, &mut native_activity);
             if result.restored_native_history
                 && let Some(session) = session.as_deref_mut()
             {
@@ -989,18 +991,24 @@ pub fn build_view_with_cancellation_and_session(
     fs::rename(&executable_path, &final_executable)
         .map_err(|error| io_error("publish executable", &final_executable, error))?;
     drop(staging);
-    timings.finish(build_started);
-    codegen.timings = timings;
     if let Some(session) = session {
         codegen.link_tool_identities = session.link_tools.summary.clone();
         // Publish native candidates only after the entire current build succeeds.
         // Errors/cancellation retain the preceding successful native map.
-        session
-            .native_products
-            .commit(options.native_products, next_native_products);
+        // Worker start/finish times are optional retention metadata only. Equal
+        // timestamps use the stable unit ordinal and prior/new order as ties.
+        native_activity.sort_by_key(|event| (event.0, event.1, event.2));
+        session.native_products.commit(
+            options.native_products,
+            next_native_products,
+            native_activity.into_iter().map(|event| event.3).collect(),
+        );
         session.summary.native_history_retained_epochs = session.native_products.retained_epochs();
         session.summary.native_history_payload_bytes = session.native_products.payload_bytes();
     }
+    // Include actual retention/eviction work in the backend residual timing.
+    timings.finish(build_started);
+    codegen.timings = timings;
     Ok(BuildArtifact {
         executable: final_executable,
         llvm_ir: final_ir,
@@ -1032,7 +1040,36 @@ struct UnitResult {
     pending: Option<PendingObject>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
     native_products: Option<zil_llvm_api::NativeWorkProducts>,
+    native_activity: Option<NativeActivity>,
     restored_native_history: bool,
+}
+struct NativeActivity {
+    started: std::time::Instant,
+    finished: std::time::Instant,
+    reused_prior: bool,
+}
+type NativeActivityEvent = (
+    std::time::Instant,
+    usize,
+    u8,
+    zil_llvm_api::NativeWorkProducts,
+);
+impl UnitResult {
+    fn record_native_activity(&self, unit: &UnitInput, events: &mut Vec<NativeActivityEvent>) {
+        let (Some(activity), Some(owner)) = (&self.native_activity, &unit.native_owner) else {
+            return;
+        };
+        // The API below receives exactly one prior. Its reported successful
+        // stage/MF reuse identifies that prior, never an untried history entry.
+        if activity.reused_prior
+            && let Some(prior) = &unit.native_prior
+        {
+            events.push((activity.started, owner.ordinal, 0, prior.products.clone()));
+        }
+        if let Some(product) = &self.native_products {
+            events.push((activity.finished, owner.ordinal, 1, product.clone()));
+        }
+    }
 }
 
 fn compile_units(
@@ -1099,6 +1136,7 @@ fn compile_units(
                                         pending: None,
                                         preflight: None,
                                         native_products: None,
+                                        native_activity: None,
                                         restored_native_history: false,
                                     })
                                 }
@@ -1251,6 +1289,7 @@ fn compile_api_unit(
                 // Restoring an exact old raw owner does not execute LLVM or
                 // grant safety authority. Current machine preflight ran above.
                 native_products: retained,
+                native_activity: None,
                 restored_native_history,
             });
         }
@@ -1334,6 +1373,7 @@ fn compile_api_unit(
                         pending: Some(pending),
                         preflight,
                         native_products: None,
+                        native_activity: None,
                         restored_native_history: false,
                     });
                 }
@@ -1348,6 +1388,10 @@ fn compile_api_unit(
     // The opt-in receipt entry point signs the same successful native
     // preflight that constructs the Builder schedule. It adds no second check,
     // and only returns a proof together with a fully verified emitted object.
+    let native_started = unit
+        .native_owner
+        .as_ref()
+        .map(|_| std::time::Instant::now());
     let (object, preflight, native_products) = if unit.native_owner.is_some() {
         let (object, receipt, products) = zil_llvm_api::compile_module_with_native_products(
             &unit.module,
@@ -1377,6 +1421,20 @@ fn compile_api_unit(
         .map_err(api_error)?;
         (object, None, None)
     };
+    let native_activity = native_started.map(|started| NativeActivity {
+        started,
+        finished: std::time::Instant::now(),
+        reused_prior: object
+            .receipt
+            .native_products
+            .as_ref()
+            .is_some_and(|stats| {
+                stats.available != 0
+                    && stats.fresh_context_fallbacks == 0
+                    && (stats.optimizer_function_stage_reuses != 0
+                        || stats.machine_function_reuses != 0)
+            }),
+    });
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
@@ -1441,6 +1499,7 @@ fn compile_api_unit(
         pending,
         preflight,
         native_products,
+        native_activity,
         restored_native_history: false,
     })
 }
@@ -1619,6 +1678,9 @@ mod native_history_cache_tests {
         }
         .commit(&mut summary);
         assert_eq!(summary.write_failures, 0);
+        let mut activity = Vec::new();
+        result.record_native_activity(unit, &mut activity);
+        activity.sort_by_key(|event| (event.0, event.1, event.2));
         let products = result.native_products.expect("current native owner");
         history.commit(
             true,
@@ -1630,6 +1692,7 @@ mod native_history_cache_tests {
                 }),
             )]
             .into(),
+            activity.into_iter().map(|event| event.3).collect(),
         );
     }
     fn counter(receipt: &str, key: &str) -> u64 {
@@ -1659,6 +1722,8 @@ mod native_history_cache_tests {
         let mut history = NativeProductHistory::default();
         let cold = unit(module(42, 7), &history, &dir.0);
         let result = compile(&cold, &cache);
+        assert!(result.native_activity.is_some());
+        assert!(!result.native_activity.as_ref().unwrap().reused_prior);
         assert!(!result.access.as_ref().unwrap().hit);
         assert_eq!(counter(result.receipt.as_ref().unwrap(), "available"), 1);
         let cold_product = result.native_products.clone().unwrap();
@@ -1675,6 +1740,13 @@ mod native_history_cache_tests {
         assert_ne!(parent.native_prior.as_ref().unwrap().products, cold_product);
         let result = compile(&parent, &cache);
         assert!(result.access.as_ref().unwrap().hit);
+        assert!(
+            result.native_activity.is_none(),
+            "object hits do not consume native snapshots"
+        );
+        let mut cache_hit_events = Vec::new();
+        result.record_native_activity(&parent, &mut cache_hit_events);
+        assert!(cache_hit_events.is_empty());
         assert!(
             !result.access.as_ref().unwrap().preflight_reused,
             "current machine check has no prior receipt"
@@ -1707,6 +1779,12 @@ mod native_history_cache_tests {
             "current parent remains the candidate when the edited unit is not equal"
         );
         let result = compile(&edited, &cache);
+        assert!(result.native_activity.as_ref().unwrap().reused_prior);
+        let mut edited_events = Vec::new();
+        result.record_native_activity(&edited, &mut edited_events);
+        assert_eq!(edited_events.len(), 2);
+        assert_eq!(edited_events[0].3, cold_product);
+        assert_eq!(Some(&edited_events[1].3), result.native_products.as_ref());
         assert!(!result.access.as_ref().unwrap().hit);
         let receipt = result.receipt.as_ref().unwrap();
         assert_eq!(counter(receipt, "available"), 1);
