@@ -334,6 +334,7 @@ struct Budget {
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
+    closure_receiver_borrows: bool,
     nested_callable_sources: bool,
     addressed_copy_sums: BTreeMap<usize, bool>,
     large_tag_layout: bool,
@@ -440,6 +441,7 @@ impl Budget {
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
+            closure_receiver_borrows: false,
             nested_callable_sources: false,
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
@@ -3731,7 +3733,19 @@ fn check_instruction(
                     "owned captures require their explicit resource or Package view operations, never copying ReadCapture",
                 ));
             }
-            Some(ty.clone())
+            if definition.kind == CallableKind::Fn
+                && let Type::Address {
+                    mutable: true,
+                    inner,
+                } = ty
+            {
+                Some(Type::Address {
+                    mutable: false,
+                    inner: inner.clone(),
+                })
+            } else {
+                Some(ty.clone())
+            }
         }
         InstructionKind::WriteCapture { index, value } => {
             let environment = function.environment.ok_or_else(|| {

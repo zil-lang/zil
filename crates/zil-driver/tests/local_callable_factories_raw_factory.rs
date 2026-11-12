@@ -151,6 +151,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     ];
     factory.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
     factory.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),

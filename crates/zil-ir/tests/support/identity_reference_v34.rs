@@ -1430,6 +1430,7 @@ fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
                 encode_u32(bytes, index);
             }
             StorageBase::Result => bytes.push(2),
+            StorageBase::Receiver => bytes.push(3),
         }
         encode_len(bytes, 0);
         match row.binder {

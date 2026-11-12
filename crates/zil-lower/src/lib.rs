@@ -210,7 +210,7 @@ fn lower_view_with_budget(
                     || matches!(ty, Type::OwnedDyn { .. })
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
+                    || (captured_fixed_signature && qualified_capture_address(ty))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
@@ -239,7 +239,7 @@ fn lower_view_with_budget(
             || !complete_captures
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
+                    || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
@@ -528,8 +528,8 @@ fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bo
 
 // Representation only: the caller has an immutable verified capability and
 // has already paid the complete captured/parameter type metadata inventory.
-fn shared_qualified_capture_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { inner, mutable: false }
+fn qualified_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
 }

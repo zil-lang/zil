@@ -67,7 +67,17 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
-    if lending(d) { &Type::Unit } else { &d.result }
+    if lending(d)
+        && !d.storage_life.as_ref().is_some_and(|life| {
+            life.bindings
+                .iter()
+                .any(|row| row.position.base == StorageBase::Receiver)
+        })
+    {
+        &Type::Unit
+    } else {
+        &d.result
+    }
 }
 
 // Dispatch only. The raw definition and each actual entry are independently
@@ -224,6 +234,9 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || borrowed_owned_candidate(d)
+            || d.storage_life.as_ref().is_some_and(|life| {
+                super::signature_life::outer(life, StorageBase::Receiver).is_some()
+            }) && matches!(d.result, Type::Address { .. })
     })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
@@ -249,6 +262,11 @@ pub(super) fn shared_input(t: &Type) -> bool {
         t => t.is_address_pointee(),
     }
 }
+fn borrowed_capture_input(ty: &Type) -> bool {
+    shared_input(ty)
+        || matches!(ty, Type::Address { inner, .. }
+        if inner.is_address_pointee() || matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+}
 pub(super) fn captured_profile(
     module: &TypedModule,
     d: &ClosureDefinition,
@@ -257,7 +275,7 @@ pub(super) fn captured_profile(
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !shared_input(ty) {
+        if !borrowed_capture_input(ty) {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar parameters",
                 None,
@@ -266,7 +284,7 @@ pub(super) fn captured_profile(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !(shared_input(ty)
+        if !(borrowed_capture_input(ty)
             || super::stored_owned::owner(ty)
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child)))
@@ -277,7 +295,12 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    if !((d.lending_captures.is_empty() && scalar(&d.result)) || lending(d)) {
+    if !((d.lending_captures.is_empty() && scalar(&d.result))
+        || lending(d)
+        || d.storage_life.as_ref().is_some_and(|life| {
+            super::signature_life::outer(life, StorageBase::Receiver).is_some()
+        }) && matches!(d.result, Type::Address { .. }))
+    {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",
             None,
@@ -358,6 +381,7 @@ pub(super) fn definitions(
                 module,
                 &d.parameters,
                 &d.captures,
+                d.kind,
                 life_result(d),
                 c,
                 Some(f.span),
@@ -538,10 +562,16 @@ pub(super) fn types(
                         "qualified capture write requires exclusive environment and exact field",
                     ));
                 }
-            } else if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(t) {
-                return Err(bad(
-                    "qualified capture read result differs from actual field",
-                ));
+            } else {
+                let actual = i.result.and_then(|v| f.values.get(v.0 as usize));
+                let readonly_reborrow = d.kind == CallableKind::Fn
+                    && matches!((t, actual), (Type::Address { mutable: true, inner: expected },
+                        Some(Type::Address { mutable: false, inner: found })) if expected == found);
+                if actual != Some(t) && !readonly_reborrow {
+                    return Err(bad(
+                        "qualified capture read result differs from actual field",
+                    ));
+                }
             }
             return Ok(());
         }
@@ -705,6 +735,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                             module,
                             &d.parameters,
                             &d.captures,
+                            d.kind,
                             life_result(d),
                             life,
                             Some(entry.span),

@@ -203,6 +203,8 @@ pub struct StorageLifeShape {
 pub enum StorageBase {
     Parameter(u32),
     Capture(u32),
+    /// Actual borrowed closure invocation head; no physical field or Fixed domain.
+    Receiver,
     Result,
 }
 /// Contract-only selection; retained ports/classes never authorize byte access.
@@ -331,7 +333,7 @@ impl StorageLifeContract {
                     saw_result = true;
                     &mut result_life
                 }
-                StorageBase::Capture(_) => return None,
+                StorageBase::Capture(_) | StorageBase::Receiver => return None,
             };
             if slot.replace(index).is_some() {
                 return None;
@@ -1000,6 +1002,10 @@ pub struct CoreLifeContract {
 /// Source-declared bound for a finite, self-contained callable factory result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableReturn {
+    /// Untrusted bound Parameter/Result relation, before environment canonicalization.
+    pub life: Option<StorageLifeContract>,
+    /// Original declaration and actual creator-header selectors; never a proof.
+    pub source_life: Option<CoreCallableReturnLifeContext>,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -1519,6 +1525,9 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// Expected signature in the actual returned closure's complete Fixed domain.
+    /// Capture grounding and actual return provenance are independently checked.
+    pub life: Option<StorageLifeContract>,
     /// None is unknown. Some(empty) still requires proof of no external leaves.
     pub capture_sources: Option<Vec<StorageSourceBinding>>,
     /// Untrusted result provenance; each reachable return must prove this relation.
@@ -3040,6 +3049,7 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
             encode_u32(b, i)
         }
         StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, position.path.len());
     for step in &position.path {
@@ -3112,6 +3122,7 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
                 encode_u32(b, i);
             }
             StorageBase::Result => b.push(2),
+            StorageBase::Receiver => b.push(3),
         }
         encode_life_type_path(b, &binding.position.path);
         encode_u32(b, binding.position.class);
@@ -4658,6 +4669,7 @@ fn protocol_exit_tag(s: ProtocolExit) -> u8 {
     }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    encode_storage_contract(b, &c.life);
     b.push(u8::from(c.capture_sources.is_some()));
     if let Some(bindings) = &c.capture_sources {
         encode_len(b, bindings.len());

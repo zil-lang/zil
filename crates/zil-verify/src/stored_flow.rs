@@ -18,6 +18,7 @@ mod dyn_returns;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
+mod receiver;
 mod relation_index;
 pub(super) mod replacements;
 #[cfg(test)]
@@ -517,6 +518,7 @@ struct Payload {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
+    receiver: Option<usize>,
     locals: Vec<Payload>,
     external: Vec<Payload>,
     captures: Vec<Payload>,
@@ -540,6 +542,7 @@ struct Summary {
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
+    receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     dyn_ports: dyn_ports::Rows,
@@ -861,6 +864,15 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
+    if let Some(head) = from.receiver {
+        b.spend(1)?;
+        if to.receiver.is_some_and(|previous| previous != head) {
+            return Err(err(
+                "different actual invocation heads met within one entry",
+            ));
+        }
+        to.receiver = Some(head);
+    }
     add_sources(&mut to.vacant, &from.vacant, b)?;
     replacements::join(&mut to.prepared, &from.prepared, b)?;
     b.spend(
@@ -1868,7 +1880,7 @@ fn relation(
             .and_then(|l| f.locals.get(l.0 as usize))
             .map(|l| &l.ty),
         StorageBase::Result => Some(&f.return_type),
-        StorageBase::Capture(_) => None,
+        StorageBase::Capture(_) | StorageBase::Receiver => None,
     }
     .ok_or_else(|| err("stored relation base is absent"))?;
     let array = if let Type::Address { inner, .. } = ty {
@@ -2075,6 +2087,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             module,
             &parameters,
             &d.captures,
+            d.kind,
             super::stored_callables::life_result(d),
             c,
             Some(f.span),
@@ -2207,7 +2220,9 @@ fn apart(
     b: &mut Budget,
 ) -> Check<()> {
     if overlap(a, z, b)? {
-        return Err(err("actual target intersects a live incompatible loan"));
+        return Err(err(&format!(
+            "actual target intersects a live incompatible loan: {a:?} against {z:?}"
+        )));
     }
     if matches!(
         (a.base, z.base),
@@ -2522,6 +2537,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
     let count = captured_definition(module, f, b).map_or(0, |d| d.captures.len());
     b.spend(count)?;
     Ok(Frame {
+        receiver: None,
         captures: vec![Payload::default(); count],
         locals: vec![Payload::default(); f.locals.len()],
         external: vec![Payload::default(); f.parameters.len()],
@@ -2536,6 +2552,11 @@ fn seed(
     b: &mut Budget,
 ) -> Check<Frame> {
     let mut state = empty_frame(module, f, b)?;
+    if receiver::needs_head(module, f, b)? {
+        b.spend(2)?;
+        state.receiver = Some(loans.len());
+        loans.push(Loan::default());
+    }
     for (position, local) in f.parameters.iter().enumerate() {
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
@@ -2600,11 +2621,6 @@ fn select(
     let mut result = Permission::default();
     for source in &address.sources {
         b.spend(width(source))?;
-        if !source.leaf.is_empty() {
-            return Err(err("stored leaf base crosses a target or inline boundary"));
-        }
-        let mut actual_path = source.inline.clone();
-        actual_path.extend_from_slice(path);
         let p = match source.base {
             HoldRoot::Static => {
                 return Err(err("static text cannot supply nested carrier permissions"));
@@ -2614,6 +2630,9 @@ fn select(
             HoldRoot::Capture(p) => state.captures.get(p as usize),
         }
         .ok_or_else(|| err("carrier location is absent"))?;
+        let Some(actual_path) = symbolic_slot_path(p, source, path, b)? else {
+            continue;
+        };
         if let Some(p) = leaf(p, &actual_path, b)? {
             join_permission(&mut result, p, b)?;
         }
@@ -2621,6 +2640,56 @@ fn select(
     Ok(result)
 }
 
+// A nonempty leaf is an abstract target namespace, not a physical GEP.
+// Only an actual seeded pointer row with that exact symbolic target can
+// establish a private pointee directory inside a closure helper.
+fn symbolic_slot_path(
+    holder: &Payload,
+    source: &Source,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> Check<Option<Path>> {
+    b.spend(
+        source
+            .leaf
+            .len()
+            .saturating_add(source.inline.len())
+            .saturating_add(path.len()),
+    )?;
+    if !source.leaf.is_empty() {
+        if source.retained_port.is_some()
+            || source.heap_element.is_some()
+            || !source.heap_parents.is_empty()
+        {
+            return Err(err(
+                "opaque or heap targets need their own complete directory",
+            ));
+        }
+        let Some(head) = leaf(holder, &source.leaf, b)? else {
+            return Ok(None);
+        };
+        source_work(&head.sources, b)?;
+        if head.sources.is_empty() {
+            return Ok(None);
+        }
+        if !head.sources.iter().any(|known| {
+            known.base == source.base
+                && known.leaf == source.leaf
+                && known.retained_port.is_none()
+                && known.inline.is_empty()
+                && known.heap_element.is_none()
+                && known.heap_parents.is_empty()
+        }) {
+            return Err(err(
+                "symbolic pointee lacks an actual captured head binding",
+            ));
+        }
+    }
+    let mut complete = source.leaf.clone();
+    complete.extend(&source.inline);
+    complete.extend(path);
+    Ok(Some(complete))
+}
 fn slot_position(address: &Permission, path: &[PlaceProjection], b: &mut Budget) -> Check<Source> {
     let [root] = address.sources.as_slice() else {
         return Err(err("stored slot needs one actual inline carrier"));
@@ -2788,6 +2857,7 @@ fn write_sites(
         && !b.stored_constructor_sites
         && !b.nested_callable_sources
         && !b.replacements
+        && !module.closures.iter().any(receiver::declared)
     {
         return Ok(sites);
     }
@@ -2797,6 +2867,7 @@ fn write_sites(
         for i in &block.instructions {
             let site = i as *const Instruction as usize;
             let capture_paths = captured_owner::write_paths(module, f, &i.kind, b)?;
+            receiver::add_site(module, f, i, &mut sites, loans, b)?;
             let mut add =
                 |parameter: u32, path: &Path, exclusive: bool, b: &mut Budget| -> Check<()> {
                     b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
@@ -3331,6 +3402,11 @@ fn step(
             });
         }
         kind if super::stored_callables::called(module, f, kind)
+            .is_some_and(|(definition, _)| receiver::declared(definition) && matches!(definition.result, Type::Address { .. })) =>
+        {
+            receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
+        }
+        kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| super::stored_callables::lending(definition)) =>
         {
             let (definition, _) = super::stored_callables::called(module, f, kind)
@@ -3633,7 +3709,8 @@ fn step(
             let holder = match root.base {
                 HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
                 HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-                HoldRoot::Static | HoldRoot::Capture(_) => None,
+                HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
+                HoldRoot::Static => None,
             }
             .ok_or_else(|| err("replacement carrier location is absent"))?;
             if let Some(row) = holder.leaves.position(&actual_path, b)? {
@@ -3742,7 +3819,7 @@ fn step(
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
-            if b.dyn_contexts {
+            if b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
                     let actual = instantiate(module, f, parent, arguments, values, state, b)?;
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
@@ -3978,33 +4055,36 @@ fn step(
             return Err(err("static text became a mutable address"));
         }
     }
+    let capture_reborrow = receiver::read(module, f, i, state, &mut out, b)?;
     if let Some(id) = i.result
-        && (matches!(
-            i.kind,
-            InstructionKind::BorrowLocal { .. }
-                | InstructionKind::BorrowLocalMut { .. }
-                | InstructionKind::ReborrowAddress { .. }
-                | InstructionKind::LoadStoredBorrow {
-                    mode: StoredBorrowLoad::Reborrow { mutable: true },
-                    ..
-                }
-                | InstructionKind::AddressField { .. }
-                | InstructionKind::AddressIndex { .. }
-                | InstructionKind::AddressSlice { .. }
-                | InstructionKind::Call { .. }
-                | InstructionKind::BorrowCapture { .. }
-                | InstructionKind::CallClosureBorrowed { .. }
-                | InstructionKind::CallClosureShared { .. }
-                | InstructionKind::CallClosureMut { .. }
-                | InstructionKind::BorrowDynOwned { .. }
-                | InstructionKind::MakeDynBorrow { .. }
-                | InstructionKind::CallDynSlot { .. }
-        ) || b.store_descriptions()
-            && matches!(
+        && (capture_reborrow
+            || matches!(
                 i.kind,
-                InstructionKind::OwnedStoreBorrow { .. }
-                    | InstructionKind::OwnedStoreBorrowMut { .. }
+                InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::LoadStoredBorrow {
+                        mode: StoredBorrowLoad::Reborrow { mutable: true },
+                        ..
+                    }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+                    | InstructionKind::Call { .. }
+                    | InstructionKind::BorrowCapture { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::BorrowDynOwned { .. }
+                    | InstructionKind::MakeDynBorrow { .. }
+                    | InstructionKind::CallDynSlot { .. }
             )
+            || b.store_descriptions()
+                && matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                )
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
@@ -5733,6 +5813,10 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         tags.work(b)?;
     }
     s.returned_variants.work(b)?;
+    b.spend(s.receiver_results.len())?;
+    for path in &s.receiver_results {
+        b.spend(path.len())?;
+    }
     b.spend(
         s.result
             .len()
@@ -6057,13 +6141,21 @@ fn summarize(
                 .join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Address { .. }) {
                 result_row(&mut summary, &[], &payload.address.sources, b)?;
+                if receiver::returned_head(&payload.address, solution, b)? {
+                    b.spend(summary.receiver_results.len().saturating_add(1))?;
+                    if !summary.receiver_results.contains(&Vec::new()) {
+                        summary.receiver_results.push(Vec::new());
+                    }
+                }
             }
             for (path, p) in &payload.leaves {
                 result_row(&mut summary, path, &p.sources, b)?;
             }
             task_address::summarize(f, payload, &mut summary, b)?;
             dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
-            if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
+            if (b.dyn_contexts || b.closure_receiver_borrows)
+                && matches!(f.return_type, Type::Address { .. })
+            {
                 let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
                 dyn_returns::check_parent_escape(f, &parents, b)?;
                 add_sources(&mut summary.dyn_result_parents, &parents, b)?;
@@ -6557,8 +6649,25 @@ fn solve_check(
         dyn_returns::validate(module, f, &s.dyn_ports, b)?;
         enum_address::projections(f, &graphs[index], s, b)?;
         let mut relations = relation_index::Relations::new(f, b)?;
-        let lender =
-            captured_definition(module, f, b).filter(|d| super::stored_callables::lending(d));
+        let receiver_definition =
+            captured_definition(module, f, b).filter(|d| receiver::declared(d));
+        for path in &s.receiver_results {
+            let c = f
+                .storage_life
+                .as_ref()
+                .ok_or_else(|| err("returned invocation view lacks its complete relation"))?;
+            if receiver_definition.is_none()
+                || relations.get(StorageBase::Result, path, b)?
+                    != signature_life::outer(c, StorageBase::Receiver)
+                        .ok_or_else(|| err("returned invocation view omits Receiver"))?
+            {
+                return Err(err(
+                    "returned invocation view erased or changed its actual receiver bound",
+                ));
+            }
+        }
+        let lender = captured_definition(module, f, b)
+            .filter(|d| super::stored_callables::lending(d) && !receiver::declared(d));
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;
             let mut fields = Vec::new();
@@ -6609,6 +6718,25 @@ fn solve_check(
                     }
                     continue;
                 }
+                if let HoldRoot::Capture(_) = source.base
+                    && receiver_definition.is_some()
+                {
+                    let c = f
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| err("capture result relation absent"))?;
+                    let bound = relations.get(StorageBase::Result, path, b)?;
+                    if s.receiver_results.contains(path) {
+                        if Some(bound) != signature_life::outer(c, StorageBase::Receiver) {
+                            return Err(err("captured reborrow escaped its invocation head"));
+                        }
+                    } else if bound != captured_owner::class(module, f, source, b)? {
+                        return Err(err(
+                            "shared capture result changed its original Fixed class",
+                        ));
+                    }
+                    continue;
+                }
                 let HoldRoot::Parameter(position) = source.base else {
                     return Err(err(
                         "stored/reference return retains activation or capture storage",
@@ -6629,6 +6757,8 @@ fn solve_check(
                 }
                 if f.storage_life.is_some()
                     && f.callable_return_contract.is_none()
+                    && !(b.closure_receiver_borrows
+                        && receiver::parameter_head_result(f, s, path, b)?)
                     && relations.get(StorageBase::Result, path, b)?
                         != (if source.retained_port.is_some() {
                             match &source.retained_port {

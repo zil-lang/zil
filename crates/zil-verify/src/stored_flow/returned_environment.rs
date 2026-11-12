@@ -21,6 +21,7 @@ pub(super) fn leaves<'a>(
     let actual = crate::retained::sources::capture_leaves(module, id, &limits, b)?;
     b.spend(actual.len())?;
     let mut out = Vec::with_capacity(actual.len());
+    let mut private = Vec::new();
     for leaf in actual {
         b.spend(leaf.position.path.len().saturating_add(1))?;
         let StorageBase::Capture(index) = leaf.position.base else {
@@ -39,8 +40,27 @@ pub(super) fn leaves<'a>(
                 }
             });
         }
+        if let Type::Address { inner, .. } = leaf.ty
+            && let Type::BorrowedStorage { storage, life } = inner.as_ref()
+        {
+            // Pointee dependencies are private memory facts. Capturing the
+            // actual pointer carries its current slots; public Capture source
+            // rows continue to select the pointer itself, never a fake GEP.
+            b.spend(life.slots.len())?;
+            for slot in &life.slots {
+                b.spend(path.len().saturating_add(slot.path.len()).saturating_add(1))?;
+                let ty = crate::dynamic_ports::physical_path(storage, &slot.path, b)?;
+                let mut child = path.clone();
+                child.extend(&slot.path);
+                private.push((child, ty));
+            }
+        }
         out.push((path, leaf.ty));
     }
+    // Preserve the original public directory first. Its exact contract check
+    // zips only these rows; extra pointee facts are derived by the memory solver.
+    b.spend(private.len())?;
+    out.extend(private);
     Ok(out)
 }
 fn writes(ty: &Type) -> bool {

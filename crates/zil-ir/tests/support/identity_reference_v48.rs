@@ -1336,6 +1336,7 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
             encode_u32(b, n)
         }
         StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, p.path.len());
     for step in &p.path {
@@ -1375,6 +1376,10 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
     }
 }
 fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
+    b.push(u8::from(c.life.is_some()));
+    if let Some(life) = &c.life {
+        encode_closed_relation(b, life);
+    }
     b.push(u8::from(c.capture_sources.is_some()));
     if let Some(rows) = &c.capture_sources {
         encode_len(b, rows.len());
@@ -1513,6 +1518,7 @@ fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
                 encode_u32(bytes, index);
             }
             StorageBase::Result => bytes.push(2),
+            StorageBase::Receiver => bytes.push(3),
         }
         encode_len(bytes, 0);
         match row.binder {

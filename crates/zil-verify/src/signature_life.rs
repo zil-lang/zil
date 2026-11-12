@@ -176,7 +176,7 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, false, None, None, false)
+    relation_inner(parameters, result, c, span, false, None, None, false, None)
 }
 pub(super) fn function_relation(
     module: &TypedModule,
@@ -292,12 +292,14 @@ fn function_relation_inner(
         None,
         Some(module),
         allow_byte_input,
+        None,
     )
 }
 pub(super) fn closure_relation(
     module: &TypedModule,
     parameters: &[Type],
     captures: &[Type],
+    kind: CallableKind,
     result: &Type,
     c: &StorageLifeContract,
     span: Option<Span>,
@@ -311,6 +313,7 @@ pub(super) fn closure_relation(
         Some(captures),
         Some(module),
         false,
+        Some(kind),
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -323,6 +326,7 @@ fn relation_inner(
     captures: Option<&[Type]>,
     module: Option<&TypedModule>,
     allow_byte_input: bool,
+    closure_kind: Option<CallableKind>,
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -377,6 +381,28 @@ fn relation_inner(
         let output = ordinal == parameters.len() + capture_types.len();
         let capture = !output && ordinal >= parameters.len();
         if output {
+            // The receiver is an actual closure invocation input, not a type
+            // containing copies of its persistent capture-class directory.
+            if let Some(row) = c.bindings.get(borrow)
+                && row.position.base == StorageBase::Receiver
+            {
+                if captures.is_none()
+                    || !matches!(closure_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+                    || !row.position.path.is_empty()
+                {
+                    return Err(invalid());
+                }
+                let StorageBinder::Invocation(index) = row.binder else {
+                    return Err(invalid());
+                };
+                if index >= c.invocation_binder_count || index > next[1] {
+                    return Err(invalid());
+                }
+                if index == next[1] {
+                    next[1] += 1;
+                }
+                borrow += 1;
+            }
             inputs = next;
         }
         let base = if output {
@@ -715,6 +741,9 @@ fn relation_inner(
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
         });
+        possible |= captures.is_some()
+            && outer(c, StorageBase::Receiver).is_some_and(|head| Some(head) == upper)
+            && (!*mutable || closure_kind == Some(CallableKind::FnMut));
         if !possible && !array_result_input {
             return Err(invalid());
         }
