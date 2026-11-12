@@ -956,3 +956,8 @@ consumer!(
     consuming_qualified_holder_head_preserves_actual_data_and_head_scopes_at_runtime,
     "fnonce-qualified-holder-head-transfer"
 );
+
+consumer!(
+    consuming_qualified_head_reads_the_current_pointee_after_a_local_transfer,
+    "fnonce-qualified-head-updates-pointee"
+);
