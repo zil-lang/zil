@@ -165,6 +165,25 @@ pub(super) fn shared_product_head(ty: &Type) -> bool {
                 || shared_product_head(field)))
 }
 
+/// Check a complete owner used only as a captured address. This grants no
+/// owning environment field; its actual root and mode remain loan obligations.
+pub(super) fn check_captured_product_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    if has_store_fields(ty)
+        || (budget.inline_store_package_addresses
+            && has_children(ty)
+            && dynamic_store::package_inline_store(ty, budget)?)
+    {
+        check_ordinary_type(module, ty, span, budget)
+    } else {
+        check_shared_product_type(module, ty, span, budget)
+    }
+}
+
 pub(super) fn check_shared_product_type(
     module: &TypedModule,
     ty: &Type,

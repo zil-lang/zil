@@ -1525,7 +1525,7 @@ pub(super) fn preflight(
                     }
                     budget.owning_address_captures = true;
                 }
-                super::resources::product::admit(inner, budget)?;
+                super::resources::product::admit_capture_head(module, inner, budget)?;
                 budget.type_work(&closure.result, true, "shared Product capture result")?;
                 if !closure.result.is_copy_value() {
                     return Err(vec![Diagnostic::unsupported(

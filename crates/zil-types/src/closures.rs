@@ -884,6 +884,24 @@ impl State {
         let mut requires_source_context = false;
         for capture in &mut checker.captures {
             requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }));
+            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
+                // The complete body decides whether the environment borrows
+                // this owner. Field writes require an exclusive window; a
+                // consuming use still requires an explicit owning transfer.
+                packages::product::validate_owned(
+                    &capture.ty,
+                    checker.work_left,
+                    self.limits.max_call_depth,
+                    capture.span,
+                )?;
+                if capture.consumed {
+                    return Err(unsupported(
+                        capture.span,
+                        "consuming Product capture requires an explicit complete move",
+                    ));
+                }
+                capture.borrowed = true;
+            }
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -952,24 +970,6 @@ impl State {
                     })?;
                     owns_leaf_store = true;
                 }
-            }
-            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
-                // Resolve the complete body's ownership uses before choosing
-                // a shared window. Reading a child path must not take it, and
-                // a later real take must not be hidden by an earlier read.
-                packages::product::validate(
-                    &capture.ty,
-                    checker.work_left,
-                    self.limits.max_call_depth,
-                    capture.span,
-                )?;
-                if capture.written || capture.consumed {
-                    return Err(unsupported(
-                        capture.span,
-                        "mutable Product capture is not implemented",
-                    ));
-                }
-                capture.borrowed = true;
             }
             // A local byte-storage Desc uses the same actual capture-source
             // and dynamic access checks as a direct synchronous operation.
@@ -3670,7 +3670,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.owner_type(probe, owner.as_ref(), expression.span)?;
                 if let LocalType::Scalar(variable) = probe
                     && let Some(ty) = self.graph.ty(variable)?
-            && matches!(stored::physical(&ty), Type::Package { .. })
+                    && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     // Assignment targets the owning slot, while a value
                     // projection of the same field produces a descriptor.
@@ -3680,7 +3680,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 if let LocalType::Address(variable, _) = probe
                     && let Some(ty) = self.graph.ty(variable)?
-            && matches!(stored::physical(&ty), Type::Package { .. })
+                    && matches!(stored::physical(&ty), Type::Package { .. })
                 {
                     self.graph.reserve_type(&ty, 0, expression.span)?;
                     let field = aggregates::field(&ty, member, expression.span)?.1;
