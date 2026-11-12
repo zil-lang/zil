@@ -31,6 +31,21 @@ instances. Existing pointer SSA values retain their earlier target and original
 parent loans after a slot replacement; changing a slot does not rewrite those
 values or grant permission to invalidate their targets.
 
+A mutable callable reference parameter denotes the actual external environment,
+not the local slot holding that reference. Its terminal leaf effects pass
+through ordinary helpers and update the caller's actual receiver. Reusing a
+borrowed receiver reads its current environment rows; a previously loaded data
+pointer retains its earlier permission. All source substitutions for one call
+use the same pre-call state before publishing any updated rows. An owning
+qualified capture can pass its real head to a holder helper under the ordinary
+mutable view and resource rules.
+
+Returning a callable after invoking it proposes sources from its actual terminal
+environment. The input's original Capture paths cannot stand in for replaced
+slots. Each kernel checks these proposals against complete converged memory and
+instantiates the exact capture Fixed classes through the helper's input relation.
+Missing or ungrounded terminal rows cannot discharge that boundary.
+
 Environment cleanup follows the owned responsibilities. A borrowed slot alone
 does not make generated Package teardown dereference that target. Where the
 actual owned cleanup can access external storage, that dependency remains live
