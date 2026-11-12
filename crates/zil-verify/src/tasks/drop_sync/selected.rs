@@ -9,6 +9,32 @@ fn unknown() -> Origins {
         ..Origins::default()
     }
 }
+
+pub(super) fn endpoint(
+    module: &TypedModule,
+    f: &TypedFunction,
+    value: ValueId,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<Origins> {
+    if f.values.get(value.0 as usize).is_none() {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            None,
+            "cleanup endpoint is outside its actual arena",
+        ));
+    }
+    value_at(
+        module,
+        f,
+        &live_blocks(f, b)?,
+        value,
+        path,
+        &mut BTreeSet::new(),
+        b,
+        0,
+    )
+}
 fn depth(work: usize, b: &mut Budget) -> Check<()> {
     if work > b.limits.max_call_depth {
         return Err(limit("selected Task frame origin depth exceeded"));

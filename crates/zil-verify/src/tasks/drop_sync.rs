@@ -1,5 +1,6 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
+mod concrete;
 mod selected;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
@@ -313,18 +314,48 @@ fn returned_value(
         Some(InstructionKind::CallClosureOnce { callee, arguments }) => {
             selected::invocation(module, f, *callee, arguments, functions, budget)?
         }
-        Some(
-            InstructionKind::TaskCreate { worker, .. }
-            | InstructionKind::TaskCreateOwned { worker, .. },
-        )
+        Some(InstructionKind::TaskCreateOwned { worker, arguments }) => {
+            let mut result = Origins {
+                workers: BTreeSet::from([*worker]),
+                ..Origins::default()
+            };
+            budget.spend(arguments.len())?;
+            for argument in arguments {
+                let ty = f.values.get(argument.0 as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK", None, "actual child frame input is absent")
+                })?;
+                if contains_kind(module, ty, budget, false)? {
+                    result.add(
+                        &returned_value(
+                            module, f, reachable, *argument, functions, values, locals, budget,
+                        )?,
+                        budget,
+                    )?;
+                }
+            }
+            result
+        }
+        Some(InstructionKind::TaskCreate { worker, .. })
         | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
             unknown: false,
             workers: BTreeSet::from([*worker]),
             parameters: BTreeSet::new(),
             selected: BTreeSet::new(),
         },
-        Some(InstructionKind::MakeErrorUnion { is_error: true, .. })
-        | Some(InstructionKind::TakeErrorUnion { is_error: true, .. }) => Origins::default(),
+        Some(InstructionKind::MakeErrorUnion {
+            is_error: true,
+            value,
+        }) if !contains_kind(
+            module,
+            f.values
+                .get(value.0 as usize)
+                .ok_or_else(|| reject("E-VERIFY-TASK", None, "error frame input is absent"))?,
+            budget,
+            false,
+        )? =>
+        {
+            Origins::default()
+        }
         Some(InstructionKind::MakeErrorUnion { value: source, .. })
         | Some(InstructionKind::TakeErrorUnion { value: source, .. })
         | Some(InstructionKind::ReadErrorUnion { value: source, .. }) => returned_value(
@@ -573,8 +604,26 @@ fn require_origin(
                     continue;
                 }
                 let origin = match &i.kind {
+                    InstructionKind::TaskCreateOwned { worker, arguments } => {
+                        let mut origin = Origins {
+                            workers: BTreeSet::from([*worker]),
+                            ..Origins::default()
+                        };
+                        budget.spend(arguments.len())?;
+                        for argument in arguments {
+                            if *relevant.get(argument.0 as usize).ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK",
+                                    Some(i.span),
+                                    "child frame operand is absent",
+                                )
+                            })? {
+                                origin.add(&values[argument.0 as usize], budget)?;
+                            }
+                        }
+                        origin
+                    }
                     InstructionKind::TaskCreate { worker, .. }
-                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
@@ -696,10 +745,17 @@ fn require_origin(
             break;
         }
     }
-    let origins = if let Some(local) = local {
+    let symbolic = if let Some(local) = local {
         &locals[local.0 as usize]
     } else {
         &values[value.expect("value endpoint").0 as usize]
+    };
+    let closed;
+    let origins = if symbolic.parameters.is_empty() && symbolic.selected.is_empty() {
+        symbolic
+    } else {
+        closed = concrete::settle(module, f.id, symbolic, budget)?;
+        &closed
     };
     budget.spend(origins.workers.len().saturating_add(1))?;
     if origins.unknown

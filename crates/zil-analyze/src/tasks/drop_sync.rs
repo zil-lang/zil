@@ -1,6 +1,7 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
 use std::collections::BTreeMap;
+mod concrete;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
     unknown: bool,
@@ -255,10 +256,17 @@ fn require_origin(
     let mut active = BTreeSet::from([f.id]);
     let mut returned = BTreeMap::new();
     let (values, locals) = infer_origins(module, f, budget, &mut active, &mut returned)?;
-    let origins = if let Some(local) = local {
+    let symbolic = if let Some(local) = local {
         &locals[local.0 as usize]
     } else {
         &values[value.expect("value endpoint").0 as usize]
+    };
+    let closed;
+    let origins = if symbolic.parameters.is_empty() && symbolic.captures.is_empty() {
+        symbolic
+    } else {
+        closed = concrete::settle(module, f.id, symbolic, budget)?;
+        &closed
     };
     budget.spend(
         origins.workers.len().saturating_add(1),
@@ -552,8 +560,20 @@ fn infer_origins(
                     continue;
                 }
                 let origin = match &i.kind {
+                    InstructionKind::TaskCreateOwned { worker, arguments } => {
+                        let mut origin = Origins {
+                            workers: BTreeSet::from([*worker]),
+                            ..Origins::default()
+                        };
+                        budget.spend(arguments.len(), "actual owned child frame inputs")?;
+                        for argument in arguments {
+                            if relevant[argument.0 as usize] {
+                                origin.add(&values[argument.0 as usize], budget)?;
+                            }
+                        }
+                        origin
+                    }
                     InstructionKind::TaskCreate { worker, .. }
-                    | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         vacant: false,

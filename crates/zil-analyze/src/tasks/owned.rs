@@ -521,6 +521,27 @@ fn cleanup(
 ) -> CompileResult<()> {
     helper_graph(module, first, budget, span, false)
 }
+fn task_driver_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+    let mut found = false;
+    // helper_graph already prepays this complete parameter inventory.
+    for parameter in &f.parameters {
+        let ty = local_type(f, *parameter, Some(f.span))?;
+        let head = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if let Type::Managed(payload) = head
+            && matches!(payload.as_ref(), Type::Task { .. })
+        {
+            super::require_closed_context(payload)?;
+            found = true;
+        } else if !scalar(ty) {
+            return Ok(false);
+        }
+    }
+    Ok(found && scalar(&f.return_type))
+}
 fn driver_call(
     module: &TypedModule,
     first: FunctionId,
@@ -583,7 +604,8 @@ fn helper_graph(
             }
             continue;
         }
-        let borrowed_driver = driving && borrowed_driver_signature(f, budget)?;
+        let task_driver = driving && task_driver_signature(f, budget)?;
+        let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -649,6 +671,12 @@ fn helper_graph(
             for i in &b.instructions {
                 budget.spend(1, "actual owning task profile")?;
                 match &i.kind {
+                    InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. }
+                        if task_driver => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
                         pending.push((*function, borrowed_driver))

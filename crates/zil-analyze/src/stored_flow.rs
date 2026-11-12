@@ -3330,12 +3330,20 @@ fn seed(
         ordered(b, state.locals.len(), 0)?;
         state.locals.insert(*local, value);
     }
+    let task_receiver = if b.task_retained_environments {
+        if let Some(d) = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+            && d.kind == CallableKind::FnMut
+        {
+            fee(b, d.captures.len())?;
+            d.captures.iter().any(|ty| matches!(ty, Type::Managed(p) if matches!(p.as_ref(), Type::Task { .. })))
+        } else { false }
+    } else { false };
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
+        && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id) || task_receiver)
     {
-        if super::stored_callables::lending(d)
+        if task_receiver || super::stored_callables::lending(d)
             || d.captures
                 .iter()
                 .any(super::stored_callables::exclusive_capture)
