@@ -29,6 +29,44 @@ fn execute(path: &Path, input: &[u8]) -> (Option<i32>, Vec<u8>, Vec<u8>) {
     let result = child.wait_with_output().unwrap();
     (result.status.code(), result.stdout, result.stderr)
 }
+
+#[test]
+fn successful_native_build_without_reuse_releases_old_backend_history() {
+    let dir = Directory::new();
+    let options = native_options(&dir);
+    let project = dir.project(&[(
+        "main",
+        "fn private(x:i32)->i32{return x+1} fn main()->i32{return private(1)-2}",
+    )]);
+    let mut session = CompilationSession::default();
+    let cold = session.compile_project(&project, &options);
+    oracle(&session, &cold, &project, &options, &[b""]);
+    let warm = session.compile_project(&project, &options);
+    successful(&warm);
+    assert!(warm.backend_work.as_ref().unwrap().reused_machine_module);
+
+    let disabled = CompileOptions {
+        producer_reuse: false,
+        push_reuse: false,
+        ..options.clone()
+    };
+    let invalid = dir.project(&[("main", "fn main()->i32{return missing}")]);
+    let failure = session.compile_project(&invalid, &disabled);
+    assert_eq!(failure.status, ResultCategory::SafeReject);
+    let after_failure = session.compile_project(&project, &options);
+    successful(&after_failure);
+    assert!(after_failure.backend_work.as_ref().unwrap().reused_machine_module);
+
+    let fresh = session.compile_project(&project, &disabled);
+    oracle(&session, &fresh, &project, &disabled, &[b""]);
+    assert!(fresh.backend_work.is_none());
+    let restarted = session.compile_project(&project, &options);
+    oracle(&session, &restarted, &project, &options, &[b""]);
+    let work = restarted.backend_work.as_ref().unwrap();
+    assert!(!work.reused_machine_module);
+    assert!(work.lowered_functions > 0);
+}
+
 fn oracle(
     session: &CompilationSession,
     report: &CompileReport,
