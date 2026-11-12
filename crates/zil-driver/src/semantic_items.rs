@@ -15,6 +15,10 @@ const MANIFEST_ROW: usize = 40;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SemanticPublicationStats {
+    /// Actual current raw function bindings inspected after subtree differencing.
+    pub function_bindings_checked: usize,
+    /// Complete raw plan comparisons for changed immutable plan owners.
+    pub function_plan_bindings_compared: usize,
     pub serialized_functions: usize,
     pub reused_functions: usize,
     pub serialized_function_plans: usize,
@@ -42,15 +46,33 @@ pub struct SemanticPublicationStats {
 #[derive(Clone, Default)]
 pub(crate) struct SemanticPublicationSession {
     previous: Option<Arc<TypedProgram>>,
-    slots: Vec<Arc<OnceLock<RawFunctionEncoding>>>,
-    canonical: Vec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
+    publication_guard: Arc<std::sync::Mutex<()>>,
+    slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
+    canonical: zil_ir::PersistentVec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
     products: BTreeMap<FunctionId, zil_types::FunctionProduct>,
-    bindings: Vec<FunctionBinding>,
-    plan_slots: Vec<Option<Arc<RawFunctionPlanEncoding>>>,
+    bindings: zil_ir::PersistentVec<FunctionBinding>,
+    plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+    plan_inputs: zil_ir::PersistentVec<zil_ir::FunctionPlan>,
+    canonical_count: usize,
+    function_bindings_checked: usize,
+    function_plan_bindings_compared: usize,
     plan_stats: FunctionPlanEncodingStats,
     semantic_packs: packed::Epoch,
     function_packs: packed::Epoch,
 }
+struct PreparedPublication {
+    previous: Arc<TypedProgram>,
+    slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
+    canonical: zil_ir::PersistentVec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
+    bindings: zil_ir::PersistentVec<FunctionBinding>,
+    plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+    plan_inputs: zil_ir::PersistentVec<zil_ir::FunctionPlan>,
+    plan_stats: FunctionPlanEncodingStats,
+    canonical_count: usize,
+    function_bindings_checked: usize,
+    function_plan_bindings_compared: usize,
+}
+
 #[derive(Clone, Debug)]
 struct FunctionBinding {
     function: FunctionId,
@@ -69,13 +91,8 @@ impl SemanticPublicationSession {
             .is_some_and(|previous| Arc::ptr_eq(previous, typed))
             && self.slots.len() == count
             && self.canonical.len() == count
-            && self.bindings.len() == count
-            && self
-                .bindings
-                .iter()
-                .zip(&typed.module.functions)
-                .all(|(binding, function)| binding.function == function.id))
-        .then(|| self.clone())
+            && self.bindings.len() == count)
+            .then(|| self.clone())
     }
     pub(crate) fn function_packs(&mut self) -> &mut packed::Epoch {
         &mut self.function_packs
@@ -88,22 +105,84 @@ impl SemanticPublicationSession {
             .map(|product| (product.id, product.clone()))
             .collect();
     }
+    #[cfg(test)]
     fn encode(
         &mut self,
         typed: &Arc<TypedProgram>,
         candidate: &CandidatePlan,
         limits: &Limits,
     ) -> Option<(Vec<WireSegment>, FunctionEncodingStats)> {
+        let (segments, stats, prepared) = self.prepare(typed, candidate, limits)?;
+        self.install(prepared);
+        Some((segments, stats))
+    }
+    fn install(&mut self, prepared: PreparedPublication) {
+        self.previous = Some(prepared.previous);
+        self.slots = prepared.slots;
+        self.canonical = prepared.canonical;
+        self.bindings = prepared.bindings;
+        self.plan_slots = prepared.plan_slots;
+        self.plan_inputs = prepared.plan_inputs;
+        self.plan_stats = prepared.plan_stats;
+        self.canonical_count = prepared.canonical_count;
+        self.function_bindings_checked = prepared.function_bindings_checked;
+        self.function_plan_bindings_compared = prepared.function_plan_bindings_compared;
+    }
+    fn prepare(
+        &self,
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        limits: &Limits,
+    ) -> Option<(Vec<WireSegment>, FunctionEncodingStats, PreparedPublication)> {
+        // Checkpoints may share raw OnceLock slots. Serialize aggregate cache
+        // admission across them; their raw hints never authorize Verify.
+        let _publication = self.publication_guard.lock().ok()?;
         metadata_budget(typed, limits)?;
-        let mut canonical = Vec::with_capacity(typed.module.functions.len());
-        let mut bodies = Vec::with_capacity(typed.module.functions.len());
-        let mut slots = Vec::with_capacity(typed.module.functions.len());
-        let mut bindings = Vec::with_capacity(typed.module.functions.len());
-        for (index, function) in typed.module.functions.iter().enumerate() {
-            let product = self.products.get(&function.id);
-            let identity = product.and_then(|product| product.canonical_identity(function));
+        // Admission precedes allocation of the publication tables. The raw
+        // Writer still performs its original ordered checks on the full stream.
+        let count = typed.module.functions.len();
+        let plan_count = candidate.functions.len();
+        if count > limits.max_functions.min(limits.max_nodes)
+            || plan_count > limits.max_functions.min(limits.max_nodes)
+        {
+            return None;
+        }
+        let mut canonical = publication_prefix(&self.canonical, count);
+        let mut slots = publication_prefix(&self.slots, count);
+        let mut bindings = publication_prefix(&self.bindings, count);
+        let dirty = self.previous.as_ref().map_or_else(
+            || (0..count).collect(),
+            |previous| {
+                typed
+                    .module
+                    .functions
+                    .changed_indices(&previous.module.functions)
+            },
+        );
+        let mut canonical_count = self.canonical_count;
+        for removed in self.canonical.iter().skip(count) {
+            canonical_count -= usize::from(removed.is_some());
+        }
+        let mut function_bindings_checked = 0;
+        for index in dirty.into_iter().filter(|index| *index < count) {
+            function_bindings_checked += 1;
+            let function = &typed.module.functions[index];
             let prior = self.canonical.get(index).and_then(Option::as_ref);
-            if let Some(identity) = identity {
+            let equal_raw = self
+                .previous
+                .as_ref()
+                .and_then(|p| p.module.functions.get(index))
+                .is_some_and(|old| old == function);
+            // A previously sealed canonical association remains valid for the
+            // exact same raw value. A later public product cannot revoke or
+            // retarget it; changed raw values must consult the private handle.
+            let product = self.products.get(&function.id);
+            let identity = if equal_raw && prior.is_some() {
+                prior.map(|(identity, _)| *identity)
+            } else {
+                product.and_then(|product| product.canonical_identity(function))
+            };
+            let (body, slot) = if let Some(identity) = identity {
                 let reused = prior.filter(|(old, _)| *old == identity);
                 let body = match reused {
                     Some((_, body)) => body.clone(),
@@ -113,65 +192,73 @@ impl SemanticPublicationSession {
                     .and_then(|_| self.slots.get(index))
                     .cloned()
                     .unwrap_or_else(|| Arc::new(OnceLock::new()));
-                canonical.push(Some((identity, body.clone())));
-                bodies.push(Some(body));
-                slots.push(slot);
-                bindings.push(FunctionBinding {
-                    function: function.id,
-                    canonical: true,
-                    span: function.span,
-                });
+                (Some((identity, body)), slot)
             } else {
-                // Richer or unproven raw functions keep exact current spans.
-                // They never gain canonical reuse from a public fingerprint.
-                let reusable = prior.is_none()
-                    && self
-                        .previous
-                        .as_ref()
-                        .and_then(|p| p.module.functions.get(index))
-                        .is_some_and(|old| old == function);
-                slots.push(
-                    reusable
-                        .then(|| self.slots.get(index))
-                        .flatten()
-                        .cloned()
-                        .unwrap_or_else(|| Arc::new(OnceLock::new())),
-                );
-                canonical.push(None);
-                bodies.push(None);
-                bindings.push(FunctionBinding {
-                    function: function.id,
-                    canonical: false,
-                    span: function.span,
-                });
+                // Unproven functions retain complete current raw spans. Only
+                // exact raw equality may retain their already-bound cache slot.
+                let slot = (prior.is_none() && equal_raw)
+                    .then(|| self.slots.get(index))
+                    .flatten()
+                    .cloned()
+                    .unwrap_or_else(|| Arc::new(OnceLock::new()));
+                (None, slot)
+            };
+            canonical_count -= usize::from(prior.is_some());
+            canonical_count += usize::from(body.is_some());
+            let binding = FunctionBinding {
+                function: function.id,
+                canonical: body.is_some(),
+                span: function.span,
+            };
+            publication_set(&mut canonical, index, body);
+            publication_set(&mut slots, index, slot);
+            publication_set(&mut bindings, index, binding);
+        }
+        let mut plan_slots = publication_prefix(&self.plan_slots, plan_count);
+        while plan_slots.len() < plan_count {
+            plan_slots.push(None);
+        }
+        let mut function_plan_bindings_compared = 0;
+        for index in candidate
+            .functions
+            .changed_indices(&self.plan_inputs)
+            .into_iter()
+            .filter(|index| *index < plan_count)
+        {
+            if let Some(raw) = plan_slots[index].as_ref() {
+                function_plan_bindings_compared += 1;
+                let rebound = raw.bind_owner(candidate.functions.owner(index)?);
+                // Result equality keeps the bytes but binds the new exact raw
+                // owner. An unequal row cannot retain its old fragment.
+                plan_slots.replace(index, rebound);
             }
         }
-        let functions: Vec<_> = bodies
-            .iter()
-            .zip(&slots)
-            .enumerate()
-            .map(|(index, (body, slot))| {
-                (
-                    body.as_deref().unwrap_or(&typed.module.functions[index]),
-                    slot.as_ref(),
-                )
-            })
-            .collect();
         let mut stats = FunctionEncodingStats::default();
-        let mut plan_slots: Vec<_> = (0..candidate.functions.len())
-            .map(|index| self.plan_slots.get(index).cloned().flatten())
-            .collect();
         let mut plan_stats = FunctionPlanEncodingStats::default();
-        let wire = zil_ir::wire::encode_module_candidate_plan_segments(
+        let wire = zil_ir::wire::encode_module_candidate_persistent_segments(
             &typed.module,
             candidate,
-            &functions,
+            || {
+                typed
+                    .module
+                    .functions
+                    .iter()
+                    .zip(&canonical)
+                    .zip(&slots)
+                    .map(|((raw, canonical), slot)| {
+                        (
+                            canonical.as_ref().map_or(raw, |(_, body)| body.as_ref()),
+                            slot.as_ref(),
+                        )
+                    })
+            },
             &mut plan_slots,
             limits,
             &mut stats,
             &mut plan_stats,
         )
         .ok()?;
+        function_plan_bindings_compared += plan_stats.compared_function_plans;
         let wire_length = wire.iter().try_fold(0usize, |length, segment| {
             length.checked_add(segment.bytes.len())
         })?;
@@ -193,13 +280,43 @@ impl SemanticPublicationSession {
             fingerprint: Fingerprint::of(&tail),
             bytes: tail.into(),
         });
-        self.previous = Some(typed.clone());
-        self.slots = slots;
-        self.canonical = canonical;
-        self.bindings = bindings;
-        self.plan_slots = plan_slots;
-        self.plan_stats = plan_stats;
-        Some((segments, stats))
+        Some((
+            segments,
+            stats,
+            PreparedPublication {
+                previous: typed.clone(),
+                slots,
+                canonical,
+                bindings,
+                plan_slots,
+                plan_inputs: candidate.functions.clone(),
+                plan_stats,
+                canonical_count,
+                function_bindings_checked,
+                function_plan_bindings_compared,
+            },
+        ))
+    }
+}
+
+/// Count changes are structural edits. A shortened dense sequence rebuilds its
+/// surviving prefix; same-size/append updates share the prior root and leaves.
+fn publication_prefix<T: Clone>(
+    previous: &zil_ir::PersistentVec<T>,
+    count: usize,
+) -> zil_ir::PersistentVec<T> {
+    if count < previous.len() {
+        previous.iter().take(count).cloned().collect()
+    } else {
+        previous.clone()
+    }
+}
+fn publication_set<T>(items: &mut zil_ir::PersistentVec<T>, index: usize, value: T) {
+    if index < items.len() {
+        items.replace(index, value);
+    } else {
+        debug_assert_eq!(index, items.len());
+        items.push(value);
     }
 }
 
@@ -207,11 +324,12 @@ pub(super) fn maximum_segments(limits: &Limits) -> Option<usize> {
     limits.max_functions.checked_mul(2)?.checked_add(6)
 }
 
-fn manifest(
-    segments: &[WireSegment],
-    bindings: &[FunctionBinding],
-    limits: &Limits,
-) -> Option<Vec<u8>> {
+fn manifest<'a, I>(segments: &[WireSegment], bindings: I, limits: &Limits) -> Option<Vec<u8>>
+where
+    I: IntoIterator<Item = &'a FunctionBinding>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let bindings = bindings.into_iter();
     let maximum_segments = maximum_segments(limits)?;
     if segments.is_empty() || segments.len() > maximum_segments {
         return None;
@@ -473,8 +591,9 @@ impl Store {
             .ok()?;
         let mut guard_ns = publication_elapsed(batch);
         let encode = publication_start(options.profile_compilation);
-        let (segments, encoding) = publication.encode(typed, candidate, &options.limits)?;
-        let manifest = manifest(&segments, &publication.bindings, &options.limits)?;
+        let (segments, encoding, prepared) =
+            publication.prepare(typed, candidate, &options.limits)?;
+        let manifest = manifest(&segments, &prepared.bindings, &options.limits)?;
         let encode_ns = publication_elapsed(encode);
         let pin = publication_start(options.profile_compilation);
         if options.cancellation.is_cancelled()
@@ -506,23 +625,20 @@ impl Store {
             },
             &mut publication.semantic_packs,
         )?;
+        // The bounded transport publishes its manifest last and only then
+        // advances its pack epoch. Install the matching raw binding epoch now.
+        publication.install(prepared);
         let stats = SemanticPublicationStats {
+            function_bindings_checked: publication.function_bindings_checked,
+            function_plan_bindings_compared: publication.function_plan_bindings_compared,
             serialized_functions: encoding.serialized_functions,
             reused_functions: encoding.reused_functions,
             serialized_function_plans: publication.plan_stats.serialized_function_plans,
             reused_function_plans: publication.plan_stats.reused_function_plans,
             serialized_function_plan_bytes: publication.plan_stats.serialized_function_plan_bytes,
             reused_function_plan_bytes: publication.plan_stats.reused_function_plan_bytes,
-            canonical_functions: publication
-                .bindings
-                .iter()
-                .filter(|binding| binding.canonical)
-                .count(),
-            bound_functions: publication
-                .bindings
-                .iter()
-                .filter(|binding| !binding.canonical)
-                .count(),
+            canonical_functions: publication.canonical_count,
+            bound_functions: publication.bindings.len() - publication.canonical_count,
             written_segments: stats.written_items,
             existing_segments: stats.existing_items,
             written_bytes: stats.written_bytes,
@@ -595,7 +711,7 @@ mod tests {
         );
         segments.push(current.last().unwrap().clone());
         assert_eq!(flatten(&segments), flatten(&current));
-        (segments, publication.bindings)
+        (segments, publication.bindings.iter().cloned().collect())
     }
     #[test]
     fn segmented_semantics_preserves_legacy_bytes_and_shares_unchanged_functions() {
@@ -637,6 +753,158 @@ mod tests {
             .filter(|item| warm.iter().any(|old| Arc::ptr_eq(&item.bytes, &old.bytes)))
             .count();
         assert_eq!(shared, 3);
+        fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
+    fn persistent_publication_consumes_only_changed_function_and_plan_owners() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let (typed, candidate) = fixture(&path, SOURCE);
+        let limits = Limits::default();
+        let mut publication = SemanticPublicationSession::default();
+        publication.encode(&typed, &candidate, &limits).unwrap();
+        assert_eq!(publication.function_bindings_checked, 2);
+        let cold = publication.checkpoint_for(&typed).unwrap();
+        publication.encode(&typed, &candidate, &limits).unwrap();
+        assert_eq!(publication.function_bindings_checked, 0);
+        assert_eq!(publication.function_plan_bindings_compared, 0);
+        assert!(publication.slots.ptr_eq(&cold.slots));
+        assert!(publication.bindings.ptr_eq(&cold.bindings));
+        assert!(publication.canonical.ptr_eq(&cold.canonical));
+        assert!(publication.plan_slots.ptr_eq(&cold.plan_slots));
+
+        let (fresh, fresh_candidate) = fixture(&path, &SOURCE.replace("x+1", "x+2"));
+        assert_eq!(candidate.functions, fresh_candidate.functions);
+        let mut private = (*typed).clone();
+        private.module.source_fingerprint = fresh.module.source_fingerprint;
+        private
+            .module
+            .functions
+            .replace(0, fresh.module.functions[0].clone());
+        let private = Arc::new(private);
+        let mut plan = candidate.clone();
+        plan.module_fingerprint = private.module.fingerprint();
+        let (segments, stats) = publication.encode(&private, &plan, &limits).unwrap();
+        assert_eq!(publication.function_bindings_checked, 1);
+        assert_eq!(publication.function_plan_bindings_compared, 0);
+        assert_eq!((stats.serialized_functions, stats.reused_functions), (1, 1));
+        assert_eq!(
+            flatten(&segments),
+            encode(&private, &plan, &limits).unwrap()
+        );
+        assert!(Arc::ptr_eq(
+            cold.slots.get(1).unwrap(),
+            publication.slots.get(1).unwrap()
+        ));
+        assert!(Arc::ptr_eq(
+            cold.bindings.owner(1).unwrap(),
+            publication.bindings.owner(1).unwrap()
+        ));
+        assert!(publication.plan_slots.ptr_eq(&cold.plan_slots));
+
+        // Reexecution may return a different owner with the exact same raw row.
+        // Compare just that row once, then retain the rebound owner and bytes.
+        let old_bytes = publication.plan_slots[1].as_ref().unwrap().shared_bytes();
+        let row = plan.functions[1].clone();
+        plan.functions.replace(1, row);
+        publication.encode(&private, &plan, &limits).unwrap();
+        assert_eq!(publication.function_bindings_checked, 0);
+        assert_eq!(publication.function_plan_bindings_compared, 1);
+        assert_eq!(publication.plan_stats.serialized_function_plans, 0);
+        assert!(Arc::ptr_eq(
+            &old_bytes,
+            &publication.plan_slots[1].as_ref().unwrap().shared_bytes()
+        ));
+        let equal = publication.plan_slots.clone();
+        publication.encode(&private, &plan, &limits).unwrap();
+        assert_eq!(publication.function_plan_bindings_compared, 0);
+        assert!(publication.plan_slots.ptr_eq(&equal));
+
+        let checkpoint = publication.checkpoint_for(&private).unwrap();
+        let short = Limits {
+            max_source_bytes: flatten(&segments).len() - 1,
+            ..limits.clone()
+        };
+        assert!(publication.encode(&private, &plan, &short).is_none());
+        assert!(publication.slots.ptr_eq(&checkpoint.slots));
+        assert!(publication.plan_slots.ptr_eq(&checkpoint.plan_slots));
+        assert!(publication.bindings.ptr_eq(&checkpoint.bindings));
+        let changed_limits = Limits {
+            max_tokens: limits.max_tokens - 1,
+            ..limits.clone()
+        };
+        let (bytes, stats) = publication
+            .encode(&private, &plan, &changed_limits)
+            .unwrap();
+        assert_eq!(stats.serialized_functions, 2);
+        assert_eq!(publication.plan_stats.serialized_function_plans, 2);
+        assert_eq!(
+            flatten(&bytes),
+            encode(&private, &plan, &changed_limits).unwrap()
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_manifest_does_not_advance_persistent_publication_epoch() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let options = CompileOptions {
+            producer_reuse: true,
+            ..Default::default()
+        };
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path.display().to_string(), SOURCE);
+        let artifacts = artifacts::ArtifactPlan::new(&source, &options).unwrap();
+        let (typed, candidate) = fixture(&path, SOURCE);
+        let store = Store {
+            root: directory.join("semantic-v6"),
+            key: Fingerprint::of(b"old"),
+            maximum: options.limits.max_source_bytes,
+            segmented: true,
+        };
+        let mut publication = SemanticPublicationSession::default();
+        store
+            .save(&typed, &candidate, &options, &artifacts, &mut publication)
+            .unwrap();
+        let checkpoint = publication.checkpoint_for(&typed).unwrap();
+        let (fresh, _) = fixture(&path, &SOURCE.replace("x+1", "x+2"));
+        let mut private = (*typed).clone();
+        private.module.source_fingerprint = fresh.module.source_fingerprint;
+        private
+            .module
+            .functions
+            .replace(0, fresh.module.functions[0].clone());
+        let private = Arc::new(private);
+        let mut plan = candidate.clone();
+        plan.module_fingerprint = private.module.fingerprint();
+        let next = Store {
+            root: store.root.clone(),
+            key: Fingerprint::of(b"next"),
+            maximum: store.maximum,
+            segmented: true,
+        };
+        // All encoding can succeed and packs can be written, but the final
+        // atomic manifest rename must fail against this directory.
+        fs::create_dir(next.path()).unwrap();
+        assert!(
+            next.save(&private, &plan, &options, &artifacts, &mut publication)
+                .is_none()
+        );
+        assert!(publication.checkpoint_for(&typed).is_some());
+        assert!(publication.checkpoint_for(&private).is_none());
+        assert!(publication.slots.ptr_eq(&checkpoint.slots));
+        assert!(publication.bindings.ptr_eq(&checkpoint.bindings));
+        assert!(publication.plan_slots.ptr_eq(&checkpoint.plan_slots));
+        assert_eq!(store.load(&options).unwrap(), ((*typed).clone(), candidate));
+        fs::remove_dir(next.path()).unwrap();
+        let saved = next
+            .save(&private, &plan, &options, &artifacts, &mut publication)
+            .unwrap();
+        assert_eq!(saved.function_bindings_checked, 1);
+        assert_eq!(saved.function_plan_bindings_compared, 0);
+        assert_eq!(saved.manifest_writes, 1);
+        assert!(publication.checkpoint_for(&private).is_some());
+        assert_eq!(next.load(&options).unwrap(), ((*private).clone(), plan));
         fs::remove_dir_all(directory).unwrap();
     }
     #[test]
@@ -1025,8 +1293,8 @@ mod tests {
         );
         for (old, current) in old_plans.iter().zip(&publication.plan_slots) {
             assert!(Arc::ptr_eq(
-                old.as_ref().unwrap(),
-                current.as_ref().unwrap()
+                &old.as_ref().unwrap().shared_bytes(),
+                &current.as_ref().unwrap().shared_bytes()
             ));
         }
         let (segments, _) = publication
@@ -1058,8 +1326,8 @@ mod tests {
         assert!(publication.encode(&typed, &candidate, &short).is_none());
         for (old, current) in checkpoint.plan_slots.iter().zip(&publication.plan_slots) {
             assert!(Arc::ptr_eq(
-                old.as_ref().unwrap(),
-                current.as_ref().unwrap()
+                &old.as_ref().unwrap().shared_bytes(),
+                &current.as_ref().unwrap().shared_bytes()
             ));
         }
         assert!(
