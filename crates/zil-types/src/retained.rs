@@ -187,9 +187,12 @@ pub(super) fn self_contained(
     environment_shape(closures, root, work, span, false, false).map(|_| ())
 }
 pub(super) fn closed_or_constant(
-    closures: &[closures::Pending],root: ClosureId,work: &mut usize,span: Span,
+    closures: &[closures::Pending],
+    root: ClosureId,
+    work: &mut usize,
+    span: Span,
 ) -> R<bool> {
-    environment_shape(closures,root,work,span,false,true)
+    environment_shape(closures, root, work, span, false, true)
 }
 
 /// Source-side formation only. Escaping leaves still require actual CFG source
@@ -238,10 +241,16 @@ fn environment_shape(
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. } => {}
-                Type::Address { mutable:false,inner }
-                    if constant_candidates && capture.moved && !capture.borrowed
-                        && (**inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) => {
-                    deferred=true;
+                Type::Address {
+                    mutable: false,
+                    inner,
+                } if constant_candidates
+                    && capture.moved
+                    && !capture.borrowed
+                    && (**inner == Type::U8
+                        || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) =>
+                {
+                    deferred = true;
                 }
                 Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
                     if borrowed_leaves => {}

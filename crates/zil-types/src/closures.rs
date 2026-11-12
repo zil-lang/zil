@@ -527,7 +527,7 @@ impl State {
     }
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         if retained::closed_or_constant(&self.pending, id, &mut self.work_left, span)? {
-            self.record_static_closed(id,span)?;
+            self.record_static_closed(id, span)?;
         }
         Ok(())
     }

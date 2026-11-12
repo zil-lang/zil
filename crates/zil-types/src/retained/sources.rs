@@ -1030,17 +1030,25 @@ fn solve(
                 match &instruction.kind {
                     InstructionKind::MakeClosure { closure, captures } => {
                         for (capture, value) in captures.iter().enumerate() {
-                            summary.constructed.push((*closure, capture as u32,
-                                copy(&values[value.0 as usize],left,instruction.span)?,true));
+                            summary.constructed.push((
+                                *closure,
+                                capture as u32,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                true,
+                            ));
                         }
                     }
-                    InstructionKind::WriteCapture {index,value} => {
-                        if let Some(closure)=f.environment {
-                            summary.constructed.push((closure,*index,
-                                copy(&values[value.0 as usize],left,instruction.span)?,false));
+                    InstructionKind::WriteCapture { index, value } => {
+                        if let Some(closure) = f.environment {
+                            summary.constructed.push((
+                                closure,
+                                *index,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                false,
+                            ));
                         }
                     }
-                    _=>{}
+                    _ => {}
                 }
             }
         }
@@ -1291,14 +1299,15 @@ fn populate_static_capture_contracts(
         let definition = &module.closures[returned.closure.0 as usize];
         let static_result = matches!(&definition.result,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8));
         if definition.storage_life.is_some()
-            || !(static_result || local_scopes::closed(
-                &definition.result,
-                module,
-                left,
-                factory.span,
-                0,
-                limits.max_call_depth,
-            )?)
+            || !(static_result
+                || local_scopes::closed(
+                    &definition.result,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )?)
         {
             continue;
         }
@@ -1382,14 +1391,25 @@ fn populate_static_capture_contracts(
             contract.static_bindings.push(position);
         }
         if complete && static_result {
-            let origins = summaries[definition.function.0 as usize].returned.get(&Vec::new());
+            let origins = summaries[definition.function.0 as usize]
+                .returned
+                .get(&Vec::new());
             complete = origins.is_some_and(|origin| {
-                !origin.local && !origin.unknown && !origin.receiver && origin.places.is_empty()
+                !origin.local
+                    && !origin.unknown
+                    && !origin.receiver
+                    && origin.places.is_empty()
                     && (origin.static_utf8 || !origin.inputs.is_empty())
-                    && origin.inputs.iter().all(|source| contract.static_bindings.contains(source))
+                    && origin
+                        .inputs
+                        .iter()
+                        .all(|source| contract.static_bindings.contains(source))
             });
             if complete {
-                contract.static_bindings.push(StoragePosition{base:StorageBase::Result,path:Vec::new()});
+                contract.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                });
             }
         }
         if complete {
@@ -1401,13 +1421,30 @@ fn populate_static_capture_contracts(
         let entry = module.closures[id.0 as usize].function;
         module.closures[id.0 as usize].storage_life = Some(contract.clone());
         module.functions[entry.0 as usize].storage_life = Some(contract.clone());
-        if contract.static_bindings.iter().any(|position|position.base==StorageBase::Result) {
-            let result=&module.closures[id.0 as usize].result;
-            inference::charge_type_snapshot(result,module.functions[entry.0 as usize].span,limits,left,1)?;
-            module.functions[entry.0 as usize].retained_return_sources=Some(vec![StorageSourceBinding{
-                position:StoragePosition{base:StorageBase::Result,path:Vec::new()},
-                sources:vec![StorageSource::Static{leaf:result.clone(),mode:StoredBorrowMode::SharedAddress}],
-            }]);
+        if contract
+            .static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result)
+        {
+            let result = &module.closures[id.0 as usize].result;
+            inference::charge_type_snapshot(
+                result,
+                module.functions[entry.0 as usize].span,
+                limits,
+                left,
+                1,
+            )?;
+            module.functions[entry.0 as usize].retained_return_sources =
+                Some(vec![StorageSourceBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                    },
+                    sources: vec![StorageSource::Static {
+                        leaf: result.clone(),
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                }]);
         }
         for function in &mut module.functions {
             if let Some(callable) = &mut function.callable_contract {
@@ -2111,126 +2148,260 @@ fn static_child_node<'a>(
     span: Span,
     limit: usize,
 ) -> R<Option<StaticNode>> {
-    let mut depth=0usize;
+    let mut depth = 0usize;
     loop {
-        spend(left,1,span)?;
-        if depth>limit {return Err(unsupported(span,"constant child directory exceeds finite depth"));}
-        depth+=1;
-        if let Type::BorrowedStorage{storage,..}=ty {ty=storage;continue;}
-        if let Type::Address{inner,..}=ty {
-            if matches!(inner.as_ref(),Type::Closure(_)) {ty=inner;continue;}
+        spend(left, 1, span)?;
+        if depth > limit {
+            return Err(unsupported(
+                span,
+                "constant child directory exceeds finite depth",
+            ));
         }
-        let Some((first,tail))=path.split_first() else{return Ok(None)};
-        ty=match (ty,first) {
-            (Type::Closure(id),ContractProjection::Capture(index))=>{
-                let d=module.closures.get(id.0 as usize).ok_or_else(||unsupported(span,"constant child identity is absent"))?;
-                let position=StoragePosition{base:StorageBase::Capture(*index),path:tail.to_vec()};
-                spend(left,tail.len().saturating_add(d.storage_life.as_ref().map_or(0,|c|c.static_bindings.len())),span)?;
-                if d.storage_life.as_ref().is_some_and(|c|c.static_bindings.contains(&position)) {
-                    return Ok(Some((*id,position)));
+        depth += 1;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+            continue;
+        }
+        if let Type::Address { inner, .. } = ty {
+            if matches!(inner.as_ref(), Type::Closure(_)) {
+                ty = inner;
+                continue;
+            }
+        }
+        let Some((first, tail)) = path.split_first() else {
+            return Ok(None);
+        };
+        ty = match (ty, first) {
+            (Type::Closure(id), ContractProjection::Capture(index)) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| unsupported(span, "constant child identity is absent"))?;
+                spend(
+                    left,
+                    tail.len().saturating_add(
+                        d.storage_life
+                            .as_ref()
+                            .map_or(0, |c| c.static_bindings.len()),
+                    ),
+                    span,
+                )?;
+                let position = StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: tail.to_vec(),
+                };
+                if d.storage_life
+                    .as_ref()
+                    .is_some_and(|c| c.static_bindings.contains(&position))
+                {
+                    return Ok(Some((*id, position)));
                 }
-                let Some(ty)=d.captures.get(*index as usize) else{return Ok(None)};
+                let Some(ty) = d.captures.get(*index as usize) else {
+                    return Ok(None);
+                };
                 ty
             }
-            (Type::Record{fields,..}|Type::Package{fields,..},ContractProjection::Place(PlaceProjection::Field(index)))=>{
-                let Some((_,ty))=fields.get(*index as usize) else{return Ok(None)};ty
+            (
+                Type::Record { fields, .. } | Type::Package { fields, .. },
+                ContractProjection::Place(PlaceProjection::Field(index)),
+            ) => {
+                let Some((_, ty)) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
             }
-            (Type::Tuple(fields),ContractProjection::Place(PlaceProjection::Field(index)))=>{
-                let Some(ty)=fields.get(*index as usize) else{return Ok(None)};ty
+            (Type::Tuple(fields), ContractProjection::Place(PlaceProjection::Field(index))) => {
+                let Some(ty) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
             }
-            _=>return Ok(None),
+            _ => return Ok(None),
         };
-        path=tail;
+        path = tail;
     }
 }
 
 pub(super) fn prove_static_constructors(
-    module:&TypedModule,
-    left:&mut usize,
-    limits:&Limits,
-)->R<BTreeSet<StaticNode>> {
-    spend(left,module.functions.len(),Span::default())?;
-    let mut summaries=(0..module.functions.len()).map(|_|Summary::default()).collect::<Vec<_>>();
+    module: &TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<BTreeSet<StaticNode>> {
+    spend(left, module.functions.len(), Span::default())?;
+    let mut summaries = (0..module.functions.len())
+        .map(|_| Summary::default())
+        .collect::<Vec<_>>();
     loop {
-        let mut changed=false;
+        let mut changed = false;
         for f in &module.functions {
-            if f.foreign.is_some(){continue;}
-            let actual=solve(module,f,&summaries,left,limits.max_call_depth,true)?;
-            let summary=&mut summaries[f.id.0 as usize];
-            changed|=join(&mut summary.returned,&actual.returned,left,f.span)?;
-            changed|=join(&mut summary.captures,&actual.captures,left,f.span)?;
-            for (parameter,row) in actual.external {
-                changed|=join(summary.external.entry(parameter).or_default(),&row,left,f.span)?;
+            if f.foreign.is_some() {
+                continue;
             }
-            summary.constructed=actual.constructed;
+            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true)?;
+            let summary = &mut summaries[f.id.0 as usize];
+            changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+            changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+            for (parameter, row) in actual.external {
+                changed |= join(
+                    summary.external.entry(parameter).or_default(),
+                    &row,
+                    left,
+                    f.span,
+                )?;
+            }
+            summary.constructed = actual.constructed;
         }
-        if !changed {break;}
+        if !changed {
+            break;
+        }
     }
-    let mut edges:BTreeMap<StaticNode,BTreeSet<StaticNode>>=BTreeMap::new();
-    let mut grounded=BTreeSet::new();
-    let mut constructors=BTreeSet::new();
+    let mut edges: BTreeMap<StaticNode, BTreeSet<StaticNode>> = BTreeMap::new();
+    let mut grounded = BTreeSet::new();
+    let mut constructors = BTreeSet::new();
     for d in &module.closures {
-        let Some(life)=&d.storage_life else{continue};
-        let span=module.functions[d.function.0 as usize].span;
+        let Some(life) = &d.storage_life else {
+            continue;
+        };
+        let span = module.functions[d.function.0 as usize].span;
         for position in &life.static_bindings {
-            let StorageBase::Capture(index)=position.base else{continue};
-            let ty=d.captures.get(index as usize).ok_or_else(||unsupported(span,"constant field is absent"))?;
-            static_leaf(module,ty,&position.path,left,span)?;
-            spend(left,position.path.len().saturating_add(1),span)?;
-            edges.insert((d.id,position.clone()),BTreeSet::new());
+            let StorageBase::Capture(index) = position.base else {
+                continue;
+            };
+            let ty = d
+                .captures
+                .get(index as usize)
+                .ok_or_else(|| unsupported(span, "constant field is absent"))?;
+            static_leaf(module, ty, &position.path, left, span)?;
+            spend(left, position.path.len().saturating_add(1), span)?;
+            edges.insert((d.id, position.clone()), BTreeSet::new());
         }
     }
     for f in &module.functions {
-        for (id,index,row,constructor) in &summaries[f.id.0 as usize].constructed {
-            let d=&module.closures[id.0 as usize];
-            let Some(life)=&d.storage_life else{continue};
+        for (id, index, row, constructor) in &summaries[f.id.0 as usize].constructed {
+            let d = &module.closures[id.0 as usize];
+            let Some(life) = &d.storage_life else {
+                continue;
+            };
             for position in &life.static_bindings {
-                if position.base!=StorageBase::Capture(*index){continue;}
-                cost(row,left,f.span)?;
-                let node=(*id,position.clone());
-                let origins=row.get(&position.path).ok_or_else(||unsupported(f.span,"constant constructor omits its complete field source"))?;
-                if origins.local || origins.unknown || origins.receiver || !origins.places.is_empty()
-                    || !origins.static_utf8 && origins.inputs.is_empty() {
-                    return Err(error("E-CLOSED-ENVIRONMENT",f.span,"constant constructor or write retains local, receiver or unknown storage"));
+                if position.base != StorageBase::Capture(*index) {
+                    continue;
                 }
-                if *constructor {constructors.insert(node.clone());}
-                if origins.static_utf8 {grounded.insert(node.clone());}
+                cost(row, left, f.span)?;
+                let node = (*id, position.clone());
+                let origins = row.get(&position.path).ok_or_else(|| {
+                    unsupported(
+                        f.span,
+                        "constant constructor omits its complete field source",
+                    )
+                })?;
+                if origins.local
+                    || origins.unknown
+                    || origins.receiver
+                    || !origins.places.is_empty()
+                    || !origins.static_utf8 && origins.inputs.is_empty()
+                {
+                    return Err(error(
+                        "E-CLOSED-ENVIRONMENT",
+                        f.span,
+                        "constant constructor or write retains local, receiver or unknown storage",
+                    ));
+                }
+                if *constructor {
+                    constructors.insert(node.clone());
+                }
+                if origins.static_utf8 {
+                    grounded.insert(node.clone());
+                }
                 for source in &origins.inputs {
-                    spend(left,source.path.len().saturating_add(1),f.span)?;
-                    let dependency=match source.base {
-                        StorageBase::Capture(capture)=>{
-                            let owner=f.environment.ok_or_else(||unsupported(f.span,"capture source has no actual environment"))?;
-                            let at=(owner,source.clone());
-                            if edges.contains_key(&at){Some(at)}else{
-                                let ty=module.closures[owner.0 as usize].captures.get(capture as usize)
-                                    .ok_or_else(||unsupported(f.span,"constant capture dependency field absent"))?;
-                                static_child_node(module,ty,&source.path,left,f.span,limits.max_call_depth)?
+                    spend(left, source.path.len().saturating_add(1), f.span)?;
+                    let dependency = match source.base {
+                        StorageBase::Capture(capture) => {
+                            let owner = f.environment.ok_or_else(|| {
+                                unsupported(f.span, "capture source has no actual environment")
+                            })?;
+                            let at = (owner, source.clone());
+                            if edges.contains_key(&at) {
+                                Some(at)
+                            } else {
+                                let ty = module.closures[owner.0 as usize]
+                                    .captures
+                                    .get(capture as usize)
+                                    .ok_or_else(|| {
+                                        unsupported(
+                                            f.span,
+                                            "constant capture dependency field absent",
+                                        )
+                                    })?;
+                                static_child_node(
+                                    module,
+                                    ty,
+                                    &source.path,
+                                    left,
+                                    f.span,
+                                    limits.max_call_depth,
+                                )?
                             }
                         }
-                        StorageBase::Parameter(parameter)=>{
-                            let local=f.parameters.get(parameter as usize).ok_or_else(||unsupported(f.span,"constant dependency input absent"))?;
-                            static_child_node(module,&f.locals[local.0 as usize].ty,&source.path,left,f.span,limits.max_call_depth)?
+                        StorageBase::Parameter(parameter) => {
+                            let local = f.parameters.get(parameter as usize).ok_or_else(|| {
+                                unsupported(f.span, "constant dependency input absent")
+                            })?;
+                            static_child_node(
+                                module,
+                                &f.locals[local.0 as usize].ty,
+                                &source.path,
+                                left,
+                                f.span,
+                                limits.max_call_depth,
+                            )?
                         }
-                        _=>None,
-                    }.ok_or_else(||error("E-CLOSED-ENVIRONMENT",f.span,"constant field depends on an ordinary input or unproved capture"))?;
-                    if !edges.contains_key(&dependency){return Err(unsupported(f.span,"constant dependency lacks a complete actual field directory"));}
-                    edges.get_mut(&node).expect("declared constant node").insert(dependency);
+                        _ => None,
+                    }
+                    .ok_or_else(|| {
+                        error(
+                            "E-CLOSED-ENVIRONMENT",
+                            f.span,
+                            "constant field depends on an ordinary input or unproved capture",
+                        )
+                    })?;
+                    if !edges.contains_key(&dependency) {
+                        return Err(unsupported(
+                            f.span,
+                            "constant dependency lacks a complete actual field directory",
+                        ));
+                    }
+                    edges
+                        .get_mut(&node)
+                        .expect("declared constant node")
+                        .insert(dependency);
                 }
             }
         }
     }
     loop {
-        let mut changed=false;
-        for (node,dependencies) in &edges {
-            spend(left,dependencies.len().saturating_add(1),Span::default())?;
-            if dependencies.iter().any(|dependency|grounded.contains(dependency)) {
-                changed|=grounded.insert(node.clone());
+        let mut changed = false;
+        for (node, dependencies) in &edges {
+            spend(left, dependencies.len().saturating_add(1), Span::default())?;
+            if dependencies
+                .iter()
+                .any(|dependency| grounded.contains(dependency))
+            {
+                changed |= grounded.insert(node.clone());
             }
         }
-        if !changed{break;}
+        if !changed {
+            break;
+        }
     }
-    if edges.keys().any(|node|!constructors.contains(node)||!grounded.contains(node)) {
-        return Err(error("E-CLOSED-ENVIRONMENT",Span::default(),"constant environment graph has no actual constructor or StaticUtf8 root"));
+    if edges
+        .keys()
+        .any(|node| !constructors.contains(node) || !grounded.contains(node))
+    {
+        return Err(error(
+            "E-CLOSED-ENVIRONMENT",
+            Span::default(),
+            "constant environment graph has no actual constructor or StaticUtf8 root",
+        ));
     }
     Ok(grounded)
 }
