@@ -20,7 +20,20 @@ def main():
     for row in map(json.loads, raw.splitlines()):
         if row.get('valid') is not True:
             raise ValueError('invalid retained request')
-        report = row['resident']['report']
+        # Matched runs also retain Rust invocations, which have no ZIL phase
+        # observer. Keep their original measurement rather than inventing zero
+        # native costs or silently dropping an arm/preparation.
+        report = (row.get('resident') or {}).get('report')
+        if report is None:
+            if row.get('arm') != 'rust':
+                raise ValueError('missing ZIL resident report')
+            rows.append({
+                'arm': row['arm'], 'block': row['block'], 'request': row['request'],
+                'measured': row['measured'], 'transition_from': row['transition_from'],
+                'measurement': row['measurement'], 'native_observed_totals': None,
+                'object_receipt_scope_ns': None,
+            })
+            continue
         view = inspect_native_products(report)
         units = [] if view is None else view['units']
         observed = [unit['stats'] for unit in units if unit['stats'] is not None]
@@ -41,7 +54,8 @@ def main():
         rows.append({
             'arm': row['arm'], 'block': row['block'], 'request': row['request'],
             'measured': row['measured'], 'transition_from': row['transition_from'],
-            'wall_ms': row['wall_ms'], 'status': row['status'],
+            'wall_ms': (row['measurement']['wall_ms'] if 'measurement' in row else row['wall_ms']),
+            'status': row.get('status', report.get('status')),
             'observer_schemas': sorted({stats.get('observer_schema', 1) for stats in observed}),
             'observed_units': len(observed), 'unobserved_units': len(units) - len(observed),
             'native_observed_totals': totals or None,
@@ -50,11 +64,16 @@ def main():
                 for field in ['builder_ns', 'parse_ns', 'optimize_ns', 'emit_ns', 'total_ns']
             },
             'phase_timings_ns': report.get('phase_timings_ns'),
+            'driver_timings_ns': report.get('driver_timings_ns'),
+            'native_codegen_timings_ns': (report.get('native_codegen') or {}).get('timings'),
             'backend_work': report.get('backend_work'),
             'ct_plain_work': report.get('ct_plain_work'),
         })
     result = {
-        'schema': 'native-profile-scopes-v1', 'source_shas': manifest['source_shas'],
+        'schema': 'native-profile-scopes-v1',
+        'source_shas': manifest.get('source_shas') or {
+            arm: source['commit'] for arm, source in manifest['sources'].items()
+        },
         'binary_receipts': manifest['binaries'], 'arguments': manifest['arguments'],
         'rows_sha256': hashlib.sha256(raw).hexdigest(),
         'manifest_sha256': hashlib.sha256(manifest_raw).hexdigest(),
