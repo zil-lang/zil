@@ -588,3 +588,16 @@ fn actual_inline_field_address_uses_an_explicit_place_address_source() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn exclusive_context_factory_preserves_repeated_mutations_and_cleanup() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/exclusive-factory.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "exclusive-factory-native");
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
