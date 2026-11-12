@@ -1044,10 +1044,10 @@ mod tests {
     use super::*;
     use zil_base::{FileId, Fingerprint, SourceUnit};
     use zil_expand::{
-        source_context::{DeclarationPlacement, SourceIdentityContext},
         ExpandSession,
+        source_context::{DeclarationPlacement, SourceIdentityContext},
     };
-    use zil_syntax::{attributes::AttributeContext, ParsedSource};
+    use zil_syntax::{ParsedSource, attributes::AttributeContext};
 
     fn parse(id: u32, text: &str, limits: &Limits) -> ParsedSource {
         let parsed = ParsedSource::parse(
@@ -1117,11 +1117,12 @@ mod tests {
         let warm = apply(&mut session, &prepared(&next, &limits), &limits).unwrap();
         assert_eq!(warm.stats.sparse_batches, 1);
         assert_eq!(warm.stats.body_checks, 0);
-        assert!(cold
-            .program
-            .module
-            .functions
-            .ptr_eq(&warm.program.module.functions));
+        assert!(
+            cold.program
+                .module
+                .functions
+                .ptr_eq(&warm.program.module.functions)
+        );
         assert!(warm.changes.is_empty());
         input[0] = parse(0, &scalar_module().replace("x+1", "x+111"), &limits);
         let current = produced(&mut expand, &input, &limits);
