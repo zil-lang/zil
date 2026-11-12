@@ -1,7 +1,7 @@
 {
   "task": "G10.5.1.15",
   "status": "Active full-pipeline continuation; prior delivery below remains historical, general acceptance is open",
-  "read_goal": "ee7fcd1a229799f1146c4dbdee822d6c9f8ff269",
+  "read_goal": "f50640b3d12acdbf91baa006be90c252d837a4c7",
   "source": "e91d16480d5e31c620d2b776245973c24329840f",
   "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
   "branch": "research/incremental-demand-continuation",
@@ -1448,8 +1448,124 @@
           },
           "review": "research/full-push-native:tools/research/incremental-demand/full-push-astra-mir-header-component-review.json",
           "actual_change": "Complete typed/frame/CFI body proof pluscurrentblocknumber/table/epoch/predreadback andfullheader/verifier preserve; remove duplicate fullMIRbodyformat/storage/recomparison instrictdomain. MissingcaporiginalfullMIR. SDK15 unchanged.",
-          "gates": "Source404 firstnative28 compilefailed beforetest due test-only missingreexport; e117fix unmodifiedproduction: native76/backend244/driver210/strictClippy18/fmt16passed, release17inprogress. No currentcompleteworkspaceclaim, noperformanceclaim.",
-          "next": "Finishrelease17 then original425 main/candidate oldstrictELF diagnostic onSDK16, allparents/errors; fullRustcomparisonremains328."
+          "gates": "e117 native76/backend244/driver210/strictClippy18/fmt16/release17 passed. First404 testhelper compile101/zeroexecution retained. Then only6backendRustfiles:4b809 backend247/driver210/strictClippy19/fmt17/release18 allpass; no summingoverlaps/fullworkspaceclaim.",
+          "next": "Profile15 whole original425 strict qualified; v21 remote custody in progress. Continue real object/AsmPrinter and diagnostic consumer closure, no unsafe oldpatch gate widening."
+        },
+        "current_whole_component_4b809": {
+          "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+          "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+          "delivery": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-4b809.md",
+          "binary_sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+          "SDK16_DSO": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b",
+          "counts": {
+            "rows": 34,
+            "measured": 18,
+            "parents": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_error_pairs": 2,
+            "native_outcomes_recomputed": 180,
+            "files": 22,
+            "functions": 425
+          },
+          "observed_controller_exit": 0,
+          "qualifier_sha256": "840b35a138a93cc2e7dd9272a30bfb1936dedc48ec3beb3852e8daf2f45933b9",
+          "measured_wall_ms": [
+            {
+              "arm": "baseline",
+              "request": "cold",
+              "wall_ms": 6070.251641
+            },
+            {
+              "arm": "candidate",
+              "request": "cold",
+              "wall_ms": 7366.302723
+            },
+            {
+              "arm": "candidate",
+              "request": "unchanged",
+              "wall_ms": 82.406523
+            },
+            {
+              "arm": "baseline",
+              "request": "unchanged",
+              "wall_ms": 475.188649
+            },
+            {
+              "arm": "baseline",
+              "request": "private",
+              "wall_ms": 1505.297638
+            },
+            {
+              "arm": "candidate",
+              "request": "private",
+              "wall_ms": 482.14061
+            },
+            {
+              "arm": "candidate",
+              "request": "multi",
+              "wall_ms": 770.603989
+            },
+            {
+              "arm": "baseline",
+              "request": "multi",
+              "wall_ms": 1680.898315
+            },
+            {
+              "arm": "baseline",
+              "request": "broad",
+              "wall_ms": 5210.057736
+            },
+            {
+              "arm": "candidate",
+              "request": "broad",
+              "wall_ms": 6210.565843
+            },
+            {
+              "arm": "candidate",
+              "request": "positions",
+              "wall_ms": 816.133956
+            },
+            {
+              "arm": "baseline",
+              "request": "positions",
+              "wall_ms": 1500.762936
+            },
+            {
+              "arm": "baseline",
+              "request": "error",
+              "wall_ms": 341.271875
+            },
+            {
+              "arm": "candidate",
+              "request": "error",
+              "wall_ms": 49.018862
+            },
+            {
+              "arm": "candidate",
+              "request": "recovery",
+              "wall_ms": 479.128107
+            },
+            {
+              "arm": "baseline",
+              "request": "recovery",
+              "wall_ms": 1598.693388
+            },
+            {
+              "arm": "baseline",
+              "request": "restore",
+              "wall_ms": 734.177091
+            },
+            {
+              "arm": "candidate",
+              "request": "restore",
+              "wall_ms": 219.770692
+            }
+          ],
+          "actual_removed_work": "Complete typed/CFI/currentnumber/header verifier closure permits no redundant MIRbody print/store/recompare. Persistent machine-result leaves stop samevalue and reverse consumers update actual changedCGU slots. Not simply hitrate improvement; no currentVerify/O2/budget reduction. Wholeproject reentry does not imply full recompute.",
+          "raw": "495files/415601601B currentlocal plusSDK16/binaries/gates; fixedv21 streaming remote custody pending. Not a localtar crossenvironment backup.",
+          "limits": "One diagnostic block, candidate profiled; no newRust/crosswindow attribution. Cold/broad slowermain. FullLLVM/centralgraph/generalRustlead unfinished; currentindependentVerify retained."
         }
       }
     }
