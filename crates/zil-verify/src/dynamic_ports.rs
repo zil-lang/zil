@@ -365,14 +365,14 @@ pub(super) fn validate_interface(
             None,
         ));
     }
-    if iface
-        .retained_life
-        .ports
-        .iter()
-        .any(|port| port.mode != StoredBorrowMode::SharedAddress)
-    {
+    if iface.retained_life.ports.iter().any(|port| {
+        !matches!(
+            port.mode,
+            StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+        )
+    }) {
         return Err(unsupported(
-            "Context retained mode requires a completed independent loan-site proof",
+            "Context description mode requires a completed independent descriptor proof",
             None,
         ));
     }
