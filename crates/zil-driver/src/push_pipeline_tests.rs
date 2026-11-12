@@ -183,6 +183,66 @@ fn complete_driver_pushes_one_private_body_through_current_verify_and_lower() {
     assert_eq!(recovered_report.status, ResultCategory::Success);
 }
 #[test]
+fn retained_parent_restores_actual_push_consumers_after_broad_history() {
+    let dir = Directory::new();
+    let options = CompileOptions {
+        push_reuse: true,
+        stop_after: Stage::Lower,
+        ..Default::default()
+    };
+    let mut session = CompilationSession::with_capacity(256);
+    let cold = dir.project("y=y*3+11;");
+    let first = session.compile_project(&cold, &options);
+    compare(&session, &first, &cold, &options);
+    let epoch = session
+        .raw
+        .values()
+        .find_map(|raw| match raw {
+            RawSnapshot::ProjectTyped(owner)
+                if owner.module.source_fingerprint == first.input_fingerprint =>
+            {
+                owner.epoch_weak()
+            }
+            _ => None,
+        })
+        .expect("bounded current push owner checkpoint");
+    let mut broad = cold.clone();
+    for source in &mut broad.modules {
+        source.text = source.text.replace("y=y*3+11;", "y=y*3+21;");
+        fs::write(&source.path, &source.text).unwrap();
+    }
+    let broad_report = session.compile_project(&broad, &options);
+    compare(&session, &broad_report, &broad, &options);
+    assert_eq!(
+        broad_report.types_push_work.as_ref().unwrap().body_checks,
+        400
+    );
+    let restored = dir.project("y=y*3+11;");
+    let parent = session.compile_project(&restored, &options);
+    compare(&session, &parent, &restored, &options);
+    assert!(parent.types_push_work.is_none(), "{}", parent.to_json());
+    assert!(parent.initialization_work.is_none(), "{}", parent.to_json());
+    let private = dir.project("y=y*3+12;");
+    let report = session.compile_project(&private, &options);
+    compare(&session, &report, &private, &options);
+    assert_eq!(report.types_push_work.as_ref().unwrap().context_rebuilds, 0);
+    assert_eq!(report.types_push_work.as_ref().unwrap().body_checks, 1);
+    assert_eq!(
+        report
+            .initialization_work
+            .unwrap()
+            .product_function_queries_executed,
+        1
+    );
+    assert_eq!(report.lowering_work.unwrap().functions_checked, 1);
+    session.clear();
+    assert!(
+        epoch.upgrade().is_none(),
+        "checkpoint lifetime follows the existing bounded raw owner"
+    );
+}
+
+#[test]
 fn semantic_product_restore_rechecks_current_inputs_and_isolated_identity_domain() {
     let dir = Directory::new();
     let project = dir.project("y=y*3+11;");

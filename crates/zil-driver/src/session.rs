@@ -35,8 +35,14 @@ pub(super) enum RawSnapshot {
 pub(super) struct TypesEpoch {
     key: QueryKey,
     program: Weak<TypedProgram>,
-    functions: Box<zil_types::FunctionSession>,
+    functions: Option<Box<zil_types::FunctionSession>>,
+    push: Option<zil_types::TypesPushSession>,
+    analysis: OnceLock<AnalysisEpoch>,
     publication: OnceLock<super::semantic_cache::SemanticPublicationSession>,
+}
+struct AnalysisEpoch {
+    candidate: Weak<CandidatePlan>,
+    session: zil_analyze::AnalysisSession,
 }
 #[derive(Clone)]
 pub(super) struct ProjectTypedOwner {
@@ -78,17 +84,30 @@ impl ProjectTypedOwner {
             Arc::new(TypesEpoch {
                 key,
                 program: Arc::downgrade(&program),
-                functions: Box::new(functions.epoch_checkpoint()),
+                functions: Some(Box::new(functions.epoch_checkpoint())),
+                push: None,
+                analysis: OnceLock::new(),
                 publication: OnceLock::new(),
             })
         });
         Self { program, epoch }
     }
-    pub(super) fn product(program: Arc<TypedProgram>) -> Self {
-        Self {
-            program,
-            epoch: None,
-        }
+    pub(super) fn product(
+        program: Arc<TypedProgram>,
+        key: QueryKey,
+        push: &zil_types::TypesPushSession,
+    ) -> Self {
+        let epoch = push.checkpoint_for(&program).map(|push| {
+            Arc::new(TypesEpoch {
+                key,
+                program: Arc::downgrade(&program),
+                functions: None,
+                push: Some(push),
+                analysis: OnceLock::new(),
+                publication: OnceLock::new(),
+            })
+        });
+        Self { program, epoch }
     }
     pub(super) fn program(&self) -> &Arc<TypedProgram> {
         &self.program
@@ -740,11 +759,18 @@ impl CompilationSession {
             // need not replace a graph that still belongs to this raw epoch.
             // Returning from a different history restores the bounded raw
             // checkpoint and rebuilds the optional graph conservatively.
-            if !self.function_types.shares_raw_epoch(&epoch.functions) {
-                *self.function_types = epoch.functions.epoch_checkpoint();
+            if let Some(functions) = &epoch.functions {
+                if !self.function_types.shares_raw_epoch(functions) {
+                    *self.function_types = functions.epoch_checkpoint();
+                }
+                self.function_types
+                    .set_cost_profiling(options.profile_compilation);
             }
-            self.function_types
-                .set_cost_profiling(options.profile_compilation);
+            if options.push_reuse
+                && let Some(push) = &epoch.push
+            {
+                self.push_types = push.clone();
+            }
             self.semantic_publication = epoch.publication.get().cloned().unwrap_or_default();
         }
     }
@@ -1071,6 +1097,28 @@ impl CompilationSession {
                 "analysis query returned another snapshot kind",
             ));
         };
+        if options.push_reuse
+            && let TypedInput::Program(program) | TypedInput::CachedProgram(program, _) = &typed
+            && let Some(RawSnapshot::ProjectTyped(owner)) = self.raw.get(&typed_snapshot.key)
+            && Arc::ptr_eq(owner.program(), program)
+            && let Some(epoch) = owner.matching_epoch(&typed_snapshot.key)
+        {
+            if report.initialization_work.is_some() {
+                if let Some(session) = self.analysis.product_checkpoint_for(program, &candidate) {
+                    let _ = epoch.analysis.set(AnalysisEpoch {
+                        candidate: Arc::downgrade(&candidate),
+                        session,
+                    });
+                }
+            } else if let Some(previous) = epoch.analysis.get()
+                && previous
+                    .candidate
+                    .upgrade()
+                    .is_some_and(|old| Arc::ptr_eq(&old, &candidate))
+            {
+                self.analysis = previous.session.clone();
+            }
+        }
         report.phase = Phase::Analyze;
         artifacts.dump_lazy(report, options, "candidate", |_| format!("{candidate:#?}"))?;
         if options.stop_after == Stage::Analyze {

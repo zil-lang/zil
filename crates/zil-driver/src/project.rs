@@ -1392,6 +1392,8 @@ impl CompilationSession {
                             types_push_work = Some(Box::new(update.stats));
                             RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
                                 update.program,
+                                key(Phase::Types, true),
+                                &push_types,
                             ))
                         });
                 }
@@ -1450,7 +1452,7 @@ impl CompilationSession {
                 "project types query returned another snapshot kind",
             ));
         };
-        if report.function_type_work.is_none() {
+        if report.function_type_work.is_none() && report.types_push_work.is_none() {
             self.activate_types_epoch(&typed, &typed_snapshot.key, options);
         }
         report.phase = Phase::Types;
