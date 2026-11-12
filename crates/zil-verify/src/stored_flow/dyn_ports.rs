@@ -214,6 +214,144 @@ pub(super) fn select(
     permission_work(&port.permission, b)?;
     Ok(port.permission.clone())
 }
+
+fn empty_row(
+    payload: &Payload,
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    let path = carrier_path(carrier, port, b)?;
+    let Some(at) = find(&payload.dyn_ports, &path, b)? else {
+        return Ok(false);
+    };
+    let row = &payload.dyn_ports.0[at].1;
+    permission_work(&row.permission, b)?;
+    Ok(row.known && row.permission.sources.is_empty())
+}
+
+fn empty_at_head(
+    head: &Permission,
+    state: &Frame,
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    permission_work(head, b)?;
+    if head.sources.is_empty() {
+        return Ok(false);
+    }
+    for source in &head.sources {
+        let actual = holder(state, source)?;
+        b.spend(source.inline.len().saturating_add(carrier.len()))?;
+        let mut path = source
+            .inline
+            .iter()
+            .copied()
+            .map(ContractProjection::Place)
+            .collect::<Vec<_>>();
+        path.extend(carrier);
+        if !empty_row(actual, &path, port, b)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn owner_hole(local: LocalId) -> Source {
+    Source {
+        base: HoldRoot::Local(local),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+    }
+}
+pub(super) fn vacate_owner(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    state: &mut Frame,
+    b: &mut Budget,
+) -> Check<()> {
+    if !b.dyn_contexts {
+        return Ok(());
+    }
+    let Type::OwnedDyn { interface } = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("vacated owner local is absent"))?
+        .ty
+    else {
+        return Ok(());
+    };
+    if crate::dynamic_ports::interface(module, *interface, b)?
+        .context
+        .is_some()
+    {
+        add_sources(&mut state.vacant, &[owner_hole(local)], b)?;
+    }
+    Ok(())
+}
+
+fn moved_owner(state: &Frame, local: LocalId, b: &mut Budget) -> Check<bool> {
+    b.spend(state.vacant.len().saturating_add(1))?;
+    Ok(state
+        .locals
+        .get(local.0 as usize)
+        .is_some_and(|p| p.dyn_ports.0.is_empty())
+        && state.vacant.contains(&owner_hole(local)))
+}
+
+/// Empty access is vacuous only for a complete actual known-empty row. Solver
+/// bottom, missing storage, or a missing producer binding is never that proof.
+#[allow(clippy::too_many_arguments)]
+fn empty_actual(
+    module: &TypedModule,
+    f: &TypedFunction,
+    argument: ValueId,
+    payload: &Payload,
+    state: &Frame,
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    if carrier.is_empty() && !payload.dyn_views.is_empty() {
+        b.spend(payload.dyn_views.len())?;
+        for view in &payload.dyn_views {
+            if let Some(table) = view.table {
+                b.spend(module.dyn_vtables.len())?;
+                let table = module
+                    .dyn_vtables
+                    .iter()
+                    .find(|row| row.id == table)
+                    .ok_or_else(|| bad("known-empty view table is absent"))?;
+                let binding = table
+                    .ports
+                    .get(port as usize)
+                    .filter(|row| row.port == port)
+                    .ok_or_else(|| bad("known-empty view port binding is absent"))?;
+                if !binding.sources.is_empty() {
+                    return Ok(false);
+                }
+                // A concrete view still requires a real current receiver.
+                permission_work(&view.head, b)?;
+                if view.head.sources.is_empty() {
+                    return Ok(false);
+                }
+            } else if !empty_at_head(&view.head, state, carrier, port, b)? {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+    let current = matches!(vt(f, argument)?, Type::Address { inner, .. } if !matches!(inner.as_ref(), Type::Dyn { .. }));
+    if current {
+        empty_at_head(&payload.address, state, carrier, port, b)
+    } else {
+        empty_row(payload, carrier, port, b)
+    }
+}
 pub(super) fn seed(
     module: &TypedModule,
     ty: &Type,
@@ -685,6 +823,7 @@ pub(super) fn transfer(
         }
         InstructionKind::DropDynOwned { local } => {
             state.locals[local.0 as usize].dyn_ports = Rows::default();
+            vacate_owner(module, f, *local, state, b)?;
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
             for (index, value) in fields.iter().enumerate() {
@@ -704,6 +843,29 @@ pub(super) fn transfer(
                 ContractProjection::Place(PlaceProjection::ErrorArm(*is_error)),
                 b,
             )?;
+            let result = vt(
+                f,
+                instruction
+                    .result
+                    .ok_or_else(|| bad("outcome constructor result is absent"))?,
+            )?;
+            if outcome(module, result, b)? {
+                let inactive = ContractProjection::Place(PlaceProjection::ErrorArm(!*is_error));
+                for (path, _) in shape(module, result, b)? {
+                    if path.first() == Some(&inactive) {
+                        insert(
+                            &mut out.dyn_ports,
+                            &path,
+                            &Port {
+                                permission: Permission::default(),
+                                parent_sources: vec![],
+                                known: true,
+                            },
+                            b,
+                        )?;
+                    }
+                }
+            }
         }
         InstructionKind::ReadErrorUnion { value, is_error }
         | InstructionKind::TakeErrorUnion { value, is_error } => {
@@ -1079,15 +1241,41 @@ pub(super) fn access(
                     }
                 };
                 let actual = slot_source(module, f, position, &args, values, state, b)?;
+                if actual.sources.is_empty()
+                    && let Some((ContractProjection::RetainedPort(port), carrier)) =
+                        position.path.split_last()
+                    && let StorageBase::Parameter(parameter) = position.base
+                {
+                    let argument = *args
+                        .get(parameter as usize)
+                        .ok_or_else(|| bad("empty port actual argument is absent"))?;
+                    if empty_actual(
+                        module,
+                        f,
+                        argument,
+                        get(argument)?,
+                        state,
+                        carrier,
+                        *port,
+                        b,
+                    )? {
+                        continue;
+                    }
+                }
                 checks.check(&actual, write, requirements, b)?;
             }
         }
-        InstructionKind::BorrowDynOwned { local, mutable } => checks.check(
-            &dyn_closed::head(f, *local, state, b)?,
-            *mutable,
-            requirements,
-            b,
-        )?,
+        InstructionKind::BorrowDynOwned { local, mutable } => {
+            if moved_owner(state, *local, b)? {
+                return Err(bad("borrow reads an actually moved erased owner"));
+            }
+            checks.check(
+                &dyn_closed::head(f, *local, state, b)?,
+                *mutable,
+                requirements,
+                b,
+            )?;
+        }
         InstructionKind::DropDynOwned { local } => {
             checks.check(
                 &dyn_closed::head(f, *local, state, b)?,
@@ -1095,6 +1283,12 @@ pub(super) fn access(
                 requirements,
                 b,
             )?;
+            // Drop is conditional on the actual affine initialized flag.
+            // An executed TakeLocal vacates this exact slot. At a join a live
+            // alternative still has its complete rows, so it cannot be skipped.
+            if moved_owner(state, *local, b)? {
+                return Ok(());
+            }
             let Type::OwnedDyn { interface } = f.locals[local.0 as usize].ty else {
                 return Err(bad("actual dynamic cleanup local has no owner type"));
             };
@@ -1111,12 +1305,12 @@ pub(super) fn access(
                     let [ContractProjection::RetainedPort(port)] = position.path.as_slice() else {
                         return Err(bad("dynamic cleanup has no typed direct port route"));
                     };
-                    checks.check(
-                        &select(&state.locals[local.0 as usize], &[], *port, b)?,
-                        write,
-                        requirements,
-                        b,
-                    )?;
+                    let payload = &state.locals[local.0 as usize];
+                    let actual = select(payload, &[], *port, b)?;
+                    if actual.sources.is_empty() && empty_row(payload, &[], *port, b)? {
+                        continue;
+                    }
+                    checks.check(&actual, write, requirements, b)?;
                 }
             }
         }
@@ -1237,4 +1431,81 @@ pub(super) fn wrapper(
         _ => {}
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod empty_tests {
+    use super::*;
+    #[test]
+    fn conditional_cleanup_never_confuses_a_joined_live_row_with_a_moved_slot() {
+        let mut b = Budget::new(&Limits::default());
+        let mut state = Frame {
+            locals: vec![Payload::default()],
+            vacant: vec![owner_hole(LocalId(0))],
+            ..Frame::default()
+        };
+        assert!(moved_owner(&state, LocalId(0), &mut b).unwrap());
+        insert(
+            &mut state.locals[0].dyn_ports,
+            &[ContractProjection::RetainedPort(0)],
+            &Port {
+                permission: Permission::default(),
+                parent_sources: vec![],
+                known: true,
+            },
+            &mut b,
+        )
+        .unwrap();
+        assert!(!moved_owner(&state, LocalId(0), &mut b).unwrap());
+        state.locals[0].dyn_ports.0[0].1.known = false;
+        assert!(!moved_owner(&state, LocalId(0), &mut b).unwrap());
+        state.locals[0].dyn_ports.0.clear();
+        state.vacant = vec![owner_hole(LocalId(1))];
+        assert!(!moved_owner(&state, LocalId(0), &mut b).unwrap());
+    }
+    #[test]
+    fn empty_access_requires_every_actual_owner_row_to_be_explicitly_known() {
+        let mut b = Budget::new(&Limits::default());
+        let source = |local| Source {
+            base: HoldRoot::Local(LocalId(local)),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+        };
+        let mut state = Frame {
+            locals: vec![Payload::default(); 2],
+            ..Frame::default()
+        };
+        for actual in &mut state.locals {
+            insert(
+                &mut actual.dyn_ports,
+                &[ContractProjection::RetainedPort(0)],
+                &Port {
+                    permission: Permission::default(),
+                    parent_sources: vec![],
+                    known: true,
+                },
+                &mut b,
+            )
+            .unwrap();
+        }
+        let head = Permission {
+            sources: vec![source(0), source(1)],
+            loans: vec![],
+        };
+        assert!(empty_at_head(&head, &state, &[], 0, &mut b).unwrap());
+        state.locals[1].dyn_ports.0[0].1.known = false;
+        assert!(!empty_at_head(&head, &state, &[], 0, &mut b).unwrap());
+        state.locals[1].dyn_ports.0[0].1.known = true;
+        state.locals[1].dyn_ports.0[0]
+            .1
+            .permission
+            .sources
+            .push(source(0));
+        assert!(!empty_at_head(&head, &state, &[], 0, &mut b).unwrap());
+        state.locals[1].dyn_ports.0.clear();
+        assert!(!empty_at_head(&head, &state, &[], 0, &mut b).unwrap());
+        assert!(!empty_at_head(&Permission::default(), &state, &[], 0, &mut b).unwrap());
+    }
 }
