@@ -198,9 +198,10 @@ impl Engine<'_> {
                     .ok_or_else(|| {
                         error(e.span, "dyn provider lost its actual source application")
                     })?;
-                self.materialize_dyn_provider(&actual, &provider, e.span, depth + 1)?;
+                let table = self.materialize_dyn_provider(&actual, &provider, e.span, depth + 1)?;
                 let view = self.products.dynamic.context_view_token(
                     &actual.name,
+                    table,
                     &mut self.budget,
                     e.span,
                 )?;

@@ -953,6 +953,10 @@ impl Catalog {
                 });
             }
             output.push(zil_ir::CoreDynVtable {
+                self_classes: {
+                    budget.identity_work(table.self_classes.len(), span)?;
+                    table.self_classes.clone()
+                },
                 id: zil_ir::DynVtableId {
                     module: table.implementation.module,
                     index,

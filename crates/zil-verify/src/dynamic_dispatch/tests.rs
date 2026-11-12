@@ -120,6 +120,7 @@ fn fixture() -> TypedModule {
         slots: vec![slot],
     }];
     module.dyn_vtables = vec![DynVtable {
+        self_classes: vec![],
         id: table_id,
         interface: interface_id,
         self_type: self_type.clone(),

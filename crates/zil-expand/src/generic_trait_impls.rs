@@ -306,8 +306,14 @@ impl<'a> Engine<'a> {
                 if !seen.insert(parameter.name.as_str()) {
                     return Err(error(parameter.span, "duplicate impl binder"));
                 }
-                if !matches!(parameter.kind, GenericParamKind::Type(_)) {
-                    return Err(unsupported(parameter.span, "impl lifetime/const binder"));
+                if !matches!(
+                    parameter.kind,
+                    GenericParamKind::Type(_) | GenericParamKind::Lifetime
+                ) {
+                    return Err(unsupported(
+                        parameter.span,
+                        "impl const binder requires its complete solver",
+                    ));
                 }
                 if self.nominals.contains_key(&parameter.name) {
                     self.nominal_binder_collision = true;
@@ -451,10 +457,32 @@ impl<'a> Engine<'a> {
                         "impl parameter count differs from trait declaration",
                     ));
                 }
+                let header_scope = if parameters
+                    .iter()
+                    .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                {
+                    self.budget.const_function(&function)?;
+                    for parameter in &parameters {
+                        self.budget.node(parameter.span, 0)?;
+                        self.budget.text(&parameter.name, parameter.span)?;
+                    }
+                    let mut source = function.clone();
+                    source.generics.splice(0..0, parameters.iter().cloned());
+                    Some(source)
+                } else {
+                    None
+                };
+                let header_key = |ty: &TypeRef, budget: &mut Budget<'_>| {
+                    if let Some(scope) = &header_scope {
+                        check::source_class_key(ty, scope, budget)
+                    } else {
+                        type_key(ty, budget)
+                    }
+                };
                 for (actual, expected) in function.params.iter().zip(&signature.params) {
                     if actual.give != expected.give
-                        || type_key(&actual.ty, &mut self.budget)?
-                            != type_key(&expected.ty, &mut self.budget)?
+                        || header_key(&actual.ty, &mut self.budget)?
+                            != header_key(&expected.ty, &mut self.budget)?
                     {
                         return Err(error(
                             member.span,
@@ -465,8 +493,8 @@ impl<'a> Engine<'a> {
                 let unit = check::unit(member.span);
                 let actual_result = function.return_type.as_ref().unwrap_or(&unit);
                 let required_result = signature.return_type.as_ref().unwrap_or(&unit);
-                if type_key(actual_result, &mut self.budget)?
-                    != type_key(required_result, &mut self.budget)?
+                if header_key(actual_result, &mut self.budget)?
+                    != header_key(required_result, &mut self.budget)?
                 {
                     return Err(error(
                         member.span,

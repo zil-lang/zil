@@ -580,11 +580,39 @@ pub(crate) fn known_type(
                     "trait signature type argument arity mismatch",
                 ));
             }
-            for arg in args {
-                let GenericArg::Type(t) = arg else {
-                    return Err(unsupported(ty.span, "trait signature const argument"));
-                };
-                known_type(t, variables, nominals, budget, depth + 1)?;
+            let declared = nominals.get(name).and_then(|item| match &item.kind {
+                ItemKind::Aggregate(a) => Some(a.generics.as_slice()),
+                ItemKind::Enum(e) => Some(e.generics.as_slice()),
+                _ => None,
+            });
+            for (position, arg) in args.iter().enumerate() {
+                budget.node(ty.span, depth + 1)?;
+                let formal = declared.and_then(|parameters| parameters.get(position));
+                match arg {
+                    GenericArg::Type(t)
+                        if formal.is_none_or(|p| matches!(p.kind, GenericParamKind::Type(_))) =>
+                    {
+                        known_type(t, variables, nominals, budget, depth + 1)?
+                    }
+                    GenericArg::Lifetime(life)
+                        if formal.is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime)) =>
+                    {
+                        budget.text(life, ty.span)?;
+                        budget.identity_work(variables.len(), ty.span)?;
+                        if !variables.contains(life) && life != "static" {
+                            return Err(error(
+                                ty.span,
+                                "trait signature lifetime has no enclosing declared source scope",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            ty.span,
+                            "trait signature argument kind requires its complete solver",
+                        ));
+                    }
+                }
             }
         }
         TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {

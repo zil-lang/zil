@@ -418,6 +418,14 @@ fn inventory_in_modules(
     let mut output = Vec::new();
     let mut ids = std::collections::BTreeSet::new();
     for table in &core.dyn_vtables {
+        if table.self_classes.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dyn Self class inventory exceeds node limit",
+                None,
+            ));
+        }
+        spend(&mut left, table.self_classes.len().saturating_add(1))?;
         spend(&mut left, 1 + table.entries.len())?;
         let interface = core
             .dyn_interfaces
@@ -434,6 +442,7 @@ fn inventory_in_modules(
             || table.entries.len() != interface.slots.len()
             || table.cleanup.is_some()
             || !table.ports.is_empty()
+            || !table.self_classes.is_empty()
             || !table.actuals.is_empty()
             || core
                 .dyn_declarations
@@ -615,6 +624,7 @@ fn inventory_in_modules(
             ));
         }
         output.push(DynVtable {
+            self_classes: table.self_classes.clone(),
             id: table.id,
             interface: table.interface,
             self_type,

@@ -1865,7 +1865,9 @@ impl Expander<'_> {
     fn lower_expr_call(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
             s::ExprKind::Call { callee, arguments } => {
-                if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
+                if let Some(value) = self.dyn_owned_constructor(callee, arguments, e.span) {
+                    value
+                } else if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
                     value
                 } else if let Some(name) = integer_conversion_name(callee) {
                     if arguments.len() != 1 || arguments[0].spread {

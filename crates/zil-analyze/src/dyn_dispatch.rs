@@ -277,6 +277,15 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             .saturating_add(module.dyn_vtables.len()),
         WORK,
     )?;
+    for table in &module.dyn_vtables {
+        if table.self_classes.len() > budget.helper_nodes {
+            return Err(bad("dyn Self class inventory exceeds node limit"));
+        }
+        budget.spend(
+            table.self_classes.len().saturating_add(1),
+            "dyn complete Self class map",
+        )?;
+    }
     let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
@@ -354,6 +363,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), budget)?;
         crate::dyn_metadata::retained_shape(&interface.retained_life, budget)?;
         crate::dyn_context::validate(module, interface, budget)?;
+        budget.dyn_contexts |= interface.context.is_some();
         budget.lookup(declarations.len(), WORK)?;
         if interface.id.module != interface.application.declaration.module
             || !interfaces.insert(interface.id)
@@ -827,6 +837,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .any(|d| d.id == table.implementation && d.kind == DynDeclarationKind::Impl)
             || !table.actuals.is_empty()
             || !table.ports.is_empty()
+            || !table.self_classes.is_empty()
             || table.cleanup.is_some()
             || table.entries.len() != interface.slots.len()
         {
@@ -1258,6 +1269,7 @@ mod tests {
                 }],
             }],
             dyn_vtables: vec![DynVtable {
+                self_classes: vec![],
                 id: table_id,
                 interface: interface_id,
                 self_type: owner,

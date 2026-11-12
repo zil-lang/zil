@@ -262,7 +262,7 @@ impl Engine<'_> {
         source: &TypeRef,
         span: Span,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<usize> {
         let mut selected_interface = None;
         for (symbol, ordinal, owned) in &self.products.dynamic.context_types {
             self.budget.text(symbol, span)?;
@@ -447,7 +447,7 @@ impl Engine<'_> {
         // Individually alpha-normalized Self and Context types do not identify
         // their joint application. Reuse only the complete actual port relation
         // and impl lifetime actuals as well; swapped same-type roots stay distinct.
-        for table in &self.products.dynamic.vtables {
+        for (ordinal, table) in self.products.dynamic.vtables.iter().enumerate() {
             self.budget.node(span, 0)?;
             if table.interface != interface || table.implementation != origin.declaration {
                 continue;
@@ -466,8 +466,16 @@ impl Engine<'_> {
                         .identity_work(source.path.len().saturating_add(1), span)?;
                 }
             }
-            if prior == &actual.ty && table.ports == mappings && table.actuals == actuals {
-                return Ok(());
+            if prior == &actual.ty
+                && table.ports == mappings
+                && table.actuals == actuals
+                && table
+                    .self_classes
+                    .iter()
+                    .copied()
+                    .eq(class_map.iter().copied().map(zil_ir::StorageBinder::Fixed))
+            {
+                return Ok(ordinal);
             }
         }
         let table_index = self.products.dynamic.vtables.len();
@@ -584,6 +592,10 @@ impl Engine<'_> {
             });
         }
         self.products.dynamic.vtables.push(dynamic::Vtable {
+            self_classes: class_map
+                .into_iter()
+                .map(zil_ir::StorageBinder::Fixed)
+                .collect(),
             qualified_self: Some(actual.ty),
             ports: mappings,
             actuals,
@@ -592,7 +604,7 @@ impl Engine<'_> {
             self_type: source_type,
             providers,
         });
-        Ok(())
+        Ok(table_index)
     }
 }
 fn collect_names(item: &Item, names: &mut BTreeSet<String>, budget: &mut Budget<'_>) -> R<()> {

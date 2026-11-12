@@ -120,6 +120,10 @@ pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable)
     encode_dyn_vtable_id(b, &value.id);
     encode_dyn_interface_id(b, &value.interface);
     encode_type(b, &value.self_type);
+    encode_len(b, value.self_classes.len());
+    for binder in &value.self_classes {
+        encode_storage_binder(b, binder);
+    }
     encode_declaration_id(b, &value.implementation);
     encode_len(b, value.actuals.len());
     for value in &value.actuals {
