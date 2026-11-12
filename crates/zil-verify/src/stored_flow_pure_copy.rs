@@ -11,6 +11,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
             | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::ReadErrorUnion { .. }
+            | InstructionKind::ErrorTag { .. }
             | InstructionKind::PlaceTagLocal { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
@@ -272,6 +274,20 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
     )?;
     ordinary(output, b, 0)?;
     let projected = match &i.kind {
+        InstructionKind::ErrorTag { value } | InstructionKind::ReadErrorUnion { value, .. } => {
+            let union = vt(f, *value)?;
+            // Inspect both arms before observing the tag or selecting one.
+            // A scalar selected arm cannot erase a hidden borrowed sibling.
+            ordinary(union, b, 0)?;
+            let Type::ErrorUnion { error, result } = union else {
+                return Err(err("ordinary union observation has no actual ErrorUnion"));
+            };
+            match i.kind {
+                InstructionKind::ReadErrorUnion { is_error: true, .. } => error.as_ref(),
+                InstructionKind::ReadErrorUnion { is_error: false, .. } => result.as_ref(),
+                _ => &Type::Bool,
+            }
+        }
         InstructionKind::PlaceTagLocal { local, path } => {
             if !path.is_empty() {
                 return Err(err(
