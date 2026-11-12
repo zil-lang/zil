@@ -48,6 +48,17 @@ bool admissionFailure(const Function &F, const Instruction *I, const char *Reaso
   }
   return false;
 }
+struct NameState { int present = -1; uint32_t counter = 0; int maximum = 0; };
+using ReadNameState = int (*)(const void *, uint32_t *, int *);
+using RestoreNameState = int (*)(void *, int, uint32_t, int);
+ReadNameState readNameStateAPI() {
+  static auto Read = reinterpret_cast<ReadNameState>(dlsym(RTLD_DEFAULT, "ZilLLVMFunctionSymbolState")); return Read;
+}
+NameState nameState(const Function &F) {
+  NameState S; auto Read = readNameStateAPI();
+  if (Read) S.present = Read(&F, &S.counter, &S.maximum);
+  return S;
+}
 bool numeric(Type *T) {
   if (T->isIntegerTy() || T->isVoidTy()) return true;
   if (auto *S = dyn_cast<StructType>(T)) {
@@ -165,6 +176,8 @@ std::string functionText(const Function &F) {
   std::string S; raw_string_ostream OS(S); F.print(OS, nullptr, true);
   OS << "\n; block-number-state " << F.getMaxBlockNumber() << ':' << F.getBlockNumberEpoch();
   for (const BasicBlock &B : F) OS << ':' << B.getNumber();
+  NameState Names = nameState(F);
+  OS << "\n; value-name-state " << Names.present << ':' << Names.maximum << ':' << Names.counter;
   OS << '\n'; return S;
 }
 std::string declarationText(const Function &F) {
@@ -244,6 +257,7 @@ struct Symbols {
   using RestoreNumbers = int (*)(void *, unsigned, unsigned, const unsigned *, uint64_t);
   Set set = nullptr; Visit visit = nullptr; Has has = nullptr; Require require = nullptr;
   Name name = nullptr; RestoreNumbers restoreNumbers = nullptr;
+  RestoreNameState restoreNames = nullptr;
   bool available = false;
   Symbols() {
     auto Cap = [](const char *N) { auto F = reinterpret_cast<unsigned (*)()>(dlsym(RTLD_DEFAULT, N)); return F && F() == 1; };
@@ -257,7 +271,8 @@ struct Symbols {
     require = reinterpret_cast<Require>(dlsym(RTLD_DEFAULT, "ZilLLVMRequireFunctionAnalysisKey"));
     name = reinterpret_cast<Name>(dlsym(RTLD_DEFAULT, "ZilLLVMFunctionAnalysisName"));
     restoreNumbers = reinterpret_cast<RestoreNumbers>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreFunctionBlockNumbers"));
-    available = set && visit && has && require && restoreNumbers;
+    restoreNames = reinterpret_cast<RestoreNameState>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreFunctionSymbolState"));
+    available = set && visit && has && require && restoreNumbers && readNameStateAPI() && restoreNames;
   }
 };
 Symbols &symbols() { static Symbols S; return S; }
@@ -283,6 +298,7 @@ struct Stage {
   Keys EntryKeys, ExitKeys;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   AnalysisReplayState OutputAnalysisReplay;
+  NameState OutputNames;
   std::map<std::string, std::string> OriginalDeclarations;
   std::vector<unsigned> OutputBlockNumbers;
   PreservedAnalyses PA = PreservedAnalyses::none();
@@ -460,6 +476,7 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
                                P.OutputBlockNumbers.data(), P.OutputBlockNumbers.size())) return Fail("block-number-restore");
   if (!preserveLocalUseOrder(*SF, Map)) return Fail("local-use-order");
   if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
+  if (!symbols().restoreNames(&F, P.OutputNames.present, P.OutputNames.counter, P.OutputNames.maximum)) return Fail("value-name-state-restore");
   if (functionText(F) != P.OutputText) return Fail("complete-output-text");
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
   if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return Fail("empty-analysis-state-restore");
@@ -537,6 +554,8 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
       const Function *D = Call->getCalledFunction();
       P->Product->OriginalDeclarations.emplace(D->getName().str(), declarationText(*D));
     }
+  P->Product->OutputNames = nameState(F);
+  if (P->Product->OutputNames.present < 0) return;
   P->Product->OutputText = functionText(F);
   P->Product->OutputNextBlock = F.getMaxBlockNumber();
   P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();
