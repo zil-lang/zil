@@ -14,9 +14,14 @@ impl Check<'_, '_, '_> {
                 needed |= path.len() == 1
                     && self.variables.contains(&path[0])
                     && self.bounds.get(&path[0]).is_some_and(|bounds| {
-                        bounds
-                            .iter()
-                            .any(|bound| matches!(bound, trait_bounds::Bound::Value | trait_bounds::Bound::StoreElement | trait_bounds::Bound::SyncDrop))
+                        bounds.iter().any(|bound| {
+                            matches!(
+                                bound,
+                                trait_bounds::Bound::Value
+                                    | trait_bounds::Bound::StoreElement
+                                    | trait_bounds::Bound::SyncDrop
+                            )
+                        })
                     });
                 for arg in args {
                     if let GenericArg::Type(ty) = arg {

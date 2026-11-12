@@ -49,8 +49,8 @@ pub(super) struct Budget {
     pub(super) owning_address_captures: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
-    pub(super) pending_returned_source_proofs:BTreeSet<zil_ir::FunctionId>,
-    pub(super) callable_receiver_roles:BTreeMap<(zil_ir::FunctionId,usize),u32>,
+    pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
+    pub(super) callable_receiver_roles: BTreeMap<(zil_ir::FunctionId, usize), u32>,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
@@ -118,7 +118,7 @@ pub(super) struct Budget {
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
-    pub(super) stored_compound_values:bool,
+    pub(super) stored_compound_values: bool,
     // Presence flags from paid actual-type/slot/capture inventories. These
     // select new proof work and never grant authority to a borrowed value.
     pub(super) stored_packages: bool,
@@ -169,8 +169,8 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             returned_borrowed_environments: BTreeSet::new(),
-            pending_returned_source_proofs:BTreeSet::new(),
-            callable_receiver_roles:BTreeMap::new(),
+            pending_returned_source_proofs: BTreeSet::new(),
+            callable_receiver_roles: BTreeMap::new(),
             replacement_functions: BTreeSet::new(),
             replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
@@ -223,7 +223,7 @@ impl Budget {
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
-            stored_compound_values:false,
+            stored_compound_values: false,
             stored_packages: false,
             task_failure_carriers: false,
             owned_task_input_inventory: false,
@@ -765,7 +765,10 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
-    } else if super::stored_flow::shared_compound(module,ty,budget)? || super::stored_flow::affine_compound(module,ty,budget)? || super::stored_flow::pure_inline(module, ty, budget)? {
+    } else if super::stored_flow::shared_compound(module, ty, budget)?
+        || super::stored_flow::affine_compound(module, ty, budget)?
+        || super::stored_flow::pure_inline(module, ty, budget)?
+    {
         Ok(false)
     } else if let Type::Address {
         inner,
@@ -1039,9 +1042,12 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::BorrowedStorage{life,..} if context.in_tuple=>{
-                    budget.input(life.slots.len(),"affine compound exclusive slots")?;
-                    new_sum|=life.slots.iter().any(|slot|slot.mode==zil_ir::StoredBorrowMode::ExclusiveAddress);
+                Type::BorrowedStorage { life, .. } if context.in_tuple => {
+                    budget.input(life.slots.len(), "affine compound exclusive slots")?;
+                    new_sum |= life
+                        .slots
+                        .iter()
+                        .any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress);
                 }
                 Type::Enum { .. } => {
                     child.in_enum = true;
@@ -1151,7 +1157,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
-                    budget.stored_compound_values|=context.in_tuple;
+                    budget.stored_compound_values |= context.in_tuple;
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;

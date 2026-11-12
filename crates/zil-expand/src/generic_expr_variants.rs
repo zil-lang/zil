@@ -94,7 +94,7 @@ impl Engine<'_> {
                         ..
                     }),
                 ) => Some(*inner),
-                (UnaryOp::Give, Some(ty))=>self.given_resource_hint(operand,ty,env)?,
+                (UnaryOp::Give, Some(ty)) => self.given_resource_hint(operand, ty, env)?,
                 (_, ty) => ty,
             }
         };

@@ -3701,7 +3701,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                 }
                             }
                         }
-                    } else if matches!(stored::physical(&ty), Type::Package { .. } | Type::OwnedDyn { .. }) {
+                    } else if matches!(
+                        stored::physical(&ty),
+                        Type::Package { .. } | Type::OwnedDyn { .. }
+                    ) {
                         // A qualified owning Package uses the same actual
                         // capture responsibility. Borrowing its head for a
                         // helper marks mutable environment use, not Copy.

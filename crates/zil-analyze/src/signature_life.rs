@@ -242,13 +242,22 @@ fn function_relation_inner(
 }
 
 pub(super) fn capture_relation(
-    closures:&[ClosureDefinition],
+    closures: &[ClosureDefinition],
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, Some(captures), result, c, true, closures, false, &[])
+    relation_inner(
+        parameters,
+        Some(captures),
+        result,
+        c,
+        true,
+        closures,
+        false,
+        &[],
+    )
 }
 pub(super) fn function_relation_in_module(
     parameters: &[Type],
@@ -346,29 +355,64 @@ fn relation_inner(
             }
             Ok(())
         }
-        fn compound_child(&mut self,ty:&Type,base:StorageBase,path:&mut Vec<LifeTypeProjection>)->CompileResult<()> {
+        fn compound_child(
+            &mut self,
+            ty: &Type,
+            base: StorageBase,
+            path: &mut Vec<LifeTypeProjection>,
+        ) -> CompileResult<()> {
             match ty {
-                Type::Tuple(fields)=>{for (index,field) in fields.iter().enumerate(){path.push(LifeTypeProjection::Place(PlaceProjection::Field(u32::try_from(index).map_err(|_|bad("compound signature ordinal overflow"))?)));self.compound_child(field,base,path)?;path.pop();}},
-                Type::BorrowedStorage{life,..}=>{
-                    if life.binder_count as usize>self.c.classes.len().saturating_sub(self.class){return Err(bad("compound signature omits child classes"))}
-                    for class in 0..life.binder_count{
-                        let row=&self.c.classes[self.class];
-                        if row.position.base!=base || row.position.path!=*path || row.position.class!=class{return Err(bad("compound signature class differs from actual child scope"))}
-                        let binder=row.binder;
-                        let capture=matches!(base,StorageBase::Capture(_));
-                        if capture && !matches!(binder,StorageBinder::Fixed(_)){return Err(bad("captured compound child class must be Fixed"))}
-                        self.class+=1;self.binder(binder,capture || !self.captured && self.inputs.is_none())?;
+                Type::Tuple(fields) => {
+                    for (index, field) in fields.iter().enumerate() {
+                        path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                            u32::try_from(index)
+                                .map_err(|_| bad("compound signature ordinal overflow"))?,
+                        )));
+                        self.compound_child(field, base, path)?;
+                        path.pop();
                     }
-                },
-                Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..}|Type::ByteBuffer|Type::OwnedStore{..})=>{},
-                other if other.is_copy_value()=>{},
-                _=>return Err(bad("compound signature child needs its complete value consumer")),
+                }
+                Type::BorrowedStorage { life, .. } => {
+                    if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
+                    {
+                        return Err(bad("compound signature omits child classes"));
+                    }
+                    for class in 0..life.binder_count {
+                        let row = &self.c.classes[self.class];
+                        if row.position.base != base
+                            || row.position.path != *path
+                            || row.position.class != class
+                        {
+                            return Err(bad(
+                                "compound signature class differs from actual child scope",
+                            ));
+                        }
+                        let binder = row.binder;
+                        let capture = matches!(base, StorageBase::Capture(_));
+                        if capture && !matches!(binder, StorageBinder::Fixed(_)) {
+                            return Err(bad("captured compound child class must be Fixed"));
+                        }
+                        self.class += 1;
+                        self.binder(binder, capture || !self.captured && self.inputs.is_none())?;
+                    }
+                }
+                Type::Managed(payload)
+                    if matches!(
+                        payload.as_ref(),
+                        Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                    ) => {}
+                other if other.is_copy_value() => {}
+                _ => {
+                    return Err(bad(
+                        "compound signature child needs its complete value consumer",
+                    ));
+                }
             }
             Ok(())
         }
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
-            if matches!(ty,Type::Tuple(_)) && !ty.is_copy_value(){
-                return self.compound_child(ty,base,&mut Vec::new());
+            if matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
+                return self.compound_child(ty, base, &mut Vec::new());
             }
             let capture = matches!(base, StorageBase::Capture(_));
             let (target, pointed) = if let Type::Address { inner, .. } = ty {
@@ -638,7 +682,7 @@ fn relation_inner(
                                 "closure class selector must name its actual free Fixed domain",
                             ));
                         }
-                        if capture && !matches!(row.binder,StorageBinder::Fixed(_)) {
+                        if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                             return Err(bad("captured child Closure class must be Fixed"));
                         }
                         self.class += 1;
@@ -886,7 +930,14 @@ mod tests {
             }],
         };
         assert!(
-            capture_relation(&[], &[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+            capture_relation(
+                &[],
+                &[],
+                std::slice::from_ref(&child),
+                &Type::Unit,
+                &contract
+            )
+            .is_err()
         );
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;

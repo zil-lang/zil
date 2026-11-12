@@ -7,10 +7,10 @@ mod array_snapshot;
 mod byte_queries;
 mod capture_after;
 mod environment_memory;
-mod returned_upper;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
+mod returned_upper;
 #[cfg(test)]
 mod set_bits_tests;
 use live_words::LiveRow;
@@ -1300,109 +1300,305 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
 
 /// Finite shared Tuples keep independently scoped child instances and all
 /// physical targets. This never establishes a generic Copy capability.
-pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
-    b.type_work(ty,true,"shared compound actual type")?;
-    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-        fee(b,1)?;
+pub(super) fn shared_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "shared compound actual type")?;
+    fn walk(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        fee(b, 1)?;
         match ty {
-            Type::Tuple(fields)=>{for field in fields{if !walk(module,field,b)?{return Ok(false)}}Ok(true)},
-            Type::BorrowedStorage{storage,life}=>{
-                if !matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..}){return Ok(false)}
-                physical(ty,b)?;
-                fee(b,life.slots.len())?;
-                if life.slots.iter().any(|slot|slot.mode!=StoredBorrowMode::SharedAddress){return Ok(false)}
-                let mut count=0;
-                for actual in &module.life_instances{
-                    b.type_work(&actual.ty,false,"shared compound nominal candidate")?;
-                    b.type_work(ty,false,"shared compound nominal actual")?;
-                    count+=usize::from(actual.ty==*ty);
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !walk(module, field, b)? {
+                        return Ok(false);
+                    }
                 }
-                if count!=1{return Err(failure("shared compound child lacks unique complete nominal instance"))}
                 Ok(true)
-            },
-            other=>Ok(other.is_copy_value()),
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }) {
+                    return Ok(false);
+                }
+                physical(ty, b)?;
+                fee(b, life.slots.len())?;
+                if life
+                    .slots
+                    .iter()
+                    .any(|slot| slot.mode != StoredBorrowMode::SharedAddress)
+                {
+                    return Ok(false);
+                }
+                let mut count = 0;
+                for actual in &module.life_instances {
+                    b.type_work(&actual.ty, false, "shared compound nominal candidate")?;
+                    b.type_work(ty, false, "shared compound nominal actual")?;
+                    count += usize::from(actual.ty == *ty);
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "shared compound child lacks unique complete nominal instance",
+                    ));
+                }
+                Ok(true)
+            }
+            other => Ok(other.is_copy_value()),
         }
     }
-    walk(module,ty,b)
+    walk(module, ty, b)
 }
-pub(super) fn affine_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
-    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
-    b.type_work(ty,true,"affine compound complete type")?;
-    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<Option<(bool,bool)>>{
-        fee(b,1)?;
+pub(super) fn affine_compound(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "affine compound complete type")?;
+    fn walk(
+        module: &TypedModule,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<Option<(bool, bool)>> {
+        fee(b, 1)?;
         match ty {
-            Type::Tuple(fields)=>{let(mut owns,mut exclusive)=(false,false);for field in fields{let Some((o,e))=walk(module,field,b)? else{return Ok(None)};owns|=o;exclusive|=e;}Ok(Some((owns,exclusive)))},
-            Type::BorrowedStorage{storage,life}=>{
-                if !matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Enum{..}){return Ok(None)}
-                physical(ty,b)?;
-                let mut count=0;
-                for actual in &module.life_instances{b.type_work(&actual.ty,false,"affine compound candidate identity")?;b.type_work(ty,false,"affine compound actual identity")?;count+=usize::from(actual.ty==*ty);}
-                if count!=1{return Err(failure("affine compound child lacks unique complete nominal instance"))}
-                fee(b,life.slots.len())?;
-                Ok(Some((resources::sums::owned(storage),life.slots.iter().any(|slot|slot.mode==StoredBorrowMode::ExclusiveAddress))))
-            },
-            Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..}|Type::ByteBuffer|Type::OwnedStore{..})=>{
-                if matches!(payload.as_ref(),Type::OwnedStore{..}){crate::ownership_store::ordinary_owned(module,ty,b)?;}else{crate::budget::legacy_value(ty,zil_base::Span::default(),module)?;}
-                Ok(Some((true,false)))
-            },
-            other if other.is_copy_value()=>Ok(Some((false,false))),
-            _=>Ok(None),
+            Type::Tuple(fields) => {
+                let (mut owns, mut exclusive) = (false, false);
+                for field in fields {
+                    let Some((o, e)) = walk(module, field, b)? else {
+                        return Ok(None);
+                    };
+                    owns |= o;
+                    exclusive |= e;
+                }
+                Ok(Some((owns, exclusive)))
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !matches!(
+                    storage.as_ref(),
+                    Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+                ) {
+                    return Ok(None);
+                }
+                physical(ty, b)?;
+                let mut count = 0;
+                for actual in &module.life_instances {
+                    b.type_work(&actual.ty, false, "affine compound candidate identity")?;
+                    b.type_work(ty, false, "affine compound actual identity")?;
+                    count += usize::from(actual.ty == *ty);
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "affine compound child lacks unique complete nominal instance",
+                    ));
+                }
+                fee(b, life.slots.len())?;
+                Ok(Some((
+                    resources::sums::owned(storage),
+                    life.slots
+                        .iter()
+                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress),
+                )))
+            }
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                ) =>
+            {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                    crate::ownership_store::ordinary_owned(module, ty, b)?;
+                } else {
+                    crate::budget::legacy_value(ty, zil_base::Span::default(), module)?;
+                }
+                Ok(Some((true, false)))
+            }
+            other if other.is_copy_value() => Ok(Some((false, false))),
+            _ => Ok(None),
         }
     }
-    Ok(walk(module,ty,b)?.is_some_and(|(owns,exclusive)|owns||exclusive))
+    Ok(walk(module, ty, b)?.is_some_and(|(owns, exclusive)| owns || exclusive))
 }
-fn compound_move(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::TakeTupleField{local,path}=&i.kind else{return Ok(false)};
-    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound take local absent"))?.ty;
-    if !affine_compound(module,parent,b)?{return Ok(false)}
-    let child=slot(parent,path,b)?;
-    if i.result.map(|result|value_type(f,result)).transpose()?!=Some(child){return Err(failure("compound take changes complete actual field type"))}
+fn compound_move(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::TakeTupleField { local, path } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound take local absent"))?
+        .ty;
+    if !affine_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let child = slot(parent, path, b)?;
+    if i.result.map(|result| value_type(f, result)).transpose()? != Some(child) {
+        return Err(failure("compound take changes complete actual field type"));
+    }
     Ok(true)
 }
-fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::ExtractField{aggregate,index}=i.kind else{return Ok(false)};
-    let parent=value_type(f,aggregate)?;
-    if !shared_compound(module,parent,b)?{return Ok(false)}
-    let Type::Tuple(fields)=parent else{unreachable!()};
-    let child=fields.get(index as usize).ok_or_else(||failure("compound extraction field absent"))?;
-    let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
-    if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+fn compound_extract(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::ExtractField { aggregate, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = value_type(f, aggregate)?;
+    if !shared_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(fields) = parent else {
+        unreachable!()
+    };
+    let child = fields
+        .get(index as usize)
+        .ok_or_else(|| failure("compound extraction field absent"))?;
+    let result = i
+        .result
+        .ok_or_else(|| failure("compound extraction result absent"))?;
+    if value_type(f, result)? != child {
+        return Err(failure("compound extraction changes complete child type"));
+    }
     Ok(true)
 }
-fn compound_unpack(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::UnpackTuple{local,fields}=&i.kind else{return Ok(false)};
-    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound unpack local absent"))?.ty;
-    if !affine_compound(module,parent,b)?{return Ok(false)}
-    let Type::Tuple(types)=parent else{unreachable!()};
-    if i.result.is_some() || fields.len()!=types.len(){return Err(failure("compound unpack omits complete fields"))}
-    let mut seen=BTreeSet::new();
-    for (field,expected) in fields.iter().zip(types){ordered(b,seen.len(),0)?;if field==local || !seen.insert(*field) || f.locals.get(field.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(failure("compound unpack changes or duplicates actual field place"))}}
+fn compound_unpack(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound unpack local absent"))?
+        .ty;
+    if !affine_compound(module, parent, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(types) = parent else {
+        unreachable!()
+    };
+    if i.result.is_some() || fields.len() != types.len() {
+        return Err(failure("compound unpack omits complete fields"));
+    }
+    let mut seen = BTreeSet::new();
+    for (field, expected) in fields.iter().zip(types) {
+        ordered(b, seen.len(), 0)?;
+        if field == local
+            || !seen.insert(*field)
+            || f.locals.get(field.0 as usize).map(|local| &local.ty) != Some(expected)
+        {
+            return Err(failure(
+                "compound unpack changes or duplicates actual field place",
+            ));
+        }
+    }
     Ok(true)
 }
-fn compound_drop(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::DropTuple{local}=i.kind else{return Ok(false)};
-    let ty=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound drop local absent"))?.ty;
-    if !affine_compound(module,ty,b)?{return Ok(false)}
-    if i.result.is_some(){return Err(failure("compound drop fabricates a result"))}
+fn compound_drop(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DropTuple { local } = i.kind else {
+        return Ok(false);
+    };
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| failure("compound drop local absent"))?
+        .ty;
+    if !affine_compound(module, ty, b)? {
+        return Ok(false);
+    }
+    if i.result.is_some() {
+        return Err(failure("compound drop fabricates a result"));
+    }
     Ok(true)
 }
-fn compound_constructor(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
-    let InstructionKind::MakeOwnedTuple{fields}=&i.kind else{return Ok(false)};
-    let id=i.result.ok_or_else(||failure("compound constructor result absent"))?;
-    let ty=value_type(f,id)?;
-    if !affine_compound(module,ty,b)?{return Ok(false)}
-    let Type::Tuple(types)=ty else{unreachable!()};
-    if types.len()!=fields.len(){return Err(failure("compound constructor omits actual fields"))}
-    for (field,expected) in fields.iter().zip(types){b.type_work(expected,false,"compound constructor complete field")?;if value_type(f,*field)?!=expected{return Err(failure("compound constructor changes actual field Type"))}}
+fn compound_constructor(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::MakeOwnedTuple { fields } = &i.kind else {
+        return Ok(false);
+    };
+    let id = i
+        .result
+        .ok_or_else(|| failure("compound constructor result absent"))?;
+    let ty = value_type(f, id)?;
+    if !affine_compound(module, ty, b)? {
+        return Ok(false);
+    }
+    let Type::Tuple(types) = ty else {
+        unreachable!()
+    };
+    if types.len() != fields.len() {
+        return Err(failure("compound constructor omits actual fields"));
+    }
+    for (field, expected) in fields.iter().zip(types) {
+        b.type_work(expected, false, "compound constructor complete field")?;
+        if value_type(f, *field)? != expected {
+            return Err(failure("compound constructor changes actual field Type"));
+        }
+    }
     Ok(true)
 }
-fn compound_slot_rows(ty:&Type,prefix:&mut Path,out:&mut Vec<StorageLifeSlot>,b:&mut Budget)->CompileResult<()> {
-    fee(b,1)?;
+fn compound_slot_rows(
+    ty: &Type,
+    prefix: &mut Path,
+    out: &mut Vec<StorageLifeSlot>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, 1)?;
     match ty {
-        Type::Tuple(fields)=>{for (i,field) in fields.iter().enumerate(){prefix.push(PlaceProjection::Field(u32::try_from(i).map_err(|_|failure("compound field overflow"))?));compound_slot_rows(field,prefix,out,b)?;prefix.pop();}},
-        Type::BorrowedStorage{life,..}=>{for slot in &life.slots{fee(b,prefix.len().saturating_add(slot.path.len()).saturating_add(1))?;let mut path=prefix.clone();path.extend_from_slice(&slot.path);out.push(StorageLifeSlot{path,binder:slot.binder,mode:slot.mode});}},
-        _=>{},
+        Type::Tuple(fields) => {
+            for (i, field) in fields.iter().enumerate() {
+                prefix.push(PlaceProjection::Field(
+                    u32::try_from(i).map_err(|_| failure("compound field overflow"))?,
+                ));
+                compound_slot_rows(field, prefix, out, b)?;
+                prefix.pop();
+            }
+        }
+        Type::BorrowedStorage { life, .. } => {
+            for slot in &life.slots {
+                fee(
+                    b,
+                    prefix
+                        .len()
+                        .saturating_add(slot.path.len())
+                        .saturating_add(1),
+                )?;
+                let mut path = prefix.clone();
+                path.extend_from_slice(&slot.path);
+                out.push(StorageLifeSlot {
+                    path,
+                    binder: slot.binder,
+                    mode: slot.mode,
+                });
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -1668,21 +1864,33 @@ fn binding(
     let mut class_path = Vec::new();
     loop {
         match boundary {
-            Type::Tuple(fields)=>{
-                fee(b,1)?;
-                let Some(PlaceProjection::Field(index))=leaf_path.first() else{return Err(failure("compound relation omits its actual field boundary"))};
-                boundary=fields.get(*index as usize).ok_or_else(||failure("compound relation selects absent actual field"))?;
+            Type::Tuple(fields) => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::Field(index)) = leaf_path.first() else {
+                    return Err(failure("compound relation omits its actual field boundary"));
+                };
+                boundary = fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("compound relation selects absent actual field"))?;
                 class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
-                leaf_path=&leaf_path[1..];
-            },
-            Type::ErrorUnion{error,result} if b.stored_enum_addresses=>{
-                fee(b,1)?;
-                let Some(PlaceProjection::ErrorArm(arm))=leaf_path.first() else{return Err(failure("stored sum relation omits its actual ErrorArm boundary"))};
+                leaf_path = &leaf_path[1..];
+            }
+            Type::ErrorUnion { error, result } if b.stored_enum_addresses => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                    return Err(failure(
+                        "stored sum relation omits its actual ErrorArm boundary",
+                    ));
+                };
                 class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-                boundary=if *arm{error.as_ref()}else{result.as_ref()};
-                leaf_path=&leaf_path[1..];
-            },
-            _=>break,
+                boundary = if *arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                };
+                leaf_path = &leaf_path[1..];
+            }
+            _ => break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -1771,21 +1979,33 @@ fn binding_by_scan(
     let mut class_path = Vec::new();
     loop {
         match boundary {
-            Type::Tuple(fields)=>{
-                fee(b,1)?;
-                let Some(PlaceProjection::Field(index))=leaf_path.first() else{return Err(failure("compound relation omits its actual field boundary"))};
-                boundary=fields.get(*index as usize).ok_or_else(||failure("compound relation selects absent actual field"))?;
+            Type::Tuple(fields) => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::Field(index)) = leaf_path.first() else {
+                    return Err(failure("compound relation omits its actual field boundary"));
+                };
+                boundary = fields
+                    .get(*index as usize)
+                    .ok_or_else(|| failure("compound relation selects absent actual field"))?;
                 class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
-                leaf_path=&leaf_path[1..];
-            },
-            Type::ErrorUnion{error,result} if b.stored_enum_addresses=>{
-                fee(b,1)?;
-                let Some(PlaceProjection::ErrorArm(arm))=leaf_path.first() else{return Err(failure("stored sum relation omits its actual ErrorArm boundary"))};
+                leaf_path = &leaf_path[1..];
+            }
+            Type::ErrorUnion { error, result } if b.stored_enum_addresses => {
+                fee(b, 1)?;
+                let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                    return Err(failure(
+                        "stored sum relation omits its actual ErrorArm boundary",
+                    ));
+                };
                 class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-                boundary=if *arm{error.as_ref()}else{result.as_ref()};
-                leaf_path=&leaf_path[1..];
-            },
-            _=>break,
+                boundary = if *arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                };
+                leaf_path = &leaf_path[1..];
+            }
+            _ => break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -2565,7 +2785,12 @@ fn seed_environment(
                         let mut nested = path.clone();
                         fee(b, nested.len().saturating_add(leaf.path.len()))?;
                         nested.extend_from_slice(&leaf.path);
-                        add(nested, leaf.mode == StoredBorrowMode::ExclusiveAddress, value, b)?;
+                        add(
+                            nested,
+                            leaf.mode == StoredBorrowMode::ExclusiveAddress,
+                            value,
+                            b,
+                        )?;
                     }
                 }
             } else if let Type::BorrowedStorage { life, .. } = capture {
@@ -2712,10 +2937,13 @@ fn seed_value(
         }
     }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
-    let mut compound_slots=Vec::new();
-    if matches!(ty,Type::Tuple(_)) {compound_slot_rows(ty,&mut Vec::new(),&mut compound_slots,b)?;}
+    let mut compound_slots = Vec::new();
+    if matches!(ty, Type::Tuple(_)) {
+        compound_slot_rows(ty, &mut Vec::new(), &mut compound_slots, b)?;
+    }
     if qualified.is_some() || !compound_slots.is_empty() {
-        let declarations=qualified.map_or(compound_slots.as_slice(),|(_,life)|life.slots.as_slice());
+        let declarations =
+            qualified.map_or(compound_slots.as_slice(), |(_, life)| life.slots.as_slice());
         let mut slots = BTreeMap::new();
         for decl in declarations {
             fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
@@ -2793,11 +3021,18 @@ fn seed(
             loans,
             b,
         )?;
-        if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))) && !value.environment.is_empty() {
-            b.stored_slot_updates |= matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,..});
-            let rows=copy_permission_rows(&value.environment,b)?;
-            ordered(b,state.external.len(),0)?;
-            state.external.insert(HoldRoot::Parameter(index as u32),rows);
+        if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))
+            && !value.environment.is_empty()
+        {
+            b.stored_slot_updates |= matches!(
+                &f.locals[local.0 as usize].ty,
+                Type::Address { mutable: true, .. }
+            );
+            let rows = copy_permission_rows(&value.environment, b)?;
+            ordered(b, state.external.len(), 0)?;
+            state
+                .external
+                .insert(HoldRoot::Parameter(index as u32), rows);
         }
         if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
             if super::stored_callables::resource_payload(payload, b)?)
@@ -3092,7 +3327,7 @@ fn substitute(
         }
         out
     } else if !value.environment.is_empty() {
-        let current=environment_memory::current(value,state,b)?;
+        let current = environment_memory::current(value, state, b)?;
         ordered(b, current.len(), source.stored.len())?;
         let mut out = Permission::default();
         if let Some(actual) = current.get(&source.stored) {
@@ -3185,23 +3420,27 @@ fn slot_loan_ids(
             let mutable_leaves = if let Some((d, _)) =
                 super::stored_callables::called(module, f, &instruction.kind)
                 && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
-                && capture_after::required(module,d,b)? {
-                capture_after::leaves(module,d,b)?
-            } else {Vec::new()};
-            let mut add = |parameter: u32, path: &Path, mutable: bool, b: &mut Budget| -> CompileResult<()> {
-                fee(b, path.len().saturating_add(2))?;
-                ordered(b, ids.len(), path.len())?;
-                let id = loans.len();
-                loans.push(Loan::default());
-                b.stored_exclusive_loans |= mutable;
-                if ids
-                    .insert((site, parameter, path.clone()), (id, mutable))
-                    .is_some()
-                {
-                    return Err(failure("duplicate actual stored write site"));
-                }
-                Ok(())
+                && capture_after::required(module, d, b)?
+            {
+                capture_after::leaves(module, d, b)?
+            } else {
+                Vec::new()
             };
+            let mut add =
+                |parameter: u32, path: &Path, mutable: bool, b: &mut Budget| -> CompileResult<()> {
+                    fee(b, path.len().saturating_add(2))?;
+                    ordered(b, ids.len(), path.len())?;
+                    let id = loans.len();
+                    loans.push(Loan::default());
+                    b.stored_exclusive_loans |= mutable;
+                    if ids
+                        .insert((site, parameter, path.clone()), (id, mutable))
+                        .is_some()
+                    {
+                        return Err(failure("duplicate actual stored write site"));
+                    }
+                    Ok(())
+                };
             match &instruction.kind {
                 InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
                     if let Some((_, shape)) = carrier(value_type(
@@ -3212,7 +3451,7 @@ fn slot_loan_ids(
                     )?) {
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
-                                add(u32::MAX, &slot.path, true,b)?;
+                                add(u32::MAX, &slot.path, true, b)?;
                             }
                         }
                     }
@@ -3221,7 +3460,8 @@ fn slot_loan_ids(
                     add(
                         u32::MAX,
                         path,
-                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),b,
+                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),
+                        b,
                     )?;
                 }
                 InstructionKind::Call { function, .. } => {
@@ -3240,18 +3480,30 @@ fn slot_loan_ids(
                                 add(
                                     position as u32,
                                     &slot.path,
-                                    slot.mode == StoredBorrowMode::ExclusiveAddress,b,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    b,
                                 )?;
                             }
-                        }
-                        else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
-                            let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
-                            for (path,mutable) in capture_after::leaves(module,d,b)? {add(position as u32,&path,mutable,b)?;}
+                        } else if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
+                            && let Type::Closure(id) = inner.as_ref()
+                        {
+                            let d = module
+                                .closures
+                                .get(id.0 as usize)
+                                .ok_or_else(|| failure("external callable definition absent"))?;
+                            for (path, mutable) in capture_after::leaves(module, d, b)? {
+                                add(position as u32, &path, mutable, b)?;
+                            }
                         }
                     }
                 }
                 _ if !mutable_leaves.is_empty() => {
-                    for (path,mutable) in &mutable_leaves { add(u32::MAX-1,path,*mutable,b)?; }
+                    for (path, mutable) in &mutable_leaves {
+                        add(u32::MAX - 1, path, *mutable, b)?;
+                    }
                 }
                 _ => {}
             }
@@ -4749,8 +5001,12 @@ fn active(
         if let Some(value) = value {
             active_loans_union(&mut direct, &value.pointer, b)?;
             if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
-                for leaf in environment_memory::current(value,state,b)?.values() {active_loans_union(&mut direct,leaf,b)?;}
-            } else {active_loans_union(&mut direct, &value.held, b)?;}
+                for leaf in environment_memory::current(value, state, b)?.values() {
+                    active_loans_union(&mut direct, leaf, b)?;
+                }
+            } else {
+                active_loans_union(&mut direct, &value.held, b)?;
+            }
             if b.nested_store_windows {
                 active_loans_union(&mut direct, &value.store_description, b)?;
             }
@@ -4841,8 +5097,12 @@ fn active_by_permission(
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
             if !value.environment.is_empty() && !value.pointer.targets.is_empty() {
-                for leaf in environment_memory::current(value,state,b)?.values() {union(&mut direct,leaf,b)?;}
-            } else {union(&mut direct, &value.held, b)?;}
+                for leaf in environment_memory::current(value, state, b)?.values() {
+                    union(&mut direct, leaf, b)?;
+                }
+            } else {
+                union(&mut direct, &value.held, b)?;
+            }
             if b.nested_store_windows {
                 union(&mut direct, &value.store_description, b)?;
             }
@@ -4946,7 +5206,7 @@ fn reverse(
         | InstructionKind::CallClosureMut { callee: local, .. }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
-                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
+                || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -4998,7 +5258,7 @@ fn reverse_bool(
         | InstructionKind::CallClosureMut { callee: local, .. }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
-                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
+                || affine_compound(module, &f.locals[local.0 as usize].ty, b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -5463,8 +5723,8 @@ fn windows(
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::TakeLocal { local }
-                    | InstructionKind::UnpackTuple{local,..}
-                    | InstructionKind::DropTuple{local}
+                    | InstructionKind::UnpackTuple { local, .. }
+                    | InstructionKind::DropTuple { local }
                     | InstructionKind::DropClosure { local } => {
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
                             fee(b, state.vacant.len())?;
@@ -5727,13 +5987,17 @@ fn windows(
                                 )? =>
                             {
                                 ordered(b, state.locals.len(), 0)?;
-                                state.locals.get(callee).map(|v| environment_memory::held(v,&state,b)).transpose()?
+                                state
+                                    .locals
+                                    .get(callee)
+                                    .map(|v| environment_memory::held(v, &state, b))
+                                    .transpose()?
                             }
                             InstructionKind::CallClosure { callee, .. }
                             | InstructionKind::CallClosureBorrowed { callee, .. }
-                            | InstructionKind::CallClosureOnce { callee, .. } => {
-                                Some(environment_memory::held(&values[callee.0 as usize],&state,b)?)
-                            }
+                            | InstructionKind::CallClosureOnce { callee, .. } => Some(
+                                environment_memory::held(&values[callee.0 as usize], &state, b)?,
+                            ),
                             _ => None,
                         };
                         if let Some(held) = receiver_held
@@ -5823,13 +6087,13 @@ fn windows(
                             for leaf in actual.slots.values() {
                                 access.check(leaf, false, apart, b)?;
                             }
-                            let held=environment_memory::held(actual,&state,b)?;
+                            let held = environment_memory::held(actual, &state, b)?;
                             if !held.targets.is_empty() {
                                 access.check(&held, false, apart, b)?;
                             }
                             for other in &arguments[..a] {
                                 let right = &values[other.0 as usize];
-                                let right_held=environment_memory::held(right,&state,b)?;
+                                let right_held = environment_memory::held(right, &state, b)?;
                                 let write = matches!(
                                     value_type(f, *argument)?,
                                     Type::Address { mutable: true, .. }
@@ -5849,7 +6113,8 @@ fn windows(
                                     Type::Address { mutable: true, .. }
                                 ) {
                                     for leaf in right.slots.values().chain(
-                                        (!right_held.targets.is_empty()).then_some(right_held.as_ref()),
+                                        (!right_held.targets.is_empty())
+                                            .then_some(right_held.as_ref()),
                                     ) {
                                         for x in &actual.pointer.targets {
                                             for y in &leaf.targets {
@@ -5862,9 +6127,11 @@ fn windows(
                                     value_type(f, *other)?,
                                     Type::Address { mutable: true, .. }
                                 ) {
-                                    for leaf in actual.slots.values().chain(
-                                        (!held.targets.is_empty()).then_some(held.as_ref()),
-                                    ) {
+                                    for leaf in actual
+                                        .slots
+                                        .values()
+                                        .chain((!held.targets.is_empty()).then_some(held.as_ref()))
+                                    {
                                         for x in &leaf.targets {
                                             for y in &right.pointer.targets {
                                                 separate(x, y, apart, b)?;
@@ -6181,8 +6448,14 @@ fn derive_cfg(
                                     ));
                                 }
                                 if let HoldRoot::Parameter(source) = target.base
-                                    && environment_memory::binding(module,f,*index,path,b)?
-                                        != environment_memory::binding(module,f,source,&target.stored,b)?
+                                    && environment_memory::binding(module, f, *index, path, b)?
+                                        != environment_memory::binding(
+                                            module,
+                                            f,
+                                            source,
+                                            &target.stored,
+                                            b,
+                                        )?
                                 {
                                     return Err(failure(
                                         "stored external update exceeds its declared lifetime relation",
@@ -6321,9 +6594,19 @@ fn derive_cfg(
                         }
                     }
                 }
-                if b.stored_compound_values && matches!(ty,Type::Tuple(_)) && !ty.is_copy_value(){
-                    let mut rows=Vec::new();compound_slot_rows(ty,&mut Vec::new(),&mut rows,b)?;
-                    for row in rows{ordered(b,value.slots.len(),row.path.len())?;if value.slots.get(&row.path).is_none_or(|permission|permission.targets.is_empty()){grounded=false;}}
+                if b.stored_compound_values && matches!(ty, Type::Tuple(_)) && !ty.is_copy_value() {
+                    let mut rows = Vec::new();
+                    compound_slot_rows(ty, &mut Vec::new(), &mut rows, b)?;
+                    for row in rows {
+                        ordered(b, value.slots.len(), row.path.len())?;
+                        if value
+                            .slots
+                            .get(&row.path)
+                            .is_none_or(|permission| permission.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
                 }
                 if let Some((_, life)) = carrier(ty) {
                     if enum_address::ordinary(module, ty, b)? {
@@ -6402,12 +6685,21 @@ fn derive_cfg(
                                         grounded = false;
                                     }
                                 }
-                            }
-                            else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
-                                let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
-                                for (path,_) in capture_after::leaves(module,d,b)? {
-                                    ordered(b,summary.external_after.len(),path.len())?;
-                                    grounded &= summary.external_after.get(&(position as u32,path)).is_some_and(|row|!row.is_empty());
+                            } else if let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                                && let Type::Closure(id) = inner.as_ref()
+                            {
+                                let d = module.closures.get(id.0 as usize).ok_or_else(|| {
+                                    failure("external callable definition absent")
+                                })?;
+                                for (path, _) in capture_after::leaves(module, d, b)? {
+                                    ordered(b, summary.external_after.len(), path.len())?;
+                                    grounded &= summary
+                                        .external_after
+                                        .get(&(position as u32, path))
+                                        .is_some_and(|row| !row.is_empty());
                                 }
                             }
                         }
@@ -6498,7 +6790,7 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
-        returned_upper::check(module,f,facts,b)?;
+        returned_upper::check(module, f, facts, b)?;
         enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
@@ -6540,7 +6832,8 @@ pub(super) fn infer(
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
         && owned_byte_views::profile(module, b)?;
-    b.stored_owned_fixed = if !b.stored_compound_values && !owned_byte_profile
+    b.stored_owned_fixed = if !b.stored_compound_values
+        && !owned_byte_profile
         && !b.task_sources()
         && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
@@ -6635,8 +6928,8 @@ pub(super) fn infer(
                 || b.stored_enum_addresses
                     && enum_address::signature(ty)
                     && enum_address::ordinary(module, ty, b)?
-                || shared_compound(module,ty,b)?
-                || affine_compound(module,ty,b)?
+                || shared_compound(module, ty, b)?
+                || affine_compound(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -7000,7 +7293,10 @@ fn actual_instructions(
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let package_description = pure_copy::ordinary_package_description(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
-            let compound_take=compound_move(module,f,i,b)? || compound_unpack(module,f,i,b)? || compound_constructor(module,f,i,b)? || compound_drop(module,f,i,b)?;
+            let compound_take = compound_move(module, f, i, b)?
+                || compound_unpack(module, f, i, b)?
+                || compound_constructor(module, f, i, b)?
+                || compound_drop(module, f, i, b)?;
             ordinary_observations |=
                 package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
@@ -7161,7 +7457,7 @@ fn actual_instructions(
                 }
             }
             if pure_copy::operation(&i.kind)
-                && !compound_extract(module,f,i,b)?
+                && !compound_extract(module, f, i, b)?
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
@@ -7447,7 +7743,7 @@ fn actual_instructions(
                 }
                 InstructionKind::MakeAggregate { fields }
                 | InstructionKind::MakePackage { fields }
-                | InstructionKind::MakeOwnedTuple{fields}=> {
+                | InstructionKind::MakeOwnedTuple { fields } => {
                     let ty = value_type(
                         f,
                         i.result.ok_or_else(|| failure("aggregate lacks result"))?,

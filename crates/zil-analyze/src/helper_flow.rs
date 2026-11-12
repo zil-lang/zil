@@ -457,12 +457,29 @@ pub(super) fn check(
                 actual_call(instruction, locals, values, &claim.roles, precise.is_some())?
             {
                 counts.add(0, 1, 0, budget)?;
-                if super::super::stored_callables::called(module,function,&instruction.kind)
-                    .is_some_and(|(definition,_)|definition.storage_life.is_some()) {
-                    budget.lookup(budget.callable_receiver_roles.len(),"actual callback role site publication")?;
-                    budget.spend(1,"actual callback role site record")?;
-                    if budget.callable_receiver_roles.insert((function.id,&instruction.kind as *const InstructionKind as usize),event.parameter)
-                        .is_some_and(|old|old!=event.parameter) {return Err(bad("actual callback site has inconsistent parameter lineage"));}
+                if super::super::stored_callables::called(module, function, &instruction.kind)
+                    .is_some_and(|(definition, _)| definition.storage_life.is_some())
+                {
+                    budget.lookup(
+                        budget.callable_receiver_roles.len(),
+                        "actual callback role site publication",
+                    )?;
+                    budget.spend(1, "actual callback role site record")?;
+                    if budget
+                        .callable_receiver_roles
+                        .insert(
+                            (
+                                function.id,
+                                &instruction.kind as *const InstructionKind as usize,
+                            ),
+                            event.parameter,
+                        )
+                        .is_some_and(|old| old != event.parameter)
+                    {
+                        return Err(bad(
+                            "actual callback site has inconsistent parameter lineage",
+                        ));
+                    }
                 }
                 rows[output].calls.push(event);
             }

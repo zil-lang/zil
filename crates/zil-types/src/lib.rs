@@ -311,7 +311,7 @@ fn signatures(
                     ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
-                    result_mode:f.result_mode,
+                    result_mode: f.result_mode,
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
                     receiver: f.receiver.as_ref().map(|r| r.ty.clone()),
                 },
@@ -436,7 +436,8 @@ fn signature_errors(
     }
     // Detect actual outer Array views during the existing bounded header walk.
     let mut arrays = stored::shared_array_related(&f.return_type);
-    let pure_result = pure_array(&f.return_type, f.span, limits, left)? || stored::shared_compound(&f.return_type,left,limits,f.span)?;
+    let pure_result = pure_array(&f.return_type, f.span, limits, left)?
+        || stored::shared_compound(&f.return_type, left, limits, f.span)?;
     if f.return_type.is_package_address()
         && !(f.return_type.is_shared_package_address() && f.life.is_some())
     {
@@ -509,7 +510,8 @@ fn signature_errors(
         {
             continue;
         }
-        let pure_parameter = pure_array(&p.ty, p.span, limits, left)? || stored::shared_compound(&p.ty,left,limits,p.span)?;
+        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?
+            || stored::shared_compound(&p.ty, left, limits, p.span)?;
         if !(p.ty.is_copy_value()
             || pure_parameter
             || p.ty.is_scalar_or_address()
@@ -795,7 +797,7 @@ struct Builder<'a, 'c> {
     next_replacement: u32,
     prepared_replacements: Vec<owning_place_replace::Prepared>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
-    ordinary_managed_values:std::collections::BTreeSet<LocalId>,
+    ordinary_managed_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
@@ -930,7 +932,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             next_replacement: 0,
             prepared_replacements: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
-            ordinary_managed_values:std::collections::BTreeSet::new(),
+            ordinary_managed_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
             sum_slots: BTreeMap::new(),
@@ -948,7 +950,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         for p in &f.parameters {
             b.closures.array_snapshot(&p.ty, 1, p.span)?;
             let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
-            if p.mode==PassingMode::Infer && matches!(p.ty,Type::Managed(_)){b.ordinary_managed_values.insert(local);}
+            if p.mode == PassingMode::Infer && matches!(p.ty, Type::Managed(_)) {
+                b.ordinary_managed_values.insert(local);
+            }
             b.function.parameters.push(local)
         }
         if let Some(modes) = &mut b.factory_modes {
@@ -1588,13 +1592,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return self.closure_slot(name, id, v, s.span);
                 }
-                let ordinary_managed=matches!(t,Type::Managed(_)) && (
-                    matches!(ty,Some(Type::Managed(_)))
-                    || matches!(&e.kind,CoreExprKind::Name(name) if self.lookup(name).is_some_and(|local|self.ordinary_managed_values.contains(&local)))
-                    || matches!(&e.kind,CoreExprKind::Call{callee,..} if matches!(&callee.kind,CoreExprKind::Name(callee) if self.signatures.get(callee).is_some_and(|signature|signature.result_mode==PassingMode::Infer)))
-                );
+                let ordinary_managed = matches!(t, Type::Managed(_))
+                    && (matches!(ty, Some(Type::Managed(_)))
+                        || matches!(&e.kind,CoreExprKind::Name(name) if self.lookup(name).is_some_and(|local|self.ordinary_managed_values.contains(&local)))
+                        || matches!(&e.kind,CoreExprKind::Call{callee,..} if matches!(&callee.kind,CoreExprKind::Name(callee) if self.signatures.get(callee).is_some_and(|signature|signature.result_mode==PassingMode::Infer))));
                 let local = self.local(name, t, *mutable, s.span)?;
-                if ordinary_managed{self.ordinary_managed_values.insert(local);}
+                if ordinary_managed {
+                    self.ordinary_managed_values.insert(local);
+                }
                 self.store(local, v, s.span)?;
             }
             CoreStatementKind::Assign { target, value } => {

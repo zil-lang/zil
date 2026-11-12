@@ -14,7 +14,7 @@ mod tag_forgetting_tests;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
-        Type::BorrowedStorage{storage,..}=>owned(storage),
+        Type::BorrowedStorage { storage, .. } => owned(storage),
         Type::Managed(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
@@ -34,10 +34,15 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         {
             return Ok((false, false));
         }
-        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..})) {
-            budget.type_work(ty,true,"scoped Sum child snapshot")?;
-            let tuple=Type::Tuple(vec![ty.clone()]);
-            if crate::stored_flow::shared_compound(module,&tuple,budget)? || crate::stored_flow::affine_compound(module,&tuple,budget)? {return Ok((false,false))}
+        if matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..}))
+        {
+            budget.type_work(ty, true, "scoped Sum child snapshot")?;
+            let tuple = Type::Tuple(vec![ty.clone()]);
+            if crate::stored_flow::shared_compound(module, &tuple, budget)?
+                || crate::stored_flow::affine_compound(module, &tuple, budget)?
+            {
+                return Ok((false, false));
+            }
         }
         match package_storage(ty) {
             Type::Managed(_) => {

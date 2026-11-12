@@ -1362,14 +1362,26 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::BorrowCapture{index,..}
-                    if !captures.is_empty() && out.is_some_and(|out|out.environment) => {
-                    let out=out.unwrap();
-                    if let Some(head)=out.outer {e.address_origin(head,b)?;}
-                    let captured=captures.get(*index as usize).ok_or_else(||bad("borrowed child class capture absent"))?;
-                    b.spend(out.classes.len().saturating_add(captured.classes.len()),"actual borrowed child environment classes")?;
-                    if out.classes.len()!=captured.classes.len() {return Err(bad("borrowed child class arity differs from capture"));}
-                    for (actual,source) in out.classes.iter().zip(&captured.classes) {e.equal(*actual,*source,b)?;}
+                InstructionKind::BorrowCapture { index, .. }
+                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
+                {
+                    let out = out.unwrap();
+                    if let Some(head) = out.outer {
+                        e.address_origin(head, b)?;
+                    }
+                    let captured = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("borrowed child class capture absent"))?;
+                    b.spend(
+                        out.classes.len().saturating_add(captured.classes.len()),
+                        "actual borrowed child environment classes",
+                    )?;
+                    if out.classes.len() != captured.classes.len() {
+                        return Err(bad("borrowed child class arity differs from capture"));
+                    }
+                    for (actual, source) in out.classes.iter().zip(&captured.classes) {
+                        e.equal(*actual, *source, b)?;
+                    }
                 }
                 InstructionKind::ReadCapture { index } if !captures.is_empty() => {
                     if let Some(out) = out {
@@ -1616,7 +1628,8 @@ fn check_with(
                         b,
                     )?;
                 }
-                InstructionKind::MakeAggregate { fields } | InstructionKind::MakeOwnedTuple{fields}=> {
+                InstructionKind::MakeAggregate { fields }
+                | InstructionKind::MakeOwnedTuple { fields } => {
                     if let Some(out) = out
                         && !out.array_elements.is_empty()
                     {
@@ -1751,14 +1764,40 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::UnpackTuple{local,fields} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
-                    for (index,field) in fields.iter().enumerate(){link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],&locals[field.0 as usize],LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),&mut e,b)?;}
+                InstructionKind::UnpackTuple { local, fields }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    for (index, field) in fields.iter().enumerate() {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            &locals[field.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
                 }
-                InstructionKind::TakeTupleField{local,path} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
-                    if let Some(out)=out {
-                        let Some(PlaceProjection::Field(index))=path.first() else{return Err(bad("compound class take has no field"))};
-                        if path.len()!=1{return Err(bad("compound class take needs exact inline field consumer"))}
-                        link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],out,LifeTypeProjection::Place(PlaceProjection::Field(*index)),&mut e,b)?;
+                InstructionKind::TakeTupleField { local, path }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    if let Some(out) = out {
+                        let Some(PlaceProjection::Field(index)) = path.first() else {
+                            return Err(bad("compound class take has no field"));
+                        };
+                        if path.len() != 1 {
+                            return Err(bad(
+                                "compound class take needs exact inline field consumer",
+                            ));
+                        }
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::ExtractField { aggregate, index } => {

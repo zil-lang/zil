@@ -194,8 +194,13 @@ impl Walk<'_, '_> {
             }
             Type::Closure(id) => Shape::Environment(*id),
             Type::Address { .. } | Type::Managed(_)
-                if registration::borrowed_environment(ty).or_else(||registration::environment(ty)).is_some() => {
-                let environment = registration::borrowed_environment(ty).or_else(||registration::environment(ty)).expect("matched actual registration carrier");
+                if registration::borrowed_environment(ty)
+                    .or_else(|| registration::environment(ty))
+                    .is_some() =>
+            {
+                let environment = registration::borrowed_environment(ty)
+                    .or_else(|| registration::environment(ty))
+                    .expect("matched actual registration carrier");
                 match self.shape(environment, bounds, bindings, span, depth + 1)? {
                     Shape::Environment(id) => Shape::Registration(id),
                     _ => Shape::Unknown,
@@ -754,66 +759,72 @@ impl Walk<'_, '_> {
                                     local_environment = true;
                                     continue;
                                 }
-                                let selected =
-                                    if signature.parameters.get(bound.index as usize).is_some_and(
-                                        |ty| registration::borrowed_environment(ty).or_else(||registration::environment(ty)).is_some(),
-                                    ) {
-                                        match shape {
-                                            Shape::Registration(id) => Some(*id),
-                                            Shape::Complete { ty, .. } => {
-                                                match registration::borrowed_environment(ty).or_else(||registration::environment(ty)) {
-                                                    Some(Type::Closure(id)) => Some(*id),
-                                                    _ => None,
-                                                }
+                                let selected = if signature
+                                    .parameters
+                                    .get(bound.index as usize)
+                                    .is_some_and(|ty| {
+                                        registration::borrowed_environment(ty)
+                                            .or_else(|| registration::environment(ty))
+                                            .is_some()
+                                    }) {
+                                    match shape {
+                                        Shape::Registration(id) => Some(*id),
+                                        Shape::Complete { ty, .. } => {
+                                            match registration::borrowed_environment(ty)
+                                                .or_else(|| registration::environment(ty))
+                                            {
+                                                Some(Type::Closure(id)) => Some(*id),
+                                                _ => None,
                                             }
-                                            _ => None,
                                         }
-                                    } else if let Some(state) = &signature.state_parameter {
-                                        let binding = state
-                                            .bindings
-                                            .iter()
-                                            .find(|b| b.generic_index == bound.generic_index)
-                                            .ok_or_else(|| {
-                                                unsupported(
-                                                    expression.span,
-                                                    "State plan binding is absent",
-                                                )
-                                            })?;
-                                        let Type::Package { fields, .. } =
-                                            &signature.parameters[state.index as usize]
-                                        else {
+                                        _ => None,
+                                    }
+                                } else if let Some(state) = &signature.state_parameter {
+                                    let binding = state
+                                        .bindings
+                                        .iter()
+                                        .find(|b| b.generic_index == bound.generic_index)
+                                        .ok_or_else(|| {
+                                            unsupported(
+                                                expression.span,
+                                                "State plan binding is absent",
+                                            )
+                                        })?;
+                                    let Type::Package { fields, .. } =
+                                        &signature.parameters[state.index as usize]
+                                    else {
+                                        return Err(unsupported(
+                                            expression.span,
+                                            "State plan parameter is not a Package",
+                                        ));
+                                    };
+                                    let (name, _) = &fields[binding.fields[0] as usize];
+                                    self.state.snapshot(
+                                        name.len().saturating_mul(shape.work()),
+                                        expression.span,
+                                    )?;
+                                    if let Shape::Complete { ty, .. } = shape {
+                                        let Type::Package { fields, .. } = ty.as_ref() else {
                                             return Err(unsupported(
                                                 expression.span,
-                                                "State plan parameter is not a Package",
+                                                "State plan owner is not a complete Package",
                                             ));
                                         };
-                                        let (name, _) = &fields[binding.fields[0] as usize];
-                                        self.state.snapshot(
-                                            name.len().saturating_mul(shape.work()),
-                                            expression.span,
-                                        )?;
-                                        if let Shape::Complete { ty, .. } = shape {
-                                            let Type::Package { fields, .. } = ty.as_ref() else {
-                                                return Err(unsupported(
-                                                    expression.span,
-                                                    "State plan owner is not a complete Package",
-                                                ));
-                                            };
-                                            fields.iter().find_map(|(field, ty)| match ty {
-                                                Type::Closure(id) if field == name => Some(*id),
-                                                _ => None,
-                                            })
-                                        } else if let Shape::Package(actual) = shape {
-                                            actual
-                                                .iter()
-                                                .find(|(field, _)| field == name)
-                                                .map(|(_, id)| *id)
-                                        } else {
-                                            None
-                                        }
+                                        fields.iter().find_map(|(field, ty)| match ty {
+                                            Type::Closure(id) if field == name => Some(*id),
+                                            _ => None,
+                                        })
+                                    } else if let Shape::Package(actual) = shape {
+                                        actual
+                                            .iter()
+                                            .find(|(field, _)| field == name)
+                                            .map(|(_, id)| *id)
                                     } else {
-                                        shape.environment()
-                                    };
+                                        None
+                                    }
+                                } else {
+                                    shape.environment()
+                                };
                                 let id = selected.ok_or_else(|| unsupported(expression.span,
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
                                 bindings.bind(

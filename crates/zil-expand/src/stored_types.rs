@@ -802,7 +802,10 @@ impl Shape<'_, '_> {
             self.budget.ty(physical)?;
             self.budget.ty(&actual.physical)?;
             if type_ref(physical) != type_ref(&actual.physical) {
-                return Err(invalid(source.span,"direct physical child differs from original scoped application"));
+                return Err(invalid(
+                    source.span,
+                    "direct physical child differs from original scoped application",
+                ));
             }
             return self.qualified_child(actual, path, type_path, source.span, depth);
         }
@@ -1064,22 +1067,61 @@ pub(super) fn compound_actual(
     budget: &mut generics::Budget<'_>,
 ) -> R<QualifiedActual> {
     let empty = BTreeMap::new();
-    let mut shape = Shape { budget,formals:&[],classes:vec![],slots:vec![],retained:vec![],qualified:&empty,original:None,enum_formals:None,direct };
-    let storage=shape.field(physical,None,&mut vec![],&mut vec![],0)?;
-    let mut nominal_arguments=Vec::new();
-    for (prefix,actual) in direct {
-        if let Type::BorrowedStorage { life,.. }=&actual.ty {
+    let mut shape = Shape {
+        budget,
+        formals: &[],
+        classes: vec![],
+        slots: vec![],
+        retained: vec![],
+        qualified: &empty,
+        original: None,
+        enum_formals: None,
+        direct,
+    };
+    let storage = shape.field(physical, None, &mut vec![], &mut vec![], 0)?;
+    let mut nominal_arguments = Vec::new();
+    for (prefix, actual) in direct {
+        if let Type::BorrowedStorage { life, .. } = &actual.ty {
             for row in &life.nominal_arguments {
-                let lexical=*actual.classes.get(row.binder as usize).ok_or_else(||invalid(physical.span,"compound nominal class absent"))?;
-                let binder=shape.class(lexical,physical.span)?;
-                spend(shape.budget,physical.span,prefix.len().saturating_add(row.path.len()).saturating_add(1))?;
-                let mut path=prefix.clone();path.extend_from_slice(&row.path);
-                nominal_arguments.push(NominalLifeArgument{path,declaration:row.declaration,argument:row.argument,binder});
+                let lexical = *actual
+                    .classes
+                    .get(row.binder as usize)
+                    .ok_or_else(|| invalid(physical.span, "compound nominal class absent"))?;
+                let binder = shape.class(lexical, physical.span)?;
+                spend(
+                    shape.budget,
+                    physical.span,
+                    prefix
+                        .len()
+                        .saturating_add(row.path.len())
+                        .saturating_add(1),
+                )?;
+                let mut path = prefix.clone();
+                path.extend_from_slice(&row.path);
+                nominal_arguments.push(NominalLifeArgument {
+                    path,
+                    declaration: row.declaration,
+                    argument: row.argument,
+                    binder,
+                });
             }
         }
     }
     shape.budget.ty(physical)?;
-    Ok(QualifiedActual {physical:physical.clone(),ty:Type::BorrowedStorage {storage:Box::new(storage),life:StorageLifeShape{binder_count:u32::try_from(shape.classes.len()).map_err(|_|invalid(physical.span,"compound classes overflow"))?,slots:shape.slots,retained:shape.retained,nominal_arguments}},classes:shape.classes})
+    Ok(QualifiedActual {
+        physical: physical.clone(),
+        ty: Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: u32::try_from(shape.classes.len())
+                    .map_err(|_| invalid(physical.span, "compound classes overflow"))?,
+                slots: shape.slots,
+                retained: shape.retained,
+                nominal_arguments,
+            },
+        },
+        classes: shape.classes,
+    })
 }
 
 /// `aggregate` is the actual substituted declaration and `identity` comes from

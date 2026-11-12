@@ -304,8 +304,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::declaration(declaration, budget)?;
-        if declaration.kind == DynDeclarationKind::Trait && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some()) {
-            return Err(bad("trait declaration cannot claim implementation recipes", None));
+        if declaration.kind == DynDeclarationKind::Trait
+            && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
+        {
+            return Err(bad(
+                "trait declaration cannot claim implementation recipes",
+                None,
+            ));
         }
         budget.spend(
             declaration

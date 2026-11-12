@@ -360,8 +360,9 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     for f in &module.functions {
         match (&f.return_type, f.result_mode) {
-            (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
-            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
+            (Type::Managed(_), PassingMode::Infer | PassingMode::Create | PassingMode::Give) => {}
+            (ty, PassingMode::Infer | PassingMode::Create | PassingMode::Give)
+                if errors::managed_success(ty) => {}
             (Type::Desc(_), _) => {
                 return Err(unsupported(
                     "resource description returns require exported source and management contracts",

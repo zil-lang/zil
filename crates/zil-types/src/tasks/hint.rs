@@ -304,7 +304,7 @@ mod hint_budget {
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
             retained_return_sources: None,
-            result_mode:PassingMode::Infer,
+            result_mode: PassingMode::Infer,
             storage_life: None,
             life: None,
             id: Some(FunctionId(1)),

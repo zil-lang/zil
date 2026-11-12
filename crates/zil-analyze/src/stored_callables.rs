@@ -261,7 +261,8 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 continue;
             }
             admitted &= if d.storage_life.is_some() {
-                capture(t) || owned_capture(t, b)?
+                capture(t)
+                    || owned_capture(t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
@@ -321,7 +322,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
             super::signature_life::capture_relation(
-            &module.closures,
+                &module.closures,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
@@ -672,11 +673,19 @@ pub(super) fn role<'a>(
     let position = match f.parameters.iter().position(|p| *p == local) {
         Some(position) => position,
         None => {
-            b.lookup(b.callable_receiver_roles.len(),"proved callback receiver role site")?;
-            if let Some(position)=b.callable_receiver_roles.get(&(f.id,kind as *const InstructionKind as usize)) {
+            b.lookup(
+                b.callable_receiver_roles.len(),
+                "proved callback receiver role site",
+            )?;
+            if let Some(position) = b
+                .callable_receiver_roles
+                .get(&(f.id, kind as *const InstructionKind as usize))
+            {
                 *position as usize
-            } else {staged::parameter(module,f,kind,b)?}
-        },
+            } else {
+                staged::parameter(module, f, kind, b)?
+            }
+        }
     };
     let role = contract
         .roles

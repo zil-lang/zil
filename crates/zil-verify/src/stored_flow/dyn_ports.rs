@@ -248,6 +248,7 @@ pub(super) fn seed(
             base,
             leaf: Vec::new(),
             inline: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let id = loans.len();
@@ -538,6 +539,7 @@ pub(super) fn transfer(
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 });
             }

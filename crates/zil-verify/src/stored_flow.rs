@@ -9,6 +9,7 @@ mod borrowed_owned_entry_tests;
 mod byte_queries;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
+mod compound;
 mod dyn_closed;
 mod dyn_ports;
 mod dyn_providers;
@@ -17,6 +18,7 @@ mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod relation_index;
+pub(super) mod replacements;
 #[cfg(test)]
 mod result_row_tests;
 mod returned_environment;
@@ -24,7 +26,6 @@ mod returned_environment;
 mod set_bits_tests;
 mod ssa_loan_groups;
 mod store_paths;
-pub(super) mod replacements;
 use live_words::WordRow;
 #[cfg(test)]
 mod ancestry_tests;
@@ -1592,6 +1593,7 @@ pub(super) fn qualifications(
                 }
                 if pure_copy::operation(&i.kind)
                     && !array_index::candidate(f, i)
+                    && !compound::projection(f, i, b)?
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                     && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
@@ -2500,6 +2502,7 @@ fn seed_payload(
             });
         }
     }
+    compound::seed(ty, base, &mut p, loans, b)?;
     task_address::seed(ty, base, &mut p, loans, b)?;
     Ok(p)
 }
@@ -2770,7 +2773,11 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
-    if !b.stored_slot_updates && !b.stored_constructor_sites && !b.nested_callable_sources && !b.replacements {
+    if !b.stored_slot_updates
+        && !b.stored_constructor_sites
+        && !b.nested_callable_sources
+        && !b.replacements
+    {
         return Ok(sites);
     }
     b.spend(f.blocks.len())?;
@@ -2805,7 +2812,7 @@ fn write_sites(
                     if let Some((_, shape)) = qualified(vt(f, *value)?) {
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
-                                add(u32::MAX, &slot.path, true)?;
+                                add(u32::MAX, &slot.path, true, b)?;
                             }
                         }
                     }
@@ -2949,6 +2956,16 @@ fn step(
         }
         _ if replacements::operation(&i.kind) => {
             replacements::step(f, i, state, values, sites, loans, b)?;
+        }
+        InstructionKind::ExtractField { aggregate, index } if compound::projection(f, i, b)? => {
+            let input = val(*aggregate)?;
+            for (path, permission) in &input.leaves {
+                b.spend(path.len().saturating_add(1))?;
+                if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
+                    && field == index {
+                    add_leaf(&mut out, tail, permission, b)?;
+                }
+            }
         }
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
@@ -3467,6 +3484,7 @@ fn step(
                 i.result
                     .ok_or_else(|| err("array constructor lacks result"))?,
             )?;
+            compound::construct(f, i, fields, values, &mut out, b)?;
             if shared_array_shape(result, b)? {
                 let Type::Array { length, .. } = result else {
                     unreachable!()
@@ -4626,7 +4644,7 @@ fn check_call(
     }
     if b.store_descriptions() {
         for (source, write) in &summaries[function.0 as usize].head_accesses {
-            let actual = instantiate(source, arguments, &solution.values, state, b)?;
+            let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
             if *write {
                 store_paths::writable(&actual, &solution.loans, b)?;
             }
@@ -4915,8 +4933,15 @@ fn windows(
                     b,
                 )?;
                 replacements::check(
-                    f, i, &state, &solution.values, &active, &solution.loans,
-                    requirements, head_accesses, b,
+                    f,
+                    i,
+                    &state,
+                    &solution.values,
+                    &active,
+                    &solution.loans,
+                    requirements,
+                    head_accesses,
+                    b,
                 )?;
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
@@ -5467,6 +5492,8 @@ fn windows(
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
                                     let left = captured_owner::substitute(
+                                        module,
+                                        f,
                                         left,
                                         &definition.captures,
                                         &receiver,
@@ -5476,6 +5503,8 @@ fn windows(
                                         b,
                                     )?;
                                     let right = captured_owner::substitute(
+                                        module,
+                                        f,
                                         right,
                                         &definition.captures,
                                         &receiver,
@@ -5779,6 +5808,13 @@ fn summarize(
                 }
             }
         }
+        if let Some(slots) = compound::slots(ty, b)? {
+            for (path, _) in slots {
+                if leaf(p, &path, b)?.is_none_or(|permission| permission.sources.is_empty()) {
+                    summary.complete = false;
+                }
+            }
+        }
         if shared_array_shape(ty, b)? {
             let Type::Array { length, .. } = ty else {
                 unreachable!()
@@ -5863,7 +5899,9 @@ fn summarize(
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
         }
-        if (b.stored_slot_updates || b.replacements || b.dyn_contexts) && *reachable && matches!(block.terminator, Terminator::Return(_))
+        if (b.stored_slot_updates || b.replacements || b.dyn_contexts)
+            && *reachable
+            && matches!(block.terminator, Terminator::Return(_))
         {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
                 let local = *f
@@ -6216,6 +6254,7 @@ fn check_with_mask(
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || shared_array_shape(ty, b)?
+                || compound::slots(ty, b)?.is_some()
                 || matches!(ty, Type::Address { inner, .. } if shared_array_shape(inner, b)?)
                 || super::stored_owned::owner(ty)
                 || super::stored_owned::description(ty)

@@ -107,6 +107,7 @@ fn input(
                 }),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             },
         ));
@@ -124,6 +125,7 @@ fn input(
         retained_port: None,
         leaf: path,
         inline: Vec::new(),
+        heap_parents: Vec::new(),
         heap_element: None,
     };
     if matches!(endpoint, Type::Address { .. } | Type::Desc(_)) {
@@ -320,6 +322,7 @@ mod tests {
             base: HoldRoot::Parameter(0),
             leaf: vec![],
             inline: vec![],
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let rows = dyn_ports::Rows(vec![(
@@ -392,6 +395,7 @@ mod tests {
             base: HoldRoot::Parameter(0),
             leaf: vec![],
             inline: vec![],
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let task_source = Source {

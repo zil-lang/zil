@@ -841,14 +841,24 @@ fn observing_zero_debt_children_does_not_restore_a_partially_taken_parent() {
 fn store_element_entails_value_and_synchronous_cleanup_in_unused_definitions() {
     let valid = "import std.iter\nfn need<T:Value+SyncDrop>(value:T){} fn dispose<T:StoreElement>(value:T){need(value)} fn projected<I:iter.Iterator+Value+SyncDrop>(input:I,value:I.Item) where I.Item:StoreElement {need(value)} fn main(){}";
     let report = compile_project(&project(valid), &CompileOptions::default());
-    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     for invalid in [
         "fn need<T:SyncDrop>(value:T){}fn missing<T:Value>(value:T){need(value)}fn main(){}",
         "fn need<T:StoreElement>(value:T){}fn inverse<T:Value+SyncDrop>(value:T){need(value)}fn main(){}",
-        "fn need<T:SyncDrop>(){}fn main(){need::<Task<i32>>()}"
+        "fn need<T:SyncDrop>(){}fn main(){need::<Task<i32>>()}",
     ] {
         let report = compile_project(&project(invalid), &CompileOptions::default());
-        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
-        assert_eq!(report.phase,Phase::Expand,"{}",report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
 }

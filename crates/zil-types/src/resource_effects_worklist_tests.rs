@@ -116,7 +116,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
                 f.name.clone(),
                 Signature {
                     retained_return_sources: None,
-                    result_mode:f.result_mode,
+                    result_mode: f.result_mode,
                     storage_life: None,
                     life: None,
                     id: Some(FunctionId(i as u32)),

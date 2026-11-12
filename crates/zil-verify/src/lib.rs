@@ -1056,7 +1056,13 @@ fn check_module(
                                 | InstructionKind::ReservePlaceAddress { .. }
                         ) {
                             budget.replacements = true;
-                            budget.spend(module.functions.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                            budget.spend(
+                                module
+                                    .functions
+                                    .len()
+                                    .checked_ilog2()
+                                    .map_or(1, |n| n as usize + 1),
+                            )?;
                             budget.stored_replacement_functions.insert(function.id);
                         }
                     }
@@ -1091,7 +1097,13 @@ fn check_module(
                     InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
                         budget.replacements = true;
-                        budget.spend(module.functions.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                        budget.spend(
+                            module
+                                .functions
+                                .len()
+                                .checked_ilog2()
+                                .map_or(1, |n| n as usize + 1),
+                        )?;
                         budget.stored_replacement_functions.insert(function.id);
                     }
                     InstructionKind::StaticUtf8 { bytes } => {
@@ -1554,7 +1566,8 @@ fn check_type_shape(
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 // This only schedules an actual-opcode inventory. The QName
                 // grants no origin, protocol state or ownership capability.
-                budget.owned_task_input_inventory |= name.starts_with("@std.task:v1:TaskCreateFailure:")
+                budget.owned_task_input_inventory |= name
+                    .starts_with("@std.task:v1:TaskCreateFailure:")
                     && matches!(fields.as_slice(),[(r,_),(i,Type::Tuple(_))] if r=="reason" && i=="inputs");
                 budget.spend(name.len())?;
                 budget.spend(fields.len())?;

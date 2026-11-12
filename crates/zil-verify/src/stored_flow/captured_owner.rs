@@ -294,6 +294,8 @@ pub(super) fn receiver(
 }
 
 pub(super) fn substitute(
+    module: &TypedModule,
+    f: &TypedFunction,
     source: &Source,
     captures: &[Type],
     receiver: &Permission,
@@ -303,7 +305,7 @@ pub(super) fn substitute(
     b: &mut Budget,
 ) -> Check<Permission> {
     let HoldRoot::Capture(index) = source.base else {
-        return instantiate(source, arguments, values, state, b);
+        return instantiate(module, f, source, arguments, values, state, b);
     };
     let ty = captures
         .get(index as usize)
@@ -364,6 +366,8 @@ pub(super) fn apply(
             join_permission(
                 &mut permission,
                 &substitute(
+                    module,
+                    f,
                     source,
                     &definition.captures,
                     &receiver,

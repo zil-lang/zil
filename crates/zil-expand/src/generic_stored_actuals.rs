@@ -4,63 +4,147 @@ use super::*;
 use crate::stored_types::{self, LexicalLife};
 
 impl Engine<'_> {
-    fn resource_payload_hint(&mut self,ty:&TypeRef)->R<bool>{
-        let TypeKind::Named{path,..}=&grouped(ty).kind else{return Ok(false)};
-        let name=path.join(".");self.budget.text(&name,ty.span)?;
-        if matches!(name.as_str(),"Store"|"ByteBuffer"){return Ok(true)}
-        let original=self.instance_types.get(&name).unwrap_or(ty);
-        let TypeKind::Named{path,args}=&grouped(original).kind else{return Ok(false)};
-        let name=path.join(".");self.budget.text(&name,ty.span)?;
-        Ok(matches!(self.nominals.get(&name),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Resource && aggregate.generics.len()==args.len()))
+    fn resource_payload_hint(&mut self, ty: &TypeRef) -> R<bool> {
+        let TypeKind::Named { path, .. } = &grouped(ty).kind else {
+            return Ok(false);
+        };
+        let name = path.join(".");
+        self.budget.text(&name, ty.span)?;
+        if matches!(name.as_str(), "Store" | "ByteBuffer") {
+            return Ok(true);
+        }
+        let original = self.instance_types.get(&name).unwrap_or(ty);
+        let TypeKind::Named { path, args } = &grouped(original).kind else {
+            return Ok(false);
+        };
+        let name = path.join(".");
+        self.budget.text(&name, ty.span)?;
+        Ok(
+            matches!(self.nominals.get(&name),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Resource && aggregate.generics.len()==args.len()),
+        )
     }
-    pub(super) fn constructed_resource_hint(&mut self,ty:Option<TypeRef>)->R<Option<TypeRef>>{
-        let Some(ty)=ty else{return Ok(None)};
-        if !self.resource_payload_hint(&ty)?{return Ok(Some(ty))}
+    pub(super) fn constructed_resource_hint(&mut self, ty: Option<TypeRef>) -> R<Option<TypeRef>> {
+        let Some(ty) = ty else { return Ok(None) };
+        if !self.resource_payload_hint(&ty)? {
+            return Ok(Some(ty));
+        }
         self.budget.ty(&ty)?;
-        Ok(Some(TypeRef{span:ty.span,kind:TypeKind::Named{path:vec!["Managed".into()],args:vec![GenericArg::Type(ty)]}}))
+        Ok(Some(TypeRef {
+            span: ty.span,
+            kind: TypeKind::Named {
+                path: vec!["Managed".into()],
+                args: vec![GenericArg::Type(ty)],
+            },
+        }))
     }
-    pub(super) fn given_resource_hint(&mut self,operand:&Expr,ty:TypeRef,env:&Env)->R<Option<TypeRef>>{
+    pub(super) fn given_resource_hint(
+        &mut self,
+        operand: &Expr,
+        ty: TypeRef,
+        env: &Env,
+    ) -> R<Option<TypeRef>> {
         // This is a proposal for an explicit transfer from an actual owning
         // lexical position. A description parameter cannot manufacture it.
-        let owns=self.resource_place_hint(operand,env,0)?;
-        if owns {self.constructed_resource_hint(Some(ty))}else{Ok(Some(ty))}
-    }
-    fn resource_place_hint(&mut self,place:&Expr,env:&Env,depth:usize)->R<bool>{
-        self.budget.node(place.span,depth)?;
-        match &place.kind {
-            ExprKind::Name(name)=>{
-                let Some(binding)=env.bindings.get(name) else{return Ok(false)};
-                if binding.resource_owner{return Ok(true)}
-                let Some(ty)=env.get(name).and_then(Option::as_ref) else{return Ok(false)};
-                let TypeKind::Named{path,..}=&grouped(ty).kind else{return Ok(matches!(grouped(ty).kind,TypeKind::Tuple(_)|TypeKind::Array{..}))};
-                let key=path.join(".");self.budget.text(&key,place.span)?;
-                let original=self.instance_types.get(&key).unwrap_or(ty);
-                let TypeKind::Named{path,..}=&grouped(original).kind else{return Ok(false)};
-                Ok(matches!(self.nominals.get(&path.join(".")),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Package))
-            },
-            ExprKind::Member{object,..}=>{
-                if !self.resource_place_hint(object,env,depth+1)?{return Ok(false)}
-                Ok(!self.value_hint(object,env,depth+1,false)?.as_ref().is_some_and(|ty|matches!(grouped(ty).kind,TypeKind::Reference{..})))
-            },
-            ExprKind::Group(inner)=>self.resource_place_hint(inner,env,depth+1),
-            ExprKind::Record{..}=>Ok(true),
-            _=>Ok(false),
+        let owns = self.resource_place_hint(operand, env, 0)?;
+        if owns {
+            self.constructed_resource_hint(Some(ty))
+        } else {
+            Ok(Some(ty))
         }
     }
-    pub(super) fn bind_resource_access(&mut self,pattern:&Pattern,value:&Expr,annotation:Option<&TypeRef>,env:&mut Env)->R<()> {
-        let PatternKind::Name(name)=&pattern.kind else{return Ok(())};
-        let fresh=matches!(value.kind,ExprKind::Record{..}|ExprKind::Unary{op:UnaryOp::Give,..});
-        let explicit_value=annotation.is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1));
-        let resource_annotation=annotation.map(|ty|self.resource_payload_hint(ty)).transpose()?.unwrap_or(false);
-        let binding=env.bindings.get_mut(name).expect("new lexical binding");
-        if fresh && !explicit_value {
-            binding.resource_owner|=resource_annotation;
-            if let Some(TypeRef{kind:TypeKind::Named{path,args},..})=&binding.ty
-                && path.as_slice()==["Managed"] && let [GenericArg::Type(payload)]=args.as_slice(){
-                self.budget.ty(payload)?;let payload=payload.clone();binding.ty=Some(payload);binding.resource_owner=true;
+    fn resource_place_hint(&mut self, place: &Expr, env: &Env, depth: usize) -> R<bool> {
+        self.budget.node(place.span, depth)?;
+        match &place.kind {
+            ExprKind::Name(name) => {
+                let Some(binding) = env.bindings.get(name) else {
+                    return Ok(false);
+                };
+                if binding.resource_owner {
+                    return Ok(true);
+                }
+                let Some(ty) = env.get(name).and_then(Option::as_ref) else {
+                    return Ok(false);
+                };
+                let TypeKind::Named { path, .. } = &grouped(ty).kind else {
+                    return Ok(matches!(
+                        grouped(ty).kind,
+                        TypeKind::Tuple(_) | TypeKind::Array { .. }
+                    ));
+                };
+                let key = path.join(".");
+                self.budget.text(&key, place.span)?;
+                let original = self.instance_types.get(&key).unwrap_or(ty);
+                let TypeKind::Named { path, .. } = &grouped(original).kind else {
+                    return Ok(false);
+                };
+                Ok(
+                    matches!(self.nominals.get(&path.join(".")),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Package),
+                )
             }
-        }else if let ExprKind::Call{callee,..}=&value.kind && let ExprKind::Name(callee)=&callee.kind {
-            binding.resource_owner|=callee=="store_new" || self.signatures.get(callee).is_some_and(|function|stores::result_mode(function).is_ok_and(|mode|matches!(mode,zil_ir::PassingMode::Create|zil_ir::PassingMode::Give)));
+            ExprKind::Member { object, .. } => {
+                if !self.resource_place_hint(object, env, depth + 1)? {
+                    return Ok(false);
+                }
+                Ok(!self
+                    .value_hint(object, env, depth + 1, false)?
+                    .as_ref()
+                    .is_some_and(|ty| matches!(grouped(ty).kind, TypeKind::Reference { .. })))
+            }
+            ExprKind::Group(inner) => self.resource_place_hint(inner, env, depth + 1),
+            ExprKind::Record { .. } => Ok(true),
+            _ => Ok(false),
+        }
+    }
+    pub(super) fn bind_resource_access(
+        &mut self,
+        pattern: &Pattern,
+        value: &Expr,
+        annotation: Option<&TypeRef>,
+        env: &mut Env,
+    ) -> R<()> {
+        let PatternKind::Name(name) = &pattern.kind else {
+            return Ok(());
+        };
+        let fresh = matches!(
+            value.kind,
+            ExprKind::Record { .. }
+                | ExprKind::Unary {
+                    op: UnaryOp::Give,
+                    ..
+                }
+        );
+        let explicit_value=annotation.is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1));
+        let resource_annotation = annotation
+            .map(|ty| self.resource_payload_hint(ty))
+            .transpose()?
+            .unwrap_or(false);
+        let binding = env.bindings.get_mut(name).expect("new lexical binding");
+        if fresh && !explicit_value {
+            binding.resource_owner |= resource_annotation;
+            if let Some(TypeRef {
+                kind: TypeKind::Named { path, args },
+                ..
+            }) = &binding.ty
+                && path.as_slice() == ["Managed"]
+                && let [GenericArg::Type(payload)] = args.as_slice()
+            {
+                self.budget.ty(payload)?;
+                let payload = payload.clone();
+                binding.ty = Some(payload);
+                binding.resource_owner = true;
+            }
+        } else if let ExprKind::Call { callee, .. } = &value.kind
+            && let ExprKind::Name(callee) = &callee.kind
+        {
+            binding.resource_owner |= callee == "store_new"
+                || self.signatures.get(callee).is_some_and(|function| {
+                    stores::result_mode(function).is_ok_and(|mode| {
+                        matches!(
+                            mode,
+                            zil_ir::PassingMode::Create | zil_ir::PassingMode::Give
+                        )
+                    })
+                });
         }
         Ok(())
     }
@@ -175,7 +259,14 @@ impl Engine<'_> {
             self.budget
                 .lineage_bytes(std::mem::size_of::<LexicalLife>(), ty.span)?;
             return Ok(Some(stored_types::QualifiedActual {
-                physical: TypeRef { span:ty.span, kind:TypeKind::Reference { lifetime:Some(name.clone()),mutable:*mutable,inner:inner.clone() } },
+                physical: TypeRef {
+                    span: ty.span,
+                    kind: TypeKind::Reference {
+                        lifetime: Some(name.clone()),
+                        mutable: *mutable,
+                        inner: inner.clone(),
+                    },
+                },
                 ty: zil_ir::Type::Address {
                     mutable: *mutable,
                     inner: Box::new(super::super::type_ref(inner)),
@@ -184,15 +275,30 @@ impl Engine<'_> {
             }));
         }
         if let TypeKind::Tuple(fields) = &mut ty.kind {
-            let mut direct=BTreeMap::new();
-            for (index,field) in fields.iter_mut().enumerate() {
-                let path=vec![zil_ir::LifeTypeProjection::Place(zil_ir::PlaceProjection::Field(u32::try_from(index).map_err(|_|error(field.span,"tuple ordinal overflow"))?))];
-                if let Some(actual)=self.qualified_type_actual(field,depth+1)? {
-                    self.budget.lineage_bytes(std::mem::size_of::<stored_types::QualifiedActual>().saturating_add(std::mem::size_of::<zil_ir::LifeTypeProjection>()),field.span)?;
-                    direct.insert(path,actual);
-                } else {self.ty(field,depth+1)?;}
+            let mut direct = BTreeMap::new();
+            for (index, field) in fields.iter_mut().enumerate() {
+                let path = vec![zil_ir::LifeTypeProjection::Place(
+                    zil_ir::PlaceProjection::Field(
+                        u32::try_from(index)
+                            .map_err(|_| error(field.span, "tuple ordinal overflow"))?,
+                    ),
+                )];
+                if let Some(actual) = self.qualified_type_actual(field, depth + 1)? {
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<stored_types::QualifiedActual>()
+                            .saturating_add(std::mem::size_of::<zil_ir::LifeTypeProjection>()),
+                        field.span,
+                    )?;
+                    direct.insert(path, actual);
+                } else {
+                    self.ty(field, depth + 1)?;
+                }
             }
-            return Ok(Some(stored_types::compound_actual(ty,&direct,&mut self.budget)?));
+            return Ok(Some(stored_types::compound_actual(
+                ty,
+                &direct,
+                &mut self.budget,
+            )?));
         }
         let TypeKind::Named { path, args } = &mut ty.kind else {
             return Err(unsupported(
@@ -235,7 +341,7 @@ impl Engine<'_> {
         args.clear();
         self.budget.ty(ty)?;
         Ok(Some(stored_types::QualifiedActual {
-            physical:ty.clone(),
+            physical: ty.clone(),
             ty: actual,
             classes,
         }))
