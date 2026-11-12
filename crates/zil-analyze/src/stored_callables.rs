@@ -640,8 +640,16 @@ pub(super) fn types(
                 b.type_work(t, true, "actual captured field type comparison")?;
             }
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
+                let constant_slot = d.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(*index) && position.path.is_empty()
+                    })
+                }) && matches!(t, Type::Address { mutable: false, .. });
+                // Replacing an immutable pointer slot needs exclusive receiver
+                // access. Its constant contents are independently checked at
+                // every module constructor and write before planning.
                 if d.kind == zil_ir::CallableKind::Fn
-                    || !scalar(t)
+                    || !(scalar(t) || constant_slot)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
                 {
