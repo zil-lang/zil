@@ -694,3 +694,47 @@ fn inline_address_contract_never_becomes_a_same_typed_field_or_stored_load() {
         assert_rejected(&decoded);
     }
 }
+
+#[test]
+fn shared_context_field_view_reborrows_an_actual_mutable_input() {
+    let text = include_str!("../../../tests/fixtures/dyn-context/shared-field-from-mutable.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "shared-from-mutable");
+    let factory = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    assert!(
+        factory
+            .retained_return_sources
+            .as_ref()
+            .unwrap()
+            .iter()
+            .flat_map(|r| &r.sources)
+            .any(|source| matches!(
+                source,
+                zil_ir::StorageSource::PlaceAddress {
+                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    ..
+                }
+            ))
+    );
+    assert!(
+        factory
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                zil_ir::InstructionKind::ReborrowAddress { mutable: false, .. }
+            )),
+        "{factory:#?}"
+    );
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
