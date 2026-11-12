@@ -1091,9 +1091,9 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "eaba087afc760280686060cc40e053ee5931b379",
+        "read_goal": "2a34b35826638ba5c647ba62754c05bd797fcad8",
         "source": "328eb392d8d88148a75a743d899b43aebae73587",
-        "measured_source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+        "measured_source": "328eb392d8d88148a75a743d899b43aebae73587",
         "measured_binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
         "main_capture": "15:08 UTC; frozen earlier main42 comparisons retain their original source, not relabelled",
@@ -1117,7 +1117,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "Complete narrow CT hint/NodeId projection + fullUser/effectiveAllowance budget binding, opaque FunctionBodyRevision/currentrawplacement acrossfailed epochs, sharedcompletecanonicalAU/8Btrace andunusedFAMrefusal enumeration removal all actualconsumers; originalVerify/O2/defaultbudgets retained. Currentfullformal main/Rust next; ownednative region/MCstate closure only architecture review, not implemented.",
+        "active_construction": "Integrate full DenseMap capture scratch slice; next retained NativeRegion prototype with actual owner lifecycle, current providers and emission symbol overlay. No Region implementation/quality claim; user requests whole-slice then unified tests.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1202,7 +1202,7 @@
           "parts": 7,
           "status": "Fullcheck02/finalgates/binaries freshHTTPSallfilebytes+modeverified; capturedactualvalidator270/144/126/117 rerunidentical. checksummary20fileprojection separately fullmanifestverified. O2 originalfullvalidatorpassed but archivev15inprogress, notyetdurableclaim."
         },
-        "delivery_source": "86392ba1f",
+        "delivery_source": "f4e195ca66af0357143490775beede0c5125986c",
         "current_readme": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.md",
         "current_profile_328": {
           "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.json",
@@ -1240,7 +1240,119 @@
           "data_tail": "099153e029ce00d514157bcdd82a5bc6b50e6a9c",
           "scope": "Completeformal1eO2-02:19data+index20 fixedremote,freshHTTPSallfilehash/modeverified; original21669files/2313436984B exactunion. No wholeassembledfreshvalidatorclaim. Finalmetadata1152files correctedwrapperpreestimateassert andtemporaryGit401 retained; laternormalpush/readback/freshsmallindexverified."
         },
-        "raw_current_v16": "All3diagnostic profiles original1480files/1246722829B master491b43... savedbeforeanyretirement andpayload19pieces verifiedremotebyfilebytes/mode/master; binaries/gates/source/reviews metadata+finalindexes sealing. Do not call finalindex complete before receipt."
+        "raw_current_v16": "fixed301c7f680207dbd115ebf895e6b07126d1615fe1, full1480-file original union and all fresh-piece hashes/modes verified, no assembled qualifier rerun; full-push-recovery-v16.json",
+        "matched_328": {
+          "source": "328eb392d8d88148a75a743d899b43aebae73587",
+          "summary": "research/full-push-native:tools/research/incremental-demand/full-push-matched-328.json",
+          "review": "research/full-push-native:tools/research/incremental-demand/full-push-formal-328-results-review.json",
+          "per_mode": {
+            "rows": 270,
+            "measured": 144,
+            "parents": 126
+          },
+          "native_executions": 2808,
+          "verified_blobs": 479,
+          "quality_pairs": {
+            "all": 78,
+            "measured": 42,
+            "parents": 36,
+            "ELF_equal": true,
+            "strict_LLVM_equal_except_verified_comment": true,
+            "raw_LLVM_not_always_byte_equal": true
+          },
+          "medians_ms": {
+            "check": {
+              "cold": {
+                "baseline": 1218.513901,
+                "candidate": 851.8642745,
+                "rust": 1052.318846
+              },
+              "unchanged": {
+                "baseline": 97.065894,
+                "candidate": 3.2049865,
+                "rust": 14.3978055
+              },
+              "private": {
+                "baseline": 585.5297754999999,
+                "candidate": 69.2386515,
+                "rust": 421.586867
+              },
+              "multi": {
+                "baseline": 708.0176145,
+                "candidate": 100.695216,
+                "rust": 210.01457599999998
+              },
+              "broad": {
+                "baseline": 816.192434,
+                "candidate": 685.8301735,
+                "rust": 1133.392398
+              },
+              "restore": {
+                "baseline": 89.6551235,
+                "candidate": 25.6835925,
+                "rust": 217.8361805
+              },
+              "error": {
+                "baseline": 404.95101750000003,
+                "candidate": 46.5640225,
+                "rust": 198.690945
+              },
+              "recovery": {
+                "baseline": 686.64786,
+                "candidate": 58.7109125,
+                "rust": 215.022107
+              }
+            },
+            "o2": {
+              "cold": {
+                "baseline": 6251.2370715,
+                "candidate": 7865.768728,
+                "rust": 6881.1021535
+              },
+              "unchanged": {
+                "baseline": 522.861843,
+                "candidate": 62.754806,
+                "rust": 15.4147655
+              },
+              "private": {
+                "baseline": 1561.5209155,
+                "candidate": 555.362625,
+                "rust": 705.6340889999999
+              },
+              "multi": {
+                "baseline": 1820.972172,
+                "candidate": 728.835552,
+                "rust": 1022.3503555
+              },
+              "broad": {
+                "baseline": 5512.6200235,
+                "candidate": 7012.454226,
+                "rust": 5821.476974
+              },
+              "restore": {
+                "baseline": 531.663058,
+                "candidate": 179.8548475,
+                "rust": 540.280319
+              },
+              "error": {
+                "baseline": 363.5054775,
+                "candidate": 52.056144,
+                "rust": 236.4418555
+              },
+              "recovery": {
+                "baseline": 1849.7595985,
+                "candidate": 527.408087,
+                "rust": 564.604072
+              }
+            }
+          },
+          "paired_o2_candidate_rust_geometric_ratios": {
+            "private": 0.8442225120595596,
+            "recovery": 1.092005096400828
+          },
+          "limits": "Cold/broad/noop slower than Rust; recovery median favorable but paired geometric ratio adverse. CGU16 actual contents differ. No general speed or significance claim."
+        },
+        "raw_current_v17_v18": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json"
       }
     }
   }
