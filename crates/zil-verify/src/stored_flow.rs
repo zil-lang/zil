@@ -18,6 +18,7 @@ mod dyn_returns;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
+mod qualified_heads;
 mod receiver;
 mod relation_index;
 pub(super) mod replacements;
@@ -145,6 +146,7 @@ pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
+mod static_borrows;
 mod task_address;
 mod task_failure;
 pub(super) fn anonymous_tuple(ty: &Type, b: &mut Budget) -> Check<bool> {
@@ -473,6 +475,9 @@ pub(super) enum PortOrigin {
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Source {
+    // Conditional constant contents preserve the exact actual field invariant
+    // through SSA, memory and call summaries until whole-module discharge.
+    pub(super) static_dependency: Option<(ClosureId, StoragePosition)>,
     pub(super) retained_port: Option<PortOrigin>,
     pub(super) base: HoldRoot,
     pub(super) leaf: Path,
@@ -647,6 +652,11 @@ fn width(s: &Source) -> usize {
         .len()
         .saturating_add(s.inline.len())
         .saturating_add(opaque)
+        .saturating_add(
+            s.static_dependency
+                .as_ref()
+                .map_or(0, |(_, p)| p.path.len().saturating_add(2)),
+        )
         .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
         .saturating_add(s.heap_parents.len())
         .saturating_add(
@@ -1974,6 +1984,9 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    // Schedules extra current-memory work; the actual rows still come from
+    // this kernel's checked types, instructions and frame at each use.
+    b.qualified_head_returns |= qualified_heads::shape(&f.return_type).is_some();
     if super::ordinary_heads::check(module, f, b)? {
         return Ok(());
     }
@@ -2438,6 +2451,7 @@ fn seed_payload(
     let mut p = Payload::default();
     if let Type::Address { mutable, .. } = ty {
         let source = Source {
+            static_dependency: None,
             retained_port: None,
             base,
             leaf: Vec::new(),
@@ -2466,6 +2480,7 @@ fn seed_payload(
         for (path, mode) in enum_address::slots(ty, b)? {
             b.spend(path.len().saturating_mul(2).saturating_add(3))?;
             let source = Source {
+                static_dependency: None,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2505,6 +2520,7 @@ fn seed_payload(
         for index in 0..*length {
             let path = vec![PlaceProjection::Field(index)];
             let source = Source {
+                static_dependency: None,
                 retained_port: None,
                 base,
                 leaf: path.clone(),
@@ -2534,6 +2550,7 @@ fn seed_payload(
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
             let source = Source {
+                static_dependency: None,
                 retained_port: None,
                 base,
                 leaf: slot.path.clone(),
@@ -2566,6 +2583,7 @@ fn seed_payload(
         if super::stored_owned::description(ty) {
             b.spend(1)?;
             p.address.sources.push(Source {
+                static_dependency: None,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -2579,6 +2597,7 @@ fn seed_payload(
         {
             b.spend(1)?;
             p.store_description.sources.push(Source {
+                static_dependency: None,
                 retained_port: None,
                 base,
                 leaf: Vec::new(),
@@ -2665,6 +2684,7 @@ fn seed(
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
+            static_borrows::seed_capture(d, index as u32, &mut payload, loans, b)?;
             state.captures[index] = payload;
         }
     }
@@ -3149,6 +3169,7 @@ fn step(
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
@@ -3192,6 +3213,7 @@ fn step(
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3257,7 +3279,8 @@ fn step(
         InstructionKind::BorrowPackageField { local, index, mutable: false }
             if pure_copy::qualified_package_borrow(f, i, b)? => {
                 b.spend(2)?;
-                out.address.sources.push(Source { retained_port: None,
+                out.address.sources.push(Source {
+static_dependency: None, retained_port: None,
                     base: HoldRoot::Local(*local), leaf: Vec::new(),
                     inline: vec![PlaceProjection::Field(*index)], heap_parents: Vec::new(), heap_element: None });
             }
@@ -3265,6 +3288,7 @@ fn step(
             if pure_copy::qualified_package_description(f, i, b)? => {
                 b.spend(2)?;
                 out.address.sources.push(Source {
+static_dependency: None,
                     retained_port: None, base: HoldRoot::Local(*local),
                     leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
                     heap_parents: Vec::new(), heap_element: None,
@@ -3277,6 +3301,7 @@ fn step(
             {
                 b.spend(1)?;
                 out.address.sources.push(Source {
+static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3290,6 +3315,7 @@ fn step(
             {
                 b.spend(1)?;
                 out.store_description.sources.push(Source {
+static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
@@ -3305,6 +3331,7 @@ fn step(
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
             out.store_description.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -3316,6 +3343,7 @@ fn step(
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3454,6 +3482,7 @@ fn step(
             b.spend(1)?;
             out.address = Permission {
                 sources: vec![Source {
+static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
@@ -3483,6 +3512,7 @@ fn step(
             }
             b.spend(1)?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
@@ -3493,7 +3523,7 @@ fn step(
         }
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
-                signature_life::outer(life, StorageBase::Result).is_some())
+                signature_life::outer(life, StorageBase::Result).is_some() || stored_callables::static_result(definition))
                 && matches!(definition.result, Type::Address { .. })) =>
         {
             receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
@@ -3509,6 +3539,7 @@ fn step(
                     b.spend(1)?;
                     Permission {
                         sources: vec![Source {
+static_dependency: None,
                             retained_port: None,
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
@@ -3589,6 +3620,7 @@ fn step(
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4060,6 +4092,7 @@ fn step(
         {
             b.spend(2)?;
             out.address.sources.push(Source {
+static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
@@ -4163,6 +4196,13 @@ fn step(
         out.store_description = permission;
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    if b.qualified_head_returns
+        && let Some(id) = i.result
+        && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
+    {
+        out.leaves.copy_work(b)?;
+        out.leaves = current;
+    }
     if let Some(id) = i.result
         && b.store_descriptions()
         && matches!(i.kind, InstructionKind::Call { .. })
@@ -4737,7 +4777,28 @@ fn instruction_rows(
     }
     Ok(rows)
 }
+fn current_head_rows(
+    function: Option<&TypedFunction>,
+    id: usize,
+    payload: &Payload,
+    frame: &Frame,
+    values: usize,
+    b: &mut Budget,
+) -> Check<Option<leaf_rows::Rows>> {
+    if !b.qualified_head_returns {
+        return Ok(None);
+    }
+    let f = function.ok_or_else(|| err("qualified head liveness lacks its actual function"))?;
+    let ty = if id < values {
+        f.values.get(id)
+    } else {
+        f.locals.get(id - values).map(|local| &local.ty)
+    }
+    .ok_or_else(|| err("qualified head liveness type is absent"))?;
+    qualified_heads::rows(ty, payload, frame, b)
+}
 fn live_loans(
+    function: Option<&TypedFunction>,
     solution: &Solution,
     state: &Frame,
     live: &WordRow,
@@ -4775,7 +4836,8 @@ fn live_loans(
                 loans.add(&p.permission.loans, b)?;
             }
         }
-        for (_, p) in &payload.leaves {
+        let current = current_head_rows(function, id, payload, state, solution.values.len(), b)?;
+        for (_, p) in current.as_ref().unwrap_or(&payload.leaves) {
             loans.add(&p.loans, b)?;
         }
         Ok(())
@@ -4836,6 +4898,7 @@ fn live_loans(
 }
 #[cfg(test)]
 fn live_loans_main_fullscan(
+    function: Option<&TypedFunction>,
     solution: &Solution,
     state: &Frame,
     live: &[bool],
@@ -4869,7 +4932,8 @@ fn live_loans_main_fullscan(
                 add_loans_by_scan(&mut loans, &p.permission.loans, b)?;
             }
         }
-        for (_, p) in &payload.leaves {
+        let current = current_head_rows(function, id, payload, state, solution.values.len(), b)?;
+        for (_, p) in current.as_ref().unwrap_or(&payload.leaves) {
             add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
     }
@@ -5102,7 +5166,11 @@ fn windows(
     )?;
     let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let output_live = live_out(module, f, g, b)?;
-    let ssa_groups = ssa_loan_groups::Sources::collect(&solution.values, b)?;
+    let ssa_groups = if b.qualified_head_returns {
+        None
+    } else {
+        ssa_loan_groups::Sources::collect(&solution.values, b)?
+    };
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
         if !g.reachable[bi] {
@@ -5137,6 +5205,7 @@ fn windows(
                 .transpose()?
                 .flatten();
             let mut active = live_loans(
+                Some(f),
                 solution,
                 &state,
                 &live,
@@ -5291,6 +5360,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5306,6 +5376,7 @@ fn windows(
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5321,6 +5392,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5346,6 +5418,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5363,6 +5436,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5382,6 +5456,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5399,6 +5474,7 @@ fn windows(
                         b.spend(2)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5424,6 +5500,7 @@ fn windows(
                         }
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Local(*local),
                                 leaf: Vec::new(),
@@ -5461,6 +5538,7 @@ fn windows(
                         b.spend(1)?;
                         let actual = Permission {
                             sources: vec![Source {
+                                static_dependency: None,
                                 retained_port: None,
                                 base: HoldRoot::Capture(*index),
                                 leaf: vec![],
@@ -5491,6 +5569,7 @@ fn windows(
                         }
                         b.spend(1)?;
                         let source = Source {
+                            static_dependency: None,
                             retained_port: None,
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
@@ -5724,6 +5803,7 @@ fn windows(
                                 all.push((
                                     Permission {
                                         sources: vec![Source {
+                                            static_dependency: None,
                                             retained_port: None,
                                             base: HoldRoot::Local(*callee),
                                             leaf: vec![],
@@ -6273,6 +6353,7 @@ fn summarize(
                                 module,
                                 f,
                                 &Source {
+                                    static_dependency: None,
                                     base: HoldRoot::Parameter(position as u32),
                                     leaf: path.clone(),
                                     inline: Vec::new(),
@@ -6785,6 +6866,9 @@ fn solve_check(
     {
         return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
+    if b.static_borrow_occurrences {
+        static_borrows::validate(module, graphs, &solved, mask, b)?;
+    }
     dyn_providers::validate(module, &summaries, b)?;
     let mut checked_task_sources = if b.task_sources() {
         Some(Vec::with_capacity(module.functions.len()))
@@ -6919,7 +7003,12 @@ fn solve_check(
         }
         if let Some(definition) = capture_result_definition {
             let mut used = Vec::new();
-            for (_, sources) in &s.result {
+            for (path, sources) in &s.result {
+                // lending_captures names the outer returned head. Every inner
+                // slot is checked below against its own actual class relation.
+                if !path.is_empty() {
+                    continue;
+                }
                 for source in sources {
                     b.spend(used.len().saturating_add(1))?;
                     if let HoldRoot::Capture(index) = source.base {

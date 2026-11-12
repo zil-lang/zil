@@ -113,6 +113,7 @@ fn analyze_budgeted(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    retained::check_static_occurrences(module, budget)?;
     dyn_dispatch::check(module, budget)?;
     lifetimes::headers(module, budget)?;
     let mut plan = CandidatePlan::empty_for(module);

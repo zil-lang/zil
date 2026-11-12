@@ -115,6 +115,7 @@ pub(super) fn substitute(
         local: origins.local,
         unknown: origins.unknown,
         receiver: origins.receiver,
+        static_utf8: origins.static_utf8,
         ..Origins::default()
     };
     spend(left, origins.inputs.len(), span)?;

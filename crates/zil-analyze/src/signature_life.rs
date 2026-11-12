@@ -150,6 +150,7 @@ fn array_classes(
 }
 
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
+    b.static_occurrences |= !c.static_bindings.is_empty();
     let rows = c
         .bindings
         .len()
@@ -468,11 +469,6 @@ fn relation_inner(
     {
         return Err(bad("receiver head has no persistent class directory"));
     }
-    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 && zero_resources.is_empty() {
-        return Err(bad(
-            "vacuous borrowed signature must use the ordinary callable type",
-        ));
-    }
     let rows = c
         .bindings
         .len()
@@ -495,6 +491,7 @@ fn relation_inner(
     struct Cursor<'a> {
         c: &'a StorageLifeContract,
         borrow: usize,
+        constant: usize,
         class: usize,
         fixed: u32,
         invocation: u32,
@@ -596,24 +593,37 @@ fn relation_inner(
                 return self.compound_child(ty, base, &mut Vec::new());
             }
             let capture = matches!(base, StorageBase::Capture(_));
-            let (target, pointed) = if let Type::Address { inner, .. } = ty {
-                let row = self
-                    .c
-                    .bindings
-                    .get(self.borrow)
-                    .ok_or_else(|| bad("signature omits actual outer borrow"))?;
-                if row.position.base != base || !row.position.path.is_empty() {
-                    return Err(bad(
-                        "signature borrow position is flattened or noncanonical",
-                    ));
+            let (target, pointed) = if let Type::Address { inner, mutable } = ty {
+                let position = StoragePosition {
+                    base,
+                    path: Vec::new(),
+                };
+                if self.c.static_bindings.get(self.constant) == Some(&position) {
+                    if *mutable {
+                        return Err(bad(
+                            "static signature occurrence must be an immutable address",
+                        ));
+                    }
+                    self.constant += 1;
+                } else {
+                    let row = self
+                        .c
+                        .bindings
+                        .get(self.borrow)
+                        .ok_or_else(|| bad("signature omits actual outer borrow"))?;
+                    if row.position.base != base || !row.position.path.is_empty() {
+                        return Err(bad(
+                            "signature borrow position is flattened or noncanonical",
+                        ));
+                    }
+                    self.borrow += 1;
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad(
+                            "captured Address must retain a Fixed environment class",
+                        ));
+                    }
+                    self.binder(row.binder, capture)?;
                 }
-                self.borrow += 1;
-                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
-                    return Err(bad(
-                        "captured Address must retain a Fixed environment class",
-                    ));
-                }
-                self.binder(row.binder, capture)?;
                 (inner.as_ref(), true)
             } else {
                 (ty, false)
@@ -895,6 +905,10 @@ fn relation_inner(
                         self.class += 1;
                         self.binder(row.binder, self.inputs.is_none())?;
                     }
+                } else {
+                    return Err(bad(
+                        "complete closure class directory is unknown, not empty",
+                    ));
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
@@ -940,6 +954,7 @@ fn relation_inner(
     let mut cursor = Cursor {
         c,
         borrow: 0,
+        constant: 0,
         class: 0,
         fixed: 0,
         invocation: 0,
@@ -998,6 +1013,7 @@ fn relation_inner(
     cursor.inputs = Some((cursor.fixed, cursor.invocation));
     cursor.ty(result, StorageBase::Result)?;
     if cursor.borrow != c.bindings.len()
+        || cursor.constant != c.static_bindings.len()
         || cursor.class != c.classes.len()
         || cursor.fixed != c.fixed_binder_count
         || cursor.invocation != c.invocation_binder_count
@@ -1009,7 +1025,12 @@ fn relation_inner(
     }
     // A declared Address result still needs an actual authority-bearing input;
     // the body proof separately checks the exact returned target.
-    if let Type::Address { mutable, .. } = result {
+    if let Type::Address { mutable, .. } = result
+        && !c
+            .static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result && position.path.is_empty())
+    {
         let out = outer(c, StorageBase::Result);
         if !parameters.iter().enumerate().any(|(i, p)| {
             matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
@@ -1064,6 +1085,7 @@ fn relation_inner(
 /// universally callable relation. Distinct variables are not disjointness.
 pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeContract) -> bool {
     if required.bindings.len() != supplied.bindings.len()
+        || required.static_bindings != supplied.static_bindings
         || required.classes.len() != supplied.classes.len()
     {
         return false;

@@ -147,7 +147,8 @@ fn lower_view_with_budget(
                     .iter()
                     .any(|row| row.position.base == zil_ir::StorageBase::Result)
             })
-            && matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee());
+            && (matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+                || qualified_capture_address(&closure.result));
         let captured_fixed_signature = verified_address_result
             || verified.uses_stored_borrows()
                 && closure
@@ -225,7 +226,9 @@ fn lower_view_with_budget(
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && qualified_capture_address(ty))
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                        || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
                     || ty.is_package_address()

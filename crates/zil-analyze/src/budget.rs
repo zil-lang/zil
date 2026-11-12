@@ -60,6 +60,11 @@ pub(super) struct Budget {
     pub(super) owning_address_captures: bool,
     pub(super) mutable_capture_contexts: bool,
     pub(super) receiver_borrows: bool,
+    // Raw presence schedules a complete independent proof, never a domain.
+    pub(super) static_occurrences: bool,
+    // Actual return-type presence only schedules refreshing a qualified head's
+    // current pointee rows. It never grants a root, class, or permission.
+    pub(super) qualified_head_returns: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
@@ -190,6 +195,8 @@ impl Budget {
             owning_address_captures: false,
             mutable_capture_contexts: false,
             receiver_borrows: false,
+            static_occurrences: false,
+            qualified_head_returns: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),
             callable_receiver_roles: BTreeMap::new(),
@@ -1749,6 +1756,10 @@ pub(super) fn preflight(
                 }
                 continue;
             }
+            if ty.is_slice_address() && closure.storage_life.is_some() {
+                budget.type_work(ty, true, "captured slice complete finite element type")?;
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -1887,6 +1898,8 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
+        budget.qualified_head_returns |= matches!(&function.return_type, Type::Address{inner,..}
+            if matches!(inner.as_ref(),Type::BorrowedStorage{..}));
         count(
             0,
             function.protocol_contracts.len(),
@@ -1929,6 +1942,8 @@ pub(super) fn preflight(
             }
         }
         budget.protocol_contracts |= !function.protocol_contracts.is_empty();
+        budget.qualified_head_returns |= matches!(&function.return_type, Type::Address{inner,..}
+            if matches!(inner.as_ref(),Type::BorrowedStorage{..}));
         if let Some(contract) = &function.storage_life {
             if function.call_kind == zil_ir::CallKind::Suspend {
                 budget.spend(function.parameters.len(), "Suspend signature inputs")?;
@@ -2096,6 +2111,17 @@ pub(super) fn preflight(
                         "callable source paths",
                     )?;
                     for atom in &binding.sources {
+                        if let zil_ir::StorageSource::Static { leaf, mode } = atom {
+                            if *mode != zil_ir::StoredBorrowMode::SharedAddress
+                                || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                            {
+                                return Err(bad(
+                                    "constant capture metadata requires its complete immutable byte leaf",
+                                ));
+                            }
+                            budget.input(if matches!(leaf,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){5}else{4},"constant capture complete leaf metadata")?;
+                            continue;
+                        }
                         let source = crate::exact_storage_source(atom)?;
                         count(
                             0,

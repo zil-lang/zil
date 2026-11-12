@@ -930,7 +930,8 @@ fn bind_lir<'a>(
                     .iter()
                     .any(|row| row.position.base == zil_ir::StorageBase::Result)
             })
-            && matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee());
+            && (matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+                || qualified_capture_address(&closure.result));
         let captured_fixed_signature = verified_address_result
             || verified.uses_stored_borrows()
                 && closure
@@ -999,7 +1000,9 @@ fn bind_lir<'a>(
                 || matches!(ty, Type::Closure(_))
                 || ty.is_shared_sync_cell_address()
                 || (captured_fixed_signature && qualified_capture_address(ty))
-                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                    || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                    || matches!(inner.as_ref(), Type::Closure(_)))
                 || sum_capture_address(ty)
                 || ty.is_package_address()
                 || (resources::supported_type(ty, lir.resources)
@@ -4110,7 +4113,9 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || ty.is_shared_sync_cell_address()
             || qualified_capture_address(ty)
             || sum_capture_address(ty)
-            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                || matches!(inner.as_ref(), Type::Closure(_)))
             || ty.is_package_address()
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
@@ -4150,6 +4155,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()
+                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || matches!(inner.as_ref(), Type::MutexGuard { .. })
@@ -4224,7 +4230,9 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !field.is_shared_sync_cell_address()
                     && !qualified_capture_address(field)
                     && !sum_capture_address(field)
-                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                        || matches!(inner.as_ref(), Type::Closure(_)))
                     && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)

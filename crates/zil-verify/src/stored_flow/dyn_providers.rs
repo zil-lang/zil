@@ -640,6 +640,7 @@ mod access_tests {
         let mut b = Budget::new(&Limits::default());
         b.dyn_contexts = true;
         let head = Source {
+            static_dependency: None,
             heap_parents: vec![],
             base: HoldRoot::Parameter(0),
             retained_port: None,

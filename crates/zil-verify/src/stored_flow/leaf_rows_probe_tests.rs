@@ -2,7 +2,11 @@ use super::*;
 fn permission(id: usize) -> Permission {
     Permission {
         sources: vec![Source {
-            retained_port: Some(PortOrigin::Task { carrier: Vec::new(), port: id as u32 }),
+            static_dependency: None,
+            retained_port: Some(PortOrigin::Task {
+                carrier: Vec::new(),
+                port: id as u32,
+            }),
             base: HoldRoot::Parameter(0),
             leaf: vec![],
             inline: vec![PlaceProjection::Field(id as u32)],

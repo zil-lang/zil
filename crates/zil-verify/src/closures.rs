@@ -244,10 +244,11 @@ pub(super) fn check_definitions(
         }
         budget.borrowed_function_pointers |= invocation;
         budget.invocation_callbacks |= invocation;
-        let explicit_result_relation = closure
-            .storage_life
-            .as_ref()
-            .is_some_and(|life| signature_life::outer(life, StorageBase::Result).is_some());
+        let explicit_result_relation = stored_callables::static_result(closure)
+            || closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| signature_life::outer(life, StorageBase::Result).is_some());
         if matches!(closure.result, Type::Address { .. })
             && !invocation
             && !receiver_relation
@@ -284,6 +285,15 @@ pub(super) fn check_definitions(
                 None,
                 "a non-address result cannot advertise lending sources",
             ));
+        }
+        if closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|c| !c.static_bindings.is_empty())
+        {
+            budget.static_borrow_occurrences = true;
+            budget.nested_callable_sources = true;
+            budget.returned_environment_sources = true;
         }
         if closure.id.0 as usize != index {
             return Err(reject(
@@ -426,10 +436,16 @@ pub(super) fn check_definitions(
             // Actual capture origins, storage effects and future uses are
             // reconstructed by the independent resource and borrow checks.
             if slices::is_window(ty) {
-                return Err(unsupported(
-                    "borrowed slice captures are outside the finite slice profile",
-                    None,
-                ));
+                if closure.storage_life.is_none() {
+                    return Err(unsupported(
+                        "borrowed slice capture requires its complete actual environment relation",
+                        None,
+                    ));
+                }
+                // The complete actual entry/definition relation was checked
+                // above. This schedules CFG loan/unique-Take reconstruction;
+                // it does not obtain Copy or a pointee from the relation.
+                budget.nested_callable_sources = true;
             }
             // Capture qualification does not itself prove responsibility.
             // Complete child fields receive their own retained slots/flags;

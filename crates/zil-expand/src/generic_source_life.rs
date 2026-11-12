@@ -1690,6 +1690,25 @@ impl Check<'_, '_, '_> {
                 Box::new(self.ty(&owner, scope, depth + 1)?),
             ));
         }
+        if explicit.is_none()
+            && let Some(name) = root
+        {
+            self.budget.text(name, e.span)?;
+            self.lookup(env.len(), name.len(), e.span)?;
+            if let Some(Fact::Function(parameters, result)) = env.get(name) {
+                self.pay(e.span, parameters.len().saturating_add(actuals.len()))?;
+                if parameters.len() != actuals.len() {
+                    return Err(error(
+                        e.span,
+                        "source callable argument count differs from its actual code signature",
+                    ));
+                }
+                for (parameter, actual) in parameters.iter().zip(actuals) {
+                    self.compatible(parameter, actual, e.span)?;
+                }
+                return self.copy(result, e.span);
+            }
+        }
         let mut output = Fact::Unknown;
         if root.is_none()
             && let Some(variant) =

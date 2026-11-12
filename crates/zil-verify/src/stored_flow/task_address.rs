@@ -173,6 +173,7 @@ pub(super) fn seed(
     for (carrier, port, mode) in carriers::paths(module, ty, b)? {
         b.spend(carrier.len().saturating_mul(3).saturating_add(3))?;
         let source = Source {
+            static_dependency: None,
             base,
             leaf: Vec::new(),
             inline: Vec::new(),
@@ -1075,6 +1076,7 @@ mod captured_port_tests {
                 ],
                 Permission {
                     sources: vec![Source {
+                        static_dependency: None,
                         base: HoldRoot::Local(LocalId(capture)),
                         retained_port: None,
                         leaf: vec![],
