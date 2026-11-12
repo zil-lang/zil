@@ -1786,7 +1786,15 @@ fn returns(
             let leaves=capture_after::leaves(module,d,b)?;
             let mut actual=BTreeSet::new();
             for (path,sources) in &facts.returned {
-                if !path.is_empty() || sources.is_empty() {return Err(failure("returned external view has no actual complete source"));}
+                if sources.is_empty() {return Err(failure("returned external view has no actual complete source"));}
+                let result_slot = if path.is_empty() {
+                    None
+                } else {
+                    let (_, shape) = pointed_carrier(&d.result).ok_or_else(||failure("returned external view has undeclared nested data"))?;
+                    fee(b,shape.slots.len().saturating_mul(path.len().saturating_add(1)))?;
+                    Some(shape.slots.iter().find(|row|row.path==*path)
+                        .ok_or_else(||failure("returned external view omits an exact physical slot"))?)
+                };
                 for source in sources {
                     let HoldRoot::Capture(index)=source.base else{return Err(failure("returned environment view has no actual capture source"));};
                     let ty=d.captures.get(index as usize).ok_or_else(||failure("returned environment source capture absent"))?;
@@ -1799,10 +1807,18 @@ fn returns(
                         let key=environment_path(index as usize,&source.stored,b)?;
                         fee(b,leaves.len().saturating_mul(key.len().saturating_add(1)))?;
                         if !leaves.iter().any(|(path,_)|*path==key) {return Err(failure("returned environment source is not an authenticated leaf"));}
+                        if let Some(slot)=result_slot {
+                            let class=environment_memory::fixed(module,d.id,&key,0,b)?;
+                            if binding(f,StorageBase::Result,path,b)?!=StorageBinder::Fixed(class)
+                                || (slot.mode==StoredBorrowMode::ExclusiveAddress
+                                    && !leaves.iter().any(|(path,mutable)|*path==key && *mutable)) {
+                                return Err(failure("returned qualified pointee slot changes its actual class or capability"));
+                            }
+                        }
                     } else if !super::stored_callables::result_is_receiver(d) {
                         return Err(failure("inline environment storage cannot supply a Fixed external result"));
                     }
-                    actual.insert(index);
+                    if path.is_empty() {actual.insert(index);}
                 }
             }
             if actual.into_iter().collect::<Vec<_>>()!=d.lending_captures {return Err(failure("returned environment view differs from its actual capture upper"));}

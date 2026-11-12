@@ -66,7 +66,7 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
     Ok(())
 }
 
-pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut usize) -> R<()> {
+pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut usize, limits: &Limits) -> R<()> {
     let mut updates = Vec::new();
     for d in &module.closures {
         if !candidate(d) {
@@ -179,13 +179,21 @@ pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut
         }
         if let Type::Address{inner,..}=&d.result
             && let Type::BorrowedStorage{life:shape,..}=inner.as_ref() {
+            // The structural candidate above grants no classes. Pay the full
+            // type comparison before projecting the actual captured head.
+            inference::charge_type_snapshot(&d.result,f.span,limits,left,1)?;
+            for source in &origin.inputs {
+                let StorageBase::Capture(index)=source.base else {return Err(unsupported(f.span,"qualified result class has no actual captured head"));};
+                let capture=d.captures.get(index as usize).ok_or_else(||unsupported(f.span,"qualified result capture is absent"))?;
+                inference::charge_type_snapshot(capture,f.span,limits,left,1)?;
+                if !source.path.is_empty() || capture!=&d.result {
+                    return Err(unsupported(f.span,"qualified result requires its complete actual pointee class projection"));
+                }
+            }
             for class in 0..shape.binder_count {
                 let mut selected=None;
                 for source in &origin.inputs {
                     let StorageBase::Capture(index)=source.base else {return Err(unsupported(f.span,"qualified result class has no actual captured head"));};
-                    if !source.path.is_empty() || d.captures.get(index as usize)!=Some(&d.result) {
-                        return Err(unsupported(f.span,"qualified result requires its complete actual pointee class projection"));
-                    }
                     spend(left,life.classes.len(),f.span)?;
                     let actual=life.classes.iter().find(|row|row.position.base==StorageBase::Capture(index)
                         && row.position.path.as_slice()==[LifeTypeProjection::Pointee] && row.position.class==class)
