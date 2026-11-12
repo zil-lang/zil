@@ -520,7 +520,7 @@ pub(super) fn check_definitions(
                     continue;
                 }
                 if let Type::Address { inner, .. } = ty
-                    && (closure.result.is_copy_value() || invocation)
+                    && (closure.result.is_copy_value() || invocation || explicit_result_relation)
                 {
                     // Raw type preflight already bounded this tree. Verify the
                     // actual finite element shape, not a producer signature bit.
