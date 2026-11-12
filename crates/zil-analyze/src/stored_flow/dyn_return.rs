@@ -842,7 +842,7 @@ pub(super) fn register_output_obligations(
 }
 
 fn ground_output_obligations(
-    f: &TypedFunction,
+    function: FunctionId,
     value: &Value,
     facts: &mut Facts,
     loans: &[Loan],
@@ -853,7 +853,7 @@ fn ground_output_obligations(
     }
     ordered(b, b.pending_dyn_outputs.len(), 0)?;
     // Detach the immutable directory while charging ancestry through Budget.
-    let Some(obligations) = b.pending_dyn_outputs.remove(&f.id) else {
+    let Some(obligations) = b.pending_dyn_outputs.remove(&function) else {
         return Ok(());
     };
     let checked = (|| {
@@ -877,15 +877,14 @@ fn ground_output_obligations(
                     facts.dyn_return_complete = false;
                     continue;
                 };
-                if actual.targets.is_empty() {
-                    continue;
-                }
-                if *mode != StoredBorrowMode::SharedAddress
-                    || !matches!(leaf, Type::Address { mutable: false, .. })
-                    || actual
-                        .targets
-                        .iter()
-                        .any(|target| target.base != HoldRoot::Static)
+                fee(b, actual.targets.len())?;
+                if !actual.targets.is_empty()
+                    && (*mode != StoredBorrowMode::SharedAddress
+                        || !matches!(leaf, Type::Address { mutable: false, .. })
+                        || actual
+                            .targets
+                            .iter()
+                            .any(|target| target.base != HoldRoot::Static))
                 {
                     return Err(failure(
                         "output-only class retains a nonstatic actual target",
@@ -911,7 +910,7 @@ fn ground_output_obligations(
         }
         Ok(())
     })();
-    b.pending_dyn_outputs.insert(f.id, obligations);
+    b.pending_dyn_outputs.insert(function, obligations);
     checked
 }
 pub(super) fn summarize(
@@ -922,7 +921,7 @@ pub(super) fn summarize(
     loans: &[Loan],
     b: &mut Budget,
 ) -> CompileResult<()> {
-    ground_output_obligations(f, value, facts, loans, b)?;
+    ground_output_obligations(f.id, value, facts, loans, b)?;
     let Some(upper) = contract(module, f, b)? else {
         return Ok(());
     };
@@ -1170,4 +1169,80 @@ pub(super) fn call(
         out.dyn_ports.insert(path.clone(), permission);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn known_empty_output_still_rejects_actual_activation_or_receiver_ancestry() {
+        let function = FunctionId(0);
+        let path = vec![ContractProjection::RetainedPort(0)];
+        for (root, receiver_head, accepted) in [
+            (HoldRoot::Local(LocalId(0)), false, false),
+            (HoldRoot::Parameter(0), false, false),
+            (HoldRoot::Static, true, false),
+            (HoldRoot::Static, false, true),
+        ] {
+            let mut b = Budget::new(&Limits::default());
+            b.pending_dyn_outputs.insert(
+                function,
+                vec![DynOutputClass {
+                    binding: SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Result,
+                            path: vec![],
+                            class: 0,
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    },
+                    ports: vec![(
+                        StoragePosition {
+                            base: StorageBase::Result,
+                            path: path.clone(),
+                        },
+                        Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        },
+                        StoredBorrowMode::SharedAddress,
+                    )],
+                }],
+            );
+            let mut value = Value::default();
+            value.dyn_ports.insert(
+                path.clone(),
+                Permission {
+                    targets: Targets::new(),
+                    loans: Loans::from([0]),
+                },
+            );
+            let loans = vec![Loan {
+                targets: Targets::from([Target {
+                    base: root,
+                    stored: vec![],
+                    place: vec![],
+                    retained_port: None,
+                    heap_element: None,
+                    heap_parents: vec![],
+                }]),
+                receiver_head,
+                ..Loan::default()
+            }];
+            let mut facts = Facts {
+                dyn_return_complete: true,
+                ..Facts::default()
+            };
+            let outcome = ground_output_obligations(function, &value, &mut facts, &loans, &mut b);
+            assert_eq!(
+                outcome.is_ok(),
+                accepted,
+                "{root:?}/{receiver_head}: {outcome:?}"
+            );
+            assert!(
+                b.pending_dyn_outputs.contains_key(&function),
+                "private obligations survive each actual Return"
+            );
+        }
+    }
 }
