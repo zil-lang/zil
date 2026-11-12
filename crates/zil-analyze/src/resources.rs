@@ -266,7 +266,7 @@ pub(super) type Live = BTreeSet<Place>;
 pub(crate) fn package_storage(ty: &Type) -> &Type {
     match ty {
         Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }) =>
+            if matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)) =>
         {
             storage
         }

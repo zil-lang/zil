@@ -1013,7 +1013,7 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::BorrowedStorage{life,..} if context.in_tuple=>{
+                Type::BorrowedStorage{storage,life} if context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_))=>{
                     budget.input(life.slots.len(),"affine compound exclusive slots")?;
                     new_sum|=life.slots.iter().any(|slot|slot.mode==zil_ir::StoredBorrowMode::ExclusiveAddress);
                 }
@@ -1125,7 +1125,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
-                    budget.stored_compound_values|=context.in_tuple;
+                    budget.stored_compound_values|=context.in_tuple || matches!(storage.as_ref(),Type::Tuple(_));
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
@@ -1380,7 +1380,7 @@ pub(super) fn preflight(
             && (matches!(
                 ty,
                 Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })))
+            ) || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_))) || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })))
         {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
             budget.spend(1, "ordinary Sum root allocation")?;

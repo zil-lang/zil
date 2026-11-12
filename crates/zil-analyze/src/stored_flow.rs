@@ -1252,6 +1252,12 @@ pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->Compi
     walk(module,ty,b)
 }
 pub(super) fn affine_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+    if let Type::BorrowedStorage{storage,life}=ty && matches!(storage.as_ref(),Type::Tuple(_)) {
+        b.type_work(ty,true,"anonymous affine compound complete type")?;
+        physical(ty,b)?;
+        fee(b,life.slots.len())?;
+        return Ok(resources::sums::owned(storage) || life.slots.iter().any(|slot|slot.mode==StoredBorrowMode::ExclusiveAddress));
+    }
     if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
     b.type_work(ty,true,"affine compound complete type")?;
     fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<Option<(bool,bool)>>{
@@ -1318,7 +1324,8 @@ fn compound_constructor(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&m
     let id=i.result.ok_or_else(||failure("compound constructor result absent"))?;
     let ty=value_type(f,id)?;
     if !affine_compound(module,ty,b)?{return Ok(false)}
-    let Type::Tuple(types)=ty else{unreachable!()};
+    let physical=carrier(ty).map_or(ty,|(storage,_)|storage);
+    let Type::Tuple(types)=physical else{unreachable!()};
     if types.len()!=fields.len(){return Err(failure("compound constructor omits actual fields"))}
     for (field,expected) in fields.iter().zip(types){b.type_work(expected,false,"compound constructor complete field")?;if value_type(f,*field)?!=expected{return Err(failure("compound constructor changes actual field Type"))}}
     Ok(true)
@@ -2269,7 +2276,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         &mut Vec::new(),
         &mut actual,
         b,
-        matches!(storage, Type::Package { .. }),
+        matches!(storage, Type::Package { .. } | Type::Tuple(_)),
     )?;
     if actual.len() != life.slots.len()
         || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
@@ -2314,7 +2321,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
+            && (!matches!(storage, Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
                 || !path
                     .iter()
                     .all(|part| matches!(part, PlaceProjection::Field(_)))
@@ -2322,7 +2329,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "exclusive stored holder requires direct nominal address slots",
+                "exclusive stored holder requires exact inline address slots",
                 None,
             )]);
         }
@@ -3021,7 +3028,7 @@ fn slot_loan_ids(
                 Ok(())
             };
             match &instruction.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } | InstructionKind::MakeOwnedTuple{..} => {
                     if let Some((_, shape)) = carrier(value_type(
                         f,
                         instruction
@@ -3413,6 +3420,10 @@ fn transfer(
                         .insert(vec![PlaceProjection::Field(index as u32)], permission);
                 }
                 return Ok(out);
+            }
+            if matches!(carrier(ty).map_or(ty,|(storage,_)|storage),Type::Tuple(_))
+                && matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {
+                return Err(failure("affine compound requires an actual owning tuple constructor"));
             }
             if matches!(ty,Type::Tuple(_)) && (shared_compound(module,ty,b)? || affine_compound(module,ty,b)?) {
                 if matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {return Err(failure("affine compound requires an actual owning tuple constructor"))}
@@ -4942,6 +4953,7 @@ fn windows(
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedTuple{fields}
                         if b.stored_exclusive_loans =>
                     {
                         let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
