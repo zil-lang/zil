@@ -159,8 +159,13 @@ pub(super) fn populate(
         for definition in &module.closures {
             if definition.storage_life.is_some()
                 || definition.kind == CallableKind::FunctionPointer
-                || !definition.result.is_b0_scalar()
             {
+                continue;
+            }
+            let span = module.functions[definition.function.0 as usize].span;
+            // Owning results contribute no borrow occurrences only after the
+            // complete actual type inventory proves their free domain empty.
+            if !closed(&definition.result, module, left, span, 0, limits.max_call_depth)? {
                 continue;
             }
             // Factory free classes use actual creator input equations below,
@@ -175,7 +180,6 @@ pub(super) fn populate(
                 continue;
             }
             if defer_static && definition.captures.iter().any(|ty|matches!(ty,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))) {continue;}
-            let span = module.functions[definition.function.0 as usize].span;
             let mut life = StorageLifeContract {
                 fixed_binder_count: 0,
                 invocation_binder_count: 0,
