@@ -1164,7 +1164,7 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         schema_version: SCHEMA_VERSION,
         module_id: module.id,
         source_fingerprint: source.fingerprint(),
-        functions: e.functions,
+        functions: e.functions.into(),
         aggregates: e.aggregates,
         enums: e.enums,
         unsupported: e.unsupported,

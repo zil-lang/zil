@@ -794,7 +794,7 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         schema_version: core.schema_version,
         module_id: core.module_id,
         source_fingerprint: core.source_fingerprint,
-        functions,
+        functions: functions.into(),
         aggregates: core.aggregates.clone(),
         enums: core.enums.clone(),
         unsupported: core.unsupported.clone(),

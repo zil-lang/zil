@@ -384,7 +384,8 @@ mod tests {
                                 statement(19, CoreStatementKind::Return(Some(value))),
                             ],
                         },
-                    }],
+                    }]
+                    .into(),
                 }
                 .into(),
             }],

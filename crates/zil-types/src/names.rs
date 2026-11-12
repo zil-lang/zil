@@ -470,7 +470,8 @@ mod tests {
                         span: span(),
                     }],
                 },
-            }],
+            }]
+            .into(),
         }
     }
     #[test]
