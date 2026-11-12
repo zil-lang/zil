@@ -4,10 +4,14 @@ use super::*;
 impl Check<'_, '_, '_> {
     fn needs_value_cleanup(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
         self.budget.node(ty.span, depth)?;
+        if trait_bounds::associated::parts(ty).is_some() {
+            return Ok(true);
+        }
         Ok(match &group(ty).kind {
             TypeKind::Reference { .. } => false,
             TypeKind::Named { path, args } => {
-                let mut needed = path.len() == 1
+                let mut needed = path.len() == 2 && self.variables.contains(&path[0]);
+                needed |= path.len() == 1
                     && self.variables.contains(&path[0])
                     && self.bounds.get(&path[0]).is_some_and(|bounds| {
                         bounds
