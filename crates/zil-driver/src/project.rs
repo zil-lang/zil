@@ -98,6 +98,7 @@ pub(super) struct ProducerEpoch {
     inputs: Vec<zil_syntax::ParsedSource>,
     producer: Box<zil_expand::ExpandSession>,
     materializer: super::ct_artifact::ScalarMaterializationSession,
+    raw_inference: std::sync::OnceLock<zil_types::RawInferenceSession>,
 }
 impl std::fmt::Debug for ProducerEpoch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -119,6 +120,7 @@ fn capture_producer_epoch(
         inputs: inputs.to_vec(),
         producer: super::session::producer_checkpoint(producer),
         materializer: materializer.checkpoint(),
+        raw_inference: std::sync::OnceLock::new(),
     })
 }
 
@@ -299,6 +301,13 @@ impl CompilationSession {
         self.producer
             .set_cost_profiling(options.profile_compilation);
         self.materializer = epoch.materializer.checkpoint();
+        if options.push_reuse {
+            self.raw_inference = epoch
+                .raw_inference
+                .get()
+                .and_then(|session| session.checkpoint_for(&epoch.core))
+                .unwrap_or_default();
+        }
         let mut cache = self.producer_syntax.borrow_mut();
         for parsed in &epoch.inputs {
             let source = parsed.source();
@@ -1229,7 +1238,10 @@ impl CompilationSession {
         if options.stop_after == Stage::Core {
             return Ok(());
         }
-        let (raw, ct_snapshot) = self.query(
+        let mut raw_inference = std::mem::take(&mut self.raw_inference);
+        let inference_checkpoint = raw_inference.clone();
+        let mut inference_work = None;
+        let ct_result = self.query(
             key(Phase::Ct, true),
             std::slice::from_ref(&expand_snapshot),
             options,
@@ -1238,13 +1250,22 @@ impl CompilationSession {
             || {
                 let inference = if options.reuse_producers() {
                     if let Some(produced) = &expanded.producer {
-                        zil_types::infer_produced_program_for_ct(produced, &options.limits)?
+                        if options.push_reuse {
+                            zil_types::infer_produced_program_for_ct_with_session(
+                                produced,
+                                &options.limits,
+                                &mut raw_inference,
+                            )?
+                        } else {
+                            zil_types::infer_produced_program_for_ct(produced, &options.limits)?
+                        }
                     } else {
                         zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?
                     }
                 } else {
                     zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?
                 };
+                inference_work = inference.raw_inference_stats().cloned().map(Box::new);
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
                 if let Some(usage) = &expanded.ct_usage {
@@ -1325,7 +1346,36 @@ impl CompilationSession {
                     }),
                 )))
             },
-        )?;
+        );
+        self.raw_inference = if ct_result.is_ok() {
+            raw_inference
+        } else {
+            inference_checkpoint
+        };
+        report.raw_inference_work = inference_work;
+        let (raw, ct_snapshot) = ct_result?;
+        if options.push_reuse
+            && let Some(epoch) = &expanded.producer_epoch
+            && Arc::ptr_eq(&epoch.core, &expanded.core)
+            && expanded
+                .producer
+                .as_ref()
+                .is_some_and(|produced| Arc::ptr_eq(produced.program(), &epoch.core))
+            && epoch.limits == options.limits
+            && epoch.target == options.target.fingerprint()
+        {
+            if report.raw_inference_work.is_some() {
+                if let Some(checkpoint) = self.raw_inference.checkpoint_for(&epoch.core) {
+                    let _ = epoch.raw_inference.set(checkpoint);
+                }
+            } else if let Some(checkpoint) = epoch
+                .raw_inference
+                .get()
+                .and_then(|session| session.checkpoint_for(&epoch.core))
+            {
+                self.raw_inference = checkpoint;
+            }
+        }
         let RawSnapshot::ProjectCore(prepared) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",

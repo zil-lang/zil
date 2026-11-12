@@ -150,6 +150,13 @@ fn complete_driver_pushes_one_private_body_through_current_verify_and_lower() {
         changed.to_json()
     );
     assert_eq!(changed.types_push_work.as_ref().unwrap().sparse_batches, 1);
+    let inference = changed.raw_inference_work.as_ref().unwrap();
+    assert_eq!(inference.closure_bodies_checked, 1);
+    assert_eq!(inference.closure_bodies_reused, 424);
+    assert_eq!(inference.name_functions_checked, 1);
+    assert_eq!(inference.name_functions_reused, 424);
+    assert_eq!(inference.dependency_bodies_checked, 1);
+    assert_eq!(inference.dependency_bodies_reused, 424);
     assert_eq!(
         changed
             .initialization_work
@@ -235,6 +242,10 @@ fn retained_parent_restores_actual_push_consumers_after_broad_history() {
         1
     );
     assert_eq!(report.lowering_work.unwrap().functions_checked, 1);
+    let inference = report.raw_inference_work.as_ref().unwrap();
+    assert_eq!(inference.closure_bodies_checked, 1);
+    assert_eq!(inference.name_functions_checked, 1);
+    assert_eq!(inference.dependency_bodies_checked, 1);
     session.clear();
     assert!(
         epoch.upgrade().is_none(),

@@ -22,7 +22,7 @@ def frozen_source(repo, expected=None):
     changed = git('diff', '--name-only', 'HEAD', '-z').split('\0')
     changed += git('ls-files', '--others', '--exclude-standard', '-z').split('\0')
     compiler = ('crates/', 'src/', 'Cargo.toml', 'Cargo.lock', 'build.rs', '.cargo/',
-                'rust-toolchain', 'policy/', 'validation/', 'tests/', 'spec/')
+                'rust-toolchain', 'policy/', 'validation/', 'tests/', 'spec/', 'tools/llvm/')
     if any(path.startswith(compiler) for path in changed if path):
         raise ValueError('compiler or validation inputs differ from the frozen source')
     return source

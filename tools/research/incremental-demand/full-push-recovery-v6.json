@@ -1,0 +1,19 @@
+{
+  "archive_bytes": 111707138,
+  "files": 1181,
+  "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "parts": 5,
+  "raw_bytes": 430060812,
+  "restore_dir": "/tmp/zil-full-push-v6-restored",
+  "scope": "Intermediate full425 native diagnostic and exact scalar replay failure; original and modified runtime DSOs; all failures preserved; no full LLVM incrementality or matched speed acceptance",
+  "sha256": "cdc900c6f23022e0fbc855cfbd47c88816fe9235887a368d6d7fbd928731960d",
+  "source_commits": {
+    "measured": "2f9ada6193401865043386be00b115eb8db81490"
+  },
+  "status": "verified",
+  "remote_commit": "a4f8736df4095948ae12413fc9bbd8f2c7df7b72",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v6",
+  "retrieval": "Fresh HTTPS from fixed GitHub commit; no local archive copied; all 1181 entries verified after restoration",
+  "limits": "Complete425 diagnostic plus exact negative replay reproduction; not matched timing/LLVM general acceptance. Compiler source2f9, SDKv6/v7; later SDKv8 and history tests outside scope."
+}

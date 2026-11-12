@@ -209,6 +209,7 @@ pub struct CompileAttempt {
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
     /// Actual sparse Types work for this attempt; None means not executed.
     pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
+    pub raw_inference_work: Option<Box<zil_types::RawInferenceStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -219,7 +220,7 @@ pub struct CompileAttempt {
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -248,6 +249,9 @@ impl CompileAttempt {
                 self.materialization_work,
             ),
             self.types_push_work
+                .as_ref()
+                .map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.raw_inference_work
                 .as_ref()
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
             phase_timings_json(&self.phase_timings_ns),
@@ -297,6 +301,7 @@ pub struct CompileReport {
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
     /// Actual sparse Types work for this attempt; None means not executed.
     pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
+    pub raw_inference_work: Option<Box<zil_types::RawInferenceStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -339,6 +344,7 @@ impl CompileReport {
             lowering_work: None,
             function_type_work: None,
             types_push_work: None,
+            raw_inference_work: None,
             producer_work: None,
             materialization_work: None,
             initialization_work: None,
@@ -351,7 +357,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -419,6 +425,7 @@ impl CompileReport {
                 stats.lowered_functions, stats.reused_functions, stats.reused_machine_module, stats.whole_machine_input_functions_compared, stats.reused_machine_transforms, stats.reused_partition, stats.reused_object_keys, stats.reused_link, stats.rendered_diagnostic_items, stats.reused_diagnostic_items, stats.reused_partition_recipe, stats.reused_partition_units, stats.rebuilt_partition_units, stats.source_projection_traversals, stats.source_projection_instruction_visits, stats.source_projection_reuses, stats.native_history_restored_units, stats.native_history_retained_epochs, stats.native_history_payload_bytes)),
             self.lowering_work.map_or_else(|| "null".into(), |stats| stats.to_json()),
             self.types_push_work.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.raw_inference_work.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -458,6 +465,7 @@ impl CompileReport {
             ),
             function_type_work: self.function_type_work.clone(),
             types_push_work: self.types_push_work.clone(),
+            raw_inference_work: self.raw_inference_work.clone(),
             producer_work: self.producer_work.clone(),
             materialization_work: self.materialization_work,
             initialization_work: self.initialization_work,
@@ -479,6 +487,7 @@ impl CompileReport {
         // That prefix belongs to the rejected attempt and is never billed twice.
         next.function_type_work = None;
         next.types_push_work = None;
+        next.raw_inference_work = None;
         next.producer_work = None;
         next.materialization_work = None;
         next.initialization_work = None;

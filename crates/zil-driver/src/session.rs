@@ -303,6 +303,7 @@ pub struct CompilationSession {
     pub(super) semantic_publication: super::semantic_cache::SemanticPublicationSession,
     pub(super) function_types: Box<zil_types::FunctionSession>,
     pub(super) push_types: zil_types::TypesPushSession,
+    pub(super) raw_inference: zil_types::RawInferenceSession,
     pub(super) producer: Box<zil_expand::ExpandSession>,
     pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
     pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
@@ -327,6 +328,7 @@ impl CompilationSession {
             semantic_publication: Default::default(),
             function_types: Box::default(),
             push_types: Default::default(),
+            raw_inference: Default::default(),
             producer: Box::default(),
             materializer: super::ct_artifact::ScalarMaterializationSession::default(),
             producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
@@ -344,6 +346,7 @@ impl CompilationSession {
         self.semantic_publication = Default::default();
         self.function_types.clear();
         self.push_types.clear();
+        self.raw_inference.clear();
         *self.producer = Default::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
