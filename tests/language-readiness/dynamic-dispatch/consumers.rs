@@ -602,12 +602,7 @@ fn raw_closure_cannot_hide_an_owned_dyn_capture() {
         interface: module.dyn_interfaces[0].id,
     };
     let analyze_errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
-    assert!(
-        analyze_errors
-            .iter()
-            .any(|e| e.message.contains("owned dyn capture")),
-        "{analyze_errors:?}"
-    );
+    assert!(!analyze_errors.is_empty());
     plan.module_fingerprint = module.fingerprint();
     let target = module.target.clone();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
@@ -615,28 +610,15 @@ fn raw_closure_cannot_hide_an_owned_dyn_capture() {
         zil_verify::verify_module(module, plan, &target, &Limits::default()).unwrap_err(),
         zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap_err(),
     ] {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.code == "E-VERIFY-DYN" && e.message.contains("owned dyn capture")),
-            "{errors:?}"
-        );
+        assert!(!errors.is_empty());
     }
     let captured = format!(
         "{OWNED_PACKAGE}\nfn captured()->DynCreateError!i32{{let owner=owned_dyn::<dyn Read>(A{{data:bytes_new(),n:7}})?;let f=move()->i32=>owner.read();return f()}}"
     );
     let report = compile(&captured, &CompileOptions::default());
-    assert_ne!(
+    assert_eq!(
         report.status,
         ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert!(
-        matches!(
-            report.phase,
-            Phase::Expand | Phase::Types | Phase::Analyze | Phase::Verify
-        ),
         "{}",
         report.to_json()
     );
@@ -1159,6 +1141,166 @@ fn owned_raw_wire_rejects_forged_route_provider_and_loan() {
         zil_verify::verify_module(moved_while_borrowed, plan, &target, &Limits::default()).is_err()
     );
     assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+}
+
+fn assert_candidate_rejected_by_both_kernels(
+    module: zil_ir::TypedModule,
+    plan: &zil_ir::CandidatePlan,
+) {
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    let mut plan = plan.clone();
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default())
+            .is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn repeated_callable_entries_borrow_the_actual_owned_dyn_capture() {
+    let source = r#"extern "C" fn putchar(code:i32)->i32;
+trait Change{fn read(self:&Self)->i32;fn step(self:&mut Self);}
+resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}
+package A{manages mark:Token;pub n:i32}
+impl Change for A{fn read(self:&Self)->i32{return self.n}fn step(self:&mut Self){self.n+=1}}
+fn observe(owner:&OwnedDyn<dyn Change>)->i32{return owner.read()}
+fn adjust(owner:&mut OwnedDyn<dyn Change>)->i32{owner.step();return owner.read()}
+fn pair(a:&mut OwnedDyn<dyn Change>,b:&OwnedDyn<dyn Change>)->i32{a.step();return b.read()+a.read()}
+fn distinct()->DynCreateError!i32{var a=owned_dyn::<dyn Change>(A{mark:Token{code:67},n:1})?;let b=owned_dyn::<dyn Change>(A{mark:Token{code:68},n:10})?;return pair(&mut a,&b)}
+fn run()->DynCreateError!i32{
+ let one=owned_dyn::<dyn Change>(A{mark:Token{code:65},n:10})?;
+ var two=owned_dyn::<dyn Change>(A{mark:Token{code:66},n:20})?;
+ let reader=move()->i32=>one.read()+observe(&one);
+ var writer=move()->i32=>{two.step();return adjust(&mut two)};
+ let first=reader()+reader();
+ let second=writer()+writer();
+ return first+second
+}
+fn main()->i32{let r=run();match r{.ok(n)=>{return n},.err(_)=>{return 99}}}"#;
+    for bad in [
+        source.replace("let reader=move()", "let reader=()"),
+        source.replace("adjust(&mut two)", "adjust(&two)"),
+        source.replace("return first+second", "return first+second+observe(&two)"),
+        format!("{source}\nextern \"C\" fn leak(owner:&OwnedDyn<dyn Change>);"),
+        format!(
+            "{source}\nfn aliases()->DynCreateError!i32{{var owner=owned_dyn::<dyn Change>(A{{mark:Token{{code:65}},n:1}})?;return pair(&mut owner,&owner)}}"
+        ),
+    ] {
+        let report = compile(&bad, &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+    }
+    let (module, plan) = source_candidate_for(source);
+    let mut alias = module.clone();
+    let distinct = alias
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "distinct")
+        .unwrap();
+    let a = distinct.locals.iter().find(|l| l.name == "a").unwrap().id;
+    let b = distinct.locals.iter().find(|l| l.name == "b").unwrap().id;
+    let mut patches = 0;
+    for instruction in distinct.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let I::BorrowLocal { local } = &mut instruction.kind
+            && *local == b
+        {
+            *local = a;
+            patches += 1;
+        }
+    }
+    assert_eq!(patches, 1);
+    assert_candidate_rejected_by_both_kernels(alias, &plan);
+    let mut forged = module.clone();
+    let entry = forged
+        .closures
+        .iter_mut()
+        .find(|c| c.kind == zil_ir::CallableKind::FnMut)
+        .unwrap();
+    entry.kind = zil_ir::CallableKind::Fn;
+    assert_candidate_rejected_by_both_kernels(forged, &plan);
+    let mut forged = module.clone();
+    let observe = forged
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "observe")
+        .unwrap();
+    for block in &mut observe.blocks {
+        for instruction in &mut block.instructions {
+            if let I::BorrowDynOwned { mutable, .. } = &mut instruction.kind {
+                *mutable = true;
+            }
+        }
+    }
+    assert_candidate_rejected_by_both_kernels(forged, &plan);
+    let mut forged = module.clone();
+    let observe = forged
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "observe")
+        .unwrap();
+    let local = observe.parameters[0];
+    let address = zil_ir::ValueId(observe.values.len() as u32);
+    observe
+        .values
+        .push(observe.locals[local.0 as usize].ty.clone());
+    let Type::Address { inner, .. } = &observe.values[address.0 as usize] else {
+        panic!("actual owner parameter")
+    };
+    let pair = zil_ir::ValueId(observe.values.len() as u32);
+    let pair_type = inner.as_ref().clone();
+    observe.values.push(pair_type);
+    observe.blocks[0].instructions.splice(
+        0..0,
+        [
+            zil_ir::Instruction {
+                result: Some(address),
+                kind: I::Load(local),
+                span: observe.span,
+            },
+            zil_ir::Instruction {
+                result: Some(pair),
+                kind: I::ReadAddress { address },
+                span: observe.span,
+            },
+        ],
+    );
+    assert_candidate_rejected_by_both_kernels(forged, &plan);
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("repeated-owned-capture");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"BA86\n");
+        }
+    }
 }
 
 #[test]

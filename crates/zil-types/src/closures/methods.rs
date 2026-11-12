@@ -27,6 +27,61 @@ impl InferBuilder<'_, '_> {
             Type::Address { inner, .. } => inner.as_ref(),
             other => other,
         };
+        if let Type::OwnedDyn { interface } = nominal {
+            *self.work_left = self
+                .work_left
+                .checked_sub(self.dyn_interfaces.len())
+                .ok_or_else(|| limit("dyn closure interface lookup budget exceeded", span))?;
+            let Some(definition) = self.dyn_interfaces.iter().find(|d| d.id == *interface) else {
+                return Ok(None);
+            };
+            let mut found = None;
+            for slot in &definition.slots {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(self.dyn_declarations.len().saturating_add(1))
+                    .ok_or_else(|| limit("dyn closure slot lookup budget exceeded", span))?;
+                let declaration = self
+                    .dyn_declarations
+                    .iter()
+                    .find(|d| d.id == slot.member.application.declaration);
+                if declaration
+                    .and_then(|d| d.members.get(slot.member.ordinal as usize))
+                    .is_some_and(|m| m.name == member)
+                {
+                    if found.is_some() {
+                        return Err(error("E-DYN-SLOT", span, "ambiguous dyn method in closure"));
+                    }
+                    self.graph.reserve_type(&slot.result, 0, span)?;
+                    for parameter in &slot.parameters {
+                        self.graph.reserve_type(parameter, 0, span)?;
+                    }
+                    found = Some((
+                        slot.receiver.mutable,
+                        slot.parameters.clone(),
+                        slot.result.clone(),
+                    ));
+                }
+            }
+            let Some((mutable, parameters, result)) = found else {
+                return Ok(None);
+            };
+            if parameters.len() != arguments.len() {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "dyn closure slot arity mismatch",
+                ));
+            }
+            if mutable {
+                self.mark_address_write(object, depth + 1)?;
+            }
+            for (argument, parameter) in arguments.iter().zip(&parameters) {
+                let value = self.expr_expected(argument, Some(parameter), depth + 1)?;
+                value.bind(&mut self.graph, parameter, argument.span)?;
+            }
+            return self.known(&result, span).map(Some);
+        }
         if !matches!(
             nominal,
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } | Type::ByteBuffer

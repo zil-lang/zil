@@ -23,7 +23,7 @@ pub(super) fn self_contained(
             budget.type_work(capture, true, "callback State capture shape")?;
             match capture {
                 Type::Closure(child) => pending.push(*child),
-                Type::OwnedDyn { interface } if definition.kind == CallableKind::FnOnce => {
+                Type::OwnedDyn { interface } => {
                     crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
                 }
                 Type::Managed(_) if !dynamic_store::is_carrier(capture) => {}

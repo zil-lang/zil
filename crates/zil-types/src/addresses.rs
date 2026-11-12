@@ -557,7 +557,7 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !stored::shared_value(&decl.ty)
                     && !pure_array
-                    && !matches!(decl.ty, Type::Closure(_))
+                    && !matches!(decl.ty, Type::Closure(_) | Type::OwnedDyn { .. })
                     && !resource_head
                     && !matches!(decl.ty, Type::MutexGuard { .. })
                     && !(mutable

@@ -1415,7 +1415,8 @@ fn store_window_transition(
                 .and_then(|id| module.closures.get(id.0 as usize))
                 .and_then(|c| c.captures.get(index as usize))
                 .is_some_and(|ty| {
-                    dynamic_store::is_owned_carrier(ty)
+                    matches!(ty, Type::OwnedDyn { .. })
+                        || dynamic_store::is_owned_carrier(ty)
                         || (callback_windows
                             && matches!(ty, Type::Managed(_) | Type::Package { .. }))
                         || (forward_windows && matches!(ty, Type::Closure(_)))
@@ -2165,7 +2166,13 @@ fn infer_with_private(
                             extend(&mut found, source, budget)?;
                         }
                         InstructionKind::BorrowDynOwned { local, .. } => {
-                            found.insert(Root::Local(*local));
+                            if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                                if let Some(actual) = state.get(local) {
+                                    extend(&mut found, actual, budget)?;
+                                }
+                            } else {
+                                found.insert(Root::Local(*local));
+                            }
                         }
                         InstructionKind::BorrowCapture { index, .. }
                         | InstructionKind::ReadCapture { index } => {

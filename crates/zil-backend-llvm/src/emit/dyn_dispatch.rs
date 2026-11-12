@@ -656,18 +656,33 @@ impl FunctionEmitter<'_> {
         local: LocalId,
         _mutable: bool,
     ) -> CompileResult<()> {
-        let Type::OwnedDyn { .. } = self.local_type(local)? else {
+        let address = matches!(self.local_type(local)?, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::OwnedDyn { .. }));
+        if !address && !matches!(self.local_type(local)?, Type::OwnedDyn { .. }) {
             return invalid(
                 "E-CODEGEN-DYN",
-                "owned dyn borrow requires owner local",
+                "owned dyn borrow requires actual owner or owner address",
                 Some(instruction.span),
             );
+        }
+        let ptr = if address {
+            let name = format!("dyn.owner.address.{}", result(instruction)?.0);
+            self.event(inst(
+                Some(name.clone()),
+                m::Op::Load {
+                    ty: m::Ty::Ptr,
+                    ptr: m::local(format!("local.{}", local.0)),
+                    align: 8,
+                },
+            ));
+            m::local(name)
+        } else {
+            m::local(format!("local.{}", local.0))
         };
         self.event(inst(
             Some(format!("v.{}", result(instruction)?.0)),
             m::Op::Load {
                 ty: pair(),
-                ptr: m::local(format!("local.{}", local.0)),
+                ptr,
                 align: 8,
             },
         ));

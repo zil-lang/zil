@@ -317,9 +317,20 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let mut functions = Vec::new();
     for (function, flag) in core.functions.iter().zip(flags) {
         functions.push(
-            prepare(function, &table, None, &enum_types, flag, &mut budget)
-                .map_err(|e| vec![e])?
-                .into_owned(),
+            prepare(
+                function,
+                &table,
+                None,
+                closures::Catalog {
+                    enums: Some(&enum_types),
+                    dyn_interfaces: &core.dyn_interfaces,
+                    dyn_declarations: &core.dyn_declarations,
+                },
+                flag,
+                &mut budget,
+            )
+            .map_err(|e| vec![e])?
+            .into_owned(),
         );
     }
     Ok(copy_module_metadata(core, functions))
@@ -526,7 +537,11 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                     function,
                     table,
                     Some(&imports),
-                    &enum_types,
+                    closures::Catalog {
+                        enums: Some(&enum_types),
+                        dyn_interfaces: &module.core.dyn_interfaces,
+                        dyn_declarations: &module.core.dyn_declarations,
+                    },
                     flag,
                     &mut budget,
                 )
@@ -739,7 +754,7 @@ fn prepare<'a>(
     function: &'a CoreFunction,
     signatures: &BTreeMap<String, Signature>,
     imports: Option<&program::Imports<'_>>,
-    enums: &BTreeMap<String, Type>,
+    catalog: closures::Catalog<'_>,
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<Cow<'a, CoreFunction>> {
@@ -766,7 +781,7 @@ fn prepare<'a>(
             return Ok(Cow::Borrowed(function));
         }
     }
-    let mut solver = Solver::new(function, signatures, imports, enums, budget)?;
+    let mut solver = Solver::new(function, signatures, imports, catalog, budget)?;
     solver.block(&function.body, 0)?;
     solver.finish(function).map(Cow::Owned)
 }
@@ -1745,6 +1760,8 @@ struct Closure {
     span: Span,
 }
 struct Solver<'a, 'b, 'c> {
+    dyn_interfaces: &'a [DynInterface],
+    dyn_declarations: &'a [DynDeclaration],
     graph: Graph,
     scopes: Vec<BTreeMap<String, Binding>>,
     prepared: BTreeSet<String>,
@@ -1814,7 +1831,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         function: &CoreFunction,
         signatures: &'a BTreeMap<String, Signature>,
         imports: Option<&'a program::Imports<'a>>,
-        enums: &'a BTreeMap<String, Type>,
+        catalog: closures::Catalog<'a>,
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         let old_result = function.callable_return.is_some()
@@ -1854,7 +1871,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             state_modes: BTreeMap::new(),
             signatures,
             imports,
-            enums,
+            enums: catalog
+                .enums
+                .expect("source inference always has its enum catalog"),
+            dyn_interfaces: catalog.dyn_interfaces,
+            dyn_declarations: catalog.dyn_declarations,
             budget,
             expression_index: 0,
             statement_index: 0,
@@ -5350,6 +5371,82 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Type::Managed(payload) => *payload,
                     other => other,
                 });
+                if let Some(Type::OwnedDyn { interface }) = &method_type {
+                    self.budget.work(self.dyn_interfaces.len(), span)?;
+                    if let Some(definition) =
+                        self.dyn_interfaces.iter().find(|d| d.id == *interface)
+                    {
+                        let mut selected = None;
+                        for slot in &definition.slots {
+                            self.budget
+                                .work(self.dyn_declarations.len().saturating_add(1), span)?;
+                            if self
+                                .dyn_declarations
+                                .iter()
+                                .find(|d| d.id == slot.member.application.declaration)
+                                .and_then(|d| d.members.get(slot.member.ordinal as usize))
+                                .is_some_and(|m| m.name == *member)
+                            {
+                                if selected.is_some() {
+                                    return Err(error(
+                                        "E-DYN-SLOT",
+                                        span,
+                                        "ambiguous dyn method in source inference",
+                                    ));
+                                }
+                                charge_type_snapshot(
+                                    &slot.result,
+                                    span,
+                                    self.budget.limits,
+                                    &mut self.budget.work,
+                                    1,
+                                )?;
+                                for ty in &slot.parameters {
+                                    charge_type_snapshot(
+                                        ty,
+                                        span,
+                                        self.budget.limits,
+                                        &mut self.budget.work,
+                                        1,
+                                    )?;
+                                }
+                                selected = Some((
+                                    slot.receiver.mutable,
+                                    slot.parameters.clone(),
+                                    slot.result.clone(),
+                                ));
+                            }
+                        }
+                        if let Some((mutable, arguments, result)) = selected {
+                            // Private inference only. Final Builder resolves the
+                            // exact slot and independently proves owner access.
+                            let mut parameters = vec![Type::Address {
+                                mutable,
+                                inner: Box::new(Type::OwnedDyn {
+                                    interface: *interface,
+                                }),
+                            }];
+                            parameters.extend(arguments);
+                            return Ok(Term::Method(Rc::new(Signature {
+                                storage_life: None,
+                                life: None,
+                                id: None,
+                                callable: vec![],
+                                state_parameter: None,
+                                callable_return: None,
+                                type_parameter: None,
+                                template: None,
+                                foreign: false,
+                                scoped_callback: None,
+                                cleanup: false,
+                                parameters,
+                                result,
+                                public: false,
+                                receiver: None,
+                            })));
+                        }
+                    }
+                }
                 if let Some(
                     ty @ (Type::Record { .. }
                     | Type::Package { .. }

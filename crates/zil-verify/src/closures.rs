@@ -193,13 +193,6 @@ pub(super) fn check_definitions(
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
             if let Type::OwnedDyn { interface } = ty {
-                if closure.kind != CallableKind::FnOnce {
-                    return Err(reject(
-                        "E-VERIFY-DYN",
-                        None,
-                        "owned dyn capture requires a consuming entry",
-                    ));
-                }
                 dynamic_dispatch::type_owned(module, *interface, budget)?;
                 continue;
             }
@@ -822,7 +815,10 @@ pub(super) fn check_resource_instruction(
             };
             let inline_sum =
                 budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
-            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_)) || inline_sum) {
+            if !(ty.is_copy_value()
+                || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
+                || inline_sum)
+            {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,

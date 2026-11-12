@@ -472,10 +472,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: false,
             description: true,
         },
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }) => Shape {
-            owned: false,
-            description: true,
-        },
+        Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Array { element, length }
             if *length > 0
                 && matches!(
@@ -1502,19 +1506,73 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::BorrowDynOwned { local, .. } => {
-                    if check
-                        && !exact(
-                            &copied(state, Place::Local(*local), budget)?,
-                            Life::Available,
-                        )
-                    {
-                        return Err(error("dyn owner borrow requires one live owner"));
+                InstructionKind::ReadAddress { address }
+                | InstructionKind::WriteAddress { address, .. }
+                    if matches!(&f.values[address.0 as usize], Type::Address { inner, .. } if matches!(inner.as_ref(), Type::OwnedDyn { .. })) =>
+                {
+                    return Err(error(
+                        "ordinary address reads and writes cannot copy or replace an erased owner",
+                    ));
+                }
+                InstructionKind::BorrowDynOwned { local, mutable } => {
+                    let actual = &f.locals[local.0 as usize];
+                    let (interface, exclusive) = match &actual.ty {
+                        Type::OwnedDyn { interface } => (*interface, actual.mutable),
+                        Type::Address { mutable, inner } => match inner.as_ref() {
+                            Type::OwnedDyn { interface } => (*interface, *mutable),
+                            _ => return Err(error("dyn borrow address does not select an owner")),
+                        },
+                        _ => return Err(error("dyn borrow does not select an actual owner")),
+                    };
+                    if *mutable && !exclusive {
+                        return Err(error("dyn owner borrow exceeds actual permission"));
                     }
-                    produced = Some(Fact {
-                        sources: BTreeSet::from([Source::Head(*local)]),
-                        ..Fact::default()
-                    });
+                    let expected = Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(Type::Dyn { interface }),
+                    };
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                        return Err(error(
+                            "dyn owner borrow result differs from actual owner interface",
+                        ));
+                    }
+                    if let Type::Address {
+                        mutable: available,
+                        inner,
+                    } = &f.locals[local.0 as usize].ty
+                    {
+                        if !matches!(inner.as_ref(), Type::OwnedDyn { .. })
+                            || (*mutable && !*available)
+                        {
+                            return Err(error(
+                                "dyn owner address borrow has invalid pointee or permission",
+                            ));
+                        }
+                        let fact = copied(state, Place::Local(*local), budget)?;
+                        if check {
+                            if fact.sources.is_empty() {
+                                return Err(error("dyn owner address lacks a real source"));
+                            }
+                            live_sources(state, &fact, budget)?;
+                        }
+                        produced = Some(Fact {
+                            sources: fact.sources,
+                            ..Fact::default()
+                        });
+                    } else {
+                        if check
+                            && !exact(
+                                &copied(state, Place::Local(*local), budget)?,
+                                Life::Available,
+                            )
+                        {
+                            return Err(error("dyn owner borrow requires one live owner"));
+                        }
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::Head(*local)]),
+                            ..Fact::default()
+                        });
+                    }
                 }
                 InstructionKind::MutexLock { mutex } => {
                     let head = copied(state, Place::Value(*mutex), budget)?;
@@ -2535,6 +2593,23 @@ impl Flow<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
+                    if matches!(f.locals[local.0 as usize].ty, Type::OwnedDyn { .. }) =>
+                {
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("owner address requires one live erased owner"));
+                    }
+                    produced = Some(Fact {
+                        sources: BTreeSet::from([Source::Head(*local)]),
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -2639,11 +2714,30 @@ impl Flow<'_> {
                         ..Fact::default()
                     });
                 }
-                InstructionKind::BorrowCapture { index, .. } => {
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    if let Some(definition) = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        && let Some(ty @ Type::OwnedDyn { .. }) =
+                            definition.captures.get(*index as usize)
+                    {
+                        if *mutable && definition.kind == CallableKind::Fn {
+                            return Err(error(
+                                "shared entry cannot borrow owner capture exclusively",
+                            ));
+                        }
+                        let expected = Type::Address {
+                            mutable: *mutable,
+                            inner: Box::new(ty.clone()),
+                        };
+                        if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                            return Err(error("owner capture address differs from actual field"));
+                        }
+                    }
                     if f.environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
-                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                        .is_some_and(|ty| matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. }))
                     {
                         let fact = copied(state, Place::Capture(*index), budget)?;
                         if check && !exact(&fact, Life::Available) {
@@ -2651,6 +2745,16 @@ impl Flow<'_> {
                                 "cannot borrow a moved captured closure environment",
                             ));
                         }
+                    }
+                    if f.environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|closure| closure.captures.get(*index as usize))
+                        .is_some_and(|ty| matches!(ty, Type::OwnedDyn { .. }))
+                    {
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::OwnedField(*index)]),
+                            ..Fact::default()
+                        });
                     }
                     if let Some(id) = f.environment
                         && let Some(ty) = self

@@ -356,6 +356,17 @@ fn reconstruct(
                         }
                     } else {
                         match &instruction.kind {
+                            InstructionKind::BorrowDynOwned { local, .. }
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Address { .. }
+                                ) =>
+                            {
+                                row.insert(id);
+                                if let Some(actual) = state.get(local) {
+                                    join(&mut parents, actual, budget)?;
+                                }
+                            }
                             InstructionKind::BorrowLocal { local }
                             | InstructionKind::BorrowLocalMut { local }
                             | InstructionKind::BorrowDynOwned { local, .. } => {
@@ -1702,7 +1713,7 @@ pub(super) fn check(
                             instruction.kind,
                             InstructionKind::BorrowLocalMut { .. }
                                 | InstructionKind::BorrowDynOwned { mutable: true, .. }
-                        ),
+                        ) && !matches!(f.locals[local.0 as usize].ty, Type::Address { .. }),
                         budget,
                     )?;
                 }
@@ -1938,7 +1949,10 @@ pub(super) fn check(
                         byte_buffers::is_owned(&f.values[value.0 as usize])
                             || matches!(&f.values[value.0 as usize], Type::Managed(payload)
                                 if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-                            || matches!(f.values[value.0 as usize], Type::Closure(_))
+                            || matches!(
+                                f.values[value.0 as usize],
+                                Type::Closure(_) | Type::OwnedDyn { .. }
+                            )
                             || (budget.pod_stores
                                 && matches!(
                                     f.values[value.0 as usize],

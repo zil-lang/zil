@@ -887,7 +887,13 @@ fn scalar_body(
             ));
         }
         seen.push((current_module, current.id));
-        if mutable && current.body.statements.len() == 2 {
+        if mutable
+            && matches!(current.body.statements.len(), 1 | 2)
+            && matches!(
+                current.body.statements[0].kind,
+                CoreStatementKind::Assign { .. }
+            )
+        {
             *left = left
                 .checked_sub(
                     1 + current.body.statements.len()
@@ -901,9 +907,8 @@ fn scalar_body(
                         Some(current.span),
                     )
                 })?;
-            let [assignment, returned] = current.body.statements.as_slice() else {
-                return Ok(false);
-            };
+            let assignment = &current.body.statements[0];
+            let returned = current.body.statements.get(1);
             let CoreStatementKind::Assign { target, value } = &assignment.kind else {
                 return Ok(false);
             };
@@ -924,18 +929,20 @@ fn scalar_body(
                 return Ok(false);
             }
             let returns_unit = *result == Type::Unit
-                && matches!(
-                    &returned.kind,
-                    CoreStatementKind::Return(None)
-                        | CoreStatementKind::Return(Some(CoreExpr {
-                            kind: CoreExprKind::Unit,
-                            ..
-                        }))
-                );
-            let returns_field = matches!(&returned.kind,
+                && returned.is_none_or(|returned| {
+                    matches!(
+                        &returned.kind,
+                        CoreStatementKind::Return(None)
+                            | CoreStatementKind::Return(Some(CoreExpr {
+                                kind: CoreExprKind::Unit,
+                                ..
+                            }))
+                    )
+                });
+            let returns_field = returned.is_some_and(|returned| matches!(&returned.kind,
                 CoreStatementKind::Return(Some(CoreExpr { kind: CoreExprKind::Member { object, member, owner: None }, .. }))
                     if matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                        && fields.iter().any(|(name, ty)| name == member && ty == result));
+                        && fields.iter().any(|(name, ty)| name == member && ty == result)));
             return Ok(returns_unit || returns_field);
         }
 
@@ -1140,7 +1147,7 @@ impl Builder<'_, '_> {
         let result = (|| {
             let interface = match actual {
                 Type::Address { inner, .. } => match *inner {
-                    Type::Dyn { interface } => interface,
+                    Type::Dyn { interface } | Type::OwnedDyn { interface } => interface,
                     _ => return None,
                 },
                 Type::OwnedDyn { interface } => interface,
@@ -1344,9 +1351,12 @@ impl Builder<'_, '_> {
                     .function
                     .locals
                     .get(local.0 as usize)
-                    .is_some_and(|l| l.ty == Type::OwnedDyn { interface })
+                    .is_some_and(|l| l.ty == Type::OwnedDyn { interface } || matches!(&l.ty, Type::Address { inner, .. } if **inner == Type::OwnedDyn { interface }))
             {
-                if slot.receiver.mutable && !self.function.locals[local.0 as usize].mutable {
+                if slot.receiver.mutable && !match &self.function.locals[local.0 as usize].ty {
+                    Type::Address { mutable, .. } => *mutable,
+                    _ => self.function.locals[local.0 as usize].mutable,
+                } {
                     return Err(error(
                         "E-DYN-RECEIVER",
                         callee.span,

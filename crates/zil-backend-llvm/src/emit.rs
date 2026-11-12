@@ -979,7 +979,7 @@ fn bind_lir(
                 break;
             }
             let legacy = ty.is_copy_value()
-                || (closure.kind == CallableKind::FnOnce && matches!(ty, Type::OwnedDyn { .. }))
+                || matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty, Type::Closure(_))
                 || ty.is_shared_sync_cell_address()
                 || (captured_fixed_signature && shared_qualified_capture_address(ty))
@@ -3864,7 +3864,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if inner.is_copy_value()
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || matches!(inner.as_ref(), Type::MutexGuard { .. })
+                || matches!(
+                    inner.as_ref(),
+                    Type::MutexGuard { .. } | Type::OwnedDyn { .. }
+                )
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()

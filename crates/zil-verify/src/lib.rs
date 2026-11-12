@@ -1781,6 +1781,11 @@ fn check_function_signature_type(
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         return dynamic_dispatch::type_address(module, ty, span, budget);
     }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return check_local_type(inner, span, module, budget).map(|_| ());
+    }
     if let Type::OwnedDyn { interface } = ty {
         return dynamic_dispatch::type_owned(module, *interface, budget);
     }
@@ -1864,6 +1869,11 @@ fn check_local_type(
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         dynamic_dispatch::type_address(module, ty, span, budget)?;
         return Ok(false);
+    }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::OwnedDyn { .. })
+    {
+        return check_local_type(inner, span, module, budget);
     }
     if let Type::OwnedDyn { interface } = ty {
         dynamic_dispatch::type_owned(module, *interface, budget)?;
@@ -2740,6 +2750,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if let Type::OwnedDyn { interface } = inner {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
             } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?
@@ -2778,6 +2790,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if let Type::OwnedDyn { interface } = inner {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
             } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?

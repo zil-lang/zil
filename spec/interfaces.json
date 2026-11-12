@@ -1891,17 +1891,17 @@
   "owned_dyn_storage": {
     "proposal": "spec/owned-dyn-storage.md",
     "normative": "_zil_design.md §9.4",
-    "schema_version": 46,
-    "wire_version": 46,
+    "schema_version": 48,
+    "wire_version": 48,
     "type": "OwnedDyn{interface} tag40; affine two-pointer owner, distinct from unsized Dyn and Address<Dyn>",
     "instructions": {
       "148": "MakeDynOwned{interface,vtable,source,route:Heap} -> DynCreateError!OwnedDyn",
-      "149": "BorrowDynOwned{local,mutable} -> Address<Dyn>",
+      "149": "BorrowDynOwned{local,mutable} -> Address<Dyn>; local is a live owner or initialized actual Address<OwnedDyn>, preserving sources/parents and permission",
       "150": "DropDynOwned{local}"
     },
     "vtable": "CoreDynVtable and DynVtable append owned_storage:Option<DynOwnedStorage>; None=0, Heap=1. Existing cleanup ordinary entry is not the owning payload destructor.",
     "machine": "Owner pair {payload ptr, table ptr}; table method entries followed by compiler-derived void(ptr concrete_payload) glue on owning tables; payload cleanup precedes same-route Heap free. DynCreateError has exact Allocation variant.",
-    "trust": "Source and all independent kernels prove actual complete recursive Package Self, sealed ByteBuffer-only owned leaves and closed Copy companions, whole owner transfer and loans. User Drop and other Managed reject until a separate whole-owner cleanup effect bound exists. Raw metadata and tags grant no permission. No implicit box, GC/RC, retained borrows, async close, Guard, Transfer or Share."
+    "trust": "Source and all independent kernels prove actual complete recursive Package Self, sealed ByteBuffer, canonical synchronous user Drop and recursive Store owned leaves and closed Copy companions, whole owner transfer and loans. The independent whole-owner cleanup bound covers real complete teardown; None remains Unknown. Moved Fn/FnMut entries borrow actual owner capture storage repeatedly, FnOnce may transfer it, and all normal exits retain or discharge the single environment debt. Raw metadata and tags grant no permission. No implicit box, GC/RC, retained borrows, async close, Guard, Transfer or Share."
   },
   "affine_mutex": {
     "source": "_zil_design.md §§8,11; spec/affine-mutex.md",
