@@ -868,8 +868,7 @@ fn relation_inner(
                     // This exact Direct-query input consumes no relation row.
                     || allow_byte_input && !output && !capture && !pointee
                         && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
-                    || captures.is_some() && !output && !capture && !pointee
-                        && closed_owned_parameter(t)
+                    || allow_callback && !capture && !pointee && closed_owned_parameter(t)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());

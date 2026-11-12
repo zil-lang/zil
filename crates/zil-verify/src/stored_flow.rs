@@ -2143,12 +2143,16 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if has_fixed_environment {
         b.spend(parameters.len())?;
         for ty in &parameters {
-            if !fixed_environment(module, ty, b)
+            let data = match ty {
+                Type::Address { inner, .. } => inner.as_ref(),
+                _ => ty,
+            };
+            if !environment_memory(module, ty, b)
                 && !super::stored_callables::shared_input(ty)
-                && !super::stored_owned::owner(ty)
+                && !super::signature_life::closed_owned_parameter(data)
             {
                 return Err(unsupported(
-                    "captured Fixed helper requires shared finite data parameters",
+                    "captured Fixed helper requires complete environment or closed actual data parameters",
                     Some(f.span),
                 ));
             }
