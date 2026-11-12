@@ -116,7 +116,7 @@ fn fixture(element: Type, environments: usize) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw callback Store boundary"),
         target: TargetProfile::host_llvm(),
-        functions,
+        functions: functions.into(),
         closures,
         resources: vec![ResourceDefinition {
             name: "@builtin:OwnedStore<State<i32,F0>>".into(),

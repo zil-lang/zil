@@ -1000,7 +1000,7 @@ fn evaluate_with_context(
             dyn_vtables: core.dyn_vtables.clone(),
             aggregate_templates: core.aggregate_templates.clone(),
             aggregate_applications: core.aggregate_applications.clone(),
-            functions,
+            functions: functions.into(),
             schema_version: core.schema_version,
             module_id: core.module_id,
             source_fingerprint: core.source_fingerprint,
@@ -3388,7 +3388,8 @@ mod tests {
                         )))),
                     }],
                 },
-            }],
+            }]
+            .into(),
         }
     }
     fn number(n: &str) -> CoreExpr {

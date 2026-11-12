@@ -168,7 +168,7 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"independent-scoped-runtime-fixture"),
         target: TargetProfile::host_llvm(),
-        functions: vec![register, close, callback_entry, body_entry, caller],
+        functions: vec![register, close, callback_entry, body_entry, caller].into(),
         closures: vec![
             ClosureDefinition {
                 storage_life: None,

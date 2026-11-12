@@ -150,7 +150,7 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
             payload,
             teardown: None,
         }],
-        functions: vec![body, constructor],
+        functions: vec![body, constructor].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

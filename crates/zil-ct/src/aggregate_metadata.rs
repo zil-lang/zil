@@ -307,7 +307,7 @@ mod tests {
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(7),
             source_fingerprint: Fingerprint::ZERO,
-            functions: vec![],
+            functions: vec![].into(),
             aggregates: vec![],
             enums: vec![],
             unsupported: vec![],

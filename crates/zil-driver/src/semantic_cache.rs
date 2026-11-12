@@ -42,7 +42,9 @@ impl Store {
         let root = options
             .semantic_cache
             .as_ref()?
-            .join(if options.producer_reuse {
+            .join(if options.push_reuse {
+                "semantic-v7-push"
+            } else if options.reuse_producers() {
                 "semantic-v6"
             } else {
                 "semantic-v4"
@@ -50,7 +52,9 @@ impl Store {
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = if options.producer_reuse {
+        let mut bytes = if options.push_reuse {
+            b"ZIL-TRUSTED-SEMANTIC-v7-push\0".to_vec()
+        } else if options.reuse_producers() {
             b"ZIL-TRUSTED-SEMANTIC-v6\0".to_vec()
         } else {
             b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec()
@@ -61,7 +65,7 @@ impl Store {
             root,
             key: Fingerprint::of(&bytes),
             maximum: options.limits.max_source_bytes,
-            segmented: options.producer_reuse,
+            segmented: options.reuse_producers(),
         })
     }
 
@@ -748,6 +752,9 @@ impl FunctionStore {
         identity: &QueryKey,
         root: &SourceUnit,
     ) -> Option<Self> {
+        if options.push_reuse {
+            return None;
+        }
         let mut stable = identity.clone();
         let mut input = b"ZIL-FUNCTION-EPOCH-1\0".to_vec();
         input.extend_from_slice(&root.module_id.0.to_le_bytes());
@@ -755,14 +762,14 @@ impl FunctionStore {
         input.extend_from_slice(root.path.as_bytes());
         stable.input = Fingerprint::of(&input);
         let mut store = Store::new(options, &stable)?;
-        store.root = store.root.parent()?.join(if options.producer_reuse {
+        store.root = store.root.parent()?.join(if options.reuse_producers() {
             "function-types-v2"
         } else {
             "function-types-v1"
         });
         Some(Self {
             store,
-            items: options.producer_reuse,
+            items: options.reuse_producers(),
             corrupt: Default::default(),
         })
     }

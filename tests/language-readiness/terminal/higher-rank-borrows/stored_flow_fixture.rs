@@ -284,7 +284,7 @@ pub(super) fn module() -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::default(),
-        functions: vec![make, get, relay, main, identity],
+        functions: vec![make, get, relay, main, identity].into(),
         closures: vec![],
         resources: vec![],
         unsupported: vec![],
@@ -574,7 +574,7 @@ pub(super) fn phantom() -> TypedModule {
         mutable: false,
         span: s(),
     });
-    m.functions = vec![use_value, main];
+    m.functions = vec![use_value, main].into();
     m
 }
 
@@ -777,7 +777,7 @@ pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
             classes(StorageBase::Parameter(1), StorageBinder::Fixed(1)),
         ],
     });
-    m.functions = vec![require, caller];
+    m.functions = vec![require, caller].into();
     m
 }
 
@@ -889,7 +889,7 @@ pub(super) fn rich_marker_pointer(wrong_actual: bool, wrong_target: bool) -> Typ
         ],
         classes: vec![class(StorageBinder::Fixed(0))],
     });
-    m.functions = vec![target, caller];
+    m.functions = vec![target, caller].into();
     m
 }
 
@@ -1448,7 +1448,7 @@ pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedMod
             class(StorageBase::Parameter(1), StorageBinder::Fixed(1)),
         ],
     });
-    m.functions = vec![entry, caller];
+    m.functions = vec![entry, caller].into();
     m.closures = vec![ClosureDefinition {
         storage_life: Some(life),
         id: ClosureId(0),

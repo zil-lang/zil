@@ -134,7 +134,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
             payload: payload.clone(),
             teardown: None,
         }],
-        functions: vec![first, second, factory],
+        functions: vec![first, second, factory].into(),
         closures: vec![
             definition(0, kind, vec![Type::Managed(Box::new(payload))]),
             definition(1, kind, if retained { vec![input] } else { vec![] }),

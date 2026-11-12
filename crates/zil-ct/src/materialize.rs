@@ -176,7 +176,7 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
     // without allocating one work item for every unchecked sibling. A cursor
     // is bookkeeping, not another Core node, so only yielded visits are charged.
     enum Children<'a> {
-        Functions(&'a [CoreFunction]),
+        Functions(zil_ir::PersistentIter<'a, CoreFunction>),
         Statements(&'a [CoreStatement]),
         Expressions(&'a [CoreExpr]),
         Fields(&'a [(String, CoreExpr)]),
@@ -185,11 +185,7 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
     impl<'a> Children<'a> {
         fn next_back(&mut self) -> Option<Visit<'a>> {
             Some(match self {
-                Self::Functions(items) => {
-                    let (last, rest) = items.split_last()?;
-                    *items = rest;
-                    Visit::Block(&last.body)
-                }
+                Self::Functions(items) => Visit::Block(&items.next_back()?.body),
                 Self::Statements(items) => {
                     let (last, rest) = items.split_last()?;
                     *items = rest;
@@ -244,7 +240,7 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
         observe(f.id, f.span)?;
     }
     pending.push((
-        Visit::Children(Children::Functions(&core.functions)),
+        Visit::Children(Children::Functions(core.functions.iter())),
         0usize,
     ));
     while let Some((visit, depth)) = pending.pop() {
@@ -602,7 +598,8 @@ mod tests {
                         )],
                     ),
                 ),
-            ],
+            ]
+            .into(),
         }
     }
 
@@ -705,7 +702,8 @@ mod tests {
                         )),
                     )],
                 ),
-            )];
+            )]
+            .into();
             assert_eq!(
                 first_free_id(&core, &Limits::default()).unwrap_err(),
                 quota(span(41 + selected as u32))
@@ -757,7 +755,8 @@ mod tests {
                     )),
                 )],
             ),
-        )];
+        )]
+        .into();
         let limits = Limits {
             max_nodes: 5,
             max_call_depth: 4,

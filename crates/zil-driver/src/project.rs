@@ -268,7 +268,7 @@ impl CompilationSession {
         sources: &[SourceUnit],
         options: &CompileOptions,
     ) -> Option<Arc<ProducerEpoch>> {
-        if !options.producer_reuse {
+        if !options.reuse_producers() {
             return None;
         }
         let RawSnapshot::Project(expanded) = self.raw.get(key)? else {
@@ -654,12 +654,12 @@ impl CompilationSession {
                 DiskCacheStatus::Missing
             };
         }
-        if (semantic.is_none() || options.producer_reuse)
+        if (semantic.is_none() || options.reuse_producers())
             // Discovery may have parsed changed files while returning to a
             // retained parent. In research mode its complete current sources
             // still permit the same closed DB/owner validation; supplied syntax
             // is not a reason to decode disk IR or leave accelerators stale.
-            && (loaded_syntax.is_none() || options.producer_reuse)
+            && (loaded_syntax.is_none() || options.reuse_producers())
             && options.stop_after >= Stage::Types
             && options.emit_dir.is_none()
             && options.cache_dir.is_none()
@@ -671,7 +671,7 @@ impl CompilationSession {
                 observer,
             )?
         {
-            if options.producer_reuse {
+            if options.reuse_producers() {
                 report.disk_cache = DiskCacheStatus::Resident;
             }
             report.phase = Phase::Types;
@@ -754,7 +754,7 @@ impl CompilationSession {
             }
         }
         let mut parsed = Vec::new();
-        let mut producer_syntax = options.producer_reuse.then(Vec::new);
+        let mut producer_syntax = options.reuse_producers().then(Vec::new);
         let mut dependencies: Vec<Arc<QuerySnapshot>> = Vec::new();
         let mut remaining = options.limits.clone();
         for (index, source) in project.modules.iter().enumerate() {
@@ -791,7 +791,7 @@ impl CompilationSession {
             } else {
                 (self.parse_key(source, &parse_options), None)
             };
-            let producer_input = if options.producer_reuse {
+            let producer_input = if options.reuse_producers() {
                 match loaded {
                     Some(loaded) => loaded.producer.clone().map(|p| (p, loaded.reused)),
                     None => Some(self.producer_parse(source, &parse_options.limits)),
@@ -913,7 +913,7 @@ impl CompilationSession {
                 .zip(&parsed)
                 .any(|(source, parsed)| artifact_candidate(source, parsed));
         let producer_sources =
-            if options.producer_reuse && !selection_needed && options.syntax_lock.is_none() {
+            if options.reuse_producers() && !selection_needed && options.syntax_lock.is_none() {
                 producer_syntax.and_then(|inputs| inputs.into_iter().collect::<Option<Vec<_>>>())
             } else {
                 None
@@ -923,9 +923,9 @@ impl CompilationSession {
         producer.set_cost_profiling(options.profile_compilation);
         let checkpoint_start = cost_start(options.profile_compilation);
         let producer_checkpoint = options
-            .producer_reuse
+            .reuse_producers()
             .then(|| super::session::producer_checkpoint(&producer));
-        let materializer_checkpoint = options.producer_reuse.then(|| materializer.checkpoint());
+        let materializer_checkpoint = options.reuse_producers().then(|| materializer.checkpoint());
         report.record_driver_cost("producer_checkpoint", checkpoint_start);
         let mut producer_work = None;
         let mut materialization_work = None;
@@ -1236,7 +1236,7 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inference = if options.producer_reuse {
+                let inference = if options.reuse_producers() {
                     if let Some(produced) = &expanded.producer {
                         zil_types::infer_produced_program_for_ct(produced, &options.limits)?
                     } else {
@@ -1366,7 +1366,7 @@ impl CompilationSession {
         // limits/target and observed declarations still prove validity inside
         // FunctionSession. A path or source fingerprint grants no reuse alone.
         let owner_start = cost_start(options.profile_compilation);
-        let reactive_owners = (options.reactive_queries || options.producer_reuse).then(|| {
+        let reactive_owners = (options.reactive_queries || options.reuse_producers()).then(|| {
             project
                 .modules
                 .iter()
@@ -1375,6 +1375,9 @@ impl CompilationSession {
         });
         report.record_driver_cost("owner_binding", owner_start);
         let mut function_work = None;
+        let mut types_push_work = None;
+        let mut push_types = std::mem::take(&mut self.push_types);
+        let push_checkpoint = push_types.clone();
         let typed_result = self.query(
             key(Phase::Types, true),
             std::slice::from_ref(&ct_snapshot),
@@ -1382,6 +1385,16 @@ impl CompilationSession {
             report,
             observer,
             || {
+                if options.push_reuse {
+                    return push_types
+                        .apply(&prepared, &options.target, &options.limits)
+                        .map(|update| {
+                            types_push_work = Some(Box::new(update.stats));
+                            RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
+                                update.program,
+                            ))
+                        });
+                }
                 let checked = if options.reactive_queries
                     && let Some(owners) = &reactive_owners
                 {
@@ -1391,7 +1404,7 @@ impl CompilationSession {
                         &options.limits,
                         owners,
                     )
-                } else if options.producer_reuse
+                } else if options.reuse_producers()
                     && let Some(owners) = &reactive_owners
                 {
                     function_types.check_prepared_program_with_producer_owners(
@@ -1413,12 +1426,18 @@ impl CompilationSession {
                         typed,
                         key(Phase::Types, true),
                         &function_types,
-                        options.producer_reuse,
+                        options.reuse_producers(),
                     ))
                 })
             },
         );
         report.function_type_work = function_work;
+        report.types_push_work = types_push_work;
+        self.push_types = if typed_result.is_ok() {
+            push_types
+        } else {
+            push_checkpoint
+        };
         self.function_types = if typed_result.is_ok() {
             function_types
         } else {
@@ -1460,8 +1479,10 @@ impl CompilationSession {
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
-            self.semantic_publication
-                .bind_products(self.function_types.last_products());
+            if !options.push_reuse {
+                self.semantic_publication
+                    .bind_products(self.function_types.last_products());
+            }
             let publication = store.save(
                 typed.program(),
                 &candidate,
@@ -1992,7 +2013,7 @@ fn resident_discovered_frontend(
     options: &CompileOptions,
     session: &CompilationSession,
 ) -> bool {
-    if !options.producer_reuse
+    if !options.reuse_producers()
         || options.profile != ExecutionProfile::Native
         || options.closed_executable
         || options.semantic_cache.is_none()
@@ -2163,7 +2184,7 @@ fn load_sources_profiled(
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
         let parser_started = stats.as_ref().map(|_| Instant::now());
-        let (parsed, reused, producer) = if options.producer_reuse {
+        let (parsed, reused, producer) = if options.reuse_producers() {
             let (source, reused) = session.producer_parse(&project.modules[index], &parse_limits);
             (source.parsed_shared(), reused, Some(source))
         } else {
@@ -2187,7 +2208,7 @@ fn load_sources_profiled(
                 stats.parser_reuses += 1;
             } else {
                 stats.parser_executions += 1;
-                if options.producer_reuse {
+                if options.reuse_producers() {
                     stats.source_clone_bytes += project.modules[index].text.len();
                 }
             }

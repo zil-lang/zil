@@ -157,7 +157,7 @@ fn candidate(copy: Type, operation: Operation, repetitions: usize) -> TypedModul
             .into(),
             entry: BlockId(0),
             span,
-        }],
+        }].into(),
         resources: vec![ResourceDefinition {
             name: "R".into(),
             payload,

@@ -17,7 +17,7 @@ pub use dynamic::*;
 use dynamic_fingerprint::*;
 mod persistent_vec;
 mod program;
-pub use persistent_vec::{PersistentItem, PersistentVec};
+pub use persistent_vec::{Iter as PersistentIter, PersistentItem, PersistentVec};
 mod shared_vec;
 pub use shared_vec::SharedVec;
 pub mod wire;

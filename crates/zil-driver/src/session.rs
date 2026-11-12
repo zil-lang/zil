@@ -84,6 +84,12 @@ impl ProjectTypedOwner {
         });
         Self { program, epoch }
     }
+    pub(super) fn product(program: Arc<TypedProgram>) -> Self {
+        Self {
+            program,
+            epoch: None,
+        }
+    }
     pub(super) fn program(&self) -> &Arc<TypedProgram> {
         &self.program
     }
@@ -157,6 +163,13 @@ impl TypedInput {
                     &options.target,
                     &options.limits,
                 ),
+                Self::Program(p) | Self::CachedProgram(p, _) if options.push_reuse => session
+                    .verify_product_program_module(
+                        p.clone(),
+                        candidate,
+                        &options.target,
+                        &options.limits,
+                    ),
                 Self::Program(p) | Self::CachedProgram(p, _) => session
                     .verify_shared_program_module(
                         p.clone(),
@@ -267,8 +280,10 @@ pub struct CompilationSession {
     analysis: zil_analyze::AnalysisSession,
     verification: zil_verify::VerifySession,
     backend: zil_backend_llvm::BackendSession,
+    lowering: zil_lower::LowerSession,
     pub(super) semantic_publication: super::semantic_cache::SemanticPublicationSession,
     pub(super) function_types: Box<zil_types::FunctionSession>,
+    pub(super) push_types: zil_types::TypesPushSession,
     pub(super) producer: Box<zil_expand::ExpandSession>,
     pub(super) materializer: super::ct_artifact::ScalarMaterializationSession,
     pub(super) producer_syntax: std::cell::RefCell<ProducerParseCache>,
@@ -289,8 +304,10 @@ impl CompilationSession {
             analysis: zil_analyze::AnalysisSession::default(),
             verification: zil_verify::VerifySession::default(),
             backend: zil_backend_llvm::BackendSession::default(),
+            lowering: Default::default(),
             semantic_publication: Default::default(),
             function_types: Box::default(),
+            push_types: Default::default(),
             producer: Box::default(),
             materializer: super::ct_artifact::ScalarMaterializationSession::default(),
             producer_syntax: std::cell::RefCell::new(BTreeMap::new()),
@@ -304,8 +321,10 @@ impl CompilationSession {
         self.analysis.clear();
         self.verification = Default::default();
         self.backend = Default::default();
+        self.lowering.clear();
         self.semantic_publication = Default::default();
         self.function_types.clear();
+        self.push_types.clear();
         *self.producer = Default::default();
         self.materializer = super::ct_artifact::ScalarMaterializationSession::default();
         self.producer_syntax.borrow_mut().clear();
@@ -712,7 +731,7 @@ impl CompilationSession {
         key: &QueryKey,
         options: &CompileOptions,
     ) {
-        if !options.producer_reuse {
+        if !options.reuse_producers() {
             return;
         }
         if let Some(epoch) = owner.matching_epoch(key) {
@@ -1015,7 +1034,10 @@ impl CompilationSession {
                 observer,
                 || {
                     let result = match &typed {
-                        TypedInput::Program(program) if options.producer_reuse => {
+                        TypedInput::Program(program) if options.push_reuse => {
+                            analysis.analyze_product(program, &options.limits)
+                        }
+                        TypedInput::Program(program) if options.reuse_producers() => {
                             analysis.analyze_shared_program(program, &options.limits)
                         }
                         _ => {
@@ -1061,7 +1083,7 @@ impl CompilationSession {
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
         let verify_start = Instant::now();
-        let mut verification = options.producer_reuse.then(|| self.verification.clone());
+        let mut verification = options.reuse_producers().then(|| self.verification.clone());
         let verified = typed.verify(candidate, options, verification.as_mut());
         report.verification_work = verification.as_ref().map(zil_verify::VerifySession::stats);
         report.record_phase_time(Phase::Verify, verify_start);
@@ -1096,7 +1118,14 @@ impl CompilationSession {
             return Ok(());
         }
         let lower_start = Instant::now();
-        let lowered = zil_lower::lower_view(&verified);
+        let mut lowering = options.push_reuse.then(|| self.lowering.clone());
+        let lowered = if let Some(session) = &mut lowering {
+            session.set_cost_profiling(options.profile_compilation);
+            session.lower_view(&verified)
+        } else {
+            zil_lower::lower_view(&verified)
+        };
+        report.lowering_work = lowering.as_ref().map(zil_lower::LowerSession::stats);
         report.record_phase_time(Phase::Lower, lower_start);
         let lir = lowered?;
         event(Phase::Lower, QueryDisposition::Executed, report, observer);
@@ -1104,6 +1133,9 @@ impl CompilationSession {
             .cancellation
             .check(Phase::Lower)
             .map_err(|error| vec![error])?;
+        if let Some(lowering) = lowering {
+            self.lowering = lowering;
+        }
         report.phase = Phase::Lower;
         artifacts.dump_lazy(report, options, "lir", |_| format!("{lir:#?}"))?;
         if options.stop_after == Stage::Lower {
@@ -1191,7 +1223,7 @@ impl CompilationSession {
         // until the last cancellation check and all fallible dumps have finished.
         let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
         let codegen_start = Instant::now();
-        let mut backend = options.producer_reuse.then(|| self.backend.clone());
+        let mut backend = options.reuse_producers().then(|| self.backend.clone());
         let built = zil_backend_llvm::build_view_with_cancellation_and_session(
             &verified,
             &lir,
@@ -1310,6 +1342,9 @@ fn query_key_with_limits(
         rules.extend_from_slice(&value.to_le_bytes());
     }
     rules.extend_from_slice(&options.build_inputs.0);
+    if options.push_reuse {
+        rules.extend_from_slice(b"ZIL-STRUCTURAL-PRODUCTS-V1\0");
+    }
     QueryKey {
         module: source.module_id,
         phase,

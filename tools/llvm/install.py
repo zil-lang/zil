@@ -54,7 +54,7 @@ def install(prefix, archive, release, receipt):
     names = set(x.rstrip('/') for x in listing)
     tools = ['clang', 'clang-23', 'clang++', 'opt', 'llvm-config', 'llvm-ar', 'lld', 'ld.lld', 'lld-link']
     selected = [root + '/bin/' + name for name in tools]
-    selected += [root + '/lib/clang/23', root + '/lib/cmake/llvm']
+    selected += [root + '/include', root + '/lib/clang/23', root + '/lib/cmake/llvm']
     selected += sorted(x for x in names if re.fullmatch(re.escape(root) + r'/lib/libLLVM[^/]*\.a', x))
     if any(name not in names for name in selected) or not selected[-1].endswith('.a'):
         raise ValueError('official SDK lacks a required component')
@@ -119,9 +119,11 @@ def install(prefix, archive, release, receipt):
         if not re.search(r'(?<![0-9.])' + re.escape(version) + r'(?![0-9.])', banner):
             raise ValueError(f'{name} does not report {version}')
         receipt['tools'][name] = {'sha256': sha((prefix / 'bin' / name).resolve()), 'banner': banner.strip()}
+    includedir = shlex.quote(str(prefix / 'include'))
     libdir = shlex.quote(str(prefix / 'lib'))
     bindir = shlex.quote(str(prefix / 'bin'))
     (prefix / 'env.sh').write_text(f'export ZIL_LLVM_LIB_DIR={libdir}\nexport ZIL_CLANG={bindir}/clang\n'
+                                 f'export ZIL_LLVM_INCLUDE_DIR={includedir}\nexport ZIL_LLVM_CONFIG={bindir}/llvm-config\n'
                                  f'export LD_LIBRARY_PATH={libdir}${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}\n'
                                  f'export PATH={bindir}:$PATH\n')
 

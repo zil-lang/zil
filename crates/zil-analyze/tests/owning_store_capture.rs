@@ -77,7 +77,7 @@ fn fixture(element: Type) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"204 raw unused Store capture"),
         target: TargetProfile::host_llvm(),
-        functions: vec![function(0)],
+        functions: vec![function(0)].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

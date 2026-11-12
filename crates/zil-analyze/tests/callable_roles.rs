@@ -134,7 +134,7 @@ fn fixture(order: &[u32]) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"Analyze role raw fixture"),
         target: TargetProfile::host_llvm(),
-        functions: vec![body, f],
+        functions: vec![body, f].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

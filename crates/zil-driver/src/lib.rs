@@ -90,6 +90,9 @@ pub struct CompileOptions {
     /// Research opt-in: reuse sealed source-produced frontend work products.
     /// Independent from reactive scheduling for A/B/C attribution.
     pub producer_reuse: bool,
+    /// Research opt-in: persistent function products and structural identities.
+    /// Includes source producer reuse; never changes independent Verify authority.
+    pub push_reuse: bool,
     /// Opt-in detailed cost accounting. Disabled requests perform no added
     /// per-function clock reads; performance comparisons keep this disabled.
     pub profile_compilation: bool,
@@ -114,6 +117,11 @@ pub struct CompileOptions {
     pub syntax_lock: Option<SyntaxLock>,
     pub profile: ExecutionProfile,
 }
+impl CompileOptions {
+    pub(crate) fn reuse_producers(&self) -> bool {
+        self.producer_reuse || self.push_reuse
+    }
+}
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
@@ -129,6 +137,7 @@ impl Default for CompileOptions {
             semantic_cache: None,
             reactive_queries: false,
             producer_reuse: false,
+            push_reuse: false,
             profile_compilation: false,
             object_cache: None,
             clang: None,
@@ -198,6 +207,8 @@ pub struct CompileAttempt {
     pub diagnostics: Vec<Diagnostic>,
     pub verification_runs: usize,
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
+    /// Actual sparse Types work for this attempt; None means not executed.
+    pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -208,7 +219,7 @@ pub struct CompileAttempt {
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -236,6 +247,9 @@ impl CompileAttempt {
                 self.producer_work.as_deref(),
                 self.materialization_work,
             ),
+            self.types_push_work
+                .as_ref()
+                .map_or_else(|| "null".into(), |stats| stats.to_json()),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -279,7 +293,10 @@ pub struct CompileReport {
     /// from entering current independent verification (`verification_runs`).
     pub verification_work: Option<zil_verify::VerifyStats>,
     pub backend_work: Option<zil_backend_llvm::BackendSessionSummary>,
+    pub lowering_work: Option<zil_lower::LowerStats>,
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
+    /// Actual sparse Types work for this attempt; None means not executed.
+    pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
     pub producer_work: Option<Box<zil_expand::ProducerStats>>,
     pub materialization_work: Option<ScalarMaterializationStats>,
     pub initialization_work: Option<zil_analyze::AnalysisStats>,
@@ -319,7 +336,9 @@ impl CompileReport {
             semantic_cache_publication: None,
             verification_work: None,
             backend_work: None,
+            lowering_work: None,
             function_type_work: None,
+            types_push_work: None,
             producer_work: None,
             materialization_work: None,
             initialization_work: None,
@@ -332,7 +351,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -393,11 +412,13 @@ impl CompileReport {
                 "{{\"serialized_functions\":{},\"reused_functions\":{},\"written_segments\":{},\"existing_segments\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"canonical_functions\":{},\"bound_functions\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{},\"physical_pack_writes\":{},\"physical_pack_bytes\":{},\"manifest_writes\":{},\"compacted_items\":{},\"referenced_packs\":{},\"referenced_pack_payload_bytes\":{},\"serialized_function_plans\":{},\"reused_function_plans\":{},\"serialized_function_plan_bytes\":{},\"reused_function_plan_bytes\":{}}}",
                 stats.serialized_functions, stats.reused_functions, stats.written_segments, stats.existing_segments, stats.written_bytes, stats.manifest_bytes, stats.canonical_functions, stats.bound_functions, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns, stats.physical_pack_writes, stats.physical_pack_bytes, stats.manifest_writes, stats.compacted_items, stats.referenced_packs, stats.referenced_pack_payload_bytes, stats.serialized_function_plans, stats.reused_function_plans, stats.serialized_function_plan_bytes, stats.reused_function_plan_bytes)),
             self.verification_work.map_or_else(|| "null".into(), |stats| format!(
-                "{{\"full_receipts_reused\":{},\"function_proofs_checked\":{},\"function_proofs_reused\":{},\"instruction_proofs_reused\":{},\"empty_borrow_proofs_checked\":{},\"empty_borrow_proofs_reused\":{},\"empty_borrow_values_avoided\":{}}}",
-                stats.full_receipts_reused, stats.function_proofs_checked, stats.function_proofs_reused, stats.instruction_proofs_reused, stats.empty_borrow_proofs_checked, stats.empty_borrow_proofs_reused, stats.empty_borrow_values_avoided)),
+                "{{\"full_receipts_reused\":{},\"function_proofs_checked\":{},\"function_proofs_reused\":{},\"instruction_proofs_reused\":{},\"empty_borrow_proofs_checked\":{},\"empty_borrow_proofs_reused\":{},\"empty_borrow_values_avoided\":{},\"raw_shape_functions_checked\":{},\"raw_shape_functions_reused\":{},\"raw_inventory_functions_checked\":{},\"raw_inventory_functions_reused\":{},\"raw_shape_functions_aggregated\":{},\"raw_shape_ranges_reused\":{},\"raw_result_modes_checked\":{},\"raw_result_modes_reused\":{},\"resource_inventory_functions_checked\":{},\"resource_inventory_functions_reused\":{},\"resource_inventory_ranges_reused\":{}}}",
+                stats.full_receipts_reused, stats.function_proofs_checked, stats.function_proofs_reused, stats.instruction_proofs_reused, stats.empty_borrow_proofs_checked, stats.empty_borrow_proofs_reused, stats.empty_borrow_values_avoided, stats.raw_shape_functions_checked, stats.raw_shape_functions_reused, stats.raw_inventory_functions_checked, stats.raw_inventory_functions_reused, stats.raw_shape_functions_aggregated, stats.raw_shape_ranges_reused, stats.raw_result_modes_checked, stats.raw_result_modes_reused, stats.resource_inventory_functions_checked, stats.resource_inventory_functions_reused, stats.resource_inventory_ranges_reused)),
             self.backend_work.as_ref().map_or_else(|| "null".into(), |stats| format!(
                 "{{\"lowered_functions\":{},\"reused_functions\":{},\"reused_machine_module\":{},\"whole_machine_input_functions_compared\":{},\"reused_machine_transforms\":{},\"reused_partition\":{},\"reused_object_keys\":{},\"reused_link\":{},\"rendered_diagnostic_items\":{},\"reused_diagnostic_items\":{},\"reused_partition_recipe\":{},\"reused_partition_units\":{},\"rebuilt_partition_units\":{},\"source_projection_traversals\":{},\"source_projection_instruction_visits\":{},\"source_projection_reuses\":{}}}",
                 stats.lowered_functions, stats.reused_functions, stats.reused_machine_module, stats.whole_machine_input_functions_compared, stats.reused_machine_transforms, stats.reused_partition, stats.reused_object_keys, stats.reused_link, stats.rendered_diagnostic_items, stats.reused_diagnostic_items, stats.reused_partition_recipe, stats.reused_partition_units, stats.rebuilt_partition_units, stats.source_projection_traversals, stats.source_projection_instruction_visits, stats.source_projection_reuses)),
+            self.lowering_work.map_or_else(|| "null".into(), |stats| stats.to_json()),
+            self.types_push_work.as_ref().map_or_else(|| "null".into(), |stats| stats.to_json()),
             phase_timings_json(&self.phase_timings_ns),
             named_timings_json(&self.driver_timings_ns),
             self.materialization_ns,
@@ -436,6 +457,7 @@ impl CompileReport {
                     .sum(),
             ),
             function_type_work: self.function_type_work.clone(),
+            types_push_work: self.types_push_work.clone(),
             producer_work: self.producer_work.clone(),
             materialization_work: self.materialization_work,
             initialization_work: self.initialization_work,
@@ -456,11 +478,13 @@ impl CompileReport {
         // A checkpoint may contain work done before importing the candidate.
         // That prefix belongs to the rejected attempt and is never billed twice.
         next.function_type_work = None;
+        next.types_push_work = None;
         next.producer_work = None;
         next.materialization_work = None;
         next.initialization_work = None;
         next.verification_work = None;
         next.backend_work = None;
+        next.lowering_work = None;
         next.phase_timings_ns.clear();
         next.driver_timings_ns.clear();
         next.materialization_ns = 0;
@@ -530,6 +554,24 @@ impl CompileReport {
                 total.resource_transfers_reused = total
                     .resource_transfers_reused
                     .saturating_add(work.resource_transfers_reused);
+                total.product_admission_functions_checked = total
+                    .product_admission_functions_checked
+                    .saturating_add(work.product_admission_functions_checked);
+                total.product_function_queries_executed = total
+                    .product_function_queries_executed
+                    .saturating_add(work.product_function_queries_executed);
+                total.product_function_queries_reused = total
+                    .product_function_queries_reused
+                    .saturating_add(work.product_function_queries_reused);
+                total.product_global_obligations_executed = total
+                    .product_global_obligations_executed
+                    .saturating_add(work.product_global_obligations_executed);
+                total.product_global_obligations_reused = total
+                    .product_global_obligations_reused
+                    .saturating_add(work.product_global_obligations_reused);
+                total.product_plan_rows_replaced = total
+                    .product_plan_rows_replaced
+                    .saturating_add(work.product_plan_rows_replaced);
             }
             for (phase, nanos) in &attempt.phase_timings_ns {
                 *self.phase_timings_ns.entry(*phase).or_default() += nanos;
@@ -666,8 +708,8 @@ fn frontend_stats_json(
         || "null".into(),
         |stats| {
             format!(
-                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{}}}",
-                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries,
+                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{},\"product_admission_functions_checked\":{},\"product_function_queries_executed\":{},\"product_function_queries_reused\":{},\"product_global_obligations_executed\":{},\"product_global_obligations_reused\":{},\"product_plan_rows_replaced\":{}}}",
+                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries, stats.product_admission_functions_checked, stats.product_function_queries_executed, stats.product_function_queries_reused, stats.product_global_obligations_executed, stats.product_global_obligations_reused, stats.product_plan_rows_replaced,
             )
         },
     );

@@ -65,7 +65,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
                 terminator: Terminator::Return(Some(ValueId(2))),
             }]
             .into(),
-        }],
+        }].into(),
     }
 }
 fn plan(module: &TypedModule) -> CandidatePlan {

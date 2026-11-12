@@ -95,7 +95,7 @@ pub fn module() -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::default(),
-        functions: vec![function],
+        functions: vec![function].into(),
         closures: vec![],
         resources: vec![ResourceDefinition {
             name: "TicketToken".into(),
