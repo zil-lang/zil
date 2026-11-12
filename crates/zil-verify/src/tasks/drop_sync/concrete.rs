@@ -90,12 +90,12 @@ fn expand(
                                     function: target,
                                     arguments,
                                 } if *target == function => Some(arguments.as_slice()),
-                                InstructionKind::TaskCreate { worker, arguments }
-                                | InstructionKind::TaskCreateOwned { worker, arguments }
-                                    if *worker == function =>
-                                {
-                                    Some(arguments.as_slice())
+                                InstructionKind::TaskCreate {
+                                    worker, arguments, ..
                                 }
+                                | InstructionKind::TaskCreateOwned {
+                                    worker, arguments, ..
+                                } if *worker == function => Some(arguments.as_slice()),
                                 _ => crate::stored_callables::called(
                                     module,
                                     caller,

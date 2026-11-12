@@ -314,7 +314,9 @@ fn returned_value(
         Some(InstructionKind::CallClosureOnce { callee, arguments }) => {
             selected::invocation(module, f, *callee, arguments, functions, budget)?
         }
-        Some(InstructionKind::TaskCreateOwned { worker, arguments }) => {
+        Some(InstructionKind::TaskCreateOwned {
+            worker, arguments, ..
+        }) => {
             let mut result = Origins {
                 workers: BTreeSet::from([*worker]),
                 ..Origins::default()
@@ -604,7 +606,9 @@ fn require_origin(
                     continue;
                 }
                 let origin = match &i.kind {
-                    InstructionKind::TaskCreateOwned { worker, arguments } => {
+                    InstructionKind::TaskCreateOwned {
+                        worker, arguments, ..
+                    } => {
                         let mut origin = Origins {
                             workers: BTreeSet::from([*worker]),
                             ..Origins::default()

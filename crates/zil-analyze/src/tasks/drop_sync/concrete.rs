@@ -85,12 +85,12 @@ fn close(
                         function: f,
                         arguments,
                     } if *f == function => Some(arguments.as_slice()),
-                    InstructionKind::TaskCreate { worker, arguments }
-                    | InstructionKind::TaskCreateOwned { worker, arguments }
-                        if *worker == function =>
-                    {
-                        Some(arguments.as_slice())
+                    InstructionKind::TaskCreate {
+                        worker, arguments, ..
                     }
+                    | InstructionKind::TaskCreateOwned {
+                        worker, arguments, ..
+                    } if *worker == function => Some(arguments.as_slice()),
                     _ => crate::stored_callables::called(module, caller, &i.kind)
                         .and_then(|(d, arguments)| (d.function == function).then_some(arguments)),
                 };

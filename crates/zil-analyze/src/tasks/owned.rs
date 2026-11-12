@@ -521,7 +521,7 @@ fn cleanup(
 ) -> CompileResult<()> {
     helper_graph(module, first, budget, span, false)
 }
-fn task_driver_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+fn task_driver_signature(f: &TypedFunction) -> CompileResult<bool> {
     let mut found = false;
     // helper_graph already prepays this complete parameter inventory.
     for parameter in &f.parameters {
@@ -604,7 +604,7 @@ fn helper_graph(
             }
             continue;
         }
-        let task_driver = driving && task_driver_signature(f, budget)?;
+        let task_driver = driving && task_driver_signature(f)?;
         let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and

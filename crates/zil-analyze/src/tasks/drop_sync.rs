@@ -560,7 +560,9 @@ fn infer_origins(
                     continue;
                 }
                 let origin = match &i.kind {
-                    InstructionKind::TaskCreateOwned { worker, arguments } => {
+                    InstructionKind::TaskCreateOwned {
+                        worker, arguments, ..
+                    } => {
                         let mut origin = Origins {
                             workers: BTreeSet::from([*worker]),
                             ..Origins::default()

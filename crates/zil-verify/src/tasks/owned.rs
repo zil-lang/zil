@@ -397,7 +397,7 @@ fn driver_call(
 ) -> Check<()> {
     helper_graph(module, first, budget, span, true)
 }
-fn task_driver_signature(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+fn task_driver_signature(f: &TypedFunction) -> Check<bool> {
     // The enclosing helper graph prepaid its parameter directory.
     let mut actual_tasks = 0;
     for local in &f.parameters {
@@ -470,7 +470,7 @@ fn helper_graph(
             }
             continue;
         }
-        let task_driver = driving && task_driver_signature(f, budget)?;
+        let task_driver = driving && task_driver_signature(f)?;
         let borrowed_driver = task_driver || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
