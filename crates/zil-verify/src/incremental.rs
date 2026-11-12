@@ -17,6 +17,7 @@
 //! empty-source fact is never a callee-effect or ownership proof.
 use super::*;
 pub(super) mod inventory;
+mod lexical;
 mod raw_tree;
 mod resource_inventory;
 pub(super) mod shapes;
@@ -50,6 +51,10 @@ pub struct VerifyStats {
     pub resource_inventory_ranges_reused: usize,
     pub foreign_functions_selected: usize,
     pub foreign_functions_not_visited: usize,
+    pub region_functions_checked: usize,
+    pub region_functions_reused: usize,
+    pub lexical_cleanup_functions_checked: usize,
+    pub lexical_cleanup_functions_reused: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -63,6 +68,7 @@ pub struct VerifySession {
     inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     shape_tree: Option<Arc<raw_tree::Node>>,
     resource_inventory: Option<Arc<resource_inventory::Node>>,
+    lexical: zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
     stats: VerifyStats,
 }
 
@@ -151,6 +157,8 @@ impl VerifySession {
             previous_empty_borrows: &self.empty_borrows,
             previous_shapes: &self.shapes,
             previous_inventory: &self.inventory,
+            previous_lexical: &self.lexical,
+            next_lexical: self.lexical.clone(),
             previous_inputs: self.verified.as_ref(),
             delta: None,
             previous_shape_tree: self.shape_tree.as_ref(),
@@ -181,6 +189,7 @@ impl VerifySession {
                 next_empty_borrows,
                 next_shapes,
                 next_inventory,
+                next_lexical,
                 next_shape_tree,
                 next_resource_inventory,
                 ..
@@ -189,6 +198,7 @@ impl VerifySession {
             self.empty_borrows = Arc::new(next_empty_borrows);
             self.shapes = next_shapes;
             self.inventory = next_inventory;
+            self.lexical = next_lexical;
             self.shape_tree = next_shape_tree;
             self.resource_inventory = next_resource_inventory;
             self.verified = Some(verified.clone());
@@ -312,6 +322,8 @@ pub(super) struct Attempt<'a> {
     previous_empty_borrows: &'a BTreeMap<FunctionId, borrows::EmptyContext>,
     previous_shapes: &'a zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     previous_inventory: &'a zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
+    previous_lexical: &'a zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
+    next_lexical: zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
     previous_inputs: Option<&'a VerifiedModule>,
     delta: Option<RawDelta>,
     previous_shape_tree: Option<&'a Arc<raw_tree::Node>>,

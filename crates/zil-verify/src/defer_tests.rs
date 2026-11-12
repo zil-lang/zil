@@ -78,7 +78,7 @@ fn owner(f: &mut TypedFunction) -> LocalId {
     emit(f, InstructionKind::Store { local, value: v });
     local
 }
-fn fixture(actions: usize, copy: bool, mixed: bool) -> TypedModule {
+pub(super) fn fixture(actions: usize, copy: bool, mixed: bool) -> TypedModule {
     let mut f = body(0);
     emit(&mut f, InstructionKind::ScopeEnter { scope: ScopeId(0) });
     let older = mixed.then(|| owner(&mut f));

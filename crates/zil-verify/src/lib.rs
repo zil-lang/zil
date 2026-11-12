@@ -1016,7 +1016,7 @@ fn check_module(
     };
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
-    if let Some(attempt) = reuse.as_deref_mut() {
+    if let Some(attempt) = reuse {
         resources::check_module_with_reuse(module, &graphs, &mut budget, Some(attempt))?;
     } else {
         resources::check_module(module, &graphs, &mut budget)?;
@@ -1156,7 +1156,7 @@ fn check_function_raw_shapes(
     function: &TypedFunction,
     budget: &mut Budget,
     limits: &Limits,
-    mut reuse: Option<&mut incremental::Attempt<'_>>,
+    reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<()> {
     budget.protocol_contracts |= function.protocol_contract.is_some();
     if let Some(contract) = &function.storage_life {
@@ -1197,7 +1197,7 @@ fn check_function_raw_shapes(
         }
     }
     budget.current_function = Some(index);
-    if let Some(attempt) = reuse.as_deref_mut() {
+    if let Some(attempt) = reuse {
         attempt.check_shapes(module, function, budget, limits)?;
     } else {
         incremental::shapes::check_current(module, function, budget, limits, false)?;
@@ -1923,6 +1923,9 @@ fn check_function_with_reuse(
                 "foreign declarations cannot carry CFG or Hold claims",
             ));
         }
+        if let Some(attempt) = reuse.as_deref_mut() {
+            attempt.discard_lexical(function.id);
+        }
         return Ok(FunctionGraph {
             successors: Vec::new(),
             predecessors: Vec::new(),
@@ -2160,7 +2163,7 @@ fn check_function_with_reuse(
         addressed_sums,
         mixed_address_sums,
     };
-    let proof = if let Some(reuse) = reuse {
+    let proof = if let Some(reuse) = reuse.as_deref_mut() {
         reuse.check_flow(flow, &module.target, budget, limits)?
     } else {
         incremental::check_flow(flow, budget, limits)?
@@ -2177,8 +2180,16 @@ fn check_function_with_reuse(
         package_views,
         role_data_uses,
     };
-    foreign::check_regions(function, &graph, budget)?;
-    cleanup::check_function(module, function, &graph, budget)?;
+    if let Some(attempt) = reuse {
+        if attempt.check_lexical(function, plan, &module.target, &graph, budget, limits)? {
+            // The cached lexical proof never covers deferred callee bodies,
+            // capture ownership, or current resource-dependent invocation.
+            defers::check(module, function, &graph, budget)?;
+        }
+    } else {
+        foreign::check_regions(function, &graph, budget)?;
+        cleanup::check_function(module, function, &graph, budget)?;
+    }
     Ok(graph)
 }
 

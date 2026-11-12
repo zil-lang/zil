@@ -7,6 +7,8 @@ fn attempt(session: &VerifySession) -> Attempt<'_> {
         previous_empty_borrows: &session.empty_borrows,
         previous_shapes: &session.shapes,
         previous_inventory: &session.inventory,
+        previous_lexical: &session.lexical,
+        next_lexical: session.lexical.clone(),
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
         current_shape_functions: None,
