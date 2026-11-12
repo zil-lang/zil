@@ -402,7 +402,7 @@ impl NativeProductHistory {
     ) {
         self.commit_with_activity(enabled, next, native_activity, NATIVE_HISTORY_PAYLOAD_BYTES);
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "native-products"))]
     fn commit_with_cap(&mut self, enabled: bool, next: NativeUnits, cap: u64) {
         // These tests model new native generations; production supplies actual
         // successful worker events, not every object-cache hit in the next map.
