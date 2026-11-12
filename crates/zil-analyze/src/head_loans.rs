@@ -1258,7 +1258,8 @@ fn check_function(
                             i.kind,
                             InstructionKind::BorrowLocalMut { .. }
                                 | InstructionKind::BorrowDynOwned { mutable: true, .. }
-                        ) && !matches!(f.locals[local.0 as usize].ty, Type::Address { .. }),
+                        ) && !(matches!(i.kind, InstructionKind::BorrowDynOwned { .. })
+                            && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })),
                         &active,
                         ignore,
                         &nodes,
