@@ -526,13 +526,18 @@ pub(super) fn check_definitions(
                     // actual finite element shape, not a producer signature bit.
                     slices::check_pointee(inner, None)?;
                 } else {
-                    check_type(ty, None)?;
+                    check_type(ty, None).map_err(|error| {
+                        error.with_note("while checking the actual closure parameter")
+                    })?;
                 }
             }
             if lending_result(&closure.result) || invocation || explicit_result_relation {
-                check_local_type(&closure.result, None, module, budget)?;
+                check_local_type(&closure.result, None, module, budget).map_err(|error| {
+                    error.with_note("while checking the actual related closure result")
+                })?;
             } else {
-                check_type(&closure.result, None)?;
+                check_type(&closure.result, None)
+                    .map_err(|error| error.with_note("while checking the actual closure result"))?;
             }
         }
         let function = module
