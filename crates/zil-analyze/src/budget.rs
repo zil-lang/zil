@@ -1817,6 +1817,7 @@ pub(super) fn preflight(
             super::owned_callbacks::data(module, &closure.result, budget)?;
         } else if invocation
             || super::stored_callables::transferred(closure)
+            || super::stored_callables::constant_result(closure)
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
                 && matches!(
