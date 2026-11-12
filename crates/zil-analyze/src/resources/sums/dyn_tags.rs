@@ -92,10 +92,15 @@ pub(crate) fn check(
         b.spend(1, "dyn outcome constructor inventory")?;
         if let (Some(value), InstructionKind::MakeErrorUnion { is_error, .. }) =
             (instruction.result, &instruction.kind)
-            && canonical(&f.values[value.0 as usize])
         {
-            b.lookup(constructors.len(), "dyn outcome constructor index")?;
-            constructors.insert(value, *is_error);
+            let ty = f
+                .values
+                .get(value.0 as usize)
+                .ok_or_else(|| error("dyn outcome constructor result is absent"))?;
+            if canonical(ty) {
+                b.lookup(constructors.len(), "dyn outcome constructor index")?;
+                constructors.insert(value, *is_error);
+            }
         }
     }
     let meta = Meta::new(f, b)?;
