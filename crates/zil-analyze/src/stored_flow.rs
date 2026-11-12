@@ -95,11 +95,12 @@ pub(super) fn ordinary_error_borrow(
 }
 
 pub(super) fn ordinary_package_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    pure_copy::ordinary_package_borrow(f, i, b)
+    pure_copy::ordinary_package_borrow(module, f, i, b)
 }
 
 /// These observations transport shared address permissions in this ledger,
@@ -8370,7 +8371,7 @@ fn actual_instructions(
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                         && !owned::ordinary_value(module, child, b)?
                     {
-                        return Err(failure(format!(
+                        return Err(failure(&format!(
                             "stored borrowed leaf must use actual slot-load protocol in {}: {:?}",
                             f.name, i.kind
                         )));
