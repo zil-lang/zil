@@ -4,8 +4,18 @@
 //! Inputs are installed as a batch before any receiver is notified. A changed
 //! value only notifies its direct receivers; equal query results stop the wave.
 //! Evaluators record their actual reads, replacing both sides of obsolete bonds.
-//! An evaluation failure poisons the candidate graph until `clear`: callers must
-//! never recover by observing a successful value from a partially applied batch.
+//! An evaluation failure poisons the candidate graph until `clear`. A
+//! `transaction` instead restores the previous epoch on failure or unwinding;
+//! callers never observe a successful value from a partially applied batch.
+//!
+//! Nodes are acyclic scheduling units. A language-level recursive component must
+//! be represented by one owner whose evaluator solves the component according to
+//! that stage's explicit fixed-point contract. An arbitrary value equality is
+//! not a convergence proof; dynamic graph cycles remain errors.
+
+mod activity;
+mod transaction;
+use transaction::Journal;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
@@ -54,6 +64,12 @@ pub struct ReactiveStats {
     pub rank_visits: u64,
     pub input_updates: u64,
     pub inventory_visits: u64,
+    /// Nodes snapshotted on their first mutation in a transaction.
+    pub journal_nodes: u64,
+    pub journal_queue_entries: u64,
+    pub rolled_back_transactions: u64,
+    /// Nodes whose consumer liveness changed (not an inventory scan).
+    pub activity_visits: u64,
     pub retained_nodes: u64,
     pub retained_edges: u64,
 }
@@ -93,8 +109,14 @@ struct Node<K, V> {
     dirty: bool,
     active: bool,
     rank_pending: bool,
+    observed: bool,
+    live_receivers: usize,
 }
 impl<K, V> Node<K, V> {
+    fn live(&self) -> bool {
+        self.observed || self.live_receivers != 0
+    }
+
     fn new(input: bool, value: Option<V>) -> Self {
         Self {
             input,
@@ -107,6 +129,8 @@ impl<K, V> Node<K, V> {
             dirty: !input,
             active: false,
             rank_pending: false,
+            observed: !input,
+            live_receivers: 0,
         }
     }
 }
@@ -121,6 +145,7 @@ pub struct ReactiveGraph<K, V> {
     topology_revision: u64,
     active_count: u64,
     stats: ReactiveStats,
+    journals: Vec<Journal<K, V>>,
 }
 impl<K, V> Default for ReactiveGraph<K, V> {
     fn default() -> Self {
@@ -132,6 +157,7 @@ impl<K, V> Default for ReactiveGraph<K, V> {
             topology_revision: 0,
             active_count: 0,
             stats: ReactiveStats::default(),
+            journals: Vec::new(),
         }
     }
 }
@@ -167,13 +193,17 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         let mut changed = Vec::new();
         for (key, value) in inputs {
             self.stats.inventory_visits += 1;
-            if let Some(node) = self.nodes.get_mut(&key) {
-                if node.value.as_ref() == Some(&value) {
-                    continue;
-                }
+            if self
+                .nodes
+                .get(&key)
+                .is_some_and(|node| node.value.as_ref() == Some(&value))
+            {
+                continue;
+            }
+            if let Some(node) = self.node_mut(&key) {
                 node.value = Some(value);
             } else {
-                self.nodes.insert(key.clone(), Node::new(true, Some(value)));
+                self.insert_node(key.clone(), Node::new(true, Some(value)));
             }
             self.stats.input_updates += 1;
             changed.push(key);
@@ -191,23 +221,26 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
             return if node.input {
                 Err(GraphError::InputQueryConflict)
             } else {
-                Ok(())
+                self.set_observed(&owner, true)
             };
         }
-        self.nodes.insert(owner.clone(), Node::new(false, None));
-        self.queue.insert((1, owner));
+        self.insert_node(owner.clone(), Node::new(false, None));
+        self.schedule((1, owner));
         self.stats.enqueues += 1;
         Ok(())
     }
 
     fn enqueue(&mut self, key: &K) {
-        let node = self.nodes.get_mut(key).expect("bond has a live receiver");
+        let node = self.node_mut(key).expect("bond has a live receiver");
         if node.dirty {
             self.stats.deduplicated += 1;
         } else {
             node.dirty = true;
-            self.queue.insert((node.height, key.clone()));
-            self.stats.enqueues += 1;
+            let height = node.height;
+            if node.live() {
+                self.schedule((height, key.clone()));
+                self.stats.enqueues += 1;
+            }
         }
     }
 
@@ -261,6 +294,7 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         owner: &K,
         evaluator: &E,
     ) -> Result<V, GraphError> {
+        self.set_observed(owner, true)?;
         self.flush(evaluator)?;
         let result = self.ensure_current(owner, evaluator);
         if result.is_err() {
@@ -285,10 +319,11 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         // height scheduling has already settled it; dynamic reads may reach
         // outside that order, so only then inspect the actual dependency path.
         if !node.dirty
-            && self
-                .queue
-                .first()
-                .is_some_and(|(height, _)| *height < node.height)
+            && (!node.live()
+                || self
+                    .queue
+                    .first()
+                    .is_some_and(|(height, _)| *height < node.height))
         {
             let dependencies = node.dependencies.iter().cloned().collect::<Vec<_>>();
             for dependency in dependencies {
@@ -310,8 +345,9 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         owner: &K,
         evaluator: &E,
     ) -> Result<V, GraphError> {
-        let node = self.nodes.get_mut(owner).expect("query exists");
-        self.queue.remove(&(node.height, owner.clone()));
+        let height = self.nodes[owner].height;
+        self.unschedule(&(height, owner.clone()));
+        let node = self.node_mut(owner).expect("query exists");
         node.dirty = false;
         node.active = true;
         node.active_reads.clear();
@@ -325,23 +361,17 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                 // Record the read intent before pulling: nested queries must
                 // see this in-progress edge when checking their actual graph.
                 let first_read = self
-                    .nodes
-                    .get_mut(owner)
+                    .node_mut(owner)
                     .expect("query exists")
                     .active_reads
                     .insert(dependency.clone());
                 if first_read {
-                    self.nodes
-                        .get_mut(owner)
-                        .expect("query exists")
-                        .pending_read = Some(dependency.clone());
+                    self.node_mut(owner).expect("query exists").pending_read =
+                        Some(dependency.clone());
                 }
                 let topology_before = self.topology_revision;
                 let value = self.ensure_current(dependency, evaluator)?;
-                self.nodes
-                    .get_mut(owner)
-                    .expect("query exists")
-                    .pending_read = None;
+                self.node_mut(owner).expect("query exists").pending_read = None;
                 if !first_read {
                     return Ok(value);
                 }
@@ -368,16 +398,17 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                     if dependency == owner || self.reaches(dependency, owner) {
                         return Err(GraphError::Cycle);
                     }
-                    self.nodes
-                        .get_mut(owner)
+                    self.node_mut(owner)
                         .expect("query exists")
                         .dependencies
                         .insert(dependency.clone());
-                    self.nodes
-                        .get_mut(dependency)
+                    self.node_mut(dependency)
                         .expect("read dependency exists")
                         .receivers
                         .insert(owner.clone());
+                    if self.nodes[owner].live() {
+                        self.change_live_receiver(dependency, true);
+                    }
                     self.edges += 1;
                     self.topology_revision += 1;
                     self.stats.new_bonds += 1;
@@ -402,28 +433,29 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
             .collect::<Vec<_>>();
         structural_change |= !obsolete.is_empty();
         for dependency in obsolete {
-            self.nodes
-                .get_mut(owner)
+            self.node_mut(owner)
                 .expect("query exists")
                 .dependencies
                 .remove(&dependency);
-            self.nodes
-                .get_mut(&dependency)
+            self.node_mut(&dependency)
                 .expect("dependency exists")
                 .receivers
                 .remove(owner);
+            if self.nodes[owner].live() {
+                self.change_live_receiver(&dependency, false);
+            }
             self.edges -= 1;
             self.stats.removed_bonds += 1;
             self.topology_revision += 1;
         }
         self.active_count -= 1;
-        let node = self.nodes.get_mut(owner).expect("query exists");
+        let node = self.node_mut(owner).expect("query exists");
         node.active = false;
         node.active_reads.clear();
         if structural_change || node.rank_pending {
             self.update_heights(owner);
         }
-        let node = self.nodes.get_mut(owner).expect("query exists");
+        let node = self.node_mut(owner).expect("query exists");
         let changed = node.value.as_ref() != Some(&value);
         node.value = Some(value.clone());
         if changed {
@@ -481,25 +513,23 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
                     + 1
             };
             if node.height == height {
-                self.nodes
-                    .get_mut(&key)
-                    .expect("rank owner exists")
-                    .rank_pending = false;
+                self.node_mut(&key).expect("rank owner exists").rank_pending = false;
                 continue;
             }
-            let node = self.nodes.get_mut(&key).expect("rank owner exists");
-            node.rank_pending = false;
-            if node.dirty {
-                self.queue.remove(&(node.height, key.clone()));
-                self.queue.insert((height, key.clone()));
+            let node = &self.nodes[&key];
+            if node.dirty && node.live() {
+                let old_height = node.height;
+                self.unschedule(&(old_height, key.clone()));
+                self.schedule((height, key.clone()));
             }
+            let node = self.node_mut(&key).expect("rank owner exists");
+            node.rank_pending = false;
             node.height = height;
             let receivers = node.receivers.iter().cloned().collect::<Vec<_>>();
             for receiver in receivers {
                 self.stats.rank_edge_reads += 1;
                 if self.nodes[&receiver].active {
-                    self.nodes
-                        .get_mut(&receiver)
+                    self.node_mut(&receiver)
                         .expect("receiver exists")
                         .rank_pending = true;
                 } else if queued.insert(receiver.clone()) {
@@ -517,7 +547,7 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
         }
         self.nodes
             .get(owner)
-            .filter(|node| !node.active && !node.dirty)?
+            .filter(|node| !node.active && !node.dirty && (node.input || node.live()))?
             .value
             .as_ref()
     }
@@ -534,21 +564,46 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
             .filter(|key| !owners.contains(*key))
             .cloned()
             .collect::<Vec<_>>();
+        self.remove_owners_inner(removed, false)
+    }
+
+    /// Remove only supplied owners. Work is proportional to the deleted owners
+    /// and their incident bonds, plus the affected rank/consumer closures.
+    /// Retained evaluators must stop reading a removed owner, or report a
+    /// missing dependency. Wrap deletion and replacement in `transaction` when
+    /// failure must preserve the previous successful epoch.
+    pub fn remove_owners(&mut self, owners: impl IntoIterator<Item = K>) -> Result<(), GraphError> {
+        self.ready()?;
+        self.remove_owners_inner(owners, true)
+    }
+
+    fn remove_owners_inner(
+        &mut self,
+        owners: impl IntoIterator<Item = K>,
+        count_owners: bool,
+    ) -> Result<(), GraphError> {
         let mut affected = BTreeSet::new();
-        for key in removed {
-            let node = self.nodes.remove(&key).expect("inventory owner exists");
-            self.queue.remove(&(node.height, key.clone()));
+        for key in owners {
+            self.stats.inventory_visits += u64::from(count_owners);
+            let Some(node) = self.remove_node(&key) else {
+                continue;
+            };
+            self.unschedule(&(node.height, key.clone()));
             self.stats.inventory_visits += (node.dependencies.len() + node.receivers.len()) as u64;
+            let was_live = node.live();
             for dependency in node.dependencies {
-                if let Some(dependency) = self.nodes.get_mut(&dependency) {
-                    dependency.receivers.remove(&key);
+                if let Some(dependency_node) = self.node_mut(&dependency) {
+                    dependency_node.receivers.remove(&key);
+                    if was_live {
+                        self.change_live_receiver(&dependency, false);
+                    }
                 }
                 self.edges -= 1;
                 self.stats.removed_bonds += 1;
                 self.topology_revision += 1;
             }
             for receiver in node.receivers {
-                if let Some(receiver_node) = self.nodes.get_mut(&receiver) {
+                if let Some(receiver_node) = self.node_mut(&receiver) {
                     receiver_node.dependencies.remove(&key);
                     self.edges -= 1;
                     self.stats.removed_bonds += 1;
@@ -568,12 +623,17 @@ impl<K: Ord + Clone, V: Clone + Eq> ReactiveGraph<K, V> {
 
     fn poison(&mut self) {
         self.poisoned = true;
-        self.queue.clear();
+        self.clear_queue();
     }
 
     pub fn clear(&mut self) {
+        if !self.journals.is_empty() {
+            for key in self.nodes.keys().cloned().collect::<Vec<_>>() {
+                self.record_node(&key);
+            }
+        }
         self.nodes.clear();
-        self.queue.clear();
+        self.clear_queue();
         self.poisoned = false;
         self.edges = 0;
         self.active_count = 0;
