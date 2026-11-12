@@ -31,7 +31,8 @@ pub(super) fn mutable_call<'a>(
 ) -> Option<(&'a ClosureDefinition, &'a [ValueId])> {
     if !matches!(
         kind,
-        InstructionKind::CallClosureMut { .. } | InstructionKind::CallClosureOnce { .. }
+        InstructionKind::CallClosureMut { .. }
+            | InstructionKind::CallClosureOnce { .. }
             | InstructionKind::CallClosure { .. }
             | InstructionKind::CallClosureBorrowed {
                 kind: CallableKind::FnMut,
@@ -207,7 +208,9 @@ pub(super) fn summarize(
     };
     b.spend(definition.captures.len())?;
     for (index, ty) in definition.captures.iter().enumerate() {
-        if definition.kind == CallableKind::FnOnce && !matches!(ty, Type::Address { mutable: true, .. }) {
+        if definition.kind == CallableKind::FnOnce
+            && !matches!(ty, Type::Address { mutable: true, .. })
+        {
             continue;
         }
         let Some(shape) = shape(ty) else {
@@ -368,8 +371,9 @@ pub(super) fn apply(
         return Ok(());
     };
     if let Some(value) = consuming_value(&i.kind) {
-        return apply_consumed(module, f, i, value, definition, arguments, state,
-            values, summaries, sites, loans, b);
+        return apply_consumed(
+            module, f, i, value, definition, arguments, state, values, summaries, sites, loans, b,
+        );
     }
     let summary = &summaries[definition.function.0 as usize];
     if summary.capture_after.is_empty() {
@@ -519,21 +523,33 @@ pub(super) fn external_capture_tail<'a>(
 
 pub(super) fn consuming_value(kind: &InstructionKind) -> Option<ValueId> {
     match kind {
-        InstructionKind::CallClosureOnce { callee, .. } | InstructionKind::CallClosure { callee, .. } => Some(*callee),
+        InstructionKind::CallClosureOnce { callee, .. }
+        | InstructionKind::CallClosure { callee, .. } => Some(*callee),
         _ => None,
     }
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn substitute_value(
-    module: &TypedModule, f: &TypedFunction, source: &Source, captures: &[Type],
-    environment: &Payload, arguments: &[ValueId], values: &[Payload], state: &Frame, b: &mut Budget,
+    module: &TypedModule,
+    f: &TypedFunction,
+    source: &Source,
+    captures: &[Type],
+    environment: &Payload,
+    arguments: &[ValueId],
+    values: &[Payload],
+    state: &Frame,
+    b: &mut Budget,
 ) -> Check<Permission> {
     let HoldRoot::Capture(index) = source.base else {
         return instantiate(module, f, source, arguments, values, state, b);
     };
-    let ty = captures.get(index as usize).ok_or_else(|| err("consumed capture source is absent"))?;
+    let ty = captures
+        .get(index as usize)
+        .ok_or_else(|| err("consumed capture source is absent"))?;
     if source.retained_port.is_some() || source.heap_element.is_some() {
-        return Err(err("consumed opaque capture requires its complete source consumer"));
+        return Err(err(
+            "consumed opaque capture requires its complete source consumer",
+        ));
     }
     let head_path = [PlaceProjection::Field(index)];
     let mut actual = if matches!(ty, Type::Address { .. }) && !source.leaf.is_empty() {
@@ -541,36 +557,68 @@ pub(super) fn substitute_value(
             .ok_or_else(|| err("consumed environment lacks its actual captured head"))?;
         select(state, head, &source.leaf, b)?
     } else {
-        let mut path = head_path.to_vec(); path.extend(&source.leaf);
+        let mut path = head_path.to_vec();
+        path.extend(&source.leaf);
         let actual = leaf(environment, &path, b)?
             .ok_or_else(|| err("consumed environment lacks its actual capture source"))?;
-        permission_work(actual, b)?; actual.clone()
+        permission_work(actual, b)?;
+        actual.clone()
     };
     for target in &mut actual.sources {
-        b.spend(source.inline.len())?; target.inline.extend(&source.inline);
+        b.spend(source.inline.len())?;
+        target.inline.extend(&source.inline);
     }
     Ok(actual)
 }
 #[allow(clippy::too_many_arguments)]
 fn apply_consumed(
-    module: &TypedModule, f: &TypedFunction, i: &Instruction, value: ValueId,
-    definition: &ClosureDefinition, arguments: &[ValueId], state: &mut Frame,
-    values: &[Payload], summaries: &[Summary], sites: &WriteSites, loans: &mut [Loan], b: &mut Budget,
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    value: ValueId,
+    definition: &ClosureDefinition,
+    arguments: &[ValueId],
+    state: &mut Frame,
+    values: &[Payload],
+    summaries: &[Summary],
+    sites: &WriteSites,
+    loans: &mut [Loan],
+    b: &mut Budget,
 ) -> Check<()> {
     let environment = &values[value.0 as usize];
     let summary = &summaries[definition.function.0 as usize];
     let mut updates = Vec::new();
     for (capture, path, sources) in &summary.capture_after {
-        if !matches!(definition.captures.get(*capture as usize), Some(Type::Address { mutable: true, .. })) {
+        if !matches!(
+            definition.captures.get(*capture as usize),
+            Some(Type::Address { mutable: true, .. })
+        ) {
             continue;
         }
         let mut permission = Permission::default();
         for source in sources {
-            join_permission(&mut permission, &substitute_value(module, f, source,
-                &definition.captures, environment, arguments, values, state, b)?, b)?;
+            join_permission(
+                &mut permission,
+                &substitute_value(
+                    module,
+                    f,
+                    source,
+                    &definition.captures,
+                    environment,
+                    arguments,
+                    values,
+                    state,
+                    b,
+                )?,
+                b,
+            )?;
         }
-        if permission.sources.is_empty() { state.pending_external_update = true; continue; }
-        let mut site = vec![PlaceProjection::Field(*capture)]; site.extend(path);
+        if permission.sources.is_empty() {
+            state.pending_external_update = true;
+            continue;
+        }
+        let mut site = vec![PlaceProjection::Field(*capture)];
+        site.extend(path);
         let retained = retain_written_slot(&permission, i, u32::MAX, &site, sites, loans, b)?;
         let head = leaf(environment, &[PlaceProjection::Field(*capture)], b)?
             .ok_or_else(|| err("consumed capture lacks its actual original pointee head"))?;
@@ -580,11 +628,17 @@ fn apply_consumed(
                 HoldRoot::Parameter(index) => state.external.get(index as usize),
                 HoldRoot::Capture(index) => state.captures.get(index as usize),
                 HoldRoot::Static => None,
-            }.ok_or_else(|| err("consumed capture's actual pointee memory is absent"))?;
+            }
+            .ok_or_else(|| err("consumed capture's actual pointee memory is absent"))?;
             let complete = symbolic_slot_path(holder, root, path, b)?
                 .ok_or_else(|| err("consumed capture's pointee directory is incomplete"))?;
             permission_work(&retained, b)?;
-            updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
+            updates.push((
+                root.base,
+                complete,
+                retained.clone(),
+                head.sources.len() == 1,
+            ));
         }
     }
     for (base, path, permission, unique) in updates {
@@ -593,10 +647,13 @@ fn apply_consumed(
             HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
             HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
             HoldRoot::Static => None,
-        }.ok_or_else(|| err("consumed capture's output memory is absent"))?;
+        }
+        .ok_or_else(|| err("consumed capture's output memory is absent"))?;
         if unique && let Some(row) = holder.leaves.position(&path, b)? {
             *holder.leaves.permission_mut(row) = permission;
-        } else { add_leaf(holder, &path, &permission, b)?; }
+        } else {
+            add_leaf(holder, &path, &permission, b)?;
+        }
     }
     Ok(())
 }

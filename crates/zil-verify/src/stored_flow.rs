@@ -5890,8 +5890,7 @@ fn summarize(
     b: &mut Budget,
 ) -> Check<Summary> {
     let mut summary = Summary {
-        complete: !solution.outputs.iter().zip(&g.reachable)
-            .any(|(state, live)| *live && state.pending_external_update),
+        complete: true,
         ..Summary::default()
     };
     // This closure alone appends rows to this invocation's fresh Summary.
@@ -6112,6 +6111,9 @@ fn summarize(
     }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
+        if *reachable && solution.outputs[bi].pending_external_update {
+            summary.complete = false;
+        }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
         }
