@@ -4,6 +4,7 @@
 #include "work_products.h"
 #include "zil_llvm_work_products_hooks.h"
 #include "machine_products.h"
+#include "analysis_facts.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -223,7 +224,7 @@ void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Poin
   std::fprintf(stderr, "\n");
 }
 struct Stage {
-  std::string Input, World, Path, Pipeline, Output, OutputText;
+  std::string Input, World, Path, Pipeline, Output, OutputText, EntryFacts, ExitFacts;
   Keys EntryKeys, ExitKeys;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   std::vector<unsigned> OutputBlockNumbers;
@@ -260,7 +261,7 @@ void retainStage(Request &R, const std::string &Slot, std::shared_ptr<const Stag
   if (R.Next.Stages.size() >= MaxStageProductSlots) return;
   size_t Bytes = sizeof(Stage);
   for (size_t N : {Slot.size(), P->Input.size(), P->World.size(), P->Path.size(),
-                   P->Pipeline.size(), P->Output.size(), P->OutputText.size(),
+                   P->Pipeline.size(), P->Output.size(), P->OutputText.size(), P->EntryFacts.size(), P->ExitFacts.size(),
                    P->EntryKeys.size() * sizeof(void *), P->ExitKeys.size() * sizeof(void *),
                    P->OutputBlockNumbers.size() * sizeof(unsigned)}) {
     if (N > MaxStageProductBytes - Bytes) return;
@@ -372,7 +373,8 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
       !preserveLocalUseOrder(*SF, Map) || verifyFunction(F, nullptr) ||
       functionText(F) != P.OutputText) return false;
   for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
-  if (analysisKeys(AM, F) != P.ExitKeys) return false;
+  std::string Facts;
+  if (analysisKeys(AM, F) != P.ExitKeys || !analysisFacts(F, AM, P.ExitKeys, Facts) || Facts != P.ExitFacts) return false;
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
 }
 int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
@@ -383,26 +385,24 @@ int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *
   if (R.Failed || !eligibleFunction(F)) {
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
-  // Cached-analysis availability alone is not its value. Start only from an
-  // instrumentation-only entry state, whose fixed native callbacks have no IR
-  // dependent payload. Incrementally maintained analyses require explicit value
-  // bindings before their stages may use products.
+  // Bind actual supported result fields, not merely analysis names or IDs.
   Keys Entry = analysisKeys(AM, F);
   describeAnalyses(AM, F, "entry", Entry);
-  for (const void *K : Entry) if (K != PassInstrumentationAnalysis::ID()) {
+  std::string Facts;
+  if (!analysisFacts(F, AM, Entry, Facts)) {
     if (AnalysisDiagnostics) *Token = new Pending{};
     ++R.Stats.optimizer_function_stage_executions; return 0;
   }
   auto P = std::make_shared<Stage>();
   P->Path = path(R, F); P->Pipeline = pipeline(*static_cast<FunctionPassManager *>(PM));
-  P->Input = functionText(F); P->World = worldText(R.M, &F); P->EntryKeys = std::move(Entry);
-  R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + R.Config.size();
+  P->Input = functionText(F); P->World = worldText(R.M, &F); P->EntryKeys = std::move(Entry); P->EntryFacts = std::move(Facts);
+  R.Stats.ir_key_bytes += P->Input.size() + P->World.size() + P->Pipeline.size() + P->EntryFacts.size() + R.Config.size();
   std::string Slot = P->Path;
   if (R.Prior && R.Prior->Config == R.Config) {
     auto It = R.Prior->Stages.find(Slot);
     if (It != R.Prior->Stages.end()) {
       const auto &Old = *It->second;
-      if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys) {
+      if (Old.Input == P->Input && Old.World == P->World && Old.Pipeline == P->Pipeline && Old.EntryKeys == P->EntryKeys && Old.EntryFacts == P->EntryFacts) {
         if (!replay(R, F, AM, Old)) { R.Failed = true; ++R.Stats.failed_replays; return 0; }
         describeAnalyses(AM, F, "replayed-exit", analysisKeys(AM, F));
         *static_cast<PreservedAnalyses *>(PA) = Old.PA;
@@ -419,6 +419,9 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   auto &R = *static_cast<Request *>(Context); auto &F = *static_cast<Function *>(IR);
   describeAnalyses(*static_cast<FunctionAnalysisManager *>(Manager), F, "exit", analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F));
   if (!P->Product || R.Failed || !eligibleFunction(F) || worldText(R.M, &F) != P->Product->World) return;
+  P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
+  if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
+                     P->Product->ExitKeys, P->Product->ExitFacts)) return;
   P->Product->OutputText = functionText(F);
   P->Product->OutputNextBlock = F.getMaxBlockNumber();
   P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();
@@ -426,7 +429,6 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   P->Product->Output = snapshot(F);
   if (P->Product->Output.empty()) return;
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
-  P->Product->ExitKeys = analysisKeys(*static_cast<FunctionAnalysisManager *>(Manager), F);
   R.Stats.ir_snapshot_bytes += P->Product->Output.size() + P->Product->OutputText.size();
   retainStage(R, P->Slot, std::move(P->Product));
 }
