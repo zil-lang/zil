@@ -373,6 +373,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     )?;
     for table in &module.dyn_vtables {
         crate::dyn_metadata::recipe_table(table, budget)?;
+        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            return Err(bad(
+                "dynamic implementation recipes require their complete static proof",
+            ));
+        }
         if table.self_classes.len() > budget.helper_nodes {
             return Err(bad("dyn Self class inventory exceeds node limit"));
         }
@@ -391,6 +396,16 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             }
         }
         crate::dyn_metadata::recipe_declaration(declaration, budget)?;
+        if declaration.direct_supertraits.is_some()
+            || declaration.requirements.is_some()
+            || declaration.associated_definitions.is_some()
+            || declaration.method_signatures.is_some()
+            || declaration.method_definitions.is_some()
+        {
+            return Err(bad(
+                "dynamic declaration recipes require their complete static proof",
+            ));
+        }
         if let Some(pattern) = &declaration.self_pattern {
             crate::dyn_metadata::recipe(pattern, budget)?;
         }

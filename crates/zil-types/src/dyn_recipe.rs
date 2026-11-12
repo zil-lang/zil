@@ -321,7 +321,7 @@ pub(super) fn prove(
         }
     }
     if let Some(recipe) = &implementation.self_pattern {
-        proof.nominal(recipe, self_type, &mut vec![], 0)?;
+        proof.ty(recipe, self_type, &mut vec![], 0)?;
     } else if !implementation.parameters.is_empty()
         || root_life.is_some()
         || !table.self_classes.is_empty()
@@ -377,8 +377,10 @@ pub(super) fn prove(
     }
     for (pattern, actual) in recipe.arguments.iter().zip(&interface.application.actuals) {
         match (pattern, actual) {
-            (DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i)), DynGenericActual::Life(_))
-                if proof.actual(*i, &LifeParameterKind::Lifetime)? == actual => {}
+            (
+                DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(i)),
+                DynGenericActual::Life(_),
+            ) if proof.actual(*i, &LifeParameterKind::Lifetime)? == actual => {}
             (DynPatternActual::Const(p), DynGenericActual::Const(c)) => proof.constant(p, c)?,
             (DynPatternActual::Type(p), DynGenericActual::Type(t)) => {
                 proof.ty(p, t, &mut vec![], 0)?
@@ -437,11 +439,11 @@ mod tests {
         };
         let module = CoreModule {
             dyn_declarations: vec![DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+                direct_supertraits: None,
+                requirements: None,
+                associated_definitions: None,
+                method_signatures: None,
+                method_definitions: None,
                 self_pattern: None,
                 implemented_trait: None,
                 id: id(3),
@@ -478,8 +480,8 @@ method_definitions: None,
             unsupported: vec![],
         };
         let table = CoreDynVtable {
-self_life: None,
-implementation_witnesses: None,
+            self_life: None,
+            implementation_witnesses: None,
             self_classes: if merged {
                 vec![StorageBinder::Fixed(0)]
             } else {
@@ -505,11 +507,11 @@ implementation_witnesses: None,
             owned_storage: Some(DynOwnedStorage::Heap),
         };
         let implementation = DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+            direct_supertraits: None,
+            requirements: None,
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             self_pattern: Some(zil_ir::DynTypePattern::Nominal(Box::new(DynSelfPattern {
                 declaration: nominal,
                 arguments: vec![
@@ -519,7 +521,9 @@ method_definitions: None,
             }))),
             implemented_trait: Some(DynSelfPattern {
                 declaration: id(3),
-                arguments: vec![DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))],
+                arguments: vec![DynPatternActual::Life(
+                    zil_ir::DynLifePattern::DeclarationParameter(0),
+                )],
             }),
             id: id(2),
             identity: identity(),

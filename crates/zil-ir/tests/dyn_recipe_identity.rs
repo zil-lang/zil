@@ -18,11 +18,14 @@ fn fixture() -> TypedModule {
         life_declarations: vec![],
         life_instances: vec![],
         dyn_declarations: vec![DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+            direct_supertraits: None,
+            requirements: Some(vec![DynObligation::Structural {
+                receiver: DynTypePattern::Parameter(2),
+                bound: DynStructuralBound::Copy,
+            }]),
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             id: id(9),
             identity: LifeDeclarationIdentity {
                 package: "recipe".into(),
@@ -33,7 +36,9 @@ method_definitions: None,
             kind: DynDeclarationKind::Impl,
             implemented_trait: Some(DynSelfPattern {
                 declaration: id(5),
-                arguments: vec![DynPatternActual::Life(DynLifePattern::DeclarationParameter(0))],
+                arguments: vec![DynPatternActual::Life(
+                    DynLifePattern::DeclarationParameter(0),
+                )],
             }),
             self_pattern: Some(DynTypePattern::Nominal(Box::new(DynSelfPattern {
                 declaration: id(7),
@@ -91,6 +96,11 @@ fn independent_bytes(m: &TypedModule) -> Vec<u8> {
     word(&mut out, 0);
     word(&mut out, 0); // Complete nominal inventories.
     word(&mut out, 1);
+    out.extend_from_slice(&[0, 1]); // No supers, one original structural requirement.
+    word(&mut out, 1);
+    out.extend_from_slice(&[0, 1]); // Structural(receiver=type formal2).
+    small(&mut out, 2);
+    out.extend_from_slice(&[0, 0, 0, 0]); // Copy; no assoc/method/definition inventories.
     decl(&mut out, 9);
     text(&mut out, "recipe");
     word(&mut out, 1);
@@ -98,23 +108,23 @@ fn independent_bytes(m: &TypedModule) -> Vec<u8> {
     word(&mut out, 1);
     text(&mut out, "Impl");
     word(&mut out, 0);
-    out.extend_from_slice(&[1, 1]); // Impl kind; a present Self recipe.
+    out.extend_from_slice(&[1, 1, 2]); // Impl kind; present nominal Self recipe.
     decl(&mut out, 7);
     word(&mut out, 5);
     for formal in [1, 0, 1] {
-        out.push(2);
+        out.extend_from_slice(&[2, 0]); // Life actual, declaration formal scope.
         small(&mut out, formal);
     }
     out.extend_from_slice(&[0, 5, 1]);
-    small(&mut out, 3); // Type(Array(length=const formal3)).
+    small(&mut out, 2); // Type(Array(element=type formal2)).
     out.push(1);
-    small(&mut out, 2); // Element is type formal2.
+    small(&mut out, 3); // Length is const formal3.
     out.extend_from_slice(&[1, 0, 10]);
     word(&mut out, 7); // Actual const Value(Usize(7)).
     out.push(1); // A complete implemented-trait application recipe.
     decl(&mut out, 5);
     word(&mut out, 1);
-    out.push(2);
+    out.extend_from_slice(&[2, 0]);
     small(&mut out, 0);
     word(&mut out, 4);
     out.extend_from_slice(&[2, 2, 0, 1, 27]); // Formal kind/order/domain.
@@ -157,10 +167,16 @@ fn recipe_occurrences_and_formal_ordinals_match_independent_identity() {
                 }
             }
         } else {
-            let pattern = declaration.self_pattern.as_mut().unwrap();
+            let DynTypePattern::Nominal(pattern) = declaration.self_pattern.as_mut().unwrap()
+            else {
+                unreachable!()
+            };
             match mutation {
                 1 => pattern.arguments.swap(0, 1),
-                2 => pattern.arguments[2] = DynPatternActual::Life(DynLifePattern::DeclarationParameter(0)),
+                2 => {
+                    pattern.arguments[2] =
+                        DynPatternActual::Life(DynLifePattern::DeclarationParameter(0))
+                }
                 3 => pattern.declaration.compiler = true,
                 4 => pattern.arguments[3] = DynPatternActual::Type(DynTypePattern::Parameter(2)),
                 _ => pattern.arguments[4] = DynPatternActual::Const(DynConstPattern::Parameter(3)),
@@ -188,11 +204,11 @@ fn deeply_nested_recipe_stops_at_a_finite_wire_bound() {
     for _ in 0..130 {
         pattern = DynTypePattern::Tuple(vec![pattern]);
     }
-    module.dyn_declarations[0]
-        .self_pattern
-        .as_mut()
-        .unwrap()
-        .arguments[3] = DynPatternActual::Type(pattern);
+    let DynTypePattern::Nominal(root) = module.dyn_declarations[0].self_pattern.as_mut().unwrap()
+    else {
+        unreachable!()
+    };
+    root.arguments[3] = DynPatternActual::Type(pattern);
     let limits = Limits {
         max_call_depth: 100_000,
         ..Limits::default()

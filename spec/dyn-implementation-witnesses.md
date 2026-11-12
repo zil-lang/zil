@@ -17,6 +17,15 @@ use Invocation classes. A bare `DynGenericActual::Type` is valid only for a
 complete independently proved zero-domain type; raw Address and tuples containing
 Address are not zero-domain types.
 
+Recipe constructors preserve Source's canonical complete Typed form. A Tuple
+with a nonzero whole persistent domain, including retained or phantom classes,
+is a BorrowedStorage<Tuple> with that complete joint shape. A Known0 anonymous
+Tuple remains raw Tuple. Never strip an existing nominal BorrowedStorage wrapper
+merely because its class count is zero. A root Address remains raw Address whose
+inner type retains its complete qualified form; its outer borrow occurrence is
+represented in the type value's external life domain. Do not substitute a
+BorrowedStorage<Address> or compare only physical layouts against actual headers.
+
 For a root BorrowedStorage type, the external `life` must equal the complete
 embedded shape, and the domain is counted once. Nested BorrowedStorage types
 retain their local domains and compose through explicit retained occurrences.
@@ -117,3 +126,12 @@ diamond path; merge distinct Base applications early; introduce a growing super
 cycle or an actual projection-query cycle; change a slot and entry ABI while
 leaving the original method signature fixed; or retag another same-ABI function
 without changing the original definition's exact specialization target list.
+
+Copy, Value, SyncDrop and StoreElement are sealed structural predicates in bound
+position. They are preserved explicitly as Structural obligations for original
+trait parameters, impl where clauses, associated bounds and method requirements.
+Prove them from the complete actual type, opaque inventory, actual cleanup and
+ordinary language qualification rules. A specialized producer having passed a
+bound does not let raw transport omit it. A structural predicate is not satisfied
+by an unrelated same-named user trait; ordinary nominal types named Value or
+SyncDrop in type position retain their actual declaration identity.

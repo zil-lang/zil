@@ -82,7 +82,6 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
-    dyn_instance: Option<zil_ir::DynFunctionInstance>,
     retained_return_sources: Option<Vec<StorageSourceBinding>>,
     result_mode: PassingMode,
     storage_life: Option<StorageLifeContract>,
@@ -296,7 +295,6 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
-                    dyn_instance: f.dyn_instance.clone(),
                     retained_return_sources: f.retained_return_sources.clone(),
                     storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),

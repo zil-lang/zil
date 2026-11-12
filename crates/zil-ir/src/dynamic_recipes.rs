@@ -24,6 +24,10 @@ pub enum DynLifePattern {
 /// A dependency receiver can be a proper type argument, rather than root Self.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynObligation {
+    Structural {
+        receiver: DynTypePattern,
+        bound: DynStructuralBound,
+    },
     Trait {
         receiver: DynTypePattern,
         application: DynSelfPattern,
@@ -218,4 +222,14 @@ pub struct DynDefinitionSpecialization {
     pub receiver: DynTypeValue,
     pub declaration_actuals: Vec<DynGenericActual>,
     pub method_actuals: Vec<DynGenericActual>,
+}
+
+/// Sealed language predicates in bound position, never user trait names. Their
+/// actual complete type and cleanup qualification is independently checked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DynStructuralBound {
+    Copy,
+    Value,
+    SyncDrop,
+    StoreElement,
 }

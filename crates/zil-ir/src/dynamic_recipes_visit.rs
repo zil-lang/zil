@@ -79,6 +79,10 @@ impl DynRecipeMetadata for DynObligation {
     ) -> Result<(), V::Error> {
         visitor.node(nesting)?;
         match self {
+            DynObligation::Structural { receiver, bound } => {
+                (receiver).visit_dyn_metadata(visitor, nesting + 1)?;
+                (bound).visit_dyn_metadata(visitor, nesting + 1)?;
+            }
             DynObligation::Trait {
                 receiver,
                 application,
@@ -573,6 +577,23 @@ impl DynRecipeMetadata for DynDefinitionSpecialization {
         for item in &self.method_actuals {
             (item).visit_dyn_metadata(visitor, nesting + 1)?;
         }
+        Ok(())
+    }
+}
+impl DynRecipeMetadata for DynStructuralBound {
+    fn visit_dyn_metadata<V: DynRecipeVisitor>(
+        &self,
+        visitor: &mut V,
+        nesting: usize,
+    ) -> Result<(), V::Error> {
+        visitor.node(nesting)?;
+        match self {
+            DynStructuralBound::Copy => {}
+            DynStructuralBound::Value => {}
+            DynStructuralBound::SyncDrop => {}
+            DynStructuralBound::StoreElement => {}
+        }
+
         Ok(())
     }
 }

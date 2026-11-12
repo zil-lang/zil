@@ -325,46 +325,32 @@ impl DynRecipeVisitor for RecipeWork<'_> {
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> CompileResult<()> {
     value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
 }
-pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
-    b.spend(5, "dynamic declaration recipe presence")?;
-    for values in [&value.direct_supertraits] {
-        if let Some(values) = values {
-            for value in values {
-                recipe(value, b)?;
-            }
-        }
-    }
-    if let Some(values) = &value.requirements {
+fn recipe_rows<T: DynRecipeMetadata>(
+    values: &Option<Vec<T>>,
+    work: &mut RecipeWork<'_>,
+) -> CompileResult<()> {
+    work.count(1, 0)?;
+    if let Some(values) = values {
+        work.count(values.len(), 0)?;
         for value in values {
-            recipe(value, b)?;
-        }
-    }
-    if let Some(values) = &value.associated_definitions {
-        for value in values {
-            recipe(value, b)?;
-        }
-    }
-    if let Some(values) = &value.method_signatures {
-        for value in values {
-            recipe(value, b)?;
-        }
-    }
-    if let Some(values) = &value.method_definitions {
-        for value in values {
-            recipe(value, b)?;
+            value.visit_dyn_metadata(work, 0)?;
         }
     }
     Ok(())
 }
+pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
+    let work = &mut RecipeWork { b, nodes: 0 };
+    recipe_rows(&value.direct_supertraits, work)?;
+    recipe_rows(&value.requirements, work)?;
+    recipe_rows(&value.associated_definitions, work)?;
+    recipe_rows(&value.method_signatures, work)?;
+    recipe_rows(&value.method_definitions, work)
+}
 pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> CompileResult<()> {
-    b.spend(2, "dynamic table recipe presence")?;
+    let work = &mut RecipeWork { b, nodes: 0 };
+    work.count(1, 0)?;
     if let Some(shape) = &value.self_life {
-        DynRecipeVisitor::life(&mut RecipeWork { b, nodes: 0 }, shape, 0)?;
+        DynRecipeVisitor::life(work, shape, 0)?;
     }
-    if let Some(values) = &value.implementation_witnesses {
-        for value in values {
-            recipe(value, b)?;
-        }
-    }
-    Ok(())
+    recipe_rows(&value.implementation_witnesses, work)
 }

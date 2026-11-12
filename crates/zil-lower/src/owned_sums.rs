@@ -154,6 +154,10 @@ impl<'a> Budget<'a> {
                 .saturating_add(module.resources.len()),
         )?;
         for function in &module.functions {
+            self.metadata(1)?;
+            if let Some(instance) = &function.dyn_instance {
+                zil_ir::DynRecipeMetadata::visit_dyn_metadata(instance, self, 0)?;
+            }
             if let Some(life) = &function.storage_life {
                 self.stored_contract(life)?;
             }
@@ -980,5 +984,72 @@ mod owned_sum_tests {
         let mut fresh = Budget::new(&limits);
         assert!(fresh.admits(&reply, &resources, 0).unwrap());
         assert!(fresh.admits(&event, &resources, 0).unwrap());
+    }
+}
+
+// Structural snapshot accounting only; the immutable Verify capability supplies
+// semantic authority. This preserves new function-instance records in owned LIR.
+impl zil_ir::DynRecipeVisitor for Budget<'_> {
+    type Error = Vec<Diagnostic>;
+    fn node(&mut self, depth: usize) -> CompileResult<()> {
+        if depth > self.limits.max_call_depth.min(128) {
+            return Err(limit());
+        }
+        self.metadata(1)
+    }
+    fn rows(&mut self, n: usize, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        self.metadata(n)
+    }
+    fn ty(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        self.pay(ty, depth)?;
+        self.copy_work(ty, depth)
+    }
+    fn life(&mut self, life: &zil_ir::StorageLifeShape, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        self.metadata(life.binder_count as usize)?;
+        self.stored_shape(life)
+    }
+    fn identity(
+        &mut self,
+        identity: &zil_ir::LifeDeclarationIdentity,
+        depth: usize,
+    ) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        self.metadata(
+            identity
+                .module_path
+                .len()
+                .saturating_add(identity.declaration_path.len())
+                .saturating_add(identity.generation_path.len()),
+        )?;
+        self.static_bytes(identity.package.len())?;
+        for part in identity
+            .module_path
+            .iter()
+            .chain(&identity.declaration_path)
+        {
+            self.static_bytes(part.len())?;
+        }
+        Ok(())
+    }
+    fn position(&mut self, position: &zil_ir::StoragePosition, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::rows(
+            self,
+            position.path.len(),
+            depth.saturating_add(position.path.len()),
+        )
+    }
+    fn constant(&mut self, value: &zil_ir::Constant, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        if let zil_ir::Constant::WideString(units) = value {
+            self.metadata(units.len())?;
+        }
+        Ok(())
+    }
+    fn text(&mut self, value: &str, depth: usize) -> CompileResult<()> {
+        zil_ir::DynRecipeVisitor::node(self, depth)?;
+        self.static_bytes(value.len())
     }
 }

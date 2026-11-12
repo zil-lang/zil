@@ -899,7 +899,9 @@ fn main()->i32{return 0}
             .unwrap();
         assert_eq!(
             declaration.implemented_trait.as_ref().unwrap().arguments,
-            [zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))]
+            [zil_ir::DynPatternActual::Life(
+                zil_ir::DynLifePattern::DeclarationParameter(0)
+            )]
         );
     }
     #[test]
@@ -934,10 +936,15 @@ fn main()->i32{return 0}
             .iter()
             .find(|d| d.id == table.implementation)
             .unwrap();
-        let pattern = declaration.self_pattern.as_ref().unwrap();
+        let zil_ir::DynTypePattern::Nominal(pattern) = declaration.self_pattern.as_ref().unwrap()
+        else {
+            unreachable!()
+        };
         assert_eq!(
             pattern.arguments,
-            [zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))]
+            [zil_ir::DynPatternActual::Life(
+                zil_ir::DynLifePattern::DeclarationParameter(0)
+            )]
         );
         let instance = module
             .life_instances
@@ -1041,7 +1048,11 @@ fn main()->i32{return 0}
                 .iter()
                 .find(|d| d.id == table.implementation)
                 .unwrap();
-            let pattern = declaration.self_pattern.as_ref().unwrap();
+            let zil_ir::DynTypePattern::Nominal(pattern) =
+                declaration.self_pattern.as_ref().unwrap()
+            else {
+                unreachable!()
+            };
             assert_eq!(
                 pattern.arguments,
                 [

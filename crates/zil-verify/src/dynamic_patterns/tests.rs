@@ -45,11 +45,11 @@ fn fixture(formals: Vec<u32>, classes: Vec<u32>, actuals: Vec<u32>) -> TypedModu
             .collect(),
     });
     module.dyn_declarations.push(DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+        direct_supertraits: None,
+        requirements: None,
+        associated_definitions: None,
+        method_signatures: None,
+        method_definitions: None,
         self_pattern: Some(zil_ir::DynTypePattern::Nominal(Box::new(DynSelfPattern {
             declaration: nominal,
             arguments: formals
@@ -100,8 +100,8 @@ method_definitions: None,
         slots: vec![],
     });
     module.dyn_vtables.push(DynVtable {
-self_life: None,
-implementation_witnesses: None,
+        self_life: None,
+        implementation_witnesses: None,
         self_classes: (0..count).map(StorageBinder::Fixed).collect(),
         id: DynVtableId {
             module: ModuleId(0),
@@ -149,12 +149,11 @@ fn dyn_pattern_preserves_original_formal_order_in_raw_and_wire() {
     wrong.dyn_vtables[0].actuals.swap(0, 1);
     check_raw_and_wire(&wrong, false);
     let mut wrong = module.clone();
-    wrong.dyn_declarations[0]
-        .self_pattern
-        .as_mut()
-        .unwrap()
-        .arguments
-        .swap(0, 1);
+    let DynTypePattern::Nominal(pattern) = wrong.dyn_declarations[0].self_pattern.as_mut().unwrap()
+    else {
+        unreachable!()
+    };
+    pattern.arguments.swap(0, 1);
     check_raw_and_wire(&wrong, false);
 }
 #[test]

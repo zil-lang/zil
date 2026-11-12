@@ -382,6 +382,7 @@ fn clone_function(
 ) -> CompileResult<TypedFunction> {
     // Exhaustive destructuring makes new retained fields explicit consumers.
     let TypedFunction {
+        dyn_instance,
         retained_return_sources,
         storage_life,
         call_kind,
@@ -433,7 +434,7 @@ fn clone_function(
         })
         .collect::<CompileResult<_>>()?;
     Ok(TypedFunction {
-        dyn_instance: None,
+        dyn_instance: dyn_instance.clone(),
         retained_return_sources: retained_return_sources.clone(),
         storage_life: storage_life.clone(),
         call_kind: *call_kind,

@@ -31,11 +31,16 @@ pub(super) fn encode_dyn_life_pattern(b: &mut impl FingerprintSink, value: &DynL
 }
 pub(super) fn encode_dyn_obligation(b: &mut impl FingerprintSink, value: &DynObligation) {
     match value {
+        DynObligation::Structural { receiver, bound } => {
+            b.push(0);
+            encode_dyn_type_pattern(b, receiver);
+            encode_dyn_structural_bound(b, bound);
+        }
         DynObligation::Trait {
             receiver,
             application,
         } => {
-            b.push(0);
+            b.push(1);
             encode_dyn_type_pattern(b, receiver);
             encode_dyn_self_pattern(b, application);
         }
@@ -45,7 +50,7 @@ pub(super) fn encode_dyn_obligation(b: &mut impl FingerprintSink, value: &DynObl
             quantified_lifetimes,
             signature,
         } => {
-            b.push(1);
+            b.push(2);
             encode_dyn_type_pattern(b, receiver);
             b.push(match kind {
                 CallableKind::FunctionPointer => 0,
@@ -420,6 +425,25 @@ pub(super) fn encode_dyn_definition_specialization(
     encode_len(b, (&value.method_actuals).len());
     for item in &value.method_actuals {
         encode_dyn_generic_actual(b, item);
+    }
+}
+pub(super) fn encode_dyn_structural_bound(
+    b: &mut impl FingerprintSink,
+    value: &DynStructuralBound,
+) {
+    match value {
+        DynStructuralBound::Copy => {
+            b.push(0);
+        }
+        DynStructuralBound::Value => {
+            b.push(1);
+        }
+        DynStructuralBound::SyncDrop => {
+            b.push(2);
+        }
+        DynStructuralBound::StoreElement => {
+            b.push(3);
+        }
     }
 }
 pub(super) fn encode_dyn_self_pattern(b: &mut impl FingerprintSink, value: &DynSelfPattern) {

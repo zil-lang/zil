@@ -312,6 +312,8 @@ pub(super) fn snapshot(
         for a in &i.associated_types {
             w.application(&a.member.application)?;
             w.ty(&a.ty)?;
+            DynRecipeVisitor::life(&mut w, &a.life, 0)?;
+            w.rows(a.classes.len())?;
         }
         for a in &i.associated_constants {
             w.application(&a.member.application)?;

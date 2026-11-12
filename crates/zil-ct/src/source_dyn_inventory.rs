@@ -357,6 +357,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
             w.node(1)?;
             w.member(&assoc.member, 2)?;
             w.ty(&assoc.ty, 2)?;
+            DynRecipeVisitor::life(&mut w, &assoc.life, 2)?;
+            for _ in &assoc.classes {
+                w.node(2)?;
+            }
         }
         for assoc in &interface.associated_constants {
             w.node(1)?;
