@@ -26,7 +26,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 | 范围 | 实施分支 | 执行者 | 状态与完整退出条件 |
 | --- | --- | --- | --- |
-| G1.5 | `task/language-numeric` | Sol high · numeric | 已合入；[PR85](https://github.com/zil-lang/zil/pull/85)进入main42f0396f3。四整数全链及完整12标量C ABI，精确非作者复核接受；两CI各workspace6068/reference5953/text71全过，父语言门仍开放。 |
+| G1.5 | `task/language-numeric` | Sol high · numeric | 进行中；数值主体[PR85](https://github.com/zil-lang/zil/pull/85)已合main42f0396f3，两CI各6068/5953/71全过。实际联合应用发现Store内四整数布局漏点，root06a已补且全十宽泛型Store/raw/Wire/四native通过，联合修正尚未合入。 |
 | G1.4/G3.4/G3.5 | `task/language-ownership` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
 | G2.3/G2.4/G9.3.10 | `task/language-iteration` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
 | G5.2/G5.3 | `task/language-dyn` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
@@ -44,7 +44,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
 | **G1.3** | **拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环** | 已合入 | — | — | [PR46 验收][e-pr46] 补齐本表拥有替换组合：真实来源、loan/pin、责任、退休和失败清理；更一般借用/模式仍见 G1.4、G3.4。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 进行中 | P0 | sol high · patterns | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
-| G1.5 | 补齐u32、i8/i16/isize整数矩阵 | 已合入 | — | Sol high · PR85 | main42f0396f3，精确候选703fb0107；Source/CT/泛型/IR/Wire/转换/布局/FFI/两核/双后端及完整标量C回调闭合，两完整CI与非作者独审接受，见[本批证据](records/language-usability-parallel.json)。 |
+| G1.5 | 补齐u32、i8/i16/isize整数矩阵 | 进行中 | P0 | root · 联合修正 | main42f0396f3，精确候选703fb0107；数值主体两完整CI与非作者独审接受；联合应用新发现Store POD四整数布局遗漏已在root06a补齐，全十宽存储专项过但未合，见[本批证据](records/language-usability-parallel.json)。 |
 
 <details>
 <summary>G1.3 · 子任务（6 项）</summary>
