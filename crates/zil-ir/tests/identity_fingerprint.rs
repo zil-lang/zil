@@ -976,7 +976,10 @@ fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
 #[test]
 fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     let limits = zil_base::Limits::default();
-    let position = |base| StoragePosition { base, path: Vec::new() };
+    let position = |base| StoragePosition {
+        base,
+        path: Vec::new(),
+    };
     let mut life = StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 1,
@@ -988,13 +991,35 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     };
     assert!(life.to_flat(0).is_none());
     let receiver = life.fingerprint();
-    for base in [StorageBase::Parameter(0), StorageBase::Capture(0), StorageBase::Result] {
+    for base in [
+        StorageBase::Parameter(0),
+        StorageBase::Capture(0),
+        StorageBase::Result,
+    ] {
         life.bindings[0].position.base = base;
         assert_ne!(receiver, life.fingerprint());
     }
     life.bindings[0].position.base = StorageBase::Receiver;
     // Transport is intentionally untrusted and does not assert admission.
     let mut raw = module(false);
+    use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
+    let ct = CtValue::Type(CtTypeRef {
+        ambient_classes: Vec::new(),
+        nodes: vec![
+            CtTypeNode::Primitive(CtScalarTy::I32),
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters: Vec::new(),
+                result: CtTypeNodeId(0),
+                life: life.clone(),
+            },
+        ],
+        root: CtTypeNodeId(1),
+    });
+    let ct_bytes = zil_ir::ct_wire::encode_value(&ct, &limits).unwrap();
+    assert_eq!(
+        zil_ir::ct_wire::decode_value(&ct_bytes, &limits).unwrap(),
+        ct
+    );
     raw.functions[0].storage_life = Some(life);
     raw.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
         position: position(StorageBase::Result),
@@ -1002,5 +1027,8 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     }]);
     let plan = CandidatePlan::empty_for(&raw);
     let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
-    assert_eq!(wire::decode_module_candidate(&bytes, &limits).unwrap().0, raw);
+    assert_eq!(
+        wire::decode_module_candidate(&bytes, &limits).unwrap().0,
+        raw
+    );
 }

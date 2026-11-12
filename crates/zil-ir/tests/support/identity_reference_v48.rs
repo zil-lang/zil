@@ -1336,7 +1336,7 @@ fn encode_source_position(b: &mut Vec<u8>, p: &StoragePosition) {
             encode_u32(b, n)
         }
         StorageBase::Result => b.push(2),
-            StorageBase::Receiver => b.push(3),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, p.path.len());
     for step in &p.path {
