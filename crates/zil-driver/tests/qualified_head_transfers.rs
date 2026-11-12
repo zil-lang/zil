@@ -507,9 +507,42 @@ fn mixed_static_and_parameter_sources_preserve_the_actual_free_class() {
     assert!(sources.iter().any(|source|matches!(source,zil_ir::StorageSource::Exact(_))));
     let limits=Limits::default();
     let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    if let Ok(directory)=std::env::var("ZIL_MIXED_STATIC_ARTIFACT_DIR") {
+        let directory=std::path::Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("source.zil"),source).unwrap();
+        std::fs::write(directory.join("typed.txt"),format!("{module:#?}")).unwrap();
+        std::fs::write(directory.join("candidate.wire"),zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap()).unwrap();
+    }
     let (decoded,plan)=zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap();
     assert_eq!(zil_analyze::analyze(&decoded,&limits).unwrap(),plan);
     let bad=source.replace(" return i32(f())", " bytes[0]=1u8;return i32(f())");
     let errors=zil_analyze::analyze(&typed(&bad),&limits).unwrap_err();
     assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::SafeReject),"{errors:?}");
+}
+
+
+#[test]
+fn every_same_definition_constructor_is_checked_even_in_an_uncalled_function() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil");
+    let mut module=typed(source);
+    let mut extra=module.functions.iter().find(|f|f.name=="make").unwrap().clone();
+    extra.id=FunctionId(module.functions.len() as u32);
+    extra.name="uncalled_extra_constructor".into();
+    let parameter=LocalId(extra.locals.len() as u32);
+    let ty=module.closures[0].captures[0].clone();
+    extra.locals.push(LocalDecl{id:parameter,name:"actual_parameter".into(),ty,mutable:false,span:extra.span});
+    extra.parameters.push(parameter);
+    module.functions.push(extra);
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).expect("extra real literal constructor must remain valid");
+    let last=module.functions.last_mut().unwrap();
+    let literal=last.blocks.iter_mut().flat_map(|block|&mut block.instructions).find(|i|matches!(i.kind,InstructionKind::StaticUtf8{..})).unwrap();
+    literal.kind=InstructionKind::Load(parameter);
+    for raw in [true,false] {
+        let actual=if raw{module.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&actual,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")),"{errors:?}");
+    }
 }
