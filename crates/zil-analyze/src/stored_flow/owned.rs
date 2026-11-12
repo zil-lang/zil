@@ -42,6 +42,64 @@ fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileRe
     Err(failure("resource head has no actual resource definition"))
 }
 
+// Complete ordinary owner values may accompany stored inputs without being a
+// Fixed closure environment. This classification grants no stored target:
+// actual producers, initialization, transfers and cleanup use the CFG ledgers.
+pub(super) fn ordinary_value(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, 1)?;
+    match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => {
+            ordinary_value(module, inner, b)
+        }
+        Type::Managed(payload) | Type::Desc(payload) => match payload.as_ref() {
+            Type::Record { .. } if data(ty, b)? => {
+                registered(module, payload, b)?;
+                Ok(true)
+            }
+            Type::ByteBuffer => {
+                fee(b, module.resources.len())?;
+                let mut count = 0usize;
+                for resource in &module.resources {
+                    fee(b, resource.name.len().saturating_add(19))?;
+                    if resource.payload == Type::ByteBuffer || resource.name == "@builtin:ByteBuffer" {
+                        if resource.payload != Type::ByteBuffer
+                            || resource.name != "@builtin:ByteBuffer"
+                            || resource.teardown.is_some()
+                        {
+                            return Err(failure("ordinary byte owner has a noncanonical resource"));
+                        }
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(failure("ordinary byte owner lacks a unique actual resource"));
+                }
+                Ok(true)
+            }
+            Type::OwnedStore { .. } => {
+                b.type_work(payload, true, "ordinary Store owner qualification snapshot")?;
+                let owner = Type::Managed(payload.clone());
+                super::super::ownership_store::ordinary_owned(module, &owner, b)?;
+                Ok(true)
+            }
+            _ => Ok(false),
+        },
+        Type::Package { .. } => {
+            super::super::resources::product::admit_owned(module, ty, b)?;
+            Ok(true)
+        }
+        Type::ErrorUnion { .. } => {
+            super::super::resources::sums::admit(module, ty, b)?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
 fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<()> {
     fee(b, 1)?;
     let mut pending = vec![(ty, true, 0usize)];

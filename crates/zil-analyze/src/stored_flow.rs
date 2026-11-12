@@ -7580,7 +7580,8 @@ pub(super) fn infer(
                 || shared_compound(module, ty, b)?
                 || affine_compound(module, ty, b)?
                 || pure_inline(module, ty, b)?
-                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?)
+                || owned::ordinary_value(module, ty, b)?)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,

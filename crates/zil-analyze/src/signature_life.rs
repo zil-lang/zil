@@ -758,6 +758,11 @@ fn relation_inner(
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
+                    // A resource head contributes the address's outer class,
+                    // not a lifetime hidden inside its closed owning payload.
+                    // Actual resource identity and CFG head access are checked
+                    // independently by ownership and stored-flow.
+                    || matches!(target, Type::Managed(_)) && class_free_owned_tree(target)
                     // A borrowed Package manager may ground a Store window.
                     // Mutable input shape does not supply a target or loan;
                     // body provenance and exclusive authority are checked later.
