@@ -27,3 +27,37 @@ pub(super) fn operation(
     crate::dynamic_store::check_instruction(module, f, i, b)?;
     Ok(true)
 }
+
+// Authenticate the actual owning local, not a scalar Record surrogate.
+pub(super) fn carrier_operation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    if !b.ordinary_closed_stores {
+        return Ok(false);
+    }
+    let local = match i.kind {
+        InstructionKind::TakeLocal { local }
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DescribeLocal { local } => local,
+        _ => return Ok(false),
+    };
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("Store owner local is absent"))?
+        .ty;
+    if !matches!(ty, Type::Managed(_)) {
+        return Ok(false);
+    }
+    let Some(element) = crate::dynamic_store::element(ty) else {
+        return Ok(false);
+    };
+    if !pure_copy::ordinary_owned_fields(vec![(element, 0)], b)? {
+        return Ok(false);
+    }
+    crate::dynamic_store::check_carrier(module, ty, Some(i.span), b)?;
+    Ok(true)
+}

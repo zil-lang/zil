@@ -1546,14 +1546,17 @@ pub(super) fn qualifications(
                     _ => false,
                 };
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
+                let closed_store_carrier = closed_stores::carrier_operation(module, f, i, b)?;
                 let owned_operation = ((!mixed_package
                     && !b.masked_stored_tasks()
                     && super::stored_owned::instruction(f, &i.kind))
                     || scalar_owner_operation)
+                    && !closed_store_carrier
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
                 let closed_store_operation = closed_stores::operation(module, f, i, b)?;
                 if !closed_store_operation
+                    && !closed_store_carrier
                     && !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !returned_environment::borrowed_child(module, f, i, b)?
