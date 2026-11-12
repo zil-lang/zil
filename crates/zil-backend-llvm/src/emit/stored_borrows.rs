@@ -1450,7 +1450,7 @@ mod tests {
         f.parameters.clear();
         f.locals.clear();
         f.return_type = Type::Unit;
-        f.values = (vec![input.clone(), output]).into();
+        f.values = vec![input.clone(), output].into();
         f.blocks.truncate(1);
         f.blocks[0].instructions = vec![fixture::instruction(
             Some(1),
@@ -1525,7 +1525,8 @@ mod tests {
                     block: BlockId(0),
                     initialized_in: if i == 3 { vec![] } else { vec![LocalId(0)] },
                     initialized_out: vec![LocalId(0)],
-                }],
+                }]
+                .into(),
                 holds: rows
                     .into_iter()
                     .enumerate()

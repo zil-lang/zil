@@ -4059,7 +4059,7 @@ fn forwards_replacement_effect(
 // own graph and fixed point, and never receives this table.
 fn effect_consumers(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<usize>>> {
     let count = module.functions.len();
@@ -4189,14 +4189,14 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
 
 fn infer_effects(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
     infer_effects_with_reuse(module, graphs, budget, None)
 }
 fn infer_effects_with_reuse(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
     reuse: Option<&mut incremental::Request>,
 ) -> CompileResult<Vec<Effect>> {
@@ -4209,14 +4209,14 @@ fn infer_effects_with_reuse(
 #[cfg(test)]
 fn infer_effects_frontier(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
     infer_effects_frontier_with_reuse(module, graphs, budget, None)
 }
 fn infer_effects_frontier_with_reuse(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Request>,
 ) -> CompileResult<Vec<Effect>> {
@@ -4256,7 +4256,7 @@ fn infer_effects_frontier_with_reuse(
 #[cfg(test)]
 fn infer_effects_full_scan(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
     budget.spend(module.functions.len(), "resource effect table")?;
@@ -4281,14 +4281,14 @@ thread_local! {
 
 pub(super) fn check_module(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     check_module_with_reuse(module, graphs, budget, None)
 }
 pub(super) fn check_module_with_reuse(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Request>,
 ) -> CompileResult<()> {

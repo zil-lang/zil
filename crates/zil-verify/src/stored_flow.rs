@@ -6984,7 +6984,7 @@ mod tests {
             .zip(origins)
             .map(|(f, origins)| FunctionPlan {
                 function: f.id,
-                blocks: vec![],
+                blocks: vec![].into(),
                 holds: origins
                     .into_iter()
                     .enumerate()
@@ -7001,7 +7001,8 @@ mod tests {
                 block: BlockId(0),
                 initialized_in: if index == 3 { vec![] } else { vec![LocalId(0)] },
                 initialized_out: vec![LocalId(0)],
-            }];
+            }]
+            .into();
         }
         verify_module(module.clone(), candidate.clone(), &module.target, &limits)
             .map_err(|d| d.into_iter().next().unwrap())?;

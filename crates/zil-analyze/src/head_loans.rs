@@ -542,7 +542,7 @@ fn store_field(
 fn check_function(
     module: &TypedModule,
     f: &TypedFunction,
-    graph: &(Vec<Vec<usize>>, Vec<bool>),
+    graph: &crate::CfgFacts,
     facts: &[ValueHold],
     summaries: &[Summary],
     previous_apart: &[Apart],
@@ -1305,8 +1305,8 @@ fn check_function(
 }
 pub(super) fn check(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    facts: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    facts: &[crate::HoldRows],
     summaries: &[Summary],
     b: &mut Budget,
 ) -> CompileResult<()> {

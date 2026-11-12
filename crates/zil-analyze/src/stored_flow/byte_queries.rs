@@ -155,7 +155,7 @@ fn matches_edge(module: &TypedModule, edge: &PendingEdge, b: &mut Budget) -> Com
 }
 pub(super) fn inventory(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<Vec<PendingEdge>> {
     if !b.byte_queries {

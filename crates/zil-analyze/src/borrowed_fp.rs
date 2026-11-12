@@ -48,8 +48,8 @@ pub(super) fn allowed(ty: &Type, budget: &mut Budget) -> CompileResult<Vec<usize
 
 pub(super) fn targets(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    facts: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    facts: &[crate::HoldRows],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if !budget.borrowed_function_pointers {
@@ -212,8 +212,8 @@ pub(super) fn qualified_array_relation_work(
 
 fn callback_returns(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    facts: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    facts: &[crate::HoldRows],
     closure: &ClosureDefinition,
     life: Option<&StorageLifeContract>,
     budget: &mut Budget,
@@ -283,8 +283,8 @@ fn callback_returns(
 }
 fn callbacks(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    facts: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    facts: &[crate::HoldRows],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(

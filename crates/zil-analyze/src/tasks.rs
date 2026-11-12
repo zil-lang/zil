@@ -912,7 +912,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
 pub(super) fn loans(
     module: &TypedModule,
     plan: &CandidatePlan,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if budget.borrowed_task_ports {

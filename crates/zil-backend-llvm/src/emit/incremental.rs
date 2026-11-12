@@ -610,7 +610,8 @@ mod mixed_tests {
                     block: BlockId(0),
                     initialized_in: f.parameters.clone(),
                     initialized_out: f.parameters.clone(),
-                }],
+                }]
+                .into(),
             })
             .collect();
         let target = module.target.clone();

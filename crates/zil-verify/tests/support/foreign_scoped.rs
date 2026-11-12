@@ -266,7 +266,8 @@ pub fn borrowed_closure_body(alias: bool) -> (TypedModule, CandidatePlan) {
             value: ValueId(2),
             roots: vec![],
         },
-    ];
+    ]
+    .into();
     m.functions[4].locals.push(LocalDecl {
         id: LocalId(1),
         name: "g".into(),
@@ -530,7 +531,8 @@ pub fn wrapper() -> (TypedModule, CandidatePlan) {
             value: ValueId(2),
             roots: vec![],
         },
-    ];
+    ]
+    .into();
     (m, p)
 }
 
@@ -898,7 +900,8 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: vec![
             ValueHold {
                 value: ValueId(0),
@@ -908,7 +911,8 @@ pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
                 value: ValueId(1),
                 roots: vec![],
             },
-        ],
+        ]
+        .into(),
     });
     let caller = &mut m.functions[4];
     let made = caller.blocks[0]
@@ -1089,7 +1093,8 @@ pub fn role_capturing_local_handler() -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: (0..3)
             .map(|value| ValueHold {
                 value: ValueId(value),
@@ -1151,7 +1156,8 @@ pub fn local_child_handler() -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![LocalId(0), LocalId(1)],
             initialized_out: vec![LocalId(1)],
-        }],
+        }]
+        .into(),
         holds: (0..3)
             .map(|value| ValueHold {
                 value: ValueId(value),
@@ -1220,11 +1226,13 @@ pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: vec![ValueHold {
             value: ValueId(0),
             roots: vec![],
-        }],
+        }]
+        .into(),
     });
     let made = m.functions[4].blocks[0]
         .instructions
@@ -1467,7 +1475,8 @@ pub fn supplied_body_hidden_in_with(twice: bool) -> (TypedModule, CandidatePlan)
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: (0..3)
             .map(|value| ValueHold {
                 value: ValueId(value),
@@ -1548,7 +1557,8 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: (0..2)
             .map(|value| ValueHold {
                 value: ValueId(value),
@@ -1587,11 +1597,13 @@ pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePla
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![],
-        }],
+        }]
+        .into(),
         holds: vec![ValueHold {
             value: ValueId(0),
             roots: vec![],
-        }],
+        }]
+        .into(),
     });
     let f = &mut m.functions[4];
     f.values

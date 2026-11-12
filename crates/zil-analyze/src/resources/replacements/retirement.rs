@@ -371,7 +371,7 @@ impl Program {
     pub(crate) fn close_retirement_pairs(
         &self,
         module: &TypedModule,
-        graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+        graphs: &[crate::CfgFacts],
         b: &mut Budget,
     ) -> CompileResult<()> {
         if !self.exact_retirement {

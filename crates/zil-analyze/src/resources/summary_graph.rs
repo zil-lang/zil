@@ -37,7 +37,7 @@ impl Dependencies {
 }
 pub(super) fn solve(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {
     budget.product(module.functions.len(), 2, 1, "resource summary seed tables")?;

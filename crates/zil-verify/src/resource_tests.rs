@@ -163,8 +163,8 @@ pub(super) fn plan(module: &TypedModule) -> CandidatePlan {
         if f.foreign.is_some() {
             plan.functions.push(FunctionPlan {
                 function: f.id,
-                blocks: vec![],
-                holds: vec![],
+                blocks: vec![].into(),
+                holds: vec![].into(),
             });
             continue;
         }

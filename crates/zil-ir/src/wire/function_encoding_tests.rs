@@ -274,7 +274,8 @@ fn plans_fixture() -> (TypedModule, CandidatePlan) {
                 block: BlockId(0),
                 initialized_in: vec![LocalId(0)],
                 initialized_out: vec![LocalId(0), LocalId(1)],
-            }],
+            }]
+            .into(),
             holds: vec![ValueHold {
                 value: ValueId(0),
                 roots: vec![
@@ -282,7 +283,8 @@ fn plans_fixture() -> (TypedModule, CandidatePlan) {
                     HoldRoot::Parameter(0),
                     HoldRoot::Static,
                 ],
-            }],
+            }]
+            .into(),
         })
         .collect();
     (module, plan)
@@ -474,4 +476,104 @@ fn plan_fragment_replay_preserves_aggregate_first_errors_and_exact_boundaries() 
                 .all(|raw| raw.encoding.limits == limits)
         );
     }
+}
+
+#[test]
+fn shared_plan_columns_isolate_mutations_and_row_ids_still_bind_encoding_slots() {
+    let (module, plan) = plans_fixture();
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let mut slots = vec![None, None, None];
+    let before = cached_plans(&module, &plan, &limits, &functions, &mut slots)
+        .0
+        .unwrap();
+    let retained = slots.clone();
+    let old_row_bytes = retained[1]
+        .as_ref()
+        .unwrap()
+        .encoding
+        .shared_bytes()
+        .to_vec();
+    for (row, encoding) in plan.functions.iter().zip(&retained) {
+        let bound = &encoding.as_ref().unwrap().function;
+        assert!(row.blocks.ptr_eq(&bound.blocks));
+        assert!(row.holds.ptr_eq(&bound.holds));
+    }
+    let mut changed = plan.clone();
+    changed.functions[1].blocks[0]
+        .initialized_in
+        .push(LocalId(99));
+    assert!(
+        !changed.functions[1]
+            .blocks
+            .ptr_eq(&plan.functions[1].blocks)
+    );
+    assert!(changed.functions[1].holds.ptr_eq(&plan.functions[1].holds));
+    let (actual, stats) = cached_plans(&module, &changed, &limits, &functions, &mut slots);
+    assert_eq!(actual, encode_module_candidate(&module, &changed, &limits));
+    assert_eq!(
+        (stats.serialized_function_plans, stats.reused_function_plans),
+        (1, 2)
+    );
+    assert_eq!(
+        before,
+        encode_module_candidate(&module, &plan, &limits).unwrap()
+    );
+    assert_eq!(
+        retained[1]
+            .as_ref()
+            .unwrap()
+            .encoding
+            .shared_bytes()
+            .as_ref(),
+        old_row_bytes.as_slice()
+    );
+
+    // Equal array allocations alone do not bind the function owner.
+    let mut renamed = changed.clone();
+    renamed.functions[1].function = FunctionId(77);
+    assert!(
+        renamed.functions[1]
+            .blocks
+            .ptr_eq(&changed.functions[1].blocks)
+    );
+    assert!(
+        renamed.functions[1]
+            .holds
+            .ptr_eq(&changed.functions[1].holds)
+    );
+    let (actual, stats) = cached_plans(&module, &renamed, &limits, &functions, &mut slots);
+    assert_eq!(actual, encode_module_candidate(&module, &renamed, &limits));
+    assert_eq!(
+        (stats.serialized_function_plans, stats.reused_function_plans),
+        (1, 2)
+    );
+    assert_ne!(
+        retained[1].as_ref().unwrap().function.function,
+        FunctionId(77)
+    );
+
+    // Owned iteration and Vec conversion must isolate nested children too.
+    let mut blocks: Vec<BlockPlan> = plan.functions[0].blocks.clone().into();
+    blocks[0].initialized_out.push(LocalId(88));
+    assert!(
+        !plan.functions[0].blocks[0]
+            .initialized_out
+            .contains(&LocalId(88))
+    );
+    let mut holds = plan.functions[0]
+        .holds
+        .clone()
+        .into_iter()
+        .collect::<Vec<_>>();
+    holds[0].roots.push(HoldRoot::Local(LocalId(88)));
+    assert!(
+        !plan.functions[0].holds[0]
+            .roots
+            .contains(&HoldRoot::Local(LocalId(88)))
+    );
+    assert_eq!(
+        before,
+        encode_module_candidate(&module, &plan, &limits).unwrap()
+    );
 }

@@ -108,7 +108,7 @@ mod tests {
     fn budget() -> Budget {
         Budget::new(&Limits::default())
     }
-    fn graph(f: &TypedFunction) -> (Vec<Vec<usize>>, Vec<bool>) {
+    fn graph(f: &TypedFunction) -> crate::CfgFacts {
         let mut predecessors = vec![Vec::new(); f.blocks.len()];
         let successors = |t: &Terminator| -> Vec<usize> {
             match t {
@@ -134,7 +134,7 @@ mod tests {
                 pending.extend(successors(&f.blocks[index].terminator));
             }
         }
-        (predecessors, reachable)
+        (predecessors.into(), reachable.into())
     }
     fn compare(module: &TypedModule, f: &TypedFunction) -> Vec<LiveRow> {
         let (predecessors, reachable) = graph(f);

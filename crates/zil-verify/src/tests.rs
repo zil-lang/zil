@@ -94,7 +94,8 @@ pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
             block: BlockId(0),
             initialized_in: vec![],
             initialized_out: vec![LocalId(0)],
-        }],
+        }]
+        .into(),
     });
     (module, plan)
 }
@@ -318,7 +319,8 @@ fn branching() -> (TypedModule, CandidatePlan) {
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![LocalId(0)],
         },
-    ];
+    ]
+    .into();
     (module, plan)
 }
 #[test]
@@ -531,7 +533,8 @@ fn checks_direct_call_signature_and_parameter_initialization() {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
             initialized_out: vec![LocalId(0)],
-        }],
+        }]
+        .into(),
     });
     plan.module_fingerprint = module.fingerprint();
     assert!(

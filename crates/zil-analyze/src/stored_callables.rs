@@ -617,7 +617,7 @@ pub(super) fn role<'a>(
 
 pub(super) fn roles(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     b: &mut Budget,
 ) -> CompileResult<()> {
     if module.closures.is_empty() {

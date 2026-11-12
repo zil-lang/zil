@@ -282,12 +282,13 @@ impl Body {
         self.f.blocks[0].terminator = Terminator::Return(returned);
         let plan = FunctionPlan {
             function: self.f.id,
-            holds: self.holds,
+            holds: (self.holds).into(),
             blocks: vec![BlockPlan {
                 block: BlockId(0),
                 initialized_in: self.f.parameters.clone(),
                 initialized_out: self.initialized.into_iter().collect(),
-            }],
+            }]
+            .into(),
         };
         (self.f, plan)
     }

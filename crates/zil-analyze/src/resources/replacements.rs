@@ -156,7 +156,7 @@ fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool
 impl Program {
     pub(super) fn new(
         module: &TypedModule,
-        graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+        graphs: &[crate::CfgFacts],
         b: &mut Budget,
     ) -> CompileResult<Self> {
         // The nested transport producer is not implemented. Check the whole
@@ -1190,7 +1190,7 @@ impl Program {
 }
 pub(super) fn infer(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     program: &Program,
     b: &mut Budget,
 ) -> CompileResult<Vec<Effect>> {

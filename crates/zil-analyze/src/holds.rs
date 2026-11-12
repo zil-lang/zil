@@ -2785,8 +2785,8 @@ fn product_parameter_of(
 
 fn parameter_product_windows(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
-    holds: &[Vec<ValueHold>],
+    graphs: &[crate::CfgFacts],
+    holds: &[crate::HoldRows],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     let count = module.functions.len();
@@ -3473,20 +3473,20 @@ fn parameter_product_windows(
 /// address returns after the independent fixed point.
 pub(super) fn infer_module(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     store_profiles: &[bool],
     budget: &mut Budget,
-) -> CompileResult<Vec<Vec<ValueHold>>> {
+) -> CompileResult<Vec<crate::HoldRows>> {
     infer_module_with_reuse(module, graphs, store_profiles, budget, None)
 }
 
 pub(super) fn infer_module_with_reuse(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     store_profiles: &[bool],
     budget: &mut Budget,
     reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Vec<Vec<ValueHold>>> {
+) -> CompileResult<Vec<crate::HoldRows>> {
     let result = infer_module_inner(module, graphs, store_profiles, budget, reuse)?;
     super::borrowed_fp::targets(module, graphs, &result, budget)?;
     super::lifetimes::returns(module, graphs, &result, budget)?;
@@ -3600,11 +3600,11 @@ fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<b
 
 fn infer_module_inner(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     store_profiles: &[bool],
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Reuse<'_>>,
-) -> CompileResult<Vec<Vec<ValueHold>>> {
+) -> CompileResult<Vec<crate::HoldRows>> {
     capture_inventory(module, budget)?;
     if !module.functions.iter().enumerate().any(|(index, f)| {
         (budget.composition_stored.is_empty() || !budget.composition_stored[index])
@@ -3618,7 +3618,7 @@ fn infer_module_inner(
             .enumerate()
             .map(|(index, (f, (preds, reachable)))| {
                 if !budget.composition_stored.is_empty() && budget.composition_stored[index] {
-                    return Ok(Vec::new());
+                    return Ok(SharedVec::default());
                 }
                 let store_windows = f
                     .environment
@@ -3632,7 +3632,7 @@ fn infer_module_inner(
                     .and_then(|reuse| reuse.candidates.as_deref_mut())
                 {
                     Some(candidates) => candidates.holds(f, budget, execute),
-                    None => execute(budget),
+                    None => execute(budget).map(Into::into),
                 }
             })
             .collect();
@@ -3853,9 +3853,11 @@ fn infer_module_inner(
         .enumerate()
         .map(|(index, result)| {
             if !budget.composition_stored.is_empty() && budget.composition_stored[index] {
-                Ok(Vec::new())
+                Ok(SharedVec::default())
             } else {
-                result.ok_or_else(|| bad("return frontier omitted a function"))
+                result
+                    .map(Into::into)
+                    .ok_or_else(|| bad("return frontier omitted a function"))
             }
         })
         .collect()
@@ -3981,9 +3983,9 @@ mod frontier_tests {
     }
     fn slow(
         module: &TypedModule,
-        graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+        graphs: &[crate::CfgFacts],
         budget: &mut Budget,
-    ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    ) -> CompileResult<Vec<crate::HoldRows>> {
         if !module
             .functions
             .iter()
@@ -3994,7 +3996,7 @@ mod frontier_tests {
                 .iter()
                 .zip(graphs)
                 .map(|(f, (preds, reachable))| {
-                    infer(module, &[], f, preds, reachable, false, budget)
+                    infer(module, &[], f, preds, reachable, false, budget).map(Into::into)
                 })
                 .collect();
         }
@@ -4033,7 +4035,7 @@ mod frontier_tests {
                     }
                     changed |= extend(&mut summaries[index], &result, budget)?;
                 }
-                results.push(values);
+                results.push(values.into());
             }
             if !changed {
                 return Ok(results);
@@ -4041,15 +4043,15 @@ mod frontier_tests {
         }
     }
 
-    fn graphs(module: &TypedModule) -> Vec<(Vec<Vec<usize>>, Vec<bool>)> {
+    fn graphs(module: &TypedModule) -> Vec<crate::CfgFacts> {
         module
             .functions
             .iter()
             .map(|f| {
                 if f.blocks.len() == 1 {
-                    (vec![vec![]], vec![true])
+                    (vec![vec![]].into(), vec![true].into())
                 } else {
-                    (vec![vec![], vec![0], vec![0]], vec![true; 3])
+                    (vec![vec![], vec![0], vec![0]].into(), vec![true; 3].into())
                 }
             })
             .collect()

@@ -94,7 +94,7 @@ pub(super) fn declaration(
 }
 pub(super) fn check(
     module: &TypedModule,
-    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    graphs: &[crate::CfgFacts],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if !budget.scoped_foreign {

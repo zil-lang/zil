@@ -52,6 +52,12 @@ mod sum_tests;
 mod tasks;
 
 use std::collections::{BTreeSet, VecDeque};
+
+// Private immutable CFG facts, shared all the way from initialization to every
+// current global consumer. Their ownership carries no analysis/Verify authority.
+type CfgFacts = (SharedVec<Vec<usize>>, SharedVec<bool>);
+type HoldRows = SharedVec<ValueHold>;
+
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
 use zil_ir::*;
 
@@ -106,11 +112,11 @@ fn analyze_budgeted(
             if !f.blocks.is_empty() || !f.values.is_empty() {
                 return Err(bad("foreign declaration carries an executable body"));
             }
-            hold_graphs.push((Vec::new(), Vec::new()));
+            hold_graphs.push((SharedVec::default(), SharedVec::default()));
             plan.functions.push(FunctionPlan {
                 function: f.id,
-                blocks: Vec::new(),
-                holds: Vec::new(),
+                blocks: Vec::new().into(),
+                holds: Vec::new().into(),
             });
             continue;
         }
@@ -139,7 +145,7 @@ fn analyze_budgeted(
         plan.functions.push(FunctionPlan {
             function: f.id,
             blocks,
-            holds: Vec::new(),
+            holds: Vec::new().into(),
         });
     }
     let mut stored_holds = None;
@@ -194,7 +200,7 @@ fn analyze_budgeted(
             }
             let actual = stored_flow::infer(module, &hold_graphs, budget)?;
             for (function, holds) in plan.functions.iter_mut().zip(actual) {
-                function.holds = holds;
+                function.holds = holds.into();
             }
             dyn_dispatch::check_roots(module, &plan.functions, budget)?;
             return Ok(plan);
@@ -357,7 +363,7 @@ fn analyze_budgeted(
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }
-                actual_holds[index] = rows;
+                actual_holds[index] = rows.into();
             }
         }
     }
@@ -372,9 +378,9 @@ fn analyze_budgeted(
 
 #[derive(Clone)]
 struct Initialization {
-    blocks: Vec<BlockPlan>,
-    predecessors: Vec<Vec<usize>>,
-    reachable: Vec<bool>,
+    blocks: SharedVec<BlockPlan>,
+    predecessors: SharedVec<Vec<usize>>,
+    reachable: SharedVec<bool>,
 }
 
 fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initialization> {
@@ -570,9 +576,9 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
         });
     }
     Ok(Initialization {
-        blocks,
-        predecessors,
-        reachable,
+        blocks: blocks.into(),
+        predecessors: predecessors.into(),
+        reachable: reachable.into(),
     })
 }
 

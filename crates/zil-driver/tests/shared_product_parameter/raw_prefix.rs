@@ -71,7 +71,8 @@ pub(super) fn straight_line_claims(module: &TypedModule) -> CandidatePlan {
                 block: block.id,
                 initialized_in: function.parameters.clone(),
                 initialized_out: vec![],
-            }],
+            }]
+            .into(),
             holds: values
                 .into_iter()
                 .enumerate()

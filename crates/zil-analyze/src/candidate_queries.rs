@@ -384,8 +384,12 @@ impl Queries {
         function: &TypedFunction,
         budget: &mut Budget,
         execute: impl FnOnce(&mut Budget) -> CompileResult<Vec<ValueHold>>,
-    ) -> CompileResult<Vec<ValueHold>> {
+    ) -> CompileResult<crate::HoldRows> {
         if self.hit(function, 2, budget)? {
+            // prepare/scalar_input admitted only scalar values here. Later
+            // stored-proof overlays modify address/qualified rows, so a cached
+            // scalar row never incurs an uncharged COW copy in global assembly.
+            // Fresh richer rows remain uniquely owned until those checks end.
             return Ok(self.work[&function.id]
                 .prior
                 .as_ref()
@@ -397,7 +401,7 @@ impl Queries {
         let before = budget.remaining();
         let result = execute(budget)?;
         self.save_cost(function, 2, before, budget);
-        Ok(result)
+        Ok(result.into())
     }
 
     pub(super) fn finish(

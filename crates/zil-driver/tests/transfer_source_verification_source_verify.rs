@@ -115,8 +115,8 @@ pub(crate) fn candidate(module: &TypedModule) -> CandidatePlan {
         if f.foreign.is_some() {
             plan.functions.push(FunctionPlan {
                 function: f.id,
-                holds: vec![],
-                blocks: vec![],
+                holds: vec![].into(),
+                blocks: vec![].into(),
             });
             continue;
         }
@@ -202,7 +202,7 @@ pub(crate) fn candidate(module: &TypedModule) -> CandidatePlan {
         };
         plan.functions.push(FunctionPlan {
             function: f.id,
-            holds: candidate_holds(f),
+            holds: (candidate_holds(f)).into(),
             blocks: (0..n)
                 .map(|b| BlockPlan {
                     block: BlockId(b as u32),

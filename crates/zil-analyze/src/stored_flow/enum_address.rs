@@ -796,7 +796,7 @@ pub(super) fn transfer(
 /// A permission for another alternative never licenses reading this payload.
 pub(super) fn projections(
     f: &TypedFunction,
-    graph: &(Vec<Vec<usize>>, Vec<bool>),
+    graph: &crate::CfgFacts,
     facts: &Facts,
     b: &mut Budget,
 ) -> CompileResult<()> {
@@ -950,12 +950,12 @@ pub(super) fn projections(
 // A single replay uses only the converged original graph, never facts
 // produced by the replay itself.
 pub(super) struct Refinement {
-    pub(super) graphs: Vec<(Vec<Vec<usize>>, Vec<bool>)>,
+    pub(super) graphs: Vec<crate::CfgFacts>,
     pub(super) inactive: Vec<BTreeSet<ValueId>>,
 }
 pub(super) fn refine(
     module: &TypedModule,
-    original: &[(Vec<Vec<usize>>, Vec<bool>)],
+    original: &[crate::CfgFacts],
     frozen: &[Facts],
     b: &mut Budget,
 ) -> CompileResult<Option<Refinement>> {
@@ -1120,7 +1120,7 @@ pub(super) fn refine(
                 }
             }
         }
-        proof.graphs.push((predecessors, reachable));
+        proof.graphs.push((predecessors.into(), reachable.into()));
         proof.inactive.push(inactive);
     }
     Ok(changed.then_some(proof))
