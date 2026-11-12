@@ -1083,7 +1083,7 @@ mod owned_sum_drop_plan_tests {
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
-            items: code.into_items().unwrap(),
+            items: code.code.into_items().unwrap(),
         }
         .to_text();
         assert!(text.contains("icmp eq i32"));
@@ -1134,7 +1134,7 @@ mod owned_sum_drop_plan_tests {
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
-            items: code.into_items().unwrap(),
+            items: code.code.into_items().unwrap(),
         }
         .to_text();
         assert!(text.contains(&format!("define internal void @{}", symbol(actual_root))));
@@ -1222,7 +1222,7 @@ mod owned_sum_drop_plan_tests {
         assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = new_n - 1;
         assert_eq!(
-            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).unwrap_err()[0]
+            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).err().expect("below-bound drop plan must reject")[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );
