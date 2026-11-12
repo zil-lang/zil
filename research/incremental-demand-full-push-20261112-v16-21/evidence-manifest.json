@@ -1,0 +1,40 @@
+{
+  "archive": {
+    "bytes": 9977180,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 9977180,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "e550550ce27fe1b7928888ba8035e576bbdad12e3094e33772940974b34619dc"
+      }
+    ],
+    "sha256": "e550550ce27fe1b7928888ba8035e576bbdad12e3094e33772940974b34619dc",
+    "tar_bytes": 26255360
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 26249504,
+        "mode": 493,
+        "path": "zil-push-main/out/binaries/328eb392d8d88148a75a743d899b43aebae73587/zil",
+        "sha256": "e7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "0303b854979619e7ae629712b190e78aad83c28933d1796deda7bbe352041617",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/binaries/328eb392d8d88148a75a743d899b43aebae73587/zil"
+  ],
+  "source_root": "/workspace"
+}
