@@ -67,22 +67,22 @@ fn main()->i32{let value=42;let other=99;return start(&value,&other)-42}
     wrong.functions[create].retained_return_sources = Some(vec![]);
     attacks.push(("empty-helper-result-upper", wrong));
     let mut wrong = module.clone();
-    wrong.functions[create]
+    let zil_ir::StorageSource::Exact(source) = &mut wrong.functions[create]
         .retained_return_sources
         .as_mut()
         .unwrap()[0]
-        .sources[0]
-        .base = zil_ir::StorageBase::Parameter(2);
+        .sources[0] else { panic!("expected the actual exact source"); };
+    source.base = zil_ir::StorageBase::Parameter(2);
     attacks.push(("wrong-helper-source-parameter", wrong));
     let mut wrong = module.clone();
     wrong.functions[create]
         .retained_return_sources
         .as_mut()
         .unwrap()[0]
-        .sources = vec![zil_ir::StoragePosition {
+        .sources = vec![zil_ir::StorageSource::Exact(zil_ir::StoragePosition {
         base: zil_ir::StorageBase::Parameter(1),
         path: vec![],
-    }];
+    })];
     attacks.push(("same-class-different-helper-source", wrong));
     let mut wrong = module.clone();
     let rows = wrong.functions[create]
