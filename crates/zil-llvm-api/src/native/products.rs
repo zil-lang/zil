@@ -85,6 +85,10 @@ mod enabled {
         #[cfg(test)]
         fn ZilNativeProductsUnchangedStageCounterexample() -> c_int;
         #[cfg(test)]
+        fn ZilNativeProductsEligibilityProducerCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsTypeAndOwnerCounterexamples() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -362,6 +366,21 @@ mod enabled {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn complete_current_projections_bind_eligibility_reuse() {
+            // SAFETY: the counterexample owns every LLVM object and returns a scalar.
+            assert_eq!(
+                unsafe { ZilNativeProductsEligibilityProducerCounterexample() },
+                1
+            );
+        }
+
+        #[test]
+        fn named_type_definitions_and_current_caller_owners_are_bound() {
+            // SAFETY: all malformed-owner and distinct-type fixtures remain local.
+            assert_eq!(unsafe { ZilNativeProductsTypeAndOwnerCounterexamples() }, 1);
+        }
 
         #[test]
         fn unsupported_analysis_keys_reject_before_touching_any_results() {
