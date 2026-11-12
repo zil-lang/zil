@@ -7043,6 +7043,14 @@ mod tests {
                 };
                 if let Some(v) = i.result {
                     let mut roots = roots;
+                    // Ordinary resource descriptions publish no strong Hold.
+                    // Their actual owner head, epoch and source stay private
+                    // and are still exercised by the retirement attacks.
+                    if matches!(&f.values[v.0 as usize], Type::Desc(payload)
+                        if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
+                    {
+                        roots.clear();
+                    }
                     roots.sort();
                     roots.dedup();
                     plan.holds[v.0 as usize].roots = roots;
@@ -7820,7 +7828,8 @@ mod tests {
             println!("owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
         }
         let mut forged = c;
-        forged.functions[0].holds[8].roots.clear();
+        assert!(forged.functions[0].holds[8].roots.is_empty());
+        forged.functions[0].holds[8].roots=vec![HoldRoot::Local(LocalId(1))];
         let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
         for result in [
             super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),
