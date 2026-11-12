@@ -278,10 +278,29 @@ statistics!(
     allowance_nodes_increase,
     allowance_nodes_decrease
 );
+#[derive(Clone, Debug)]
+struct HeaderInput(Arc<Vec<s::Item>>);
+impl PartialEq for HeaderInput {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+impl std::ops::Deref for HeaderInput {
+    type Target = [s::Item];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[cfg(test)]
+impl std::ops::DerefMut for HeaderInput {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.0).as_mut_slice()
+    }
+}
 #[derive(Clone, Debug, PartialEq)]
 struct Environment {
     sources: Vec<(ModuleId, FileId, String)>,
-    headers: Vec<Vec<s::Item>>,
+    headers: Vec<HeaderInput>,
     imports: Vec<Vec<CoreImport>>,
     limits: Limits,
     target: TargetProfile,
@@ -471,6 +490,7 @@ struct FunctionInput {
 #[derive(Clone)]
 struct Entry {
     parsed: ParsedSource,
+    headers: HeaderInput,
     scalar: bool,
     scalar_nodes: u64,
     scalar_depth_limit: usize,
@@ -613,6 +633,15 @@ impl ExpandSession {
                 self.stats.classifier_nodes += nodes;
                 Entry {
                     parsed: parsed.clone(),
+                    headers: {
+                        let current = module_headers(module);
+                        self.entries
+                            .get(&module.id)
+                            .map(|old| &old.headers)
+                            .filter(|old| old.0.as_ref() == &current)
+                            .cloned()
+                            .unwrap_or_else(|| HeaderInput(Arc::new(current)))
+                    },
                     scalar,
                     scalar_nodes: nodes,
                     scalar_depth_limit: limits.max_call_depth,
@@ -641,37 +670,10 @@ impl ExpandSession {
                 return Ok(None);
             }
         }
-        let mut headers = Vec::new();
-        for parsed in parsed {
-            let mut module_headers = Vec::new();
-            for item in &parsed.parsed().module.items {
-                let mut header = match &item.kind {
-                    s::ItemKind::Function(function) => s::Item {
-                        kind: s::ItemKind::Function(header(function)),
-                        attributes: item.attributes.clone(),
-                        public: item.public,
-                        span: Span::default(),
-                    },
-                    s::ItemKind::Extern { abi, function } => s::Item {
-                        kind: s::ItemKind::Extern {
-                            abi: abi.clone(),
-                            function: header(function),
-                        },
-                        attributes: item.attributes.clone(),
-                        public: item.public,
-                        span: Span::default(),
-                    },
-                    s::ItemKind::Import(_) => item.clone(),
-                    _ => unreachable!("scalar inventory"),
-                };
-                header.span = Span::default();
-                for attribute in &mut header.attributes {
-                    attribute.span = Span::default();
-                }
-                module_headers.push(header);
-            }
-            headers.push(module_headers);
-        }
+        let headers = parsed
+            .iter()
+            .map(|parsed| entries[&parsed.source().module_id].headers.clone())
+            .collect();
         let environment = Environment {
             sources: parsed
                 .iter()
@@ -969,6 +971,36 @@ impl ExpandSession {
             changes,
         }))
     }
+}
+fn module_headers(module: &s::Module) -> Vec<s::Item> {
+    let mut module_headers = Vec::new();
+    for item in &module.items {
+        let mut header = match &item.kind {
+            s::ItemKind::Function(function) => s::Item {
+                kind: s::ItemKind::Function(header(function)),
+                attributes: item.attributes.clone(),
+                public: item.public,
+                span: Span::default(),
+            },
+            s::ItemKind::Extern { abi, function } => s::Item {
+                kind: s::ItemKind::Extern {
+                    abi: abi.clone(),
+                    function: header(function),
+                },
+                attributes: item.attributes.clone(),
+                public: item.public,
+                span: Span::default(),
+            },
+            s::ItemKind::Import(_) => item.clone(),
+            _ => unreachable!("scalar inventory"),
+        };
+        header.span = Span::default();
+        for attribute in &mut header.attributes {
+            attribute.span = Span::default();
+        }
+        module_headers.push(header);
+    }
+    module_headers
 }
 // In the sealed scalar domain, Normalize's Index stores only names/publicness/
 // kind and Restore's Functions stores only owner/name. Neither stores definition
