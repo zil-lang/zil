@@ -82,7 +82,7 @@ fn replacement_actual_origin_does_not_upgrade_a_shared_parent_claim() {
     // The forged SSA row still claims &mut; actual origin comes from the input.
     let facts = origins::module(
         &module,
-        &[(vec![vec![]], vec![true])],
+        &[(vec![vec![]].into(), vec![true].into())],
         false,
         &mut Budget::new(&limits),
     )
