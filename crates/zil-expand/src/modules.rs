@@ -325,8 +325,10 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
-    let mut origins = (budget.has_generic_methods() || budget.needs_source_identity())
-        .then(generics::origins::Origins::default);
+    // Feature preparation can discover a provenance consumer after project
+    // modules have been combined. Record actual declaration ownership now;
+    // the synthetic combined module is never a source declaration owner.
+    let mut origins = Some(generics::origins::Origins::default());
     if budget.needs_source_identity()
         && let Some(context) = context
     {
