@@ -1,0 +1,18 @@
+{
+  "baseline_main": "99035931d358add0eaed6d4535035c38413701dd",
+  "goal_read": "76e78c618bbe715eaebc666341f0e5f0ebefbfaa",
+  "authorization": "2026-11-12 user requests all listed language gaps implemented concurrently and individually integrated to usable completion; Sol preferred, Astra for difficult semantics",
+  "status": "implementation_in_progress",
+  "acceptance": "No complete-language claim before complete capability exits, independent exact-source review and joint native consumers pass",
+  "build_lock": "/workspace/.zil-env/language-build.lock",
+  "branches": [
+    "task/language-numeric",
+    "task/language-ownership",
+    "task/language-iteration",
+    "task/language-dyn",
+    "task/language-async",
+    "task/language-stdlib",
+    "task/language-integration"
+  ],
+  "tests_this_dispatch": 0
+}

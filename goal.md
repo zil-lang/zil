@@ -20,6 +20,22 @@ PR73从main21b1最小提取五个生产文件，补重借用与RHS准备失败�
 
 Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fbf51efff4ff21f7566aeb5e6e0e105ba8cc852`，交付tree `e17e0d0a0ad8228329ffdfc2c27721cf4ed10296`。原5008B Map及7583B库保持原字节，默认10M内独立Verify成功，原16构建/64进程和完整费用边界保留。三条PR CI均成功；Main实读workspace6037、reference5923、text-reference70全过，先前13个旧预算首败保留在历史且已闭合。Store.push_growing已由[PR82](https://github.com/zil-lang/zil/pull/82)合入main `2bb30ce1819137d666c073299aa2639da4fd2964`，tree `03251642e6e0866edb39449912ff9ffb48e40b29`与发布5059c1a6及CI checkout f4377108完全相同。Package误用give与过时借用诊断预期的首败保留。新Store3/0、原collected及raw/Wire4/0、完整nominal234/0、聚焦双后端12编译/88进程已独审；本地workspace6040/0/0、strict Clippy及text-reference70/0通过。三条CI均成功，正式/研究LLVM各workspace6040、reference5926、text70全过；独立原生控制各16构建/128执行/56注入失败，范围不与聚焦消费者累计。已删除ordinary分支，固定归档4fe6113e保全；清理后快照25条分支中22条编译专项全部保留。一般owning K/V哈希与1.0父门仍开放；详[本轮语言接续](records/store-growth-resumption.json)及[此前接续](records/ordinary-collections-continuation.json)。
 
+## 通用语言可用性并行收敛
+
+2026-11-12用户授权：同时施工全部基础语言缺口并分别集成，Sol high为主，疑难语义可用Astra；每项按完整退出条件交付，有限子项不关闭父门。基线main `99035931d358add0eaed6d4535035c38413701dd`，派工前goal `76e78c618bbe715eaebc666341f0e5f0ebefbfaa`。本批以本表承接，原历史状态不据开工提升为通过。
+
+| 范围 | 实施分支 | 执行者 | 状态与完整退出条件 |
+| --- | --- | --- | --- |
+| G1.5 | `task/language-numeric` | Sol high · numeric | 进行中；u32/i8/i16/isize贯通Source/CT/泛型/IR/Wire/转换/布局/FFI/两核/双后端。 |
+| G1.4/G3.4/G3.5 | `task/language-ownership` | Sol high · ownership | 进行中；普通嵌套拥有/借入、多来源返回、部分模式/补回、捕获与错误清理共同运行。 |
+| G2.3/G2.4/G9.3.10 | `task/language-iteration` | Sol high · iteration | 进行中；可复用惰性map/filter/collect、拥有/借入迭代、关联投影和定义期义务。 |
+| G5.2/G5.3 | `task/language-dyn` | Sol high · dyn | 进行中；常用方法真实效果、结果来源、完整拥有provider/cleanup/capture组合。 |
+| G7/G8 | `task/language-async` | Sol high · async | 进行中；Task输入/结果/owner/capture、取消/晚通知/排空及实际线程能力完整组合。 |
+| G9.3.11/G9.3.12/G6 | `task/language-stdlib` | Sol high · stdlib_graph | 进行中；owning哈希Map/Set、数值文本转换/缓冲I/O、长期图与状态协议。 |
+| G10.3/G10.6.3 | `task/language-integration` | root | 进行中；公共schema协调、大型ABI/回归入口、逐候选非作者复核、分别集成及真实项目联合验收。 |
+
+所有重构建通过同一锁串行执行，每树独立target；实现并行。不得提高默认预算、削弱检查、关闭Verify或用Unsupported/零执行冒充完成。每个候选分别记录源码、正反例、raw/Wire、原生与失败清理；联合验收后再裁决父范围。见[本批派工](records/language-usability-parallel.json)。
+
 ## G1 · 基础类型与模式
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
