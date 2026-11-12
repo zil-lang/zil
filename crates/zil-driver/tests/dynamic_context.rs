@@ -893,3 +893,129 @@ fn static_context_sources_are_distinct_from_same_typed_formal_and_empty_targets(
         }
     }
 }
+
+#[test]
+fn retained_field_child_conflicts_only_with_the_actual_projected_window() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/shared-field-from-mutable.zil");
+    let (_, mut module, _, _) = context_candidate(text, "retained-field-sibling");
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| f.name == "create")
+        .unwrap();
+    module.functions[factory]
+        .retained_return_sources
+        .as_mut()
+        .unwrap()[0]
+        .sources
+        .retain(|source| {
+            matches!(source, StorageSource::PlaceAddress { place, .. }
+            if place.path == [ContractProjection::Place(PlaceProjection::Field(0))])
+        });
+    assert_eq!(
+        module.functions[factory]
+            .retained_return_sources
+            .as_ref()
+            .unwrap()[0]
+            .sources
+            .len(),
+        1
+    );
+    let limits = zil_base::Limits::default();
+    zil_analyze::analyze(&module, &limits).unwrap();
+    for field in [0, 1] {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "run")
+            .unwrap();
+        let (block_index, call_index, argument) = f
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(bi, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .enumerate()
+                    .find_map(|(ii, instruction)| {
+                        if let InstructionKind::Call {
+                            function,
+                            arguments,
+                        } = &instruction.kind
+                            && function.0 as usize == factory
+                        {
+                            Some((bi, ii, arguments[0]))
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .unwrap();
+        assert!(matches!(
+            f.values[argument.0 as usize],
+            Type::Address { mutable: true, .. }
+        ));
+        let projected = ValueId(f.values.len() as u32);
+        f.values.push(Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I32),
+        });
+        let constant = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let block = &mut f.blocks[block_index];
+        let span = block.instructions[call_index].span;
+        block.instructions.splice(
+            call_index + 1..call_index + 1,
+            [
+                Instruction {
+                    result: Some(projected),
+                    kind: InstructionKind::AddressField {
+                        address: argument,
+                        index: field,
+                    },
+                    span,
+                },
+                Instruction {
+                    result: Some(constant),
+                    kind: InstructionKind::Constant(Constant::I32(0)),
+                    span,
+                },
+                Instruction {
+                    result: None,
+                    kind: InstructionKind::WriteAddress {
+                        address: projected,
+                        value: constant,
+                    },
+                    span,
+                },
+            ],
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &changed,
+            &CandidatePlan::empty_for(&changed),
+            &limits,
+        )
+        .unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        for input in [&changed, &decoded] {
+            let outcome = zil_analyze::analyze(input, &limits);
+            if field == 0 {
+                let errors =
+                    outcome.expect_err("the retained left child must forbid writes to left");
+                assert!(
+                    errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                    "{errors:?}"
+                );
+            } else {
+                outcome.expect(
+                    "writing the disjoint right field must preserve the retained left child",
+                );
+            }
+        }
+    }
+}
