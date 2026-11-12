@@ -1982,6 +1982,16 @@ pub(super) fn preflight(
                     "retained result positions",
                 )?;
                 for atom in &binding.sources {
+                    if let StorageSource::Static{leaf,mode}=atom
+                        && super::stored_callables::constant_entry(module,function) {
+                        if *mode!=StoredBorrowMode::SharedAddress
+                            || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                            || leaf!=&function.return_type {
+                            return Err(bad("constant callable result requires its complete immutable actual leaf and mode"));
+                        }
+                        budget.input(if matches!(leaf,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){5}else{4},"constant callable full result leaf")?;
+                        continue;
+                    }
                     let source = crate::exact_storage_source(atom)?;
                     count(
                         0,
