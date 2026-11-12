@@ -781,8 +781,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     } else {
                         false
                     };
+                // Borrowing the callable does not borrow its independently owned data operands.
+                // Actual role access, operand consumption and every CFG exit remain checked.
+                budget.spend(
+                    definition.parameters.len(),
+                    "borrowed environment data signature",
+                )?;
+                let borrowed_environment = borrowed.is_some()
+                    && matches!(role.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && !definition
+                        .parameters
+                        .iter()
+                        .any(|ty| matches!(ty, Type::Address { .. }));
                 if candidates.len() != 1
                     || (!borrowed_input_result
+                        && !borrowed_environment
                         && (borrowed.is_some() || role.kind != CallableKind::FnOnce))
                     || function.result_mode != PassingMode::Infer
                 {

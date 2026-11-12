@@ -222,11 +222,20 @@ pub(super) fn validate_template(
             .parameters
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. }));
+    let borrowed_environment = owned_data
+        && bounds.len() == 1
+        && matches!(bounds[0].kind, CallableKind::Fn | CallableKind::FnMut)
+        && function
+            .parameters
+            .get(bounds[0].index as usize)
+            .and_then(|p| parameter_mode(&p.ty, &bounds[0].generic_name))
+            .is_some_and(|mode| mode.is_some());
     if owned_data {
         if bounds.len() != 1
             || !function.type_parameters.is_empty()
-            || (!borrowed_owned && bounds[0].kind != CallableKind::FnOnce)
+            || (!borrowed_owned && !borrowed_environment && bounds[0].kind != CallableKind::FnOnce)
             || (!borrowed_owned
+                && !borrowed_environment
                 && parameter_mode(
                     &function
                         .parameters
@@ -236,6 +245,7 @@ pub(super) fn validate_template(
                     &bounds[0].generic_name,
                 ) != Some(None))
             || (!borrowed_owned
+                && !borrowed_environment
                 && !matches!(
                     function.parameters[bounds[0].index as usize].mode,
                     PassingMode::Infer | PassingMode::Move
