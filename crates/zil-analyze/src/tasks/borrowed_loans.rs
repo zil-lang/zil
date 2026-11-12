@@ -106,10 +106,10 @@ fn physical(
     value: ValueId,
     b: &mut Budget,
 ) -> CompileResult<Roots> {
-    if !b.task_borrowed_results || !matches!(f.values[value.0 as usize], Type::Address { .. }) {
+    if !b.task_sources() || !matches!(f.values[value.0 as usize], Type::Address { .. }) {
         return actual(holds, value, b);
     }
-    if b.store_option_results {
+    if b.masked_stored_tasks() {
         fee(b, 1)?;
         if !b
             .task_stored_coverage
@@ -148,7 +148,8 @@ fn transfer(
             arguments,
             port_bindings,
             ..
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             arguments,
             port_bindings,
             ..

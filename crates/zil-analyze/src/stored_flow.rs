@@ -3060,6 +3060,11 @@ fn transfer(
             }
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+            if b.task_failure_carriers
+                && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
+            {
+                return Err(failure("anonymous input Tuple must be moved from its actual parent field"));
+            }
             let ty = value_type(
                 f,
                 i.result.ok_or_else(|| failure("aggregate lacks result"))?,
@@ -4627,6 +4632,64 @@ fn windows(
                         });
                         access.check(pointer(*address)?, write, apart, b)?;
                     }
+                    InstructionKind::UnpackTuple { local, .. } if failure_unpack(f, i, b)? => {
+                        let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
+                        else {
+                            unreachable!()
+                        };
+                        let source = state
+                            .locals
+                            .get(local)
+                            .ok_or_else(|| failure("input view unpack has no live source"))?;
+                        fee(b, source.slots.len().saturating_add(life.slots.len()))?;
+                        if source.slots.len() != life.slots.len() {
+                            return Err(failure(
+                                "input view unpack omits or duplicates actual permissions",
+                            ));
+                        }
+                        for slot in &life.slots {
+                            let permission = source.slots.get(&slot.path).ok_or_else(|| {
+                                failure("input view unpack omits an original input")
+                            })?;
+                            if permission.targets.is_empty() {
+                                return Err(failure(
+                                    "input view unpack has no original input target",
+                                ));
+                            }
+                            access.check(
+                                permission,
+                                slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                apart,
+                                b,
+                            )?;
+                        }
+                    }
+                    InstructionKind::LoadStoredBorrow { storage, .. }
+                        if failure_projection(f, i, b)?.is_some() =>
+                    {
+                        let Type::Address { inner, .. } = value_type(f, *storage)? else {
+                            unreachable!()
+                        };
+                        let Type::BorrowedStorage { life, .. } = inner.as_ref() else {
+                            unreachable!()
+                        };
+                        access.check(pointer(*storage)?, true, apart, b)?;
+                        for slot in &life.slots {
+                            require_filled(&state, pointer(*storage)?, &slot.path, b)?;
+                            let actual = select(&state, pointer(*storage)?, &slot.path, b)?;
+                            if actual.targets.is_empty() {
+                                return Err(failure(
+                                    "failure projection has no original input target",
+                                ));
+                            }
+                            access.check(
+                                &actual,
+                                slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                apart,
+                                b,
+                            )?;
+                        }
+                    }
                     InstructionKind::LoadStoredBorrow {
                         storage,
                         path,
@@ -5027,12 +5090,28 @@ fn derive_cfg(
             let slot_ids = slot_loan_ids(module, f, &mut loans, b)?;
             let mut values = vec![Value::default(); f.values.len()];
             let mut outputs = vec![State::default(); f.blocks.len()];
+            // A reached-but-not-yet-solved predecessor is lattice bottom, not
+            // an executed move from an absent Task. The new failure carrier
+            // composes loops in both arms, so defer only genuinely unseeded
+            // blocks. Final access/resource passes still require live inputs.
+            let mut seeded = if b.task_failure_carriers {
+                fee(b, f.blocks.len())?;
+                vec![false; f.blocks.len()]
+            } else {
+                Vec::new()
+            };
             loop {
                 let mut local_changed = false;
                 for (bi, block) in f.blocks.iter().enumerate() {
                     fee(b, 1)?;
                     if !reachable[bi] {
                         continue;
+                    }
+                    if b.task_failure_carriers && bi != f.entry.0 as usize {
+                        fee(b, preds[bi].len().saturating_add(1))?;
+                        if !preds[bi].iter().any(|p| reachable[*p] && seeded[*p]) {
+                            continue;
+                        }
                     }
                     let mut state = if bi == f.entry.0 as usize {
                         state_copy(&entry, b)?
@@ -5065,6 +5144,10 @@ fn derive_cfg(
                     state_work(&outputs[bi], b)?;
                     if state != outputs[bi] {
                         outputs[bi] = state;
+                        local_changed = true;
+                    }
+                    if b.task_failure_carriers && !seeded[bi] {
+                        seeded[bi] = true;
                         local_changed = true;
                     }
                 }

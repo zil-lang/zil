@@ -461,7 +461,8 @@ pub(super) fn reserve_binding(
                         arguments,
                         port_bindings,
                         ..
-                    } | InstructionKind::TaskCreateOwned {
+                    }
+                    | InstructionKind::TaskCreateOwned {
                         arguments,
                         port_bindings,
                         ..
@@ -962,16 +963,23 @@ impl FunctionEmitter<'_> {
             })?;
             indices.push(m::Arg::new(m::Ty::Int(32), m::Val::Int(i128::from(*index))));
         }
-        if !matches!(
-            (current, mode),
-            (
-                Type::Address { mutable: false, .. },
-                StoredBorrowLoad::CopyShared
-            ) | (
-                Type::Address { mutable: true, .. },
-                StoredBorrowLoad::Reborrow { mutable: true }
-            ) | (Type::Address { .. }, StoredBorrowLoad::Take)
-        ) || self.value_type(result(i)?)? != current
+        let qualified_child_take = mode == StoredBorrowLoad::Take
+            && matches!(
+                current,
+                Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+            )
+            && matches!(self.value_type(result(i)?)?,Type::BorrowedStorage{storage,..} if storage.as_ref()==current);
+        if !qualified_child_take
+            && (!matches!(
+                (current, mode),
+                (
+                    Type::Address { mutable: false, .. },
+                    StoredBorrowLoad::CopyShared
+                ) | (
+                    Type::Address { mutable: true, .. },
+                    StoredBorrowLoad::Reborrow { mutable: true }
+                ) | (Type::Address { .. }, StoredBorrowLoad::Take)
+            ) || self.value_type(result(i)?)? != current)
         {
             return invalid(
                 "E-CODEGEN-STORAGE",

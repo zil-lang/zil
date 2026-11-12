@@ -119,6 +119,13 @@ pub(super) mod option_address;
 mod retained;
 mod task_address;
 mod task_failure;
+pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
+    if !b.task_failure_carriers {
+        return Ok(false);
+    }
+    let limits = b.limits.clone();
+    task_failure::shape(ty, &limits, b)
+}
 pub(super) fn failure_unpack(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
     task_failure::unpack(f, i, b)
 }
@@ -3090,6 +3097,11 @@ fn step(
             }
         }
         InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+            if b.task_failure_carriers
+                && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
+            {
+                return Err(err("anonymous input Tuple must be moved from its actual parent field"));
+            }
             let result = vt(
                 f,
                 i.result
@@ -4563,6 +4575,57 @@ fn windows(
                         address,
                         mutable: true,
                     } => checks.check(pointer(*address)?, true, requirements, b)?,
+                    InstructionKind::UnpackTuple { local, .. } if failure_unpack(f, i, b)? => {
+                        let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
+                        else {
+                            unreachable!()
+                        };
+                        let source = state
+                            .locals
+                            .get(local.0 as usize)
+                            .ok_or_else(|| err("input tuple has no live source"))?;
+                        b.spend(source.leaves.len().saturating_add(life.slots.len()))?;
+                        if source.leaves.len() != life.slots.len() {
+                            return Err(err("input tuple permission cardinality differs"));
+                        }
+                        for slot in &life.slots {
+                            let permission = leaf(source, &slot.path, b)?
+                                .ok_or_else(|| err("input tuple permission is absent"))?;
+                            if permission.sources.is_empty() {
+                                return Err(err("input tuple has no actual source"));
+                            }
+                            checks.check(
+                                permission,
+                                slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                requirements,
+                                b,
+                            )?;
+                        }
+                    }
+                    InstructionKind::LoadStoredBorrow { storage, .. }
+                        if failure_projection(f, i, b)?.is_some() =>
+                    {
+                        let Type::Address { inner, .. } = vt(f, *storage)? else {
+                            unreachable!()
+                        };
+                        let Type::BorrowedStorage { life, .. } = inner.as_ref() else {
+                            unreachable!()
+                        };
+                        checks.check(pointer(*storage)?, true, requirements, b)?;
+                        for row in &life.slots {
+                            require_filled(&state, pointer(*storage)?, &row.path, b)?;
+                            let permission = select(&state, pointer(*storage)?, &row.path, b)?;
+                            if permission.sources.is_empty() {
+                                return Err(err("failure projection has no actual source"));
+                            }
+                            checks.check(
+                                &permission,
+                                row.mode == StoredBorrowMode::ExclusiveAddress,
+                                requirements,
+                                b,
+                            )?;
+                        }
+                    }
                     InstructionKind::LoadStoredBorrow {
                         storage,
                         path,

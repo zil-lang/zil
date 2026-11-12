@@ -320,18 +320,56 @@ fn owned_constructor_raw_and_wire_reject_duplicate_debt_and_false_input_phase() 
     }
 }
 
-#[test]
-fn borrowed_input_failure_keeps_the_original_parent_loan_until_consumed() {
-    let text = r#"
+const BORROWED: &str = r#"
 fn worker(input:&mut i32)->i32 {*input+=1;task_yield();return *input;}
 fn main()->i32 {
     var number=41;
     match task_create_owned(worker,&mut number) {
-        .err(failure)=>{let (input,)=failure.inputs;*input+=1;return *input-42;},
+        .err(failure)=>{let (input,)=failure.inputs;*input+=1;let answer=*input;if number!=answer{return 91;}number=9;return number-9;},
         .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);number=9;return answer-number-33;}
     }
 }
 "#;
+const TWO_BORROWED: &str = r#"
+fn worker(first:&mut i32,second:&mut i32)->i32 {*first+=1;task_yield();*second+=2;return *first+*second;}
+fn main()->i32 {
+    var number=37;var other=43;
+    match task_create_owned(worker,&mut number,&mut other) {
+        .err(failure)=>{let (first,second)=failure.inputs;*first+=1;*second+=2;let answer=*first+*second;if number!=38{return 91;}if other!=45{return 92;}return answer-83;},
+        .ok(input)=>{var task=give input;var answer=0;loop{match task_poll(&mut task){.ok(p)=>{match p{Poll.Pending()=>{continue;},Poll.Ready(v)=>{answer=v;break;}}},.err(_)=>{break;}}}task_request_cancel(&mut task);loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}task_finish_destroy(give task);if number!=38{return 93;}if other!=45{return 94;}return answer-83;}
+    }
+}
+"#;
+#[test]
+fn two_same_type_borrowed_inputs_preserve_distinct_original_roots() {
+    for (text, success) in [
+        (TWO_BORROWED.to_owned(), true),
+        (
+            TWO_BORROWED.replace(
+                "worker,&mut number,&mut other",
+                "worker,&mut number,&mut number",
+            ),
+            false,
+        ),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status == ResultCategory::Success,
+            success,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+#[test]
+fn borrowed_input_failure_keeps_the_original_parent_loan_until_consumed() {
+    let text = BORROWED;
     for (text, expected) in [
         (text.to_owned(), true),
         (
@@ -396,4 +434,188 @@ fn owned_constructor_does_not_erase_a_live_owner_on_later_argument_early_return(
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn borrowed_failure_native_keeps_the_original_input_until_its_last_use() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case, text) in [BORROWED, TWO_BORROWED].into_iter().enumerate() {
+                let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../out/runs")
+                    .join(format!(
+                        "zil-create-owned-borrowed-{}-{backend:?}-{optimization:?}-{case}",
+                        std::process::id()
+                    ));
+                fs::create_dir_all(&dir).unwrap();
+                let clang = std::env::var_os("ZIL_CLANG")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| "clang".into());
+                let object = dir.join("observer.o");
+                let observer = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                "../../tests/language-readiness/task-thread-transfer/create-owned-borrowed-observer.c",
+            );
+                fs::write(dir.join("input.zil"), text).unwrap();
+                fs::copy(&observer, dir.join("observer.c")).unwrap();
+                let built = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(observer)
+                    .arg("-o")
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(built.status.success(), "{built:?}");
+                let quote =
+                    |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                for fail in [false, true] {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if fail {
+                        command.env("ZIL_TASK_ALLOC_FAIL", "1");
+                    }
+                    let output = command.output().unwrap();
+                    assert_eq!(
+                        output.status.code(),
+                        Some(0),
+                        "{backend:?}/{optimization:?}/{fail}: {output:?}"
+                    );
+                    assert_eq!(
+                        output.stdout,
+                        b"original borrowed input retained through constructor outcome\n"
+                    );
+                }
+                fs::write(
+                    dir.join("result.txt"),
+                    "two backends / optimization / allocation outcomes observed",
+                )
+                .unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn borrowed_failure_raw_and_wire_reject_missing_inputs_and_wrong_parent_projection() {
+    use zil_ir::{InstructionKind as I, LifeNominalActual, PlaceProjection as P, Type};
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let input = source(BORROWED);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for mutation in 0..4 {
+        let mut forged = typed.clone();
+        match mutation {
+            0 => {
+                let path = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        I::LoadStoredBorrow {
+                            path,
+                            mode: zil_ir::StoredBorrowLoad::Take,
+                            ..
+                        } => Some(path),
+                        _ => None,
+                    })
+                    .unwrap();
+                *path = vec![P::Field(0)];
+            }
+            1 => {
+                let fields = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        I::UnpackTuple { fields, .. } => Some(fields),
+                        _ => None,
+                    })
+                    .unwrap();
+                fields.clear();
+            }
+            2 => {
+                let ports = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find_map(|i| match &mut i.kind {
+                        I::TaskCreateOwned { port_bindings, .. } => Some(port_bindings),
+                        _ => None,
+                    })
+                    .unwrap();
+                ports.clear();
+            }
+            3 => {
+                let context = forged
+                    .life_instances
+                    .iter_mut()
+                    .find_map(|instance| {
+                        if instance.declaration != zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+                        {
+                            return None;
+                        }
+                        match instance.arguments.get_mut(1) {
+                            Some(LifeNominalActual::Type(Type::Task { retained_life, .. })) => {
+                                Some(retained_life)
+                            }
+                            _ => None,
+                        }
+                    })
+                    .unwrap();
+                context.ports.clear();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&forged, &limits).is_err(),
+            "Analyze mutation={mutation}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify mutation={mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire mutation={mutation}"
+        );
+    }
 }
