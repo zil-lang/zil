@@ -223,7 +223,7 @@ enum Value {
     K73(Box<DynPatternActual>),
     K74(Box<UnaryOp>),
     K75(Box<BinaryOp>),
-    K76(Box<String>),
+    K76(String),
 }
 impl Writer<'_> {
     fn dyn_recipe_node(&mut self, depth: usize) -> WireResult<()> {
@@ -1906,7 +1906,7 @@ impl Reader<'_> {
                     }
                     Kind::K76 => {
                         let _ = depth;
-                        values.push(Value::K76(Box::new(self.text()?)));
+                        values.push(Value::K76(self.text()?));
                     }
                     Kind::K77 => {
                         if self.boolean()? {
@@ -2783,13 +2783,13 @@ impl Reader<'_> {
                             },
                             7 => DynConstPattern::IntegerLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K76(value) => *value,
+                                    Value::K76(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),
                             8 => DynConstPattern::FloatLiteral(
                                 match fields.next().expect("recipe field") {
-                                    Value::K76(value) => *value,
+                                    Value::K76(value) => value,
                                     _ => unreachable!("recipe field grammar"),
                                 },
                             ),

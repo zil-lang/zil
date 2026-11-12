@@ -9,35 +9,35 @@ pub(super) fn encode_dyn_vtable_id(b: &mut impl FingerprintSink, value: &DynVtab
     encode_u32(b, value.index);
 }
 pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDeclaration) {
-    b.push(u8::from((&value.direct_supertraits).is_some()));
+    b.push(u8::from(value.direct_supertraits.is_some()));
     if let Some(item) = &value.direct_supertraits {
         encode_len(b, (item).len());
         for item in item {
             encode_dyn_self_pattern(b, item);
         }
     }
-    b.push(u8::from((&value.requirements).is_some()));
+    b.push(u8::from(value.requirements.is_some()));
     if let Some(item) = &value.requirements {
         encode_len(b, (item).len());
         for item in item {
             encode_dyn_obligation(b, item);
         }
     }
-    b.push(u8::from((&value.associated_definitions).is_some()));
+    b.push(u8::from(value.associated_definitions.is_some()));
     if let Some(item) = &value.associated_definitions {
         encode_len(b, (item).len());
         for item in item {
             encode_dyn_associated_definition(b, item);
         }
     }
-    b.push(u8::from((&value.method_signatures).is_some()));
+    b.push(u8::from(value.method_signatures.is_some()));
     if let Some(item) = &value.method_signatures {
         encode_len(b, (item).len());
         for item in item {
             encode_dyn_method_recipe(b, item);
         }
     }
-    b.push(u8::from((&value.method_definitions).is_some()));
+    b.push(u8::from(value.method_definitions.is_some()));
     if let Some(item) = &value.method_definitions {
         encode_len(b, (item).len());
         for item in item {
@@ -165,11 +165,11 @@ pub(super) fn encode_dyn_entry(b: &mut impl FingerprintSink, value: &DynEntry) {
     encode_u32(b, value.function.0);
 }
 pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable) {
-    b.push(u8::from((&value.self_life).is_some()));
+    b.push(u8::from(value.self_life.is_some()));
     if let Some(item) = &value.self_life {
         encode_storage_shape(b, item);
     }
-    b.push(u8::from((&value.implementation_witnesses).is_some()));
+    b.push(u8::from(value.implementation_witnesses.is_some()));
     if let Some(item) = &value.implementation_witnesses {
         encode_len(b, (item).len());
         for item in item {
