@@ -139,8 +139,8 @@
 +      ->zilHasRegisteredAnalysisID(Key);
 +}
 +extern "C" LLVM_ABI void ZilLLVMClearFunctionAnalyses(void *Manager, void *IR) {
-+  static_cast<llvm::FunctionAnalysisManager *>(Manager)->invalidate(
-+      *static_cast<llvm::Function *>(IR), llvm::PreservedAnalyses::none());
++  static_cast<llvm::FunctionAnalysisManager *>(Manager)->clear(
++      *static_cast<llvm::Function *>(IR), static_cast<llvm::Function *>(IR)->getName());
 +}
 +extern "C" LLVM_ABI void ZilLLVMRequireFunctionAnalysisKey(void *Manager,
 +                                                        void *IR,

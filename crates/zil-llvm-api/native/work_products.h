@@ -38,6 +38,9 @@ int ZilNativeProductsFailed(const void *request);
 void *ZilNativeProductsFinish(void *request, struct ZilNativeProductStats *stats);
 void ZilNativeProductsAbort(void *request, struct ZilNativeProductStats *stats);
 void ZilNativeProductsDispose(void *products);
+// Reentrant ordinary compilations temporarily suspend the outer TLS hooks.
+void *ZilNativeProductsSuspend(void);
+void ZilNativeProductsResume(void *previous_hooks);
 #ifdef __cplusplus
 }
 #endif
