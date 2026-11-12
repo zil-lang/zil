@@ -169,6 +169,7 @@ pub(super) fn store_option_root(
     f: &TypedFunction,
     result_type: &Type,
     source: &crate::stored_flow::Source,
+    byte_payload: bool,
     budget: &mut Budget,
 ) -> Check<Root> {
     if source.heap_element.is_none() {
@@ -288,7 +289,14 @@ pub(super) fn store_option_root(
             )
         })?;
     }
+    let descriptor_head = match result_type {
+        Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer => {
+            Some(Type::Managed(inner.clone()))
+        }
+        _ => None,
+    };
     let expected = match result_type {
+        Type::Desc(_) if descriptor_head.is_some() => descriptor_head.as_ref().unwrap(),
         Type::Address {
             mutable: false,
             inner,
@@ -328,7 +336,14 @@ pub(super) fn store_option_root(
         }
     };
     resources::charge_payload(expected, budget)?;
-    if pointee != expected {
+    // A payload view points into the ByteBuffer allocation. Its Store window
+    // deliberately anchors the owning head, whose retirement invalidates that
+    // allocation. Only private actual loan ancestry authorizes this domain.
+    let byte_domain = byte_payload
+        && matches!(pointee, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)
+        && (expected == &Type::U8
+            || matches!(expected, Type::Slice { element } if element.as_ref() == &Type::U8));
+    if pointee != expected && !byte_domain {
         return Err(reject(
             "E-VERIFY-STORE-WINDOW",
             None,
@@ -396,11 +411,15 @@ pub(super) fn overlaps_for(
             let (mut a, mut b) = (*a, *b);
             match (a, b) {
                 (Root::Field(l, i), Root::Projection(r, ..))
-                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..)) if l == r => {
+                | (Root::Field(l, i), Root::Window(HoldRoot::Local(r), ..))
+                    if l == r =>
+                {
                     a = mixed_root(f, l, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
                 }
                 (Root::Projection(l, ..), Root::Field(r, i))
-                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i)) if l == r => {
+                | (Root::Window(HoldRoot::Local(l), ..), Root::Field(r, i))
+                    if l == r =>
+                {
                     b = mixed_root(f, r, &[zil_ir::PlaceProjection::Field(i)], false, budget)?;
                 }
                 _ => {}

@@ -3541,7 +3541,8 @@ fn transfer(
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+        InstructionKind::DescribeAddress { address }
+            if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
@@ -3569,7 +3570,7 @@ fn transfer(
             out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
-            out.pointer = owned_byte_views::transfer(module, f, i, b)?;
+            out.pointer = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3705,6 +3706,9 @@ fn transfer(
                 Some(i.span),
             )]);
         }
+    }
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+        out.store_description = permission;
     }
     if let Some(result) = i.result
         && b.static_utf8
@@ -5139,7 +5143,16 @@ fn derive_cfg(
                         )?);
                     }
                 }
-                let root = roots(value, b)?;
+                let mut root = roots(value, b)?;
+                if b.store_option_results
+                    && b.shared_byte_borrow
+                    && matches!(&f.values[id], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                {
+                    for target in &value.store_description.targets {
+                        ordered(b, root.len(), target_width(target))?;
+                        root.insert(target.clone());
+                    }
+                }
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
