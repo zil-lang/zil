@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "manifest": {
+    "sha256": "ee247cdaa91853e5a418467ef72df7bbad4e96723c33ef1eda8a02873a06dc25",
+    "bytes": 342454
+  },
+  "verifier": {
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a",
+    "bytes": 21146
+  },
+  "archive_sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
+  "scope": "Post-v9 default workspace c18 gate; retention/native/CT/driver initial failure and final successful gates; closed-BD diagnostics and complete LLCAS/inventory negative evidence; complete real425 diagnostic profile07 measured5bf/c584+SDK15. Later d66 CT71/driver207 is test-only and is not the measured binary. F14 findings and static function-byte proof remain bounded reviews. Four prior433/c35 materializations retired only after exact verified-v9/f541 inventory proof; all prior raw remains completely fixed-remote recoverable. No new formal speed/Rust acceptance or full LLVM incrementality claim.",
+  "source_commits": {
+    "closed_BD": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "initial_gate": "0d1345029e153d6acfc2c3bb521dd146e2683b06",
+    "post_CTdelta": "d66f0745636214484dd6d4e13fa249b8064fb842",
+    "profile07": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
+    "retention_gate": "c341e742b41039efad49a28cd25facc4f3edd9ce",
+    "workspace_gate": "c18dd8efdf3061521c81d2b7590f79681930e8e9"
+  },
+  "limits": "No new native/compiler execution during restore. Fixed-commit HTTPS parts plus all restored regular file hashes/modes are verified. Profile07 measured source5bf is distinct from later test-only d66. Prior433 formal data remains available from parent archivev9 at fixedf541."
+}

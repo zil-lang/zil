@@ -1,0 +1,7 @@
+# Full push raw evidence v10
+
+Post-v9 default workspace c18 gate; retention/native/CT/driver initial failure and final successful gates; closed-BD diagnostics and complete LLCAS/inventory negative evidence; complete real425 diagnostic profile07 measured5bf/c584+SDK15. Later d66 CT71/driver207 is test-only and is not the measured binary. F14 findings and static function-byte proof remain bounded reviews. Four prior433/c35 materializations retired only after exact verified-v9/f541 inventory proof; all prior raw remains completely fixed-remote recoverable. No new formal speed/Rust acceptance or full LLVM incrementality claim.
+
+Use `python3 restore_https.py FULL_ARCHIVE_COMMIT --receipt /tmp/v10-restore.json` with the complete remote Git commit recorded by the recovery receipt. Downloads use HTTPS fixed-commit paths only; all part, complete archive, restored byte and permission identities are checked. No compiler execution is performed.
+
+Prior433 formal records and the original Cargo false rejection are fully preserved in archivev9 at f5413f8c2fdcee1d5f903624ac954ef106592789. This incremental package retains recovery receipts and exact retirement inventory/tombstones, not a second copy of those retired datasets. Profile07 and closed-BD remain diagnostics rather than formal speed/Rust acceptance. Source root is /workspace, so restored paths retain zil-push-main/ and .zil-environment/ prefixes.
