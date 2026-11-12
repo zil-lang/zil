@@ -895,4 +895,28 @@ fn anonymous_compound_source_keeps_joint_scope_at_actual_function_header(){
  assert!(contract.bindings.is_empty());
  let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Types,..CompileOptions::default()});
  assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
+
+#[test]
+fn anonymous_compound_inference_and_default_helpers_keep_distinct_header_emissions(){
+ let text=include_str!("../../../tests/fixtures/qualified-values/anonymous-compound.zil");
+ let inferred=text.replace("identity::<(&'a i32,&'b i32)>","identity");
+ let defaults="fn echo<life a>(value:(&'a i32,&'a i32))->(&'a i32,&'a i32){return value}struct Defaults{n:i32=42}fn main()->i32{let value=Defaults{};return value.n-42}";
+ for (label,text) in [("defaults",defaults),("inferred",inferred.as_str())]{
+  let source=SourceUnit::new(FileId(0),ModuleId(0),"anonymous-debug.zil",text);
+  let syntax=zil_syntax::parse(&source).into_result().unwrap();
+  let core=zil_expand::expand(&source,&syntax).unwrap();
+  let qualified=core.functions.iter().find(|function|matches!(function.return_type,zil_ir::Type::BorrowedStorage{..})).unwrap();
+  assert_eq!(qualified.storage_life.as_ref().unwrap().fixed_binder_count,if label=="defaults"{1}else{2});
+  if label=="defaults"{
+   let helper=core.functions.iter().find(|function|function.name.starts_with("$field_default_")).unwrap();
+   assert!(helper.parameters.is_empty());
+   assert_eq!(helper.return_type,zil_ir::Type::I32);
+   assert!(helper.storage_life.is_none());
+  }
+  let report=zil_driver::compile_source(&SourceUnit::new(FileId(0),ModuleId(0),"anonymous-header-emission.zil",text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+  assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+ }
 }

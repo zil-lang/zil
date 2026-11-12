@@ -172,6 +172,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            // Inferred generic actuals need the same source-class machinery as
+            // an explicit Tuple TypeApply. This only selects bounded producer
+            // work; actual type, class and source permission proofs stay separate.
+            if !self.binders.is_empty() && matches!(expression.kind,s::ExprKind::Tuple(_)) {
+                self.budget.note_stored_lifetimes();
+            }
             let old_type_argument = self.direct_type_argument;
             self.direct_type_argument = matches!(expression.kind, s::ExprKind::TypeApply { .. });
             let result = ct_selection::walk_expression(self, expression, depth);
