@@ -15,6 +15,7 @@ fn keep(actual: CallableKind, declared: CallableKind) -> Raw {
     function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     function.callable_contract.as_mut().unwrap().roles[0].cleanup = CallableCleanup::Returned;
     function.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Parameter(0),
         lending_captures: vec![],
@@ -947,6 +948,7 @@ fn owned_environment_returns_its_remaining_responsibility() {
     function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     function.callable_contract.as_mut().unwrap().roles[0].cleanup = CallableCleanup::Returned;
     function.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: CallableReturnSource::Parameter(0),
         lending_captures: vec![],

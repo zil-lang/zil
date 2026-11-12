@@ -90,6 +90,7 @@ fn base(kind: CallableKind) -> TypedModule {
         resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
+            life: None,
             capture_sources: Some(Vec::new()),
             source: CallableReturnSource::Parameter(1),
             closure: ClosureId(0),

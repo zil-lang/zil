@@ -280,6 +280,10 @@ fn signatures(
                     .map_err(|e| vec![e])?;
             }
         }
+        if let Some(bound) = &f.callable_return {
+            inference::charge_returned_snapshot(bound, f.span, limits, &mut foreign_work)
+                .map_err(|e| vec![e])?;
+        }
         if signatures
             .insert(
                 f.name.clone(),

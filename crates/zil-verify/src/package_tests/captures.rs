@@ -934,6 +934,7 @@ fn complete_package_factory_input_and_owned_cleanup_contract_are_checked() {
         },
     );
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        life: None,
         capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),

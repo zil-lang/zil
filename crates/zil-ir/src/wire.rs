@@ -1129,6 +1129,7 @@ impl<'a> Writer<'a> {
         }
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
+            self.storage_contract(&c.life)?;
             self.boolean(c.capture_sources.is_some())?;
             if let Some(bindings) = &c.capture_sources {
                 self.count(bindings.len(), self.limits.max_nodes)?;
@@ -3576,6 +3577,7 @@ impl<'a> Reader<'a> {
         };
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
+                life: self.storage_contract()?,
                 capture_sources: if self.boolean()? {
                     let count = self.count(self.limits.max_nodes, 9)?;
                     let mut bindings = Vec::with_capacity(count);

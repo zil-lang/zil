@@ -1962,6 +1962,19 @@ pub(super) fn preflight(
         }
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
+            if let Some(life) = &contract.life {
+                let work = zil_ir::storage_relation_metadata_work(
+                    life,
+                    limits.max_nodes,
+                    limits.max_call_depth,
+                    budget.remaining(),
+                )
+                .ok_or_else(|| exhausted("callable return relation metadata"))?;
+                budget.input(work, "callable return relation")?;
+                return Err(bad(
+                    "callable return relation requires independent concrete environment proof",
+                ));
+            }
             // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
             budget.input(1, "callable source presence")?;
             if let Some(bindings) = &contract.capture_sources {

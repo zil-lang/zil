@@ -800,6 +800,7 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            life: None,
             capture_sources: Some(Vec::new()),
             source: zil_ir::CallableReturnSource::Fresh,
             lending_captures: Vec::new(),
