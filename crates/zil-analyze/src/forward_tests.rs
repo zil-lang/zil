@@ -136,7 +136,7 @@ fn base(kind: CallableKind) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![callback, keep],
+        functions: vec![callback, keep].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: ClosureId(0),

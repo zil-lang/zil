@@ -1630,6 +1630,15 @@ fn infer(
     )
 }
 
+pub(super) fn infer_product_function(
+    module: &TypedModule,
+    function: &TypedFunction,
+    graph: &crate::CfgFacts,
+    budget: &mut Budget,
+) -> CompileResult<crate::HoldRows> {
+    infer(module, &[], function, &graph.0, &graph.1, false, budget).map(Into::into)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn infer_with_private(
     module: &TypedModule,
@@ -3627,13 +3636,16 @@ fn infer_module_inner(
                 let execute = |budget: &mut Budget| {
                     infer(module, &[], f, preds, reachable, store_windows, budget)
                 };
-                match reuse
+                let product_before = budget.remaining();
+                let result = match reuse
                     .as_deref_mut()
                     .and_then(|reuse| reuse.candidates.as_deref_mut())
                 {
                     Some(candidates) => candidates.holds(f, budget, execute),
                     None => execute(budget).map(Into::into),
-                }
+                };
+                budget.record_product(Some(f.id.0 as usize), 4, product_before);
+                result
             })
             .collect();
     }
@@ -4255,7 +4267,8 @@ mod product_parameter_dependency_tests {
                         arguments: vec![],
                     })],
                 ),
-            ],
+            ]
+            .into(),
         };
         let limits = Limits::default();
         assert_eq!(

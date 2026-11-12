@@ -425,7 +425,7 @@ mod composite_root_tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"POD composite raw"),
             target: TargetProfile::host_llvm(),
-            functions: vec![],
+            functions: vec![].into(),
             closures: vec![],
             resources: vec![ResourceDefinition {
                 name,

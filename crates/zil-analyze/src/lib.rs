@@ -34,6 +34,7 @@ mod owned_callbacks;
 mod ownership_store;
 mod place_replacements;
 mod pod_store;
+mod product;
 mod registration;
 #[cfg(test)]
 mod resource_tests;
@@ -103,9 +104,22 @@ fn analyze_budgeted(
     {
         candidates.prepare(module, budget);
     }
-    let mut plan = CandidatePlan::empty_for(module);
+    let mut plan = if budget.product_mode {
+        CandidatePlan {
+            module_fingerprint: module.structural_fingerprint(),
+            target_fingerprint: module.target.fingerprint(),
+            schema_version: module.schema_version,
+            functions: PersistentVec::new(),
+            origins: Vec::new(),
+            responsibilities: Vec::new(),
+            unsupported: Vec::new(),
+        }
+    } else {
+        CandidatePlan::empty_for(module)
+    };
     let mut hold_graphs = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
+        let product_before = budget.remaining();
         budget.spend(1, "function analysis")?;
         if f.foreign.is_some() {
             retained::check_function(module, f, &[], budget)?;
@@ -118,6 +132,7 @@ fn analyze_budgeted(
                 blocks: Vec::new().into(),
                 holds: Vec::new().into(),
             });
+            budget.record_product(Some(f.id.0 as usize), 2, product_before);
             continue;
         }
         let initialization = match reuse.as_deref_mut() {
@@ -147,6 +162,7 @@ fn analyze_budgeted(
             blocks,
             holds: Vec::new().into(),
         });
+        budget.record_product(Some(f.id.0 as usize), 2, product_before);
     }
     let mut stored_holds = None;
     if budget.stored_borrows || budget.task_borrowed_results || budget.store_option_results {
@@ -220,6 +236,7 @@ fn analyze_budgeted(
     tasks::check(module, budget)?;
     registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
+        let product_before = budget.remaining();
         if let Some(candidates) = reuse
             .as_deref_mut()
             .and_then(|reuse| reuse.candidates.as_deref_mut())
@@ -228,6 +245,7 @@ fn analyze_budgeted(
         } else {
             scopes::check(module, function, package, budget)?;
         }
+        budget.record_product(Some(function.id.0 as usize), 3, product_before);
     }
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
@@ -705,7 +723,8 @@ mod tests {
                 .into(),
                 entry: BlockId(0),
                 span: s(),
-            }],
+            }]
+            .into(),
             unsupported: vec![],
         }
     }

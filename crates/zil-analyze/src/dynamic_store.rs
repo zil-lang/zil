@@ -710,7 +710,7 @@ mod qualification_tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"203 producer raw qualification"),
             target: TargetProfile::host_llvm(),
-            functions: vec![],
+            functions: vec![].into(),
             closures,
             resources: vec![],
             unsupported: vec![],

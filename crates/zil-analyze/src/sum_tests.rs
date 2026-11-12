@@ -191,7 +191,7 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::default(),
-        functions: vec![f],
+        functions: vec![f].into(),
         closures: vec![],
         resources: vec![ResourceDefinition {
             name: "Token".into(),
