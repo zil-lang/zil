@@ -14,7 +14,14 @@ namespace zil {
 bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
                    const std::vector<const void *> &Keys, std::string &Out) {
   using namespace llvm;
-  Out.clear(); raw_string_ostream OS(Out);
+  Out.clear();
+  // Refuse unknown result domains before serializing supported prefixes.
+  for (const void *K : Keys)
+    if (K != PassInstrumentationAnalysis::ID() && K != TargetIRAnalysis::ID() &&
+        K != TargetLibraryAnalysis::ID() && K != DominatorTreeAnalysis::ID() &&
+        K != PostDominatorTreeAnalysis::ID() && K != AssumptionAnalysis::ID() &&
+        K != LoopAnalysis::ID() && K != ShouldNotRunFunctionPassesAnalysis::ID()) return false;
+  raw_string_ostream OS(Out);
   // Preserve result-list order: dependencies and lazy availability can observe
   // it. The enclosing product separately binds exact IR, BB numbering, globals,
   // module metadata, target machine and every adapter-controlled pipeline flag.
