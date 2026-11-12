@@ -870,8 +870,10 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
-    // Only the Option profile creates this private description ledger.
-    if b.masked_stored_tasks() {
+    // Every selected head consumer must retain the descriptor component at
+    // SSA and CFG joins. Its actual address/parents were derived by step;
+    // a work-profile flag never supplies a permission itself.
+    if b.store_descriptions() || b.replacements {
         changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     }
     changed |= task_address::join(to, from, b)?;
