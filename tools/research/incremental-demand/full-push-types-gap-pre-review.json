@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "source_commit": "94c985dcd5dd2186101172bae072b40921112ad8",
+  "source_tree": "0d05ce7955cc34e7799d75346e80711bd784b391",
+  "reviewer": "independent non-author /root/audit",
+  "status": "static_no_confirmed_production_blocker_validation_pending_failed_fixture",
+  "scope": "Bridge missing successful raw producer parent to retained successful Types rows by complete current sealed inputs; normal row input-token maintenance and all-module implementation fingerprints",
+  "file_sha256": {
+    "crates/zil-types/src/push.rs": "df4fe1c17e09139e6ba2af651226fe01ce88d466b0fd2b639e5a9f748aaca21f",
+    "crates/zil-driver/src/push_pipeline_tests.rs": "2a759a61eeddb391816ba66880d5cb6a11d602de283ca3a6818fc9e67e92e746",
+    "crates/zil-expand/src/incremental.rs": "f0e92d6a2bbbfbce55fb4444f19a5b331db38568223d23538378425fa6393694"
+  },
+  "method": "Read exact source diff, complete try_sparse/work/recording/aggregate fits/publish paths and producer token mint/preserve rules. No compiler, Cargo/native test, benchmark, source write or commit by reviewer. Independently read raw root initial failed test evidence.",
+  "findings": [],
+  "static_conclusions": [
+    "Discontinuous bridge requires exact original user Limits/target/namespace/root/identity inference and full InputContext identity. It scans every current row, module location/id, function name, declaration owner and producer-minted input token; it does not use last raw delta as a complete difference set.",
+    "Same token with contradictory function NodeId declines; changed token invokes original fresh scalar/name/Builder/signature reader checks. Same token with changed function span invokes original current-position rebase. Missing token/owner/binding declines to original complete checker.",
+    "Normal cold Recording and all processed sparse work rows store current private input token. Untouched rows whose input token changes conservatively compare unequal at a later bridge, causing extra fresh checks; old values are not promoted merely by current batch context or public digest.",
+    "Bridge keeps signature context exact, so no final-delta-only signature fanout is needed. Normal continuous signature handling remains original. All module implementation fingerprints refresh from actual current input across a gap, including modules omitted from last raw delta.",
+    "Persistent rows/costs/readers and program update speculatively; original cumulative Context.fits remains before publication. Any sparse error/budget/rebase uncertainty returns None to the complete current checker for original first error. Failed fresh checking cannot replace the successful prior context."
+  ],
+  "validation": {
+    "status": "not accepted as a passing gate; root fixing new fixture",
+    "evidence": {
+      ".log": {
+        "path": "/workspace/zil-push-main/out/runs/push-types-library-tests-01.log",
+        "sha256": "ac8b7424ba7fadc07be29bd0d894d589649a31671df780d3f9b87b14d30816f7",
+        "bytes": 11040
+      },
+      "results": [
+        "test result: FAILED. 100 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.03s"
+      ],
+      ".json": {
+        "path": "/workspace/zil-push-main/out/runs/push-types-library-tests-01.json",
+        "sha256": "104379dcd34306a5a855b14ba94b8136dfe9478f0a3d887de6998829f103bf03",
+        "bytes": 324
+      },
+      "command_receipt": {
+        "source": "94c985dcd5dd2186101172bae072b40921112ad8",
+        "tree": "0d05ce7955cc34e7799d75346e80711bd784b391",
+        "source_after": "94c985dcd5dd2186101172bae072b40921112ad8",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-types",
+          "--lib"
+        ],
+        "exit_code": 101,
+        "elapsed_ns": 16841047229
+      },
+      ".exit": {
+        "path": "/workspace/zil-push-main/out/runs/push-types-library-tests-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+        "bytes": 4
+      }
+    },
+    "failure": "100 passed/1 failed, exit101. New gap multi-module fixture expected final changed_modules [0], observed [0,1] at push.rs1818; therefore it has not yet constructed the claimed hidden intervening-module edit. Parent requires fixing construction while retaining strict expectation; no expectation weakening accepted.",
+    "not_claimed": [
+      "current driver pass (driver11 log is older fc4 source and excluded)",
+      "new strict Clippy/fmt",
+      "release10",
+      "real error-recovery performance",
+      "full workspace or complete push termination"
+    ]
+  }
+}

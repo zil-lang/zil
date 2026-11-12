@@ -1,0 +1,973 @@
+{
+  "source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+  "tree": "d41dffebd53bace0a66592f3f5fde00bfbbe569a",
+  "binary_sha256": "66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7",
+  "main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "scope": "Sequential single-block diagnostics, original425/CGU16/O2/jobs1/default budgets. Not formal Rust ratios, confidence intervals or isolated cross-window attribution. Current objects and executables fully checked. Raw folders have been retired only after fixed-v13 fresh HTTPS recovery and exact local manifest checks; metadata retained at cleanup06.",
+  "profiles": [
+    {
+      "original_raw": "out/runs/full-push-native-profile-09",
+      "local_metadata": "out/evidence/checkpoint-cleanup-06/full-push-native-profile-09-metadata",
+      "rows_sha256": "35c6a70f22c229cd0a58653a599af526f833f94a62efa076bae758c0c6dab55d",
+      "policy": "original-default-control",
+      "rows": 34,
+      "native_executions": 180,
+      "strong_pairs": 15,
+      "qualification_passed": true,
+      "measured": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "wall_ms": 5956.519215,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 179465205,
+            "parse_ns": 0,
+            "optimize_ns": 1207141879,
+            "emit_ns": 2058897617,
+            "total_ns": 3608900021
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "wall_ms": 7215.714361,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 240171109,
+            "parse_ns": 0,
+            "optimize_ns": 1514928532,
+            "emit_ns": 2740444007,
+            "total_ns": 4730490556
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 0,
+            "asm_printer_runs": 424,
+            "available": 16,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 117996532,
+            "ir_key_bytes": 4220499,
+            "ir_key_ns": 66473884,
+            "ir_pack_ns": 43723525,
+            "ir_parse_ns": 0,
+            "ir_replay_bytes": 0,
+            "ir_replay_ns": 0,
+            "ir_snapshot_bytes": 1834586,
+            "ir_unpack_ns": 0,
+            "machine_function_executions": 424,
+            "machine_function_reuses": 0,
+            "machine_pass_skips": 0,
+            "mir_capture_ns": 319672227,
+            "mir_key_bytes": 7465247,
+            "mir_key_ns": 139800363,
+            "mir_parse_ns": 0,
+            "mir_replay_bytes": 0,
+            "mir_restore_validate_ns": 0,
+            "mir_snapshot_bytes": 11473146,
+            "optimizer_cgscc_pass_executions": 3392,
+            "optimizer_function_stage_executions": 3816,
+            "optimizer_function_stage_reuses": 0,
+            "optimizer_module_pass_executions": 528,
+            "retained_bytes": 54515171,
+            "tli_projection_builds": 16,
+            "tli_projection_reuses": 274,
+            "world_projection_direct": 928,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            425,
+            0
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "wall_ms": 53.705156,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 690323
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "wall_ms": 483.100881,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 130350763
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "private",
+          "wall_ms": 1499.763637,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 16249450,
+            "parse_ns": 0,
+            "optimize_ns": 109883812,
+            "emit_ns": 198692093,
+            "total_ns": 457802670
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "private",
+          "wall_ms": 464.474372,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 21426651,
+            "parse_ns": 0,
+            "optimize_ns": 139369784,
+            "emit_ns": 80159808,
+            "total_ns": 263567930
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 13,
+            "asm_printer_runs": 42,
+            "available": 1,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 2851564,
+            "ir_key_bytes": 269096,
+            "ir_key_ns": 5068087,
+            "ir_pack_ns": 656323,
+            "ir_parse_ns": 859967,
+            "ir_replay_bytes": 11816,
+            "ir_replay_ns": 2118592,
+            "ir_snapshot_bytes": 57079,
+            "ir_unpack_ns": 353930,
+            "machine_function_executions": 3,
+            "machine_function_reuses": 39,
+            "machine_pass_skips": 4875,
+            "mir_capture_ns": 714741,
+            "mir_key_bytes": 827811,
+            "mir_key_ns": 15307208,
+            "mir_parse_ns": 15069828,
+            "mir_replay_bytes": 1118536,
+            "mir_restore_validate_ns": 21974278,
+            "mir_snapshot_bytes": 27663,
+            "optimizer_cgscc_pass_executions": 336,
+            "optimizer_function_stage_executions": 376,
+            "optimizer_function_stage_reuses": 2,
+            "optimizer_module_pass_executions": 33,
+            "retained_bytes": 5474789,
+            "tli_projection_builds": 1,
+            "tli_projection_reuses": 18,
+            "world_projection_direct": 47,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "multi",
+          "wall_ms": 749.557331,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 29238887,
+            "parse_ns": 0,
+            "optimize_ns": 220850644,
+            "emit_ns": 130366539,
+            "total_ns": 427033582
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 39,
+            "asm_printer_runs": 63,
+            "available": 2,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 2652065,
+            "ir_key_bytes": 530381,
+            "ir_key_ns": 10207422,
+            "ir_pack_ns": 658967,
+            "ir_parse_ns": 1519676,
+            "ir_replay_bytes": 35288,
+            "ir_replay_ns": 5782400,
+            "ir_snapshot_bytes": 57519,
+            "ir_unpack_ns": 1010494,
+            "machine_function_executions": 5,
+            "machine_function_reuses": 58,
+            "machine_pass_skips": 7250,
+            "mir_capture_ns": 1758803,
+            "mir_key_bytes": 1169578,
+            "mir_key_ns": 22106407,
+            "mir_parse_ns": 25064689,
+            "mir_replay_bytes": 1663011,
+            "mir_restore_validate_ns": 33580512,
+            "mir_snapshot_bytes": 58302,
+            "optimizer_cgscc_pass_executions": 504,
+            "optimizer_function_stage_executions": 561,
+            "optimizer_function_stage_reuses": 6,
+            "optimizer_module_pass_executions": 66,
+            "retained_bytes": 8190726,
+            "tli_projection_builds": 2,
+            "tli_projection_reuses": 36,
+            "world_projection_direct": 72,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            63,
+            362
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "multi",
+          "wall_ms": 1760.794415,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 24065182,
+            "parse_ns": 0,
+            "optimize_ns": 174309743,
+            "emit_ns": 308363329,
+            "total_ns": 639730560
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "broad",
+          "wall_ms": 5009.487249,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 165135447,
+            "parse_ns": 0,
+            "optimize_ns": 1156185899,
+            "emit_ns": 2083662181,
+            "total_ns": 3559808077
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "broad",
+          "wall_ms": 6664.267055,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 212918182,
+            "parse_ns": 0,
+            "optimize_ns": 1461169335,
+            "emit_ns": 2662314332,
+            "total_ns": 4558176810
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 0,
+            "asm_printer_runs": 424,
+            "available": 16,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 108277739,
+            "ir_key_bytes": 4220685,
+            "ir_key_ns": 59250455,
+            "ir_pack_ns": 38295868,
+            "ir_parse_ns": 0,
+            "ir_replay_bytes": 0,
+            "ir_replay_ns": 0,
+            "ir_snapshot_bytes": 1837332,
+            "ir_unpack_ns": 0,
+            "machine_function_executions": 424,
+            "machine_function_reuses": 0,
+            "machine_pass_skips": 0,
+            "mir_capture_ns": 299150291,
+            "mir_key_bytes": 7383892,
+            "mir_key_ns": 137352947,
+            "mir_parse_ns": 0,
+            "mir_replay_bytes": 0,
+            "mir_restore_validate_ns": 0,
+            "mir_snapshot_bytes": 11592181,
+            "optimizer_cgscc_pass_executions": 3392,
+            "optimizer_function_stage_executions": 3816,
+            "optimizer_function_stage_reuses": 0,
+            "optimizer_module_pass_executions": 528,
+            "retained_bytes": 54822406,
+            "tli_projection_builds": 16,
+            "tli_projection_reuses": 208,
+            "world_projection_direct": 928,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            420,
+            5
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "positions",
+          "wall_ms": 791.5439,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 819177
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": [
+            425,
+            0
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "positions",
+          "wall_ms": 1405.188079,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 121092354
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "error",
+          "wall_ms": 405.423138,
+          "status": "SafeReject",
+          "native_receipt_scope_ns": {
+            "builder_ns": null,
+            "parse_ns": null,
+            "optimize_ns": null,
+            "emit_ns": null,
+            "total_ns": null
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "error",
+          "wall_ms": 46.964556,
+          "status": "SafeReject",
+          "native_receipt_scope_ns": {
+            "builder_ns": null,
+            "parse_ns": null,
+            "optimize_ns": null,
+            "emit_ns": null,
+            "total_ns": null
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "recovery",
+          "wall_ms": 1565.686202,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 35441212,
+            "parse_ns": 0,
+            "optimize_ns": 241714281,
+            "emit_ns": 177657770,
+            "total_ns": 507490135
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 13,
+            "asm_printer_runs": 42,
+            "available": 1,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 5729123,
+            "ir_key_bytes": 269043,
+            "ir_key_ns": 12886404,
+            "ir_pack_ns": 988511,
+            "ir_parse_ns": 1131505,
+            "ir_replay_bytes": 11816,
+            "ir_replay_ns": 3961394,
+            "ir_snapshot_bytes": 57383,
+            "ir_unpack_ns": 740099,
+            "machine_function_executions": 3,
+            "machine_function_reuses": 39,
+            "machine_pass_skips": 4875,
+            "mir_capture_ns": 1662010,
+            "mir_key_bytes": 828427,
+            "mir_key_ns": 40705399,
+            "mir_parse_ns": 36640461,
+            "mir_replay_bytes": 1118536,
+            "mir_restore_validate_ns": 36294482,
+            "mir_snapshot_bytes": 29148,
+            "optimizer_cgscc_pass_executions": 336,
+            "optimizer_function_stage_executions": 376,
+            "optimizer_function_stage_reuses": 2,
+            "optimizer_module_pass_executions": 33,
+            "retained_bytes": 5479372,
+            "tli_projection_builds": 1,
+            "tli_projection_reuses": 18,
+            "world_projection_direct": 47,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "recovery",
+          "wall_ms": 2288.009898,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 29216157,
+            "parse_ns": 0,
+            "optimize_ns": 183765820,
+            "emit_ns": 238526469,
+            "total_ns": 591960378
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "wall_ms": 474.159254,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 121985340
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "wall_ms": 162.018791,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 12459301
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        }
+      ]
+    },
+    {
+      "original_raw": "out/runs/full-push-native-closed-profile-03",
+      "local_metadata": "out/evidence/checkpoint-cleanup-06/full-push-native-closed-profile-03-metadata",
+      "rows_sha256": "d4290f223fce146c9f4ad34beb8feff01b2ab1ba2bb224df88e15c614effb1d0",
+      "policy": "additional-common-closed-executable-policy",
+      "rows": 34,
+      "native_executions": 180,
+      "strong_pairs": 15,
+      "qualification_passed": true,
+      "measured": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "wall_ms": 7233.402361,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 178313811,
+            "parse_ns": 0,
+            "optimize_ns": 2371091956,
+            "emit_ns": 2622077899,
+            "total_ns": 5335027617
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "wall_ms": 8265.614209,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 232690318,
+            "parse_ns": 0,
+            "optimize_ns": 2343515394,
+            "emit_ns": 3453787535,
+            "total_ns": 6397881545
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 0,
+            "asm_printer_runs": 22,
+            "available": 16,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 71832071,
+            "ir_key_bytes": 2184572,
+            "ir_key_ns": 74085335,
+            "ir_pack_ns": 15578458,
+            "ir_parse_ns": 0,
+            "ir_replay_bytes": 0,
+            "ir_replay_ns": 0,
+            "ir_snapshot_bytes": 1464520,
+            "ir_unpack_ns": 0,
+            "machine_function_executions": 22,
+            "machine_function_reuses": 0,
+            "machine_pass_skips": 0,
+            "mir_capture_ns": 331449094,
+            "mir_key_bytes": 3391996,
+            "mir_key_ns": 44169650,
+            "mir_parse_ns": 0,
+            "mir_replay_bytes": 0,
+            "mir_restore_validate_ns": 0,
+            "mir_snapshot_bytes": 10858363,
+            "optimizer_cgscc_pass_executions": 3392,
+            "optimizer_function_stage_executions": 2610,
+            "optimizer_function_stage_reuses": 0,
+            "optimizer_module_pass_executions": 528,
+            "retained_bytes": 40089805,
+            "tli_projection_builds": 16,
+            "tli_projection_reuses": 54,
+            "world_projection_direct": 102,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            425,
+            0
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "wall_ms": 81.709583,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 1078786
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "wall_ms": 500.392139,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 130572017
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "private",
+          "wall_ms": 1770.265993,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 16887739,
+            "parse_ns": 0,
+            "optimize_ns": 195197537,
+            "emit_ns": 296688785,
+            "total_ns": 670764896
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "private",
+          "wall_ms": 738.836476,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 19917578,
+            "parse_ns": 0,
+            "optimize_ns": 212902856,
+            "emit_ns": 167795251,
+            "total_ns": 422239951
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 5,
+            "asm_printer_runs": 2,
+            "available": 1,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 1869642,
+            "ir_key_bytes": 138849,
+            "ir_key_ns": 5250766,
+            "ir_pack_ns": 371507,
+            "ir_parse_ns": 323214,
+            "ir_replay_bytes": 7748,
+            "ir_replay_ns": 1452536,
+            "ir_snapshot_bytes": 45874,
+            "ir_unpack_ns": 234962,
+            "machine_function_executions": 1,
+            "machine_function_reuses": 1,
+            "machine_pass_skips": 125,
+            "mir_capture_ns": 15932908,
+            "mir_key_bytes": 356324,
+            "mir_key_ns": 4561043,
+            "mir_parse_ns": 6967108,
+            "mir_replay_bytes": 571846,
+            "mir_restore_validate_ns": 14956696,
+            "mir_snapshot_bytes": 571212,
+            "optimizer_cgscc_pass_executions": 336,
+            "optimizer_function_stage_executions": 257,
+            "optimizer_function_stage_reuses": 1,
+            "optimizer_module_pass_executions": 33,
+            "retained_bytes": 4178137,
+            "tli_projection_builds": 1,
+            "tli_projection_reuses": 5,
+            "world_projection_direct": 6,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "multi",
+          "wall_ms": 1098.843347,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 31972378,
+            "parse_ns": 0,
+            "optimize_ns": 294313245,
+            "emit_ns": 350871524,
+            "total_ns": 720058655
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 15,
+            "asm_printer_runs": 3,
+            "available": 2,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 1885550,
+            "ir_key_bytes": 274304,
+            "ir_key_ns": 8192589,
+            "ir_pack_ns": 372978,
+            "ir_parse_ns": 867219,
+            "ir_replay_bytes": 23220,
+            "ir_replay_ns": 4244469,
+            "ir_snapshot_bytes": 45878,
+            "ir_unpack_ns": 621231,
+            "machine_function_executions": 2,
+            "machine_function_reuses": 1,
+            "machine_pass_skips": 125,
+            "mir_capture_ns": 37692736,
+            "mir_key_bytes": 535548,
+            "mir_key_ns": 6903190,
+            "mir_parse_ns": 8462869,
+            "mir_replay_bytes": 571843,
+            "mir_restore_validate_ns": 14633222,
+            "mir_snapshot_bytes": 1142099,
+            "optimizer_cgscc_pass_executions": 504,
+            "optimizer_function_stage_executions": 384,
+            "optimizer_function_stage_reuses": 3,
+            "optimizer_module_pass_executions": 66,
+            "retained_bytes": 6296202,
+            "tli_projection_builds": 2,
+            "tli_projection_reuses": 8,
+            "world_projection_direct": 10,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            63,
+            362
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "multi",
+          "wall_ms": 2102.185815,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 28433716,
+            "parse_ns": 0,
+            "optimize_ns": 267305812,
+            "emit_ns": 375770618,
+            "total_ns": 805618763
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "broad",
+          "wall_ms": 6576.395594,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 195460533,
+            "parse_ns": 0,
+            "optimize_ns": 1902650704,
+            "emit_ns": 2529893597,
+            "total_ns": 4801491664
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "broad",
+          "wall_ms": 7784.369732,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 193395598,
+            "parse_ns": 0,
+            "optimize_ns": 2057490353,
+            "emit_ns": 3069172253,
+            "total_ns": 5539081329
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 0,
+            "asm_printer_runs": 22,
+            "available": 16,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 58679982,
+            "ir_key_bytes": 2184610,
+            "ir_key_ns": 59465967,
+            "ir_pack_ns": 11138625,
+            "ir_parse_ns": 0,
+            "ir_replay_bytes": 0,
+            "ir_replay_ns": 0,
+            "ir_snapshot_bytes": 1467158,
+            "ir_unpack_ns": 0,
+            "machine_function_executions": 22,
+            "machine_function_reuses": 0,
+            "machine_pass_skips": 0,
+            "mir_capture_ns": 416906613,
+            "mir_key_bytes": 3328399,
+            "mir_key_ns": 43233901,
+            "mir_parse_ns": 0,
+            "mir_replay_bytes": 0,
+            "mir_restore_validate_ns": 0,
+            "mir_snapshot_bytes": 10994922,
+            "optimizer_cgscc_pass_executions": 3392,
+            "optimizer_function_stage_executions": 2610,
+            "optimizer_function_stage_reuses": 0,
+            "optimizer_module_pass_executions": 528,
+            "retained_bytes": 40478803,
+            "tli_projection_builds": 16,
+            "tli_projection_reuses": 54,
+            "world_projection_direct": 102,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            420,
+            5
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "positions",
+          "wall_ms": 854.277387,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 999682
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": [
+            425,
+            0
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "positions",
+          "wall_ms": 1505.498768,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 135184935
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "error",
+          "wall_ms": 324.288399,
+          "status": "SafeReject",
+          "native_receipt_scope_ns": {
+            "builder_ns": null,
+            "parse_ns": null,
+            "optimize_ns": null,
+            "emit_ns": null,
+            "total_ns": null
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "error",
+          "wall_ms": 43.678029,
+          "status": "SafeReject",
+          "native_receipt_scope_ns": {
+            "builder_ns": null,
+            "parse_ns": null,
+            "optimize_ns": null,
+            "emit_ns": null,
+            "total_ns": null
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "candidate",
+          "request": "recovery",
+          "wall_ms": 882.443499,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 25325138,
+            "parse_ns": 0,
+            "optimize_ns": 219063911,
+            "emit_ns": 199897857,
+            "total_ns": 469938531
+          },
+          "native_observed_totals": {
+            "analysis_reconstructions": 5,
+            "asm_printer_runs": 2,
+            "available": 1,
+            "failed_replays": 0,
+            "fallback_ns": 0,
+            "fresh_context_fallbacks": 0,
+            "ir_capture_ns": 2250881,
+            "ir_key_bytes": 138850,
+            "ir_key_ns": 5514350,
+            "ir_pack_ns": 372538,
+            "ir_parse_ns": 288563,
+            "ir_replay_bytes": 7748,
+            "ir_replay_ns": 1591615,
+            "ir_snapshot_bytes": 45750,
+            "ir_unpack_ns": 212969,
+            "machine_function_executions": 1,
+            "machine_function_reuses": 1,
+            "machine_pass_skips": 125,
+            "mir_capture_ns": 23238221,
+            "mir_key_bytes": 357096,
+            "mir_key_ns": 4984608,
+            "mir_parse_ns": 8085615,
+            "mir_replay_bytes": 571846,
+            "mir_restore_validate_ns": 19251037,
+            "mir_snapshot_bytes": 572466,
+            "optimizer_cgscc_pass_executions": 336,
+            "optimizer_function_stage_executions": 257,
+            "optimizer_function_stage_reuses": 1,
+            "optimizer_module_pass_executions": 33,
+            "retained_bytes": 4181873,
+            "tli_projection_builds": 1,
+            "tli_projection_reuses": 5,
+            "world_projection_direct": 6,
+            "world_projection_fallback": 0
+          },
+          "ct_checked_reused": [
+            21,
+            404
+          ]
+        },
+        {
+          "arm": "baseline",
+          "request": "recovery",
+          "wall_ms": 1756.369788,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 21682681,
+            "parse_ns": 0,
+            "optimize_ns": 196343909,
+            "emit_ns": 266596523,
+            "total_ns": 618552349
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "wall_ms": 575.143849,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 140831328
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "wall_ms": 221.779439,
+          "status": "Success",
+          "native_receipt_scope_ns": {
+            "builder_ns": 0,
+            "parse_ns": 0,
+            "optimize_ns": 0,
+            "emit_ns": 0,
+            "total_ns": 13186444
+          },
+          "native_observed_totals": null,
+          "ct_checked_reused": null
+        }
+      ]
+    }
+  ],
+  "findings": [
+    "Defaultprivate464.474ms vs same-windowmain1499.759; cold7215.714/main5956.519 and broad6664.267/main5009.487 remain negative. No freshRust comparison yet.",
+    "ColdIRkey66.47ms/capture118.00ms vs previous244c diagnostic539.93/1030.97; original3816 FPM groups still execute cold. Private376exec/2reuse versus old300/78 but optimizer139.37ms versus previous255.36. Fewer hits with less real overhead, not omitted O2 passes.",
+    "Defaultprivate machine3exec/39reuse and closedprivate1exec/1reuse, zero nativefallback; full result oracles retain quality. Cold default retained54,515,171B is logical payload not RSS.",
+    "Recovery1565.686ms is a retained negative. Types rebuild425 because error producer epoch advanced while successfulTypes snapshot stayedcold; not caused merely by observed +8 allowance. Raw/CT/Verify/native per-function work stayed sparse. Latercomplete typed-input epoch bridge tested at36532cd87 is not this measured binary.",
+    "Parent-preparation coldafterbroad608.227ms is unmeasured preparation, not measuredprivate. Actualallobject cachehits with rebuilt keys/diagnostic aggregation are distinct from native codegen.",
+    "LatestTypes bridge365:101Types/208driver/strictClippy passed;test-onlyfmt068 and release10 passed. Native C++ is unchanged fromd3; new flatMIR/fullAU binding component pending integration/gates."
+  ]
+}

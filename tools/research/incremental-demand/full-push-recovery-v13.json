@@ -1,0 +1,99 @@
+{
+  "schema": "full-push-fixed-HTTPS-recovery-v13-v1",
+  "status": "verified",
+  "archive_ref": "refs/heads/archive/source-history",
+  "latest_fixed_commit": "b9539930dd704f452988c99b17baf136ed1ea231",
+  "batches": [
+    {
+      "fixed_archive_commit": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+      "archive_parent": "a42aebc87639e0ef9fc4b80954af9a96c9af3031",
+      "archive_path": "research/incremental-demand-full-push-20261112-v13a",
+      "manifest_sha256": "9227dd9c4fcb7c54e865c3f5e5b1ed6ca5f2579bfc01bdb9a5f1efebf696b42b",
+      "archive_sha256": "b57febd673bb9c7e7b9806c4c981b8151f2e0a6fc87612dd99c7340b9c7912c3",
+      "archive_bytes": 69391895,
+      "raw_bytes": 442728641,
+      "files": 551,
+      "parts": 3,
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb/research/incremental-demand-full-push-20261112-v13a/restore_https.py",
+      "bootstrap_sha256": "7e9ba7319b94d230f5389278d6e9329f167e8578f36af9b9378a21d5533a7cbd",
+      "full_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v13a-https-restore-01.json",
+      "full_receipt_sha256": "fbbf0fa89bc3f24fe427bececc61debfb05066a0d9fcf7ecfb1b62e85f7f9680",
+      "fresh_duplicate_retirement": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-09/v13a-fresh-copy-retirement.json",
+      "retirement_sha256": "d87a03b15c8a1b90428f204b0e8cd12852743501787689bbd095ab3b23edcdd6"
+    },
+    {
+      "fixed_archive_commit": "b9539930dd704f452988c99b17baf136ed1ea231",
+      "archive_parent": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+      "archive_path": "research/incremental-demand-full-push-20261112-v13b",
+      "manifest_sha256": "369102b578849f05c0bbd318f93378f327873dc7e802e9dc4e808fffa3fcc365",
+      "archive_sha256": "b939c228784b781023cdf3b8308f9f23ff6bfcb1e5d5c29c192d6030c7ab4987",
+      "archive_bytes": 59347655,
+      "raw_bytes": 415660731,
+      "files": 510,
+      "parts": 3,
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/b9539930dd704f452988c99b17baf136ed1ea231/research/incremental-demand-full-push-20261112-v13b/restore_https.py",
+      "bootstrap_sha256": "d8ba427b40554f0e8359ece14c25318ba6f668b44a0f5abec766c8ba88e20cd2",
+      "full_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v13b-https-restore-01.json",
+      "full_receipt_sha256": "aa2aec362077bd49cbd0a9a1c87c0d5918d9f1b2c4021197bc34b94ca444ff1a",
+      "fresh_duplicate_retirement": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-09/v13b-fresh-copy-retirement.json",
+      "retirement_sha256": "f2ea68ece7f26bbdf12d404024eff4cb79fa11c02a688bf0809c66beaad14474"
+    }
+  ],
+  "batch_file_entries": 1061,
+  "unique_source_paths": 1058,
+  "shared_identical_metadata_paths": 3,
+  "raw_bytes_across_batches": 858389372,
+  "raw_bytes_unique_source_paths": 858378779,
+  "compressed_bytes_total": 128739550,
+  "fresh_fixed_HTTPS_all_parts_and_archive_verified": true,
+  "all_files_stream_and_post_restore_hashes_and_modes_verified": true,
+  "only_new_just_verified_restore_and_download_duplicates_retired": true,
+  "current_original09_03_raw_CAS_and_binary_copies_untouched": true,
+  "old66archiveparts_not_restored": true,
+  "candidate_source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+  "candidate_binary_sha256": "66d10de454386aba4aee515e18151d9943f0bdb47603adcea91e596f25dacba7",
+  "baseline_source": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "original_root_validations_preserved": {
+    "default09": {
+      "requests": 34,
+      "native_executions": 180,
+      "full_ELF_strict_LLVM_pairs": 15
+    },
+    "common_closed03": {
+      "requests": 34,
+      "native_executions": 180,
+      "full_ELF_strict_LLVM_pairs": 15
+    },
+    "note": "Original root validation receipts preserved; no compiler or native executions by archive/recovery."
+  },
+  "scope": "Complete d3 FPM economics gates(native72/backend239/driver mixed3/strictClippy09/fmt08/tools39), immutable release09, both full original425 diagnostic policies/default09+commonclosed03 with allCAS/runtimeDSOs/sources/rows/scopes/inventories and economic review. Candidate-only profiling and distinct policies do not establish formal speed/crosspolicy ratios/Rust parity. Later Types cross-failure epoch changes are excluded.",
+  "source_label_correction": {
+    "affected_commit": "7eaa6fb6fba9dbb594cacc5f55bf7c2a11a633eb",
+    "note": "A Git commit human title accidentally retained244c template short label. All original authoritative manifest/source_commits/RESTORE/README/gate/release identities and data correctly bindd3. B includes durable SOURCE-LABEL-CORRECTION.json and the same file inside hash-bound payload; no history/data rewritten.",
+    "correct_source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+    "correction_sha256": "e53772de94ec41a67c6087abd3edc8c3af01f74c4bd398fe4c94cf976259af84",
+    "fixed_remote_note_path": "research/incremental-demand-full-push-20261112-v13b/SOURCE-LABEL-CORRECTION.json"
+  },
+  "old244c_local_materialization_retirement": {
+    "files": 986,
+    "bytes": 831122176,
+    "fixed_remote_commits": [
+      "5aff63a4007f77b19416d34637876e2a9eecb3b0",
+      "a42aebc87639e0ef9fc4b80954af9a96c9af3031"
+    ],
+    "full_receipt": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-05/v12-profile-materialization-retirement.json",
+    "full_receipt_sha256": "a484601ea309cc419d587a6c482f5b1488f8b8267605a85159b69299f71a09e1",
+    "included_in_v13a": true,
+    "sidecars_and_binaries_retained": true
+  },
+  "reserve_policy": {
+    "minimum_free_bytes": 314572800,
+    "pack_preflight_additional": "2*(raw+8MiB)",
+    "git_publication_additional": "2*C+32MiB",
+    "fresh_restore_additional": "raw+2*C+32MiB",
+    "lowest_observed_after_fresh_restore_bytes": 1400537088,
+    "note": "Disk planning observations, not performance timings."
+  },
+  "free_bytes_after": 1877331968,
+  "completed_utc": "2026-11-12T16:48:55.518013+00:00"
+}

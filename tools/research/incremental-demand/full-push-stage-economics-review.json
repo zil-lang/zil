@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "d3f561bdc4dfbad403e886076573ade3a7640692",
+  "source_tree": "d41dffebd53bace0a66592f3f5fde00bfbbe569a",
+  "status": "accepted_bounded_source_and_targeted_native_tests",
+  "scope": "Successful-snapshot-local optional FPM economic admission policy, timer-only/nested sampling lifecycle, explicit fixture override and real production-policy object-quality regression. Previous spill and negative-filter receipts remain unchanged.",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/work_products.cpp": "811da41b0810429dd5fa38db4002b105af2a9f4ac77617e3dcb49f50cef8b71a",
+    "crates/zil-llvm-api/native/work_products.h": "bba4f8d9bd575b42b7e556dd156b82d0a16040f0086c72126573cafd90aa3007",
+    "crates/zil-llvm-api/src/native/products.rs": "cb46925dd845929c70ceed199c00b382fd69c6170ff630451bbe2ada9ec54304",
+    "crates/zil-llvm-api/src/native.rs": "03cb4c976c52e336e1ed0d7c39d0bbc5844ec59e74e7713669b711b81ca20070",
+    "crates/zil-llvm-api/src/native/spill_tests.rs": "da5a698784e9bf9f6d9ce7f47a9054c0e055c8d228fed34827d9496fdaca44b3",
+    "docs/guide/native-work-product-scopes.md": "d88c04352d6a09cac8acc4efd3e91e167fc957493a60697aed83e55e886f21eb"
+  },
+  "method": "Read exact production change, full before/after callback and replay consumers, mode math/accounting/Finish/Abort, existing Rust late-finish cancellation and output publication boundary, strict C and Rust test call sites. Independently read/hash raw root native22 evidence; reviewer performed no Cargo, native code execution, benchmarks, production edits or commits.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "authority and original PA flow",
+      "conclusion": "Economic absence/refusal, Bypass, unavailable/invalid clocks, bounds and nested suppression return0 and leave PA/FAM unchanged, so the original complete O2 pipeline executes. Return1 still means complete original-authorized replay or the existing failed-attempt stop with PA.none. Complete current Config/Slot/Input/World/Pipeline/typed analysis facts plus negative-filter/decode/full Eq remain mandatory; economy fields never enter proofs."
+    },
+    {
+      "topic": "bounded and frozen model",
+      "conclusion": "Probe permits2 key attempts and2 captures per group/request; at most4 original runtime samples. Reuse stops further key/capture attempts after2 consecutive misses including absent Slot; hit resets consecutive misses. Promotion uses only at least2 fresh/capture/hit samples and F>=2H plus C<=2(F-H), frozen for the invocation. Bypass re-probes after8 successful epochs along the selected Products lineage. Overflow or invalid clocks conservatively refuse/reset optional policy."
+    },
+    {
+      "topic": "group hints versus candidate identity",
+      "conclusion": "Full pipeline text/structural path/instruction-count bucket select an economic group, not a semantic receipt. PM-address pipeline memo can be stale/reused without changing correctness because actual candidate Pipeline is always freshly printed and compared. The versioned Slot occurrence advances on every effective hook, including suppressed/unsupported/refused cases, preventing later-slot renumbering from cache choices."
+    },
+    {
+      "topic": "TimeOnly and nested observers",
+      "conclusion": "TimeOnly owns no entry product and its after callback refuses before capture projection. Samples suppress all nested optional FPM cache work while retaining original child passes and Slot advancement. Request-local counter is released before parent capture. Observer intervals are union-counted at outermost depth and deducted once from original FPM samples; parse/pack inclusive timers are not added again. These are wall-clock scheduling heuristics, not exact CPU accounting or a profitability proof."
+    },
+    {
+      "topic": "publication and failure",
+      "conclusion": "GroupRuntime and learned counters are Request-owned copies; only successful Finish freezes them into new Products. Abort or replay/native failure leaves prior Products immutable and discards samples. Existing Rust path checks late status and cancellation before exposing completed products, so cancellation after C++ Finish also drops the speculative new epoch. Incomplete tokens/suppression/observer depth fail the request rather than publishing inconsistent lifecycle state."
+    },
+    {
+      "topic": "capacity and ownership",
+      "conclusion": "Persistent models limited to128 rows/512KiB of charged keys and structures; included in both existing decoded/encoded64MiB logical admission totals and retained bytes. Request pipeline hints bounded128 entries/128KiB, pending tokens128, observer depth64. Hitting bounds declines work. Groups without current access are not copied into an unbounded history table. Caps are logical payload accounting, not allocator capacity, transient or checkpoint/RSS bounds."
+    },
+    {
+      "topic": "quality paths and actual production gate",
+      "conclusion": "Three explicit old quality call sites opt into same-thread RAII Always guard to exercise full replay authority; it only disables economics and does not relax any verifier/key. There is no implicit all-test default override. New32-function production-policy test uses no Always, requires available/0failed/0fallback/current Verify, exact full-O2 object equality on cold and warm, and strictly fewer complete key bytes than separately scoped Always execution. This verifies avoided optional work without a flaky wall-time threshold."
+    }
+  ],
+  "test_evidence": {
+    ".log": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-22.log",
+      "sha256": "2df3fe5ca82f12fb6379c87a63685d981e00d01baf2864ae3614b6317860ffa4",
+      "bytes": 77182
+    },
+    "results": [
+      "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.47s"
+    ],
+    ".json": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-22.json",
+      "sha256": "aeb007b71ce2b3ddfd3765fc5f4518a290a1c9aefaad92b84cbf10993e34ad2d",
+      "bytes": 434
+    },
+    "command_receipt": {
+      "source": "d3f561bdc4dfbad403e886076573ade3a7640692",
+      "tree": "d41dffebd53bace0a66592f3f5fde00bfbbe569a",
+      "source_after": "d3f561bdc4dfbad403e886076573ade3a7640692",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 25905324325
+    },
+    ".exit": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-22.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "explicit_exit": "0"
+  },
+  "validation_summary": "Root native22 exact source/tree/source_after match frozen d3f561bdc, explicit exit0;72 passed,0 failed,0 ignored. Includes strict new economic lifecycle/nested original-pass/publication C fixture and actual production gate quality test, while explicit prior full-replay quality assertions remain.",
+  "not_claimed": [
+    "full workspace at this source",
+    "other targeted backend/driver/Clippy/fmt/tools gates not independently read in this receipt",
+    "425 workload or balanced unprofiled net performance",
+    "deterministic wall-clock policy decisions across runs",
+    "complete push pipeline/global phase elimination or general LLVM domain proof"
+  ]
+}

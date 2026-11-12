@@ -6705,19 +6705,19 @@
     "archive_manifest": "out/evidence-archives/incremental-demand-final/MANIFEST.json"
   },
   "latest_full_push_checkpoint": {
-    "compiler": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
+    "compiler": "068cb0267a7e7f3a7683cb5033806696dc38e7f5",
     "measured_compiler": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
     "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
     "full_results": "full-push-matched-433-raw-review.json",
     "panorama": "full-push-panorama.md",
     "status": "in_progress_not_complete_not_globally_faster_than_Rust",
-    "latest_compiler_verification": "244c native70,strictnativeworkspacealltargetClippy08,fmt07,39tools,release08pass;55e backend239/driver207;9daad workspace6375 recovered, originalENOSPC preserved",
-    "raw_recovery": "full-push-recovery-v9/v10/v11.json verified; latest244c raw v12 in progress",
+    "latest_compiler_verification": "d3 native72/backend239/driver3mixed/strictClippy/fmt/tools39/release09pass;365 sealedTypesbridge Types101/driver208/strictClippy pass;068test-onlyfmt/release10pass. Types01 100/1 and fmt09 failure preserved.",
+    "raw_recovery": "v9/v10/v11/v12/v13 all fixedremote freshHTTPS verified; local raw materializations retired only after exact manifests; see retirement receipts",
     "historical_identity_above_is_not_current": true,
     "formal_comparison_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
-    "latest_profile": "full-push-diagnostic-244c5bdbd.json",
+    "latest_profile": "full-push-diagnostic-d3f561bdc.json",
     "frame_review": "full-push-spill-frame-review-addendum.json",
     "architecture_review": "full-push-astra-native-panorama-review.json",
-    "latest_profile_status": "Both policies34valid/180native/15strongpairs;singleblocknotformalRust. Defaultprivate626;closedprivate788 actual1MFreuse1exec. Cold/broad stillnegative;reuseoverheadmeasured, economiccut next."
+    "latest_profile_status": "d3 defaultprivate464,cold7216,broad6664,recovery1566 negative retained;commonclosedprivate739. Each34valid/180native/15strongpairs, not formalRust. LaterTypesbridge not measured; flatMIR+completeAU pending gates."
   }
 }

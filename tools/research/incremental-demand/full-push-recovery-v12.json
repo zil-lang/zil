@@ -1,0 +1,81 @@
+{
+  "schema": "full-push-fixed-HTTPS-recovery-v12-v1",
+  "status": "verified",
+  "archive_ref": "refs/heads/archive/source-history",
+  "latest_fixed_commit": "a42aebc87639e0ef9fc4b80954af9a96c9af3031",
+  "batches": [
+    {
+      "fixed_archive_commit": "5aff63a4007f77b19416d34637876e2a9eecb3b0",
+      "archive_parent": "b8b13bfd95ed03c196cb910b3625a13fddfa48a7",
+      "archive_path": "research/incremental-demand-full-push-20261112-v12a",
+      "manifest_sha256": "73f0c4d0c359527eb16ac7d082541cc4a70a1a500f166de381954c4939227165",
+      "archive_sha256": "b225683ad3d91527f14daed454d57b20fb716de26667f450edfea433eea99a56",
+      "archive_bytes": 69300457,
+      "raw_bytes": 442128852,
+      "files": 526,
+      "parts": 3,
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/5aff63a4007f77b19416d34637876e2a9eecb3b0/research/incremental-demand-full-push-20261112-v12a/restore_https.py",
+      "bootstrap_sha256": "f14a9872431fa8befb8f75942990e566f6575509e4e6fce65ee75af8c0b2a771",
+      "full_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v12a-https-restore-01.json",
+      "full_receipt_sha256": "95469700456b3c391237863ff0cce6658486d9e7ceb38b174f887aa2fc400a3f",
+      "fresh_duplicate_retirement": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-08/v12a-fresh-copy-retirement.json",
+      "retirement_sha256": "dbbcdb055f05d5270aeafb782d75b5aa0296cad7fb40db5d805104ad8953892c"
+    },
+    {
+      "fixed_archive_commit": "a42aebc87639e0ef9fc4b80954af9a96c9af3031",
+      "archive_parent": "5aff63a4007f77b19416d34637876e2a9eecb3b0",
+      "archive_path": "research/incremental-demand-full-push-20261112-v12b",
+      "manifest_sha256": "04a97f8cd91b7dd5c2a920a748417e7ddc9d99d46024e8fd7240021747b71d6e",
+      "archive_sha256": "0871108845621fb863ff14771d20f4883eea5b3c46de6e5ea451464b38fa5103",
+      "archive_bytes": 59359937,
+      "raw_bytes": 415686596,
+      "files": 510,
+      "parts": 3,
+      "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/a42aebc87639e0ef9fc4b80954af9a96c9af3031/research/incremental-demand-full-push-20261112-v12b/restore_https.py",
+      "bootstrap_sha256": "af3f1bcf5d63b736fe84ed6a296a8aed1bcce1f163fbf9da11205decbef24af4",
+      "full_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v12b-https-restore-01.json",
+      "full_receipt_sha256": "003716d5a80d7b9da742c914241e49164af99ff5e7ec2a210eacda64d92b5669",
+      "fresh_duplicate_retirement": "/workspace/zil-push-main/out/evidence/full-push-checkpoint-08/v12b-fresh-copy-retirement.json",
+      "retirement_sha256": "46dd7b360bde5b66b1d45571f1c6efd986e54f14fa1301164f325488f69b8f06"
+    }
+  ],
+  "batch_file_entries": 1036,
+  "unique_source_paths": 1033,
+  "shared_identical_metadata_paths": 3,
+  "raw_bytes_across_batches": 857815448,
+  "raw_bytes_unique_source_paths": 857808421,
+  "compressed_bytes_total": 128660394,
+  "fresh_fixed_HTTPS_all_parts_and_archive_verified": true,
+  "all_files_stream_and_post_restore_hashes_and_modes_verified": true,
+  "original_profiles_raw_CAS_and_binary_copies_untouched": true,
+  "only_just_verified_new_restore_and_download_duplicates_retired": true,
+  "old66parts_not_restored": true,
+  "v11_recovery_copies_not_needed_for_cleanup": true,
+  "source": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
+  "candidate_binary_sha256": "a30da5b3d686b094d439036a4a602efe4167b6c7b6bd9f28e2ff88d8b1c68709",
+  "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+  "original_root_validations_preserved": {
+    "default08": {
+      "requests": 34,
+      "native_executions": 180,
+      "full_ELF_strict_LLVM_pairs": 15
+    },
+    "common_closed02": {
+      "requests": 34,
+      "native_executions": 180,
+      "full_ELF_strict_LLVM_pairs": 15
+    },
+    "note": "Prior root validation receipts are preserved; archiver performed no new native executions."
+  },
+  "scope": "Complete release08/gates(native21/strictClippy08/fmt07/tools40), both full diagnostic profiles/default08 and commonclosed02 with allCAS/runtimeDSOs/sources/rows/scopes/inventories, read-only controller CLI failure and negative-filter pre-review. Candidate-only profiling and different policy partitions do not establish formal speed/cross-policy ratios/Rust parity. No negative data removed.",
+  "reserve_policy": {
+    "minimum_free_bytes": 314572800,
+    "pack_preflight_additional": "2*(raw+8MiB)",
+    "git_publication_additional": "2*C+32MiB",
+    "fresh_restore_additional": "raw+2*C+32MiB",
+    "lowest_observed_after_fresh_restore_bytes": 908877824,
+    "note": "Observations are archive disk headroom, not performance measurements."
+  },
+  "free_bytes_after_archive": 1385762816,
+  "completed_utc": "2026-11-12T16:22:46.102560+00:00"
+}
