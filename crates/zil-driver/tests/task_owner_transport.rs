@@ -11,6 +11,48 @@ const SOURCE: &str =
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "returned-task-fnonce.zil", text)
 }
+
+#[test]
+fn mutable_callable_keeps_the_same_task_through_pending_ready_and_cleanup() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/mutable-task-fnmut.zil"
+    );
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn static_callable_task_input_keeps_the_complete_constant_capture_contract() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/static-callable-input.zil"
+    );
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
 fn cancel_drive(text: &str) -> String {
     let begin = text.find("fn drive<life a>").unwrap();
     let end = text.find("fn keep<life a>").unwrap();
