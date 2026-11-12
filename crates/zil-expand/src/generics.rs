@@ -29,6 +29,7 @@ struct EnvBinding {
     ty: Option<TypeRef>,
     semantic: Option<SemanticActual>,
     input: Option<u32>,
+    resource_owner: bool,
     closure_depth: u32,
 }
 impl Env {
@@ -57,6 +58,7 @@ impl Env {
             .insert(
                 name,
                 EnvBinding {
+                    resource_owner:ty.as_ref().is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1)),
                     ty,
                     semantic: None,
                     input: None,
@@ -76,6 +78,7 @@ impl Env {
                     ty: Some(parameter.ty.clone()),
                     semantic: None,
                     input: Some(input),
+                    resource_owner:parameter.give || matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1),
                     closure_depth: 0,
                 },
             );
@@ -2468,6 +2471,7 @@ impl<'a> Engine<'a> {
                     self.enum_pattern(pattern, actual.as_ref(), env, depth + 1)?;
                 } else {
                     bind(pattern, actual, env);
+                    self.bind_resource_access(pattern,value,ty.as_ref(),env)?;
                     self.bind_semantic_source(pattern, env)?;
                 }
             }
@@ -3666,6 +3670,14 @@ fn unify_argument_scoped(
             return Ok(());
         }
         return unify_bounded(expected, actual, variables, found, span, budget, source);
+    }
+    if matches!(&pattern.kind,TypeKind::Named{path,..} if path.len()==1 && path[0]!="Managed" && !variables.contains(&path[0]))
+        && let TypeKind::Named{path,args}=&actual.kind
+        && path.as_slice()==["Managed"] && let [GenericArg::Type(payload)]=args.as_slice() {
+        // An actual fresh owner can be observed by its concrete resource
+        // description parameter. This never changes inference for a Type
+        // formal T, and Types still emits/checks the actual description loan.
+        return unify_bounded(pattern,payload,variables,found,span,budget,source);
     }
     unify_bounded(pattern, actual, variables, found, span, budget, source)
 }

@@ -202,6 +202,7 @@ impl Builder<'_, '_> {
                 matches!((&ty, expected), (Type::Managed(_), Some(Type::Managed(_))))
                     && self.sequenced_values.contains(&local);
             if self.affine_type(&ty)
+                || self.ordinary_managed_values.contains(&local)
                 || sequenced_owner
                 || (self.forwarding_modes && self.factory_declared_kind(e)?.is_some())
             {

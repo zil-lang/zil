@@ -8,8 +8,22 @@ fn inline_store(ty: &Type) -> bool {
             if dynamic_store::inline_element(element)
                 && dynamic_store::supported_element(element)))
 }
+// Borrow metadata remains with the full Type. Only its actual inline
+// resource skeleton contributes cleanup debt, after Resolver's independent
+// complete stored-shape/inventory pass. Address leaves add no resource owner.
+fn scoped_shape(ty:&Type)->Option<bool>{
+    match ty {
+        Type::BorrowedStorage{storage,..}=>scoped_shape(storage),
+        Type::Address{..}=>Some(false),
+        Type::Record{fields,..}|Type::Package{fields,..}=>{let mut owns=false;for(_,field)in fields{owns|=scoped_shape(field)?}Some(owns)},
+        Type::Tuple(fields)=>{let mut owns=false;for field in fields{owns|=scoped_shape(field)?}Some(owns)},
+        Type::Array{element,..}=>scoped_shape(element),
+        other=>shape(other),
+    }
+}
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
+        Type::BorrowedStorage{storage,..}=>scoped_shape(storage),
         Type::MutexGuard { .. } => Some(true),
         Type::Managed(_) => resources::supported(ty).then_some(true),
         Type::Tuple(fields) => {
@@ -89,8 +103,15 @@ pub(super) fn value(ty: &Type) -> bool {
 pub(super) fn zero_debt_package(ty: &Type) -> bool {
     matches!(ty, Type::Package { .. }) && shape(ty) == Some(false)
 }
+fn exclusive(ty:&Type)->bool{
+ match ty {
+  Type::BorrowedStorage{storage,life}=>life.slots.iter().any(|slot|slot.mode==StoredBorrowMode::ExclusiveAddress)||exclusive(storage),
+  Type::Tuple(fields)=>fields.iter().any(exclusive),
+  _=>false,
+ }
+}
 pub(super) fn tuple(ty: &Type) -> bool {
-    matches!(ty, Type::Tuple(_)) && shape(ty) == Some(true)
+    matches!(ty, Type::Tuple(_)) && shape(ty).is_some_and(|owns|owns||exclusive(ty))
 }
 pub(super) fn enumeration(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && shape(ty) == Some(true)
@@ -99,7 +120,7 @@ pub(super) fn sum(ty: &Type) -> bool {
     matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-    ) && shape(ty) == Some(true)
+    ) && shape(ty).is_some_and(|owns|owns||matches!(ty,Type::Tuple(_))&&exclusive(ty))
 }
 pub(super) fn error_union(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { .. }) && shape(ty).is_some()
@@ -185,6 +206,7 @@ pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, spa
                     names(ty, remaining, span)?;
                 }
             }
+            Type::BorrowedStorage{storage,..}=>names(storage,remaining,span)?,
             Type::ErrorUnion { error, result } => {
                 names(error, remaining, span)?;
                 names(result, remaining, span)?;

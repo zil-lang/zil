@@ -742,6 +742,7 @@ fn headers(
                     .then_some(FunctionId(id)),
                 parameters: function.parameters.iter().map(|p| p.ty.clone()).collect(),
                 result: function.return_type.clone(),
+                result_mode:function.result_mode,
                 public: exports.is_none_or(|e| e.contains(&function.id)),
                 receiver: function.receiver.as_ref().map(|r| r.ty.clone()),
             },
@@ -5590,6 +5591,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 cleanup: false,
                                 parameters,
                                 result,
+                                result_mode:PassingMode::Infer,
                                 public: false,
                                 receiver: None,
                             })));

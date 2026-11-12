@@ -71,6 +71,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    result_mode: PassingMode,
     storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
@@ -305,6 +306,7 @@ fn signatures(
                     ),
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: f.return_type.clone(),
+                    result_mode:f.result_mode,
                     public: exports.is_none_or(|ids| ids.contains(&f.id)),
                     receiver: f.receiver.as_ref().map(|r| r.ty.clone()),
                 },
@@ -791,6 +793,7 @@ struct Builder<'a, 'c> {
     next_replacement: u32,
     prepared_replacements: Vec<owning_place_replace::Prepared>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
+    ordinary_managed_values:std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
@@ -924,6 +927,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             next_replacement: 0,
             prepared_replacements: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
+            ordinary_managed_values:std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
             sum_slots: BTreeMap::new(),
@@ -941,6 +945,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         for p in &f.parameters {
             b.closures.array_snapshot(&p.ty, 1, p.span)?;
             let local = b.declare_local(&p.name, p.ty.clone(), false, p.span, false)?;
+            if p.mode==PassingMode::Infer && matches!(p.ty,Type::Managed(_)){b.ordinary_managed_values.insert(local);}
             b.function.parameters.push(local)
         }
         if let Some(modes) = &mut b.factory_modes {
@@ -1580,7 +1585,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return self.closure_slot(name, id, v, s.span);
                 }
+                let ordinary_managed=matches!(t,Type::Managed(_)) && (
+                    matches!(ty,Some(Type::Managed(_)))
+                    || matches!(&e.kind,CoreExprKind::Name(name) if self.lookup(name).is_some_and(|local|self.ordinary_managed_values.contains(&local)))
+                    || matches!(&e.kind,CoreExprKind::Call{callee,..} if matches!(&callee.kind,CoreExprKind::Name(callee) if self.signatures.get(callee).is_some_and(|signature|signature.result_mode==PassingMode::Infer)))
+                );
                 let local = self.local(name, t, *mutable, s.span)?;
+                if ordinary_managed{self.ordinary_managed_values.insert(local);}
                 self.store(local, v, s.span)?;
             }
             CoreStatementKind::Assign { target, value } => {
