@@ -85,6 +85,112 @@ fn pure_class_keys(
     }
     Ok(())
 }
+
+// This only allocates invariant class variables. A class is never a target root,
+// an initialized payload or an independent retained borrow permission.
+#[allow(clippy::too_many_arguments)]
+fn dyn_class_keys(
+    module: &TypedModule,
+    ty: &Type,
+    cp: &mut Vec<LifeTypeProjection>,
+    bp: &mut Vec<zil_ir::ContractProjection>,
+    keys: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+    ports: &mut Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let n = 1usize;
+    b.spend(n, "actual dyn Context class inventory")?;
+    if cp.len() > b.partial_depth {
+        return Err(bad("dyn Context class path exceeds type depth"));
+    }
+    match ty {
+        Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+            let n = module.dyn_interfaces.len();
+            b.spend(n, "actual dyn Context class inventory")?;
+            let item = module
+                .dyn_interfaces
+                .iter()
+                .find(|item| item.id == *interface)
+                .ok_or_else(|| bad("actual dyn Context class interface is absent"))?;
+            if item.context.is_none() {
+                return Ok(());
+            }
+            let n = item.retained_life.binder_count as usize;
+            b.spend(n, "actual dyn Context class inventory")?;
+            for class in 0..item.retained_life.binder_count {
+                let n = cp.len().saturating_add(1);
+                b.spend(n, "actual dyn Context class inventory")?;
+                keys.push((cp.clone(), class));
+            }
+            for (index, row) in item.retained_life.ports.iter().enumerate() {
+                let n = keys.len().saturating_add(bp.len()).saturating_add(1);
+                b.spend(n, "actual dyn Context class inventory")?;
+                let key = keys
+                    .iter()
+                    .position(|(path, class)| path == cp && *class == row.binder)
+                    .ok_or_else(|| bad("actual dyn port binder has no retained class"))?;
+                let mut path = bp.clone();
+                path.push(zil_ir::ContractProjection::RetainedPort(index as u32));
+                ports.push((path, key));
+            }
+        }
+        Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            cp.push(LifeTypeProjection::Pointee);
+            dyn_class_keys(module, inner, cp, bp, keys, ports, b)?;
+            cp.pop();
+        }
+        Type::ErrorUnion { error, result } => {
+            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                let selector = PlaceProjection::ErrorArm(arm);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (index, (_, child)) in fields.iter().enumerate() {
+                let selector = PlaceProjection::Field(index as u32);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Tuple(fields) => {
+            for (index, child) in fields.iter().enumerate() {
+                let selector = PlaceProjection::Field(index as u32);
+                cp.push(LifeTypeProjection::Place(selector));
+                bp.push(zil_ir::ContractProjection::Place(selector));
+                dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                bp.pop();
+                cp.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, child) in fields.iter().enumerate() {
+                    let selector = PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: variant as u32,
+                        index: index as u32,
+                    });
+                    cp.push(LifeTypeProjection::Place(selector));
+                    bp.push(zil_ir::ContractProjection::Place(selector));
+                    dyn_class_keys(module, child, cp, bp, keys, ports, b)?;
+                    bp.pop();
+                    cp.pop();
+                }
+            }
+        }
+        // BorrowedStorage and Closure already have complete enclosing class
+        // domains. Their nested retained rows are checked by those consumers.
+        _ => {}
+    }
+    Ok(())
+}
+
 struct Equations {
     parent: Vec<usize>,
     // Shared address arrays introduce one variable per ordinal. Balance their
@@ -335,6 +441,28 @@ impl Equations {
                 vec![]
             };
             walk(ty, path, vec![], &mut keys, &mut task_ports, b)?;
+        }
+        let n = module.dyn_interfaces.len();
+        b.spend(n, "actual dyn Context class inventory")?;
+        if module
+            .dyn_interfaces
+            .iter()
+            .any(|item| item.context.is_some())
+        {
+            let mut cp = if outer.is_some() {
+                vec![LifeTypeProjection::Pointee]
+            } else {
+                vec![]
+            };
+            dyn_class_keys(
+                module,
+                ty,
+                &mut cp,
+                &mut vec![],
+                &mut keys,
+                &mut task_ports,
+                b,
+            )?;
         }
         let count = keys.len();
         if !direct {
@@ -1125,6 +1253,17 @@ fn check_with(
                         for (a, z) in out.classes.iter().zip(&stored.classes) {
                             e.equal(*a, *z, b)?;
                         }
+                    }
+                }
+                InstructionKind::BorrowDynOwned { local, .. } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {

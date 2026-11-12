@@ -139,7 +139,7 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false)
+    relation_inner(parameters, None, result, c, false, &[], false, &[])
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -148,16 +148,7 @@ pub(super) fn function_relation(
     allow_callback: bool,
     closures: &[ClosureDefinition],
 ) -> CompileResult<()> {
-    function_relation_inner(parameters, result, c, allow_callback, closures, false)
-}
-pub(super) fn function_relation_byte_inputs(
-    parameters: &[Type],
-    result: &Type,
-    c: &StorageLifeContract,
-    allow_callback: bool,
-    closures: &[ClosureDefinition],
-) -> CompileResult<()> {
-    function_relation_inner(parameters, result, c, allow_callback, closures, true)
+    function_relation_inner(parameters, result, c, allow_callback, closures, false, &[])
 }
 fn function_relation_inner(
     parameters: &[Type],
@@ -166,6 +157,7 @@ fn function_relation_inner(
     allow_callback: bool,
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
+    interfaces: &[DynInterface],
 ) -> CompileResult<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -245,6 +237,7 @@ fn function_relation_inner(
         allow_callback,
         closures,
         allow_byte_input,
+        interfaces,
     )
 }
 
@@ -254,8 +247,36 @@ pub(super) fn capture_relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, Some(captures), result, c, false, &[], false)
+    relation_inner(
+        parameters,
+        Some(captures),
+        result,
+        c,
+        false,
+        &[],
+        false,
+        &[],
+    )
 }
+pub(super) fn function_relation_in_module(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    module: &TypedModule,
+    allow_byte_input: bool,
+) -> CompileResult<()> {
+    function_relation_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        &module.closures,
+        allow_byte_input,
+        &module.dyn_interfaces,
+    )
+}
+#[allow(clippy::too_many_arguments)]
 fn relation_inner(
     parameters: &[Type],
     captures: Option<&[Type]>,
@@ -264,6 +285,7 @@ fn relation_inner(
     allow_callback: bool,
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
+    interfaces: &[DynInterface],
 ) -> CompileResult<()> {
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
@@ -303,6 +325,7 @@ fn relation_inner(
         array_output_upper: Option<StorageBinder>,
         array_result_input: bool,
         closures: &'a [ClosureDefinition],
+        interfaces: &'a [DynInterface],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -465,6 +488,35 @@ fn relation_inner(
                     }
                     self.class += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
+                }
+            } else if let Type::Dyn { interface } | Type::OwnedDyn { interface } = target {
+                let item = self
+                    .interfaces
+                    .iter()
+                    .find(|item| item.id == *interface)
+                    .ok_or_else(|| bad("dyn signature class selector has no actual interface"))?;
+                for local in 0..item.retained_life.binder_count {
+                    let row = self.c.classes.get(self.class).ok_or_else(|| {
+                        bad("dyn signature omits its complete Context class domain")
+                    })?;
+                    let path = if pointed {
+                        row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                    } else {
+                        row.position.path.is_empty()
+                    };
+                    if row.position.base != base || row.position.class != local || !path {
+                        return Err(bad(
+                            "dyn signature class must select its actual Context boundary",
+                        ));
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured dyn Context class must remain Fixed"));
+                    }
+                    self.class += 1;
+                    self.binder(
+                        row.binder,
+                        capture || !self.captured && self.inputs.is_none(),
+                    )?;
                 }
             } else if let Type::BorrowedStorage { storage, life } = target {
                 if (!matches!(
@@ -638,6 +690,7 @@ fn relation_inner(
         },
         array_result_input: false,
         closures,
+        interfaces,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;

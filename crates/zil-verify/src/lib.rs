@@ -60,6 +60,7 @@ mod ct_program;
 mod defer_tests;
 mod defers;
 mod dynamic_cleanup;
+mod dynamic_context;
 mod dynamic_dispatch;
 mod dynamic_metadata;
 mod dynamic_store;

@@ -331,6 +331,7 @@ fn inventory_in_modules(
     let mut interfaces = std::collections::BTreeSet::new();
     for interface in &core.dyn_interfaces {
         spend(&mut left, 1 + interface.slots.len())?;
+        crate::dyn_context::validate(interface, modules, limits, &mut left)?;
         if interface.context.is_some()
             || !interfaces.insert(interface.id)
             || !declarations.contains(&interface.application.declaration)

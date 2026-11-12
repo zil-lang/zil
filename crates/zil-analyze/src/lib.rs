@@ -18,6 +18,7 @@ mod composition;
 mod defer_tests;
 mod defers;
 mod dyn_cleanup;
+mod dyn_context;
 mod dyn_dispatch;
 mod dyn_metadata;
 mod dynamic_store;

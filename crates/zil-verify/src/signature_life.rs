@@ -472,6 +472,32 @@ fn relation_inner(
             continue;
         }
         match actual {
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                let owner = module
+                    .and_then(|m| m.dyn_interfaces.iter().find(|d| d.id == *interface))
+                    .ok_or_else(invalid)?;
+                for local in 0..owner.retained_life.binder_count {
+                    let row = c.classes.get(class).ok_or_else(invalid)?;
+                    if row.position.base != base
+                        || row.position.class != local
+                        || if pointee {
+                            row.position.path.as_slice() != [LifeTypeProjection::Pointee]
+                        } else {
+                            !row.position.path.is_empty()
+                        }
+                    {
+                        return Err(invalid());
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(invalid());
+                    }
+                    class += 1;
+                    visit(
+                        row.binder,
+                        if captures.is_some() { capture } else { !output },
+                    )?;
+                }
+            }
             Type::BorrowedStorage { storage, life } => {
                 if (!matches!(
                     storage.as_ref(),

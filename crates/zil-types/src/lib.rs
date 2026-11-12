@@ -16,6 +16,7 @@ mod closures;
 mod conditions;
 mod deferred;
 mod dyn_cleanup;
+mod dyn_context;
 mod dyn_dispatch;
 mod dynamic_store;
 mod enums;

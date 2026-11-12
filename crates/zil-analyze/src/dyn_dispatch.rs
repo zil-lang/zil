@@ -352,6 +352,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             crate::dyn_metadata::ty(context, budget)?;
         }
         crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), budget)?;
+        crate::dyn_metadata::retained_shape(&interface.retained_life, budget)?;
+        crate::dyn_context::validate(module, interface, budget)?;
         budget.lookup(declarations.len(), WORK)?;
         if interface.id.module != interface.application.declaration.module
             || !interfaces.insert(interface.id)
@@ -1445,5 +1447,81 @@ mod tests {
             },
         ));
         assert!(crate::analyze(&m, &Limits::default()).is_err());
+    }
+    #[test]
+    fn context_directory_uses_complete_leaf_mode_and_fixed_class() {
+        let mut module = fixture();
+        let leaf = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let context = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Context".into(),
+                fields: vec![("one".into(), leaf.clone()), ("two".into(), leaf.clone())],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: (0..2)
+                    .map(|index| StorageLifeSlot {
+                        path: vec![PlaceProjection::Field(index)],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    })
+                    .collect(),
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        module.life_instances.push(LifeNominalInstance {
+            declaration: module.dyn_declarations[0].id,
+            ty: context.clone(),
+            arguments: vec![],
+        });
+        module.dyn_interfaces[0].context = Some(context);
+        module.dyn_interfaces[0].retained_life = RetainedLifeShape {
+            binder_count: 1,
+            ports: vec![RetainedBorrowPort {
+                leaf,
+                binder: 0,
+                mode: StoredBorrowMode::SharedAddress,
+            }],
+            retained: vec![],
+            nominal_arguments: vec![],
+        };
+        let validate = |m: &TypedModule| {
+            crate::dyn_context::validate(
+                m,
+                &m.dyn_interfaces[0],
+                &mut Budget::new(&Limits::default()),
+            )
+        };
+        validate(&module).unwrap();
+        for mutation in 0..6 {
+            let mut invalid = module.clone();
+            match mutation {
+                0 => {
+                    invalid.dyn_interfaces[0].retained_life.ports[0].mode =
+                        StoredBorrowMode::ExclusiveAddress
+                }
+                1 => invalid.dyn_interfaces[0].retained_life.ports[0].binder = 1,
+                2 => {
+                    invalid.dyn_interfaces[0].retained_life.ports[0].leaf = Type::Address {
+                        mutable: false,
+                        inner: Box::new(Type::U8),
+                    }
+                }
+                3 => {
+                    let duplicate = invalid.dyn_interfaces[0].retained_life.ports[0].clone();
+                    invalid.dyn_interfaces[0]
+                        .retained_life
+                        .ports
+                        .push(duplicate);
+                }
+                4 => invalid.life_instances.clear(),
+                _ => invalid.dyn_interfaces[0].context = None,
+            }
+            assert!(validate(&invalid).is_err(), "mutation {mutation}");
+        }
     }
 }
