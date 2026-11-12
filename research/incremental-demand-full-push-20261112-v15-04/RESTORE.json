@@ -1,0 +1,18 @@
+{
+  "archive_sha256": "53e253821436ed4268f0bfb9cd367b263317bd809a611b9f9f98d9edaa38c8b7",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Splitv13 has batchA and batchB; restore both fixed commits from combined receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 974237,
+    "sha256": "7274ff7ac359419302fbe431ce5e3f4c14d6ed7a1028dfe2265818488d531a26"
+  },
+  "schema": 1,
+  "scope": "V15 storagepiece04 only: originalformalO2-02 block-03 complete3429files/133124873bytes; source1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d binarye2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393; baseline3ec7. Wholeoriginal270rows/144measured126parents/2808native/476blobs and strictsummary alreadyvalidated beforearchiving. Thispiece freshHTTPS verifies everyselectedbyte/mode only, not a completefresh rerun ofwholematchedvalidator. Allpieces union must equal savedwholeoriginalinventory; no request/workload removed. Otherpayload/globalblobs/metadata follows separatepieces.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}
