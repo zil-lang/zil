@@ -849,9 +849,18 @@ extern "C" int ZilNativeProductsModuleHeaderCounterexample() {
   if (Key.empty() || Key != Reference) return 0;
   Add->setOperand(1, B.getInt32(2));
   if (Headers() != Key) return 0; // the excluded body is a separate actual key
+  const auto OriginalLinkage = F->getLinkage();
+  const auto OriginalVisibility = F->getVisibility();
+  const auto OriginalDLLStorage = F->getDLLStorageClass();
+  const bool OriginalDSOLocal = F->isDSOLocal();
   F->setLinkage(GlobalValue::InternalLinkage);
   if (Headers() == Key) return 0;
-  F->setLinkage(GlobalValue::ExternalLinkage);
+  // Internal linkage also changes DSOLocal. Restore the entire header state
+  // before asserting the same projection, rather than hiding a real change.
+  F->setLinkage(OriginalLinkage);
+  F->setVisibility(OriginalVisibility);
+  F->setDLLStorageClass(OriginalDLLStorage);
+  F->setDSOLocal(OriginalDSOLocal);
   if (Headers() != Key) return 0;
   F->addFnAttr(Attribute::NoFree);
   if (Headers() == Key) return 0;
