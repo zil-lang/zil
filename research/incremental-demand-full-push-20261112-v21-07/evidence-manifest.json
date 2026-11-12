@@ -1,0 +1,1097 @@
+{
+  "archive": {
+    "bytes": 9253017,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 9253017,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "4900da32f69051a157015acf7515d04905ef785ab102318e329cecd0e276af8d"
+      }
+    ],
+    "sha256": "4900da32f69051a157015acf7515d04905ef785ab102318e329cecd0e276af8d",
+    "tar_bytes": 38840320
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 18876706,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+        "sha256": "1c11b97f81fd6fb44c33549d97e140a133792386c3d6e9066e624644ce08990e"
+      },
+      {
+        "bytes": 9806940,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+        "sha256": "da567e44c4a0238e2d0dce128334a2c52b64dc0d7ff7f018375a3db00094f5c4"
+      },
+      {
+        "bytes": 7930042,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a",
+        "sha256": "61c77e4588726020d279af8d2109cdaad46d251f4f2fd73fa8cef74586cb6354"
+      },
+      {
+        "bytes": 26,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/llvm.map",
+        "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/apply-patch.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1285,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/apply-patch.stdout",
+        "sha256": "ce07bbaa69930324ee1f7dc72d27edade13b038b4ab56d0eba4ff95db079bf41"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 5735,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-0.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-1.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-2.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2840,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-3.stdout",
+        "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1804,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-4.stdout",
+        "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-5.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 5735,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/archive-members-6.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/compile-extension-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/component-libraries.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 3988,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/component-libraries.stdout",
+        "sha256": "087c28aad55f741dd1a0e20d25da13c8ba022dde10e40252d28dd5aa10cbdfb5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/cxxflags.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 199,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/cxxflags.stdout",
+        "sha256": "0bdd478e6d3138587e11516a6b390c6a3e6f45407c9e2c2582cdfa5282a4fb3f"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/dependencies.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 660,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/dependencies.stdout",
+        "sha256": "cb03e89e5fcbdbfb09537e0a5fbcee1cb992716a2e724570f2af02807ae159ab"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/link-dso.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/link-dso.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 5735,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-0.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-1.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-2.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2840,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-3.stdout",
+        "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1804,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-4.stdout",
+        "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 1603,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-5.stdout",
+        "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 5735,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/original-members-6.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/private-header-download-0.stderr",
+        "sha256": "f2da474df9bf1e66e85656c4979ff85396bef1dfc7e56c2864531d45f74ce6f8"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/private-header-download-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/private-header-download-1.stderr",
+        "sha256": "62dab4289179611c4af4e732e3709b3f00a907e37078b3cf0399bcc74be2293d"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/private-header-download-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-5.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/replace-object-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-0.stderr",
+        "sha256": "afc34e54a0b37ad7934da53e76d8faf0e9ec4c757ef406e171c8cd7b27440529"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-1.stderr",
+        "sha256": "bcfaf6cec644fc710fff5958ce0642e58252ca45db0146727c4cdc28cc405444"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-1.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-10.stderr",
+        "sha256": "7d35cf0447cb416d0d6333e970e32b7773acc55b2eccba7ff207659d2c300fd7"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-10.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-11.stderr",
+        "sha256": "d2d624d9c32b720028daff56fa9d5cc221cde7b8867689f6e9d7f242625f6268"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-11.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-12.stderr",
+        "sha256": "b2335a708e16f3d9dd463fb96262a203e31434e2a28129a567864aff2251f658"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-12.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-13.stderr",
+        "sha256": "65b6cd79fd9dc7e89ec84956a2881ecd5727f79167439b7ca10d9184ccf00c03"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-13.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-14.stderr",
+        "sha256": "a062b3c880fbdc24d9061364a14c1d1ad8f4e43b1b9bda73be523682028a9621"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-14.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-15.stderr",
+        "sha256": "b4bf05267d3eaf020b6c57af12bb534352995c1ceb3445b897cf05e8649354f1"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-15.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-16.stderr",
+        "sha256": "8d5567b20da328f6dac06708c8015b9891e900b838fac07eb7815ab9701ae9c8"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-16.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-17.stderr",
+        "sha256": "b4d5a27c3cc4565065a9ab7fa086557429ee2b26e880f6fd1c5108754c7056bb"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-17.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-18.stderr",
+        "sha256": "7b762d5d210ef4f73ea615e96b066cf7fcd3db94a3f2040fb3f8f1d85d72bb40"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-18.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-19.stderr",
+        "sha256": "5026259f02cc0db101224f86d8af724dd351b21b3f1a74190f84acf5562d795d"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-19.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-2.stderr",
+        "sha256": "acc9fcff9b9280e54367f232c4d96c22697440d9ece85322d7b39aa1b82f1131"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-2.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-20.stderr",
+        "sha256": "aed9c746c932c6d0cc9dc2a6047bb3808be468b82cbf832b4294891e5df8b90b"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-20.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-21.stderr",
+        "sha256": "4970d5d9c035d0c311838ecca6675ff42be20bda21d9dc84fc898d52b71eaaae"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-21.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-22.stderr",
+        "sha256": "95268b810198f096df251dbf8f15bcc6e18f0ccdd939ed840a6eee9447fdd7ec"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-22.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-3.stderr",
+        "sha256": "6a7e499dd5a532e7b7ea4c90703b0f34037caaf652ba2676eee28b0bdc9b442e"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-3.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-4.stderr",
+        "sha256": "c0ad9940342e3625a6424b7e86b035839a641167cbf5354d0842b8264f34ff4f"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-4.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-5.stderr",
+        "sha256": "e9322117b4efb0166d43ecd1b963052c730574a0bbea3066aaef24f6d219cac0"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-5.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 396,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-6.stderr",
+        "sha256": "ce9d4706dd051b088456c199f729e85a2a8e38c09c5cc6c0f8d947e686fcb39d"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-6.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-7.stderr",
+        "sha256": "97e539d9c517513adeaaa5d74f6aba1aa8f4b735f8e5ca7a5a02a6bfe783b8b1"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-8.stderr",
+        "sha256": "e4382f1f8a7b88fa637ee130b48b582ba0a83bd84e113f5bd2691d637010fcbe"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-8.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-9.stderr",
+        "sha256": "72cf8478ac8e8523b0a1cdbc8a647124c3762e2cf0da13cc2f4c2a563dea70d1"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/logs/source-download-9.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 49568,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-0/MachineFunctionPass.cpp.o",
+        "sha256": "8e8561854623ff7d7643dbd4283507c5b2f95cbade323c5dfd207ce1e4a3b64a"
+      },
+      {
+        "bytes": 171312,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-1/PassManager.cpp.o",
+        "sha256": "342bdcbe9836daa4d9161ba3a387298d95ca8d9e9adb669f4f5b84bf1b236fc2"
+      },
+      {
+        "bytes": 161624,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-2/LegacyPassManager.cpp.o",
+        "sha256": "6ba9d52e733a9e1b4a1205f09b9f07ee7532a79240573b037d114113f39e5865"
+      },
+      {
+        "bytes": 144520,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-3/CGSCCPassManager.cpp.o",
+        "sha256": "21d121e2e5656d4a95ca10ffddf94589f40a0206e4c4650fa3930fc76726db15"
+      },
+      {
+        "bytes": 33696,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-4/LoopPassManager.cpp.o",
+        "sha256": "f8eb9dabe267169f9cb52d799b4b9727c61beae1422b70af564c7fdec9d63ceb"
+      },
+      {
+        "bytes": 377488,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-5/AsmWriter.cpp.o",
+        "sha256": "9d9ee55e74bceb3070e3e973604e11bc17700ace2a80a49e2171904037ccb497"
+      },
+      {
+        "bytes": 315384,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/objects-6/MIRPrinter.cpp.o",
+        "sha256": "bef0b13ed8dd077ad0b2935841f4a09a09829516aadd1b7647948c40549fe827"
+      },
+      {
+        "bytes": 47250,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AliasAnalysis.h",
+        "sha256": "90ae0c96f8637b38b442b8189013f8ad85077a85e4a61f647eb67a24bce14c3c"
+      },
+      {
+        "bytes": 10122,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AssumptionCache.h",
+        "sha256": "54d78a1b357d3aa4dae2e921392e2bc488ded3962d0efd69aaa78bcde57dd822"
+      },
+      {
+        "bytes": 7922,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
+        "sha256": "06ad1cc6745e2f445d792fe7b2737a58d1cfbb7becb5953a0a12b501359b6533"
+      },
+      {
+        "bytes": 4783,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h",
+        "sha256": "3b3ff766e0ed0dbd7c97a8105995c14adf360b87de00df9195fc5cba1765eaf6"
+      },
+      {
+        "bytes": 7088,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h",
+        "sha256": "95527157c63da56a1a7f428002866bf8811e5dfc86be386995f1040f5e385ed3"
+      },
+      {
+        "bytes": 16060,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/ProfileSummaryInfo.h",
+        "sha256": "a878a701a1f430e83a05867c9de5325d431eff8ff0c6543897b18aa35edb5f0b"
+      },
+      {
+        "bytes": 26501,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TargetLibraryInfo.h",
+        "sha256": "ce4b4d2bc4a3414c92d1f516c01835f2ab4619c971f6a3e6f1aa78acbd2e774e"
+      },
+      {
+        "bytes": 4031,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
+        "sha256": "598549810c318191e96231cc591b42b22abe94d3f18aad7ffd5b01a04932c81c"
+      },
+      {
+        "bytes": 65192,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineBasicBlock.h",
+        "sha256": "6a030573576f1b718ffb0fa7071ac344371ec5bd09f31e401e4dced950c64abb"
+      },
+      {
+        "bytes": 65664,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineFunction.h",
+        "sha256": "2eaec03bba102e996842bb055e11b9166041dc54a8c3cebc74ecae52f4863698"
+      },
+      {
+        "bytes": 40147,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/Function.h",
+        "sha256": "197f45e98b186260999700e05f554d6209c94b8cb8d2830fcd67222b2893e8de"
+      },
+      {
+        "bytes": 42323,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManager.h",
+        "sha256": "f658a25bdabaabb2d82ed65403c9e613ff529dacaaf84d867f24e29e43656cd9"
+      },
+      {
+        "bytes": 9678,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManagerImpl.h",
+        "sha256": "6cd91a4a08bb2837cc2fadc2c496b3f4e627eb88aba1d9750409b5613bf1e474"
+      },
+      {
+        "bytes": 2950,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/TypeFinder.h",
+        "sha256": "b4aa00be52c416c431e0bcc46466850102f5ae45d068c5bc5e927b6d55006a16"
+      },
+      {
+        "bytes": 5206,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/ValueSymbolTable.h",
+        "sha256": "bb7510d0c3e265570a8fea2dfe2e9c199a79e9abcbe18416df8fadec159914f9"
+      },
+      {
+        "bytes": 3043,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms/InstCombine/InstCombine.h",
+        "sha256": "08f32c52596f726199dd46789bc4b50c5c5bed10bab0af4fc86f1d6c558890dd"
+      },
+      {
+        "bytes": 50548,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis/CGSCCPassManager.cpp",
+        "sha256": "b7d2740a42667399fa947785bc6415b862aff6463cdf1014c03c1d39a8b082f8"
+      },
+      {
+        "bytes": 42672,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MIRPrinter.cpp",
+        "sha256": "abc258e19ed57d8c8c7360312129240b9b306f94def3c9c7d85db6f3e7d009b7"
+      },
+      {
+        "bytes": 10884,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+        "sha256": "c8a7ca003269a7f3e3b625a696595d90932279740e2cc933b9d2d51265594702"
+      },
+      {
+        "bytes": 189213,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/AsmWriter.cpp",
+        "sha256": "794cf1a3789abf7f10f5d7dbeaa3124ee0464d083e9b3cb0afcf51bd847d6d6d"
+      },
+      {
+        "bytes": 61254,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/LegacyPassManager.cpp",
+        "sha256": "f29b6180e8b14ec0dc899839e308a673f5521ddc81043c7cbf5b0d0b2afbd05d"
+      },
+      {
+        "bytes": 16658,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/PassManager.cpp",
+        "sha256": "fa1e76fcbb61d82156c6870b861c3f176b6358a218dd54c60e93684ad0904c19"
+      },
+      {
+        "bytes": 14501,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+        "sha256": "a9bf77850a58f73ed7642b3d41cce36c3597b39ea2d412c5577d664a436531b3"
+      },
+      {
+        "bytes": 8910,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/zil-native-private/X86AsmPrinter.h",
+        "sha256": "35dae4ae013580412479dabe09fee54c03a53f30aa6256f17e5eb5fc08b64cac"
+      },
+      {
+        "bytes": 13403,
+        "mode": 384,
+        "path": ".zil-environment/llvm-function-products-v16/source/zil-native-private/X86MachineFunctionInfo.h",
+        "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V21 full original combined profile15 SDK16 checkpoint. Frozen compiledsource4b809bbfedb92b23062d5bf151eb75fef4bfcd35/tree0cdc093e968f73a7d7295afdb3192686da7e8622/binary4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4 and SDK16 DSO3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b; baseline3ec7 originalSDK. Original425/22files/CGU16/O2/jobs1/push+profile only, no lateflag/customELF. Full34rows/18measured16parents/15success2safeerrorpairs/180recordednative, original source-specific qualifier5a72 passed strict full-recordedELF plus rawLLVM identity-comment policy. Complete495file/415601601B master is disjoint union authority. Each fixed shard fully freshlyHTTPS restored and SHA/size/mode verified before exact-master-matched original raw retirement; no full assembled fresh qualifier or native rerun claimed. SDK16/immutable/source/Git originals never retired. Metadata separately binds SDKbuild01, gate08 compile101 with zero tests, full09/10 gates, release17/18, source trees,12tool tests, reviews/proofs/cleanup15/V20 receipts and both documentationd36 history plus0f1 object-receipt262 versus phase269 correction. No priorcandidate/Rust cross-window timing ratio.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "documentation_d36": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+      "profile15": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35"
+    }
+  },
+  "inventory_sha256": "9a96b714b71459a60f547389cc8aab6cbe09335542fde618a76dae9e63f5bf5f",
+  "schema": 1,
+  "selectors": [
+    ".zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+    ".zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+    ".zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a",
+    ".zil-environment/llvm-function-products-v16/llvm.map",
+    ".zil-environment/llvm-function-products-v16/logs/apply-patch.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/apply-patch.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-2.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-2.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-3.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-3.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-4.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-4.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-5.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-5.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-6.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/archive-members-6.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-2.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-2.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-3.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-3.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-4.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-4.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-5.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-5.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-6.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/compile-extension-6.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/component-libraries.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/component-libraries.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/cxxflags.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/cxxflags.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/dependencies.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/dependencies.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/link-dso.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/link-dso.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-2.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-2.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-3.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-3.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-4.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-4.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-5.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-5.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-6.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/original-members-6.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/private-header-download-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/private-header-download-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/private-header-download-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/private-header-download-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-2.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-2.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-3.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-3.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-4.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-4.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-5.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-5.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-6.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/replace-object-6.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-0.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-0.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-1.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-1.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-10.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-10.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-11.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-11.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-12.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-12.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-13.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-13.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-14.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-14.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-15.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-15.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-16.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-16.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-17.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-17.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-18.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-18.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-19.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-19.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-2.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-2.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-20.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-20.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-21.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-21.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-22.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-22.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-3.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-3.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-4.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-4.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-5.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-5.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-6.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-6.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-7.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-7.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-8.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-8.stdout",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-9.stderr",
+    ".zil-environment/llvm-function-products-v16/logs/source-download-9.stdout",
+    ".zil-environment/llvm-function-products-v16/objects-0/MachineFunctionPass.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-1/PassManager.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-2/LegacyPassManager.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-3/CGSCCPassManager.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-4/LoopPassManager.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-5/AsmWriter.cpp.o",
+    ".zil-environment/llvm-function-products-v16/objects-6/MIRPrinter.cpp.o",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AliasAnalysis.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AssumptionCache.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/ProfileSummaryInfo.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TargetLibraryInfo.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineBasicBlock.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineFunction.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/Function.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManager.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManagerImpl.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/TypeFinder.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/ValueSymbolTable.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms/InstCombine/InstCombine.h",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis/CGSCCPassManager.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MIRPrinter.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/AsmWriter.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/LegacyPassManager.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/IR/PassManager.cpp",
+    ".zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+    ".zil-environment/llvm-function-products-v16/source/zil-native-private/X86AsmPrinter.h",
+    ".zil-environment/llvm-function-products-v16/source/zil-native-private/X86MachineFunctionInfo.h"
+  ],
+  "source_root": "/workspace"
+}
