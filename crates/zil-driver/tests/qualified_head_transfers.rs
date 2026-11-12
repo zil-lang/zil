@@ -513,3 +513,20 @@ fn local_borrowed_callback_keeps_owning_input_and_result_types() {
         .unwrap();
     assert_eq!(role.life.as_ref(), Some(scope));
 }
+
+#[test]
+fn consuming_static_slice_result_has_no_fabricated_free_or_receiver_class() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-result.zil");
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.kind,zil_ir::CallableKind::FnOnce);
+    let life=d.storage_life.as_ref().unwrap();
+    assert_eq!((life.fixed_binder_count,life.invocation_binder_count),(0,0));
+    assert!(life.bindings.is_empty() && life.classes.is_empty());
+    assert!(life.static_bindings.iter().any(|position|position.base==StorageBase::Result));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    let wire=zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap();
+    let (module,plan)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&module,&limits).unwrap(),plan);
+}

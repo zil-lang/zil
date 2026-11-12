@@ -280,6 +280,11 @@ fn contract(
     f: &TypedFunction,
     b: &mut Budget,
 ) -> CompileResult<Option<BTreeMap<Vec<ContractProjection>, Vec<Target>>>> {
+    // Ordinary immutable constant callback results have their own complete
+    // upper/target/parent-loan consumer, not a dyn Context port directory.
+    if super::super::stored_callables::constant_entry(module,f) {
+        return Ok(None);
+    }
     if !b.dyn_contexts {
         if f.retained_return_sources.is_some() {
             return Err(failure(

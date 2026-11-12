@@ -90,6 +90,14 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && d.kind != CallableKind::FnOnce
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
+pub(super) fn constant_result(d: &ClosureDefinition) -> bool {
+    matches!(&d.result,Type::Address{mutable:false,inner}if inner.is_address_pointee())
+        && d.storage_life.as_ref().is_some_and(|life|life.static_bindings.iter().any(|p|p.base==StorageBase::Result && p.path.is_empty()))
+}
+pub(super) fn constant_entry(module: &TypedModule, f: &TypedFunction) -> bool {
+    f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|
+        d.function==f.id && f.return_type==d.result && constant_result(d))
+}
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
@@ -234,6 +242,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || transferred(d)
+            || constant_result(d)
             || borrowed_owned_candidate(d)
     })
 }
