@@ -4,7 +4,10 @@ use super::*;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use zil_base::{ModuleId, NodeId};
-use zil_expand::{ExpansionEpoch, FunctionOwner, InputContext, NamespaceContext, ProducedProgram};
+use zil_expand::{
+    ExpansionEpoch, FunctionInputRevision, FunctionOwner, InputContext, NamespaceContext,
+    ProducedProgram,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TypesPushStats {
@@ -161,10 +164,13 @@ impl TypesPushSession {
         if !prepared.identity_inference(limits)
             || &prior.limits != limits
             || &prior.target != target
-            || batch.previous_epoch() != Some(&prior.epoch)
             || batch.namespace_context() != &prior.namespace
             || prepared.program().root != prior.program.module.module_id
         {
+            return None;
+        }
+        let continuous = batch.previous_epoch() == Some(&prior.epoch);
+        if !continuous && batch.context() != &prior.input_context {
             return None;
         }
         if batch.context() != &prior.input_context
@@ -181,7 +187,13 @@ impl TypesPushSession {
         let mut signature_work = prior.signature_work;
         let mut readers = prior.readers.clone();
         let mut program = prior.program.as_ref().clone();
-        let mut work = BTreeMap::<usize, Work>::new();
+        let mut work = if continuous {
+            BTreeMap::<usize, Work>::new()
+        } else {
+            // A failed Types request may leave a newer successful raw producer
+            // epoch. Its last delta is not a delta from our successful CFGs.
+            prior.bridge_inputs(produced)?
+        };
         let mut signature_modules = BTreeSet::new();
         let mut stats = TypesPushStats {
             sparse_batches: 1,
@@ -190,7 +202,7 @@ impl TypesPushSession {
         };
         // Names/IDs resolve through the immutable namespace table; actual
         // signature contents resolve through current persistent value leaves.
-        for change in batch.changes() {
+        for change in batch.changes().iter().filter(|_| continuous) {
             let (module, function) = produced.changed_function(change)?;
             let id = prior
                 .tables
@@ -316,6 +328,11 @@ impl TypesPushSession {
             let position_changed = before.span != function.span;
             row.span = function.span;
             row.node = function.id;
+            row.input = Some(
+                produced
+                    .function_input_revision(old.module, &old.name)?
+                    .clone(),
+            );
             rows = rows.replace(index, row)?;
             stats.receipt_tree_updates += 1;
             if typed != *before {
@@ -386,13 +403,26 @@ impl TypesPushSession {
             Arc::make_mut(&mut interface_costs).insert(module_id, cost);
         }
         program.module.source_fingerprint = prepared.program().source_fingerprint;
-        for &index in batch.changed_modules() {
-            let module = prepared.program().modules.get(index)?;
-            let interface_index = *prior.interface_indexes.get(&module.core.module_id)?;
-            program
-                .interfaces
-                .get_mut(interface_index)?
-                .implementation_fingerprint = module.core.source_fingerprint;
+        if continuous {
+            for &index in batch.changed_modules() {
+                let module = prepared.program().modules.get(index)?;
+                let interface_index = *prior.interface_indexes.get(&module.core.module_id)?;
+                program
+                    .interfaces
+                    .get_mut(interface_index)?
+                    .implementation_fingerprint = module.core.source_fingerprint;
+            }
+        } else {
+            // Earlier skipped raw epochs can have changed other modules too.
+            // Copy current diagnostic identities for every module; never treat
+            // the final producer delta or a fingerprint as an input proof.
+            for module in &prepared.program().modules {
+                let interface_index = *prior.interface_indexes.get(&module.core.module_id)?;
+                program
+                    .interfaces
+                    .get_mut(interface_index)?
+                    .implementation_fingerprint = module.core.source_fingerprint;
+            }
         }
         let program = Arc::new(program);
         let context = Context {
@@ -523,6 +553,60 @@ struct Context {
 }
 type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
 impl Context {
+    /// Reconcile a missing raw-parent edge using every current sealed input.
+    /// The successful CFG owner is unchanged until the entire request succeeds.
+    /// These are producer-minted input identities, not hashes, dirty hints or
+    /// Types/Verify authority. The producer preserves one only for identical
+    /// parser declaration bytes plus attribute/file/node/temporary-name binding
+    /// under its complete input environment. Absolute positions are separate.
+    fn bridge_inputs(&self, produced: &ProducedProgram) -> Option<BTreeMap<usize, Work>> {
+        let batch = produced.change_batch();
+        if batch.context() != &self.input_context
+            || batch.namespace_context() != &self.namespace
+            || produced
+                .program()
+                .modules
+                .iter()
+                .try_fold(0usize, |count, module| {
+                    count.checked_add(module.core.functions.len())
+                })?
+                != self.rows.0.len
+        {
+            return None;
+        }
+        let mut work = BTreeMap::new();
+        for index in 0..self.rows.0.len {
+            let old = self.rows.get(index)?;
+            let module = produced.program().modules.get(old.location.0)?;
+            let function = module.core.functions.get(old.location.1)?;
+            let input = produced.function_input_revision(old.module, &old.name)?;
+            if old.id.0 as usize != index
+                || module.core.module_id != old.module
+                || function.name != old.name
+                || produced.function_owner(old.module, &old.name) != old.owner.as_ref()
+            {
+                return None;
+            }
+            let same_input = input == old.input.as_ref()?;
+            // The legacy input projection binds declaration node IDs. Treat
+            // any contradiction as unknown rather than retargeting a result.
+            if same_input && function.id != old.node {
+                return None;
+            }
+            if !same_input || function.span != old.span {
+                work.insert(
+                    index,
+                    Work {
+                        body: !same_input,
+                        binding: true,
+                        reader: false,
+                    },
+                );
+            }
+        }
+        Some(work)
+    }
+
     fn fits(&self, total: Total, limits: &Limits) -> bool {
         let maxima = [
             limits.max_blocks,
@@ -610,6 +694,7 @@ impl Recording {
             node: source.id,
             name: source.name.clone(),
             owner: None,
+            input: None,
             span: source.span,
             cfg,
             names: 0,
@@ -650,6 +735,11 @@ impl Recording {
                 return None;
             }
             row.owner = Some(produced.function_owner(row.module, &row.name)?.clone());
+            row.input = Some(
+                produced
+                    .function_input_revision(row.module, &row.name)?
+                    .clone(),
+            );
             row.names = *names;
             row.shape = *shapes;
             row.post = PostReceipt::check(function, limits)?;
@@ -731,6 +821,7 @@ struct Row {
     node: NodeId,
     name: String,
     owner: Option<FunctionOwner>,
+    input: Option<FunctionInputRevision>,
     span: Span,
     cfg: [usize; 6],
     names: usize,
@@ -953,10 +1044,10 @@ mod tests {
     use super::*;
     use zil_base::{FileId, Fingerprint, SourceUnit};
     use zil_expand::{
-        ExpandSession,
         source_context::{DeclarationPlacement, SourceIdentityContext},
+        ExpandSession,
     };
-    use zil_syntax::{ParsedSource, attributes::AttributeContext};
+    use zil_syntax::{attributes::AttributeContext, ParsedSource};
 
     fn parse(id: u32, text: &str, limits: &Limits) -> ParsedSource {
         let parsed = ParsedSource::parse(
@@ -1026,12 +1117,11 @@ mod tests {
         let warm = apply(&mut session, &prepared(&next, &limits), &limits).unwrap();
         assert_eq!(warm.stats.sparse_batches, 1);
         assert_eq!(warm.stats.body_checks, 0);
-        assert!(
-            cold.program
-                .module
-                .functions
-                .ptr_eq(&warm.program.module.functions)
-        );
+        assert!(cold
+            .program
+            .module
+            .functions
+            .ptr_eq(&warm.program.module.functions));
         assert!(warm.changes.is_empty());
         input[0] = parse(0, &scalar_module().replace("x+1", "x+111"), &limits);
         let current = produced(&mut expand, &input, &limits);
@@ -1104,9 +1194,10 @@ mod tests {
         let recovered = prepared(&recovered, &limits);
         let recovered = apply(&mut session, &recovered, &limits).unwrap();
         assert_eq!(
-            recovered.stats.context_rebuilds, 1,
-            "failed producer epoch is not the last successful Types epoch"
+            recovered.stats.context_rebuilds, 0,
+            "a failed raw epoch must be bridged from all current sealed inputs"
         );
+        assert_eq!(recovered.stats.body_checks, 1);
         assert_eq!(recovered.program, cold.program);
         let blocks = cold
             .program
@@ -1667,5 +1758,212 @@ mod tests {
         );
         checkpoint.clear();
         assert!(checkpoint.current.is_none());
+    }
+
+    #[test]
+    fn failed_epoch_bridge_rechecks_all_current_inputs_and_module_identities() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let root = "fn first(x:i32)->i32=>x+1; fn sibling(x:i32)->i32=>x+2;";
+        let other = "pub fn remote(x:i32)->i32=>x+3; fn spare(x:i32)->i32=>x+4;";
+        let initial = produced(
+            &mut expand,
+            &[parse(0, root, &limits), parse(1, other, &limits)],
+            &limits,
+        );
+        let cold = apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let checkpoint = session.current.clone().unwrap();
+        // The first failed raw epoch changes a SECOND module and all positions.
+        // The next error and recovery only change module zero. Its last sparse
+        // delta cannot describe all differences from the successful Types owner.
+        for invalid in ["missing", "unknown"] {
+            let input = produced(
+                &mut expand,
+                &[
+                    parse(
+                        0,
+                        &format!("\n\n{}", root.replacen("x+1", &format!("x+{invalid}"), 1)),
+                        &limits,
+                    ),
+                    parse(
+                        1,
+                        &format!("\n\n{}", other.replacen("x+3", "x+8", 1)),
+                        &limits,
+                    ),
+                ],
+                &limits,
+            );
+            let current = prepared(&input, &limits);
+            let actual = apply(&mut session, &current, &limits).unwrap_err();
+            assert_eq!(actual, fresh(&current, &limits).unwrap_err());
+            assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &checkpoint));
+        }
+        let recovered = produced(
+            &mut expand,
+            &[
+                parse(
+                    0,
+                    &format!("\n\n{}", root.replacen("x+1", "x+9", 1)),
+                    &limits,
+                ),
+                parse(
+                    1,
+                    &format!("\n\n{}", other.replacen("x+3", "x+8", 1)),
+                    &limits,
+                ),
+            ],
+            &limits,
+        );
+        assert_eq!(recovered.change_batch().changed_modules(), &[0]);
+        let current = prepared(&recovered, &limits);
+        let update = apply(&mut session, &current, &limits).unwrap();
+        assert_eq!(update.stats.context_rebuilds, 0);
+        assert_eq!(update.stats.body_checks, 2);
+        assert_eq!(update.stats.position_rebindings, 2);
+        assert_eq!(update.program.as_ref(), &fresh(&current, &limits).unwrap());
+        assert_ne!(
+            update.program.interfaces[1].implementation_fingerprint,
+            cold.program.interfaces[1].implementation_fingerprint
+        );
+        assert_eq!(
+            cold.program.as_ref(),
+            &fresh(&prepared(&initial, &limits), &limits).unwrap()
+        );
+    }
+
+    #[test]
+    fn failed_epoch_bridge_does_not_cross_changed_headers_namespace_or_limits() {
+        let limits = Limits::default();
+        for replacement in [
+            "fn first(x:bool)->bool=>x; fn sibling(x:i32)->i32=>x+2;",
+            "fn renamed(x:i32)->i32=>x+1; fn sibling(x:i32)->i32=>x+2;",
+        ] {
+            let mut expand = ExpandSession::default();
+            let mut session = TypesPushSession::default();
+            let initial = produced(
+                &mut expand,
+                &[parse(
+                    0,
+                    "fn first(x:i32)->i32=>x+1; fn sibling(x:i32)->i32=>x+2;",
+                    &limits,
+                )],
+                &limits,
+            );
+            apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+            let bad = produced(
+                &mut expand,
+                &[parse(
+                    0,
+                    "fn first(x:i32)->i32=>x+missing; fn sibling(x:i32)->i32=>x+unknown;",
+                    &limits,
+                )],
+                &limits,
+            );
+            let bad = prepared(&bad, &limits);
+            assert_eq!(
+                apply(&mut session, &bad, &limits).unwrap_err(),
+                fresh(&bad, &limits).unwrap_err()
+            );
+            let input = produced(&mut expand, &[parse(0, replacement, &limits)], &limits);
+            let input = prepared(&input, &limits);
+            let actual = apply(&mut session, &input, &limits).unwrap();
+            assert_eq!(actual.stats.context_rebuilds, 1);
+            assert_eq!(actual.program.as_ref(), &fresh(&input, &limits).unwrap());
+            // A real user quota change remains an exact validity input. The
+            // producer's independent +8 lowering allowance is not this quota.
+            let larger = Limits {
+                max_analysis_steps: limits.max_analysis_steps + 8,
+                ..limits.clone()
+            };
+            let input = produced(&mut expand, &[parse(0, replacement, &larger)], &larger);
+            let input = prepared(&input, &larger);
+            let actual = apply(&mut session, &input, &larger).unwrap();
+            assert_eq!(actual.stats.context_rebuilds, 1);
+            assert_eq!(actual.program.as_ref(), &fresh(&input, &larger).unwrap());
+        }
+    }
+
+    #[test]
+    fn failed_epoch_bridge_keeps_aggregate_budget_and_original_first_error() {
+        let limits = Limits {
+            max_blocks: 10,
+            ..Limits::default()
+        };
+        let text = (0..10)
+            .map(|i| format!("fn f{i}(x:i32)->i32=>x+1; "))
+            .collect::<String>();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, &text, &limits)], &limits);
+        apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let checkpoint = session.current.clone().unwrap();
+        let bad = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &text.replacen(
+                    "fn f9(x:i32)->i32=>x+1;",
+                    "fn f9(x:i32)->i32=>x+missing;",
+                    1,
+                ),
+                &limits,
+            )],
+            &limits,
+        );
+        let bad = prepared(&bad, &limits);
+        assert_eq!(
+            apply(&mut session, &bad, &limits).unwrap_err(),
+            fresh(&bad, &limits).unwrap_err()
+        );
+        let larger_body = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &text.replacen(
+                    "fn f9(x:i32)->i32=>x+1;",
+                    "fn f9(x:i32)->i32 {if x>0 {return x+1;}else{return x+2;}}",
+                    1,
+                ),
+                &limits,
+            )],
+            &limits,
+        );
+        assert_eq!(checkpoint.bridge_inputs(&larger_body).unwrap().len(), 1);
+        let current = prepared(&larger_body, &limits);
+        let unrestricted = fresh(&current, &Limits::default()).unwrap();
+        assert!(unrestricted.module.functions[9].blocks.len() < limits.max_blocks);
+        assert!(
+            unrestricted
+                .module
+                .functions
+                .iter()
+                .map(|f| f.blocks.len())
+                .sum::<usize>()
+                > limits.max_blocks
+        );
+        assert_eq!(
+            apply(&mut session, &current, &limits).unwrap_err(),
+            fresh(&current, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &checkpoint));
+        let recovered = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &text.replacen("fn f9(x:i32)->i32=>x+1;", "fn f9(x:i32)->i32=>x+7;", 1),
+                &limits,
+            )],
+            &limits,
+        );
+        let recovered = prepared(&recovered, &limits);
+        let actual = apply(&mut session, &recovered, &limits).unwrap();
+        assert_eq!(actual.stats.context_rebuilds, 0);
+        assert_eq!(actual.stats.body_checks, 1);
+        assert_eq!(actual.stats.retained_functions, 9);
+        assert_eq!(
+            actual.program.as_ref(),
+            &fresh(&recovered, &limits).unwrap()
+        );
     }
 }
