@@ -152,6 +152,25 @@ std::string worldText(const Module &M, const Function *Subject) {
       if (const auto *I = dyn_cast<Instruction>(U)) Callers.insert(I->getFunction());
     for (const Function &F : M)
       if (Callers.count(&F)) { OS << "\n; incoming caller\n"; F.print(OS, nullptr, true); }
+    // User iteration order is observable to transformations. Bind the actual
+    // outside-body use list as stable current IR positions, without retaining
+    // historical Instruction/Use pointers.
+    OS << "\n; ordered incoming uses\n";
+    for (const Use &U : Subject->uses()) {
+      const auto *I = dyn_cast<Instruction>(U.getUser());
+      if (!I) { U.getUser()->print(OS); OS << '\n'; continue; }
+      const Function *Caller = I->getFunction();
+      size_t Block = 0, Inst = 0;
+      for (const BasicBlock &B : *Caller) {
+        if (&B == I->getParent()) {
+          for (const Instruction &J : B) { if (&J == I) break; ++Inst; }
+          break;
+        }
+        ++Block;
+      }
+      OS << Caller->getName().size() << ':' << Caller->getName() << ':'
+         << Block << ':' << Inst << ':' << U.getOperandNo() << '\n';
+    }
   }
   return S;
 }
