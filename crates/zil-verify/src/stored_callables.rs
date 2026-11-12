@@ -66,8 +66,16 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && d.kind != CallableKind::FnOnce
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
+pub(super) fn static_result(d: &ClosureDefinition) -> bool {
+    d.storage_life.as_ref().is_some_and(|life| {
+        life.static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result && position.path.is_empty())
+    })
+}
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d)
+        && !static_result(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
                 .iter()
@@ -242,6 +250,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
             || borrowed_owned_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
+                    || static_result(d)
             }) && address_result(&d.result)
     })
 }
@@ -303,10 +312,9 @@ pub(super) fn captured_profile(
     }
     if !((d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
-        || d.storage_life
-            .as_ref()
-            .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())
-            && address_result(&d.result))
+        || d.storage_life.as_ref().is_some_and(|life| {
+            super::signature_life::outer(life, StorageBase::Result).is_some() || static_result(d)
+        }) && address_result(&d.result))
     {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",

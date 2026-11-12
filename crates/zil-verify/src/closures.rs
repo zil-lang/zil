@@ -244,10 +244,11 @@ pub(super) fn check_definitions(
         }
         budget.borrowed_function_pointers |= invocation;
         budget.invocation_callbacks |= invocation;
-        let explicit_result_relation = closure
-            .storage_life
-            .as_ref()
-            .is_some_and(|life| signature_life::outer(life, StorageBase::Result).is_some());
+        let explicit_result_relation = stored_callables::static_result(closure)
+            || closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| signature_life::outer(life, StorageBase::Result).is_some());
         if matches!(closure.result, Type::Address { .. })
             && !invocation
             && !receiver_relation

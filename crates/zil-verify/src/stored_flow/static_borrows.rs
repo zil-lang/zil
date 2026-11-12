@@ -98,7 +98,7 @@ pub(super) fn environment_source(
 
 #[derive(Default)]
 struct Obligation {
-    writes: usize,
+    constructors: usize,
     literal_root: bool,
     dependencies: BTreeSet<Node>,
 }
@@ -262,7 +262,10 @@ pub(super) fn validate(
                     };
                     let (literal, dependencies) = observe(permission, solution, &nodes, b)?;
                     let obligation = nodes.get_mut(&node).unwrap();
-                    obligation.writes += 1;
+                    obligation.constructors += usize::from(matches!(
+                        instruction.kind,
+                        InstructionKind::MakeClosure { .. }
+                    ));
                     obligation.literal_root |= literal;
                     b.spend(dependencies.len())?;
                     obligation.dependencies.extend(dependencies);
@@ -271,7 +274,7 @@ pub(super) fn validate(
         }
     }
     b.spend(nodes.len())?;
-    if nodes.values().any(|node| node.writes == 0) {
+    if nodes.values().any(|node| node.constructors == 0) {
         return Err(err(
             "constant field has no actual constructor or initializer",
         ));

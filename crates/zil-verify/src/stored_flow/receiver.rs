@@ -158,10 +158,10 @@ pub(super) fn receiver_result(
     let Some((d, arguments)) = stored_callables::called(module, f, &i.kind) else {
         return Ok(false);
     };
-    if d.storage_life
-        .as_ref()
-        .is_none_or(|life| signature_life::outer(life, StorageBase::Result).is_none())
-        || !matches!(d.result, Type::Address { .. })
+    if d.storage_life.as_ref().is_none_or(|life| {
+        signature_life::outer(life, StorageBase::Result).is_none()
+            && !stored_callables::static_result(d)
+    }) || !matches!(d.result, Type::Address { .. })
     {
         return Ok(false);
     }

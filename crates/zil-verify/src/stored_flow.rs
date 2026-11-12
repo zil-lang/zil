@@ -3495,7 +3495,7 @@ static_dependency: None,
         }
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
-                signature_life::outer(life, StorageBase::Result).is_some())
+                signature_life::outer(life, StorageBase::Result).is_some() || stored_callables::static_result(definition))
                 && matches!(definition.result, Type::Address { .. })) =>
         {
             receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;

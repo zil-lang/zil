@@ -314,7 +314,6 @@ pub(super) fn closure_relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    pending_static(c, span)?;
     relation_inner(
         parameters,
         result,
@@ -713,7 +712,14 @@ fn relation_inner(
                 let count = module
                     .and_then(|m| m.closures.get(id.0 as usize))
                     .and_then(|d| d.storage_life.as_ref())
-                    .map_or(0, |c| c.fixed_binder_count);
+                    .ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-SIGNATURE-CLASS",
+                            span,
+                            "callable class directory is unknown, not a complete empty domain",
+                        )
+                    })?
+                    .fixed_binder_count;
                 for local in 0..count {
                     let row = c.classes.get(class).ok_or_else(invalid)?;
                     if row.position.base != base
