@@ -1884,8 +1884,9 @@ fn check_with(
                                 .ok_or_else(|| bad("aggregate class operand is absent"))?;
                             let operand = &values[arg.0 as usize];
                             let child_shape = shape(&f.values[arg.0 as usize]);
-                            let upper = if !tail.is_empty() && child_shape.is_some() {
-                                let child_shape = child_shape.expect("actual qualified operand");
+                            let upper = if !tail.is_empty()
+                                && let Some(child_shape) = child_shape
+                            {
                                 let mut selected = None;
                                 for child in &child_shape.slots {
                                     b.spend(

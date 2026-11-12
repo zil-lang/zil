@@ -2425,11 +2425,34 @@ fn returns(
             let leaves = capture_after::leaves(module, d, b)?;
             let mut actual = BTreeSet::new();
             for (path, sources) in &facts.returned {
-                if !path.is_empty() || sources.is_empty() {
+                if sources.is_empty() {
                     return Err(failure(
                         "returned external view has no actual complete source",
                     ));
                 }
+                let result_slot = if path.is_empty() {
+                    None
+                } else {
+                    let (_, shape) = pointed_carrier(&d.result).ok_or_else(|| {
+                        failure("returned external view has undeclared nested data")
+                    })?;
+                    fee(
+                        b,
+                        shape
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                    )?;
+                    Some(
+                        shape
+                            .slots
+                            .iter()
+                            .find(|row| row.path == *path)
+                            .ok_or_else(|| {
+                                failure("returned external view omits an exact physical slot")
+                            })?,
+                    )
+                };
                 for source in sources {
                     let HoldRoot::Capture(index) = source.base else {
                         return Err(failure(
@@ -2456,12 +2479,28 @@ fn returns(
                                 "returned environment source is not an authenticated leaf",
                             ));
                         }
+                        if let Some(slot) = result_slot {
+                            let class = environment_memory::fixed(module, d.id, &key, 0, b)?;
+                            if binding(f, StorageBase::Result, path, b)?
+                                != StorageBinder::Fixed(class)
+                                || (slot.mode == StoredBorrowMode::ExclusiveAddress
+                                    && !leaves
+                                        .iter()
+                                        .any(|(path, mutable)| *path == key && *mutable))
+                            {
+                                return Err(failure(
+                                    "returned qualified pointee slot changes its actual class or capability",
+                                ));
+                            }
+                        }
                     } else if !super::stored_callables::result_is_receiver(d) {
                         return Err(failure(
                             "inline environment storage cannot supply a Fixed external result",
                         ));
                     }
-                    actual.insert(index);
+                    if path.is_empty() {
+                        actual.insert(index);
+                    }
                 }
             }
             if actual.into_iter().collect::<Vec<_>>() != d.lending_captures {
@@ -3289,7 +3328,18 @@ fn seed(
             let mut value = seed_value(
                 module,
                 ty,
-                HoldRoot::Capture(index as u32),
+                if d.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    })
+                }) {
+                    // The all-constructor/write proof ran before any CFG is
+                    // admitted; this is its constant input, not a fresh root.
+                    HoldRoot::Static
+                } else {
+                    HoldRoot::Capture(index as u32)
+                },
                 &mut state,
                 loans,
                 b,
@@ -4936,8 +4986,7 @@ fn transfer(
         InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
             let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
             for (index,field) in fields.iter().enumerate(){
-                let mut child=Value::default();
-                child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                let mut child=Value{slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?,..Value::default()};
                 if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
                     // A summary may still be empty in this fixed-point iteration.
                     // Final address uses and returns independently demand real
@@ -5121,6 +5170,27 @@ fn transfer(
                 heap_element: None,
             });
         }
+    }
+    if b.qualified_head_returns
+        && let Some(result) = i.result
+        && let Some((storage, shape)) = pointed_carrier(value_type(f, result)?)
+        && matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        && shape.retained.is_empty()
+    {
+        // A qualified address denotes current memory, not the slot snapshot
+        // cached when its capability entered the environment. In particular a
+        // consuming call may have just published a write through that head.
+        // Ordinary extracted data addresses do not enter this branch: their
+        // own permissions and parent loans stay frozen until their last use.
+        fee(b, shape.slots.len().saturating_add(1))?;
+        let mut current = BTreeMap::new();
+        for declaration in &shape.slots {
+            fee(b, declaration.path.len())?;
+            let actual = select(state, &out.pointer, &declaration.path, b)?;
+            ordered(b, current.len(), declaration.path.len())?;
+            current.insert(declaration.path.clone(), actual);
+        }
+        out.slots = current;
     }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
@@ -9189,6 +9259,7 @@ mod tests {
             let mut m = fixture::captured_fixed(CallableKind::Fn, wrong);
             let ty = address(Type::I64, false);
             let contract = StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 1,
                 invocation_binder_count: 0,
                 bindings: vec![

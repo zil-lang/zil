@@ -100,6 +100,7 @@ fn input(
         return Ok((
             port_type.clone(),
             Source {
+                static_dependency: None,
                 base: HoldRoot::Parameter(index),
                 retained_port: Some(PortOrigin::Dyn {
                     carrier: carrier.to_vec(),
@@ -121,6 +122,7 @@ fn input(
     let endpoint = crate::dynamic_ports::physical_path(storage, &path, b)?;
     dynamic_metadata::ty(endpoint, b)?;
     let source = Source {
+        static_dependency: None,
         base: HoldRoot::Parameter(index),
         retained_port: None,
         leaf: path,

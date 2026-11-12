@@ -366,6 +366,7 @@ fn scalar_expression(
 
 pub(super) fn shared_slot_life() -> StorageLifeContract {
     StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
         bindings: vec![StorageLifeBinding {

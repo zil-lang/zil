@@ -1030,7 +1030,8 @@ fn check_with(
     } else {
         &f.return_type
     };
-    if matches!(returned, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+    if matches!(returned, Type::Closure(id) if module.closures.get(id.0 as usize)
+        .and_then(|d| d.storage_life.as_ref()).is_some_and(|life| life.fixed_binder_count != 0))
         && !(matches!(f.return_type, Type::Closure(_))
             && f.callable_return_contract.is_some()
             && assumptions.is_some_and(|c| {

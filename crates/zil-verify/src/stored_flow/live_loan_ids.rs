@@ -227,6 +227,7 @@ mod tests {
                                 &mut budget(),
                             );
                             let new = live_loans(
+                                None,
                                 &solution,
                                 &state,
                                 &live,

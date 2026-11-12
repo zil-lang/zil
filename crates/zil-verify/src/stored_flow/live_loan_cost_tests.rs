@@ -79,6 +79,7 @@ fn full_and_indexed_enumeration_match_the_complete_independent_main_collector() 
                             original_flags[id.0 as usize] = false;
                         }
                         let expected = live_loans_main_fullscan(
+                            None,
                             &solution,
                             &frame,
                             &original_flags,
@@ -87,6 +88,7 @@ fn full_and_indexed_enumeration_match_the_complete_independent_main_collector() 
                         let selected = (0..solution.values.len()).collect::<Vec<_>>();
                         for indexed in [None, Some(selected.as_slice())] {
                             let actual = live_loans(
+                                None,
                                 &solution,
                                 &frame,
                                 &live,
@@ -126,6 +128,7 @@ fn empty_rows(mode: usize, count: usize) -> (Solution, Frame, Vec<bool>) {
                 let row = Permission {
                     sources: if mode == 1 {
                         vec![Source {
+                            static_dependency: None,
                             retained_port: None,
                             base: HoldRoot::Parameter(0),
                             leaf: vec![PlaceProjection::Field(id as u32)],
@@ -184,9 +187,14 @@ fn permission_rows_and_empty_outer_visits_are_paid_in_indexed_and_full_lanes() {
             let (solution, frame, flags) = empty_rows(mode, count);
             let live = WordRow::from_bools(&flags);
             let ids = (0..solution.values.len()).collect::<Vec<_>>();
-            let expected =
-                live_loans_main_fullscan(&solution, &frame, &flags, &mut budget(true, true, limit))
-                    .unwrap();
+            let expected = live_loans_main_fullscan(
+                None,
+                &solution,
+                &frame,
+                &flags,
+                &mut budget(true, true, limit),
+            )
+            .unwrap();
             assert!(expected.is_empty());
             let projection_work = match mode {
                 0 | 1 => count + 2,
@@ -207,7 +215,7 @@ fn permission_rows_and_empty_outer_visits_are_paid_in_indexed_and_full_lanes() {
                 let declared_work = scan_work + projection_work;
                 let mut b = budget(true, true, limit);
                 assert_eq!(
-                    live_loans(&solution, &frame, &live, None, indexed, &mut b).unwrap(),
+                    live_loans(None, &solution, &frame, &live, None, indexed, &mut b).unwrap(),
                     expected
                 );
                 let n = limit - b.remaining;
@@ -219,6 +227,7 @@ fn permission_rows_and_empty_outer_visits_are_paid_in_indexed_and_full_lanes() {
                 );
                 for steps in [n, n - 1, n] {
                     let result = live_loans(
+                        None,
                         &solution,
                         &frame,
                         &live,
@@ -300,6 +309,7 @@ fn actual_representatives_match_the_complete_independent_main_collector() {
                             original_flags[id.0 as usize] = false;
                         }
                         let expected = live_loans_main_fullscan(
+                            None,
                             &solution,
                             &frame,
                             &original_flags,
@@ -312,6 +322,7 @@ fn actual_representatives_match_the_complete_independent_main_collector() {
                             .unwrap()
                             .unwrap();
                         let actual = live_loans(
+                            None,
                             &solution,
                             &frame,
                             &live,

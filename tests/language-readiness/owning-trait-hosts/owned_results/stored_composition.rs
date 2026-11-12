@@ -1160,6 +1160,7 @@ fn stored_borrowed_callbacks_keep_environment_modes_and_actual_loans() {
         let mut raw = module.clone();
         if attack == "fabricated-empty-contract" {
             let empty = zil_ir::StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 0,
                 invocation_binder_count: 0,
                 bindings: vec![],

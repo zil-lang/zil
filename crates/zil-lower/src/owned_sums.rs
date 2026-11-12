@@ -98,6 +98,7 @@ impl<'a> Budget<'a> {
         life: &zil_ir::StorageLifeContract,
     ) -> CompileResult<()> {
         let zil_ir::StorageLifeContract {
+            static_bindings: _,
             fixed_binder_count: _,
             invocation_binder_count: _,
             bindings: _,
@@ -107,11 +108,15 @@ impl<'a> Budget<'a> {
             life.bindings
                 .len()
                 .saturating_add(life.classes.len())
+                .saturating_add(life.static_bindings.len())
                 .saturating_mul(16)
                 .saturating_add(32),
         )?;
         for row in &life.bindings {
             self.metadata(row.position.path.len().saturating_mul(8))?;
+        }
+        for position in &life.static_bindings {
+            self.metadata(position.path.len().saturating_mul(8))?;
         }
         for row in &life.classes {
             self.metadata(row.position.path.len().saturating_mul(8))?;
@@ -926,6 +931,7 @@ mod owned_sum_tests {
         let defaults = zil_base::Limits::default();
         for (rows, path) in [(0, 0), (8, 4), (32, 32)] {
             let life = StorageLifeContract {
+                static_bindings: vec![],
                 fixed_binder_count: 0,
                 invocation_binder_count: 1,
                 bindings: vec![],

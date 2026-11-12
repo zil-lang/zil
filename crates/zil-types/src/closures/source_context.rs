@@ -842,6 +842,7 @@ impl Formation {
             ));
         }
         Ok(StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: u32::try_from(writer.fixed.len())
                 .map_err(|_| limit("formed Fixed domain exceeded", span))?,
             invocation_binder_count: u32::try_from(writer.invocation.len())

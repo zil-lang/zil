@@ -102,6 +102,7 @@ pub(super) fn class(
                 .ok_or_else(|| err("closure argument has no actual entry"))?;
             b.spend(tail.len().saturating_add(1))?;
             let nested = Source {
+                static_dependency: None,
                 base: HoldRoot::Capture(*capture),
                 leaf: tail.to_vec(),
                 inline: Vec::new(),
@@ -231,6 +232,7 @@ pub(super) fn summarize(
             }
             b.spend(slot.path.len().saturating_add(1))?;
             let destination = Source {
+                static_dependency: None,
                 base: HoldRoot::Capture(index as u32),
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
@@ -287,6 +289,7 @@ pub(super) fn receiver(
             b.spend(1)?;
             Ok(Permission {
                 sources: vec![Source {
+                    static_dependency: None,
                     base: HoldRoot::Local(callee),
                     leaf: Vec::new(),
                     inline: Vec::new(),

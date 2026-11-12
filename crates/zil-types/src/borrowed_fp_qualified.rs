@@ -58,15 +58,8 @@ fn capture_profile(
         )
     };
     if !(scalar(result) || source_owned && lending::transferred_result(result))
-        || captures.iter().any(|ty| !(scalar(ty) || source_owned && closures::source_owned_capture(ty) || matches!(ty, Type::Address { mutable, inner } if (!*mutable || source_owned) && (scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. }))))) {
+        || captures.iter().any(|ty| !(scalar(ty) || source_owned && closures::source_owned_capture(ty) || matches!(ty, Type::Address { mutable, inner } if (!*mutable || source_owned) && (scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. }) || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))))) {
         return Err(unsupported(span, "captured Fixed requires scalar result and shared finite environment"));
-    }
-    if life.fixed_binder_count == 0 && life.invocation_binder_count == 0 {
-        return Err(error(
-            "E-FUNCTION-LIFE",
-            span,
-            "vacuous capture relation must be omitted",
-        ));
     }
     relation_inner(parameters, Some(captures), result, life, span, source_owned)
 }
@@ -82,6 +75,7 @@ fn relation_inner(
     struct Check<'a> {
         life: &'a StorageLifeContract,
         binding: usize,
+        constant: usize,
         class: usize,
         next_fixed: u32,
         next_invocation: u32,
@@ -125,6 +119,18 @@ fn relation_inner(
             Ok(())
         }
         fn address(&mut self, base: StorageBase, result: bool, mutable: bool) -> R<()> {
+            let position = StoragePosition {
+                base,
+                path: Vec::new(),
+            };
+            if self.life.static_bindings.get(self.constant) == Some(&position) {
+                if mutable {
+                    return Err(self
+                        .invalid("static callable occurrence cannot grant an exclusive address"));
+                }
+                self.constant += 1;
+                return Ok(());
+            }
             let row = self
                 .life
                 .bindings
@@ -254,6 +260,7 @@ fn relation_inner(
     let mut check = Check {
         life,
         binding: 0,
+        constant: 0,
         class: 0,
         next_fixed: 0,
         next_invocation: 0,
@@ -282,6 +289,7 @@ fn relation_inner(
     check.input_invocation = check.next_invocation;
     check.ty(result, StorageBase::Result, true)?;
     if check.binding != life.bindings.len()
+        || check.constant != life.static_bindings.len()
         || check.class != life.classes.len()
         || check.next_fixed != life.fixed_binder_count
         || check.next_invocation != life.invocation_binder_count
@@ -365,6 +373,7 @@ mod tests {
             inner: Box::new(Type::I32),
         };
         let plain_life = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 1,
             invocation_binder_count: 0,
             bindings: vec![StorageBase::Parameter(0), StorageBase::Capture(0)]
@@ -385,6 +394,7 @@ mod tests {
         )
         .unwrap();
         let empty = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: vec![],

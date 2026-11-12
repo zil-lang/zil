@@ -108,6 +108,7 @@ mod tests {
     fn fixture() -> (Instruction, Permission, Vec<Loan>) {
         let (module, _) = crate::tests::baseline();
         let source = Source {
+            static_dependency: None,
             heap_parents: vec![],
             base: HoldRoot::Local(LocalId(0)),
             retained_port: None,

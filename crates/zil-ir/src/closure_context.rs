@@ -171,7 +171,11 @@ pub fn storage_relation_metadata_work(
     max_depth: usize,
     remaining_work: usize,
 ) -> Option<usize> {
-    let rows = life.bindings.len().checked_add(life.classes.len())?;
+    let rows = life
+        .bindings
+        .len()
+        .checked_add(life.classes.len())?
+        .checked_add(life.static_bindings.len())?;
     if rows > max_nodes
         || life.fixed_binder_count as usize > max_nodes
         || life.invocation_binder_count as usize > max_nodes
@@ -188,6 +192,7 @@ pub fn storage_relation_metadata_work(
         .iter()
         .map(|r| r.position.path.len())
         .chain(life.classes.iter().map(|r| r.position.path.len()))
+        .chain(life.static_bindings.iter().map(|p| p.path.len()))
     {
         if depth > max_depth {
             return None;

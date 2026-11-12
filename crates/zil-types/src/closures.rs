@@ -3015,7 +3015,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 (inner.as_ref(), Some(*mutable))
             }
             Type::Address { mutable, inner }
-                if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>
+                if inner.is_copy_value()
+                    || ty.is_shared_sync_cell_address()
+                    || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()) =>
             {
                 (inner.as_ref(), Some(*mutable))
             }

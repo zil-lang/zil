@@ -2262,7 +2262,7 @@ fn infer_with_private(
                                 .result
                                 .and_then(|id| f.values.get(id.0 as usize));
                             if matches!(ty, Some(Type::Address { .. }))
-                                || ty.is_some_and(|ty| tracked_desc(ty))
+                                || ty.is_some_and(tracked_desc)
                             {
                                 found.insert(Root::Capture(*index));
                             }
@@ -2471,6 +2471,14 @@ fn infer_with_private(
                             {
                                 for binding in bindings {
                                     for atom in &binding.sources {
+                                        if matches!(atom, StorageSource::Static { .. }) {
+                                            budget.spend(
+                                                1,
+                                                "proved static returned environment root",
+                                            )?;
+                                            found.insert(Root::Static);
+                                            continue;
+                                        }
                                         let source = crate::exact_storage_source(atom)?;
                                         extend(
                                             &mut found,
