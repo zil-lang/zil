@@ -949,6 +949,7 @@ pub(super) fn check_role(
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         super::signature_life::capture_relation(
+            &module.closures,
             &d.parameters,
             &d.captures,
             super::stored_callables::life_result(d),

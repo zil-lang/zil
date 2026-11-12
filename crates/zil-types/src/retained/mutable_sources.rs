@@ -111,6 +111,7 @@ pub(super) fn substitute(
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn invoke(
     module: &TypedModule,
     id: ClosureId,

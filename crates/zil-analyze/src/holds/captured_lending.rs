@@ -189,43 +189,40 @@ pub(super) fn reconstruct(
                         } => {
                             if let Some(contract) =
                                 &module.functions[function.0 as usize].callable_return_contract
+                                && let Some(bindings) = &contract.capture_sources
                             {
-                                if let Some(bindings) = &contract.capture_sources {
-                                    for binding in bindings {
-                                        let zil_ir::StorageBase::Capture(index) =
-                                            binding.position.base
-                                        else {
-                                            return Err(bad(
-                                                "returned environment destination is not an actual capture",
-                                            ));
-                                        };
-                                        let mut slot = Slot::default();
-                                        for source in &binding.sources {
-                                            extend(
-                                                &mut slot.roots,
-                                                &factory_source_roots(
-                                                    f, source, arguments, ordinary, budget,
-                                                )?,
-                                                budget,
-                                            )?;
-                                            let zil_ir::StorageBase::Parameter(parameter) =
-                                                source.base
-                                            else {
-                                                unreachable!("source checked above")
-                                            };
-                                            slot.parents.insert(arguments[parameter as usize]);
-                                        }
-                                        // This ordinary envelope conservatively unions all
-                                        // leaves of one capture. The independent stored
-                                        // solver retains the exact nested permissions.
-                                        let actual = row.entry(index).or_default();
-                                        extend(&mut actual.roots, &slot.roots, budget)?;
-                                        budget.spend(
-                                            slot.parents.len(),
-                                            "returned capture parent envelope",
+                                for binding in bindings {
+                                    let zil_ir::StorageBase::Capture(index) = binding.position.base
+                                    else {
+                                        return Err(bad(
+                                            "returned environment destination is not an actual capture",
+                                        ));
+                                    };
+                                    let mut slot = Slot::default();
+                                    for source in &binding.sources {
+                                        extend(
+                                            &mut slot.roots,
+                                            &factory_source_roots(
+                                                f, source, arguments, ordinary, budget,
+                                            )?,
+                                            budget,
                                         )?;
-                                        actual.parents.extend(slot.parents);
+                                        let zil_ir::StorageBase::Parameter(parameter) = source.base
+                                        else {
+                                            unreachable!("source checked above")
+                                        };
+                                        slot.parents.insert(arguments[parameter as usize]);
                                     }
+                                    // This ordinary envelope conservatively unions all
+                                    // leaves of one capture. The independent stored
+                                    // solver retains the exact nested permissions.
+                                    let actual = row.entry(index).or_default();
+                                    extend(&mut actual.roots, &slot.roots, budget)?;
+                                    budget.spend(
+                                        slot.parents.len(),
+                                        "returned capture parent envelope",
+                                    )?;
+                                    actual.parents.extend(slot.parents);
                                 }
                             }
                         }

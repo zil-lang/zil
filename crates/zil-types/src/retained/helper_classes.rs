@@ -331,3 +331,114 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     }
     Ok(())
 }
+
+/// Owning factories have no callback trace claim: their input is moved into a
+/// new environment. Its free class domain still needs an exact input header.
+pub(super) fn factory_inputs(module: &mut TypedModule, left: &mut usize) -> R<()> {
+    spend(left, module.functions.len(), Span::default())?;
+    for f in &mut module.functions {
+        if f.callable_contract.is_some()
+            || !f
+                .callable_return_contract
+                .as_ref()
+                .is_some_and(|c| c.source == CallableReturnSource::Fresh)
+        {
+            continue;
+        }
+        spend(left, f.parameters.len(), f.span)?;
+        let mut extra = Vec::new();
+        for (position, local) in f.parameters.iter().enumerate() {
+            let Type::Closure(id) = f.locals[local.0 as usize].ty else {
+                continue;
+            };
+            let Some(life) = module.closures[id.0 as usize].storage_life.as_ref() else {
+                continue;
+            };
+            for class in 0..life.fixed_binder_count {
+                let selector = SignatureLifeClass {
+                    base: StorageBase::Parameter(position as u32),
+                    path: Vec::new(),
+                    class,
+                };
+                spend(
+                    left,
+                    f.storage_life.as_ref().map_or(0, |c| c.classes.len()),
+                    f.span,
+                )?;
+                if !f
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|c| c.classes.iter().any(|row| row.position == selector))
+                {
+                    extra.push(selector);
+                }
+            }
+        }
+        if extra.is_empty() {
+            continue;
+        }
+        let header = f.storage_life.get_or_insert(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: Vec::new(),
+            classes: Vec::new(),
+        });
+        for selector in extra {
+            let binder = StorageBinder::Invocation(header.invocation_binder_count);
+            header.invocation_binder_count = header
+                .invocation_binder_count
+                .checked_add(1)
+                .ok_or_else(|| unsupported(f.span, "owning factory input class overflow"))?;
+            header.classes.push(SignatureLifeClassBinding {
+                position: selector,
+                binder,
+            });
+        }
+        // Retain existing equalities, then alpha-renumber in actual header
+        // occurrence order. No ClosureId identifies two runtime inputs.
+        let mut fixed = BTreeMap::new();
+        let mut invocation = BTreeMap::new();
+        let mut bindings = Vec::new();
+        let mut classes = Vec::new();
+        for position in 0..=f.parameters.len() {
+            let output = position == f.parameters.len();
+            let base = if output {
+                StorageBase::Result
+            } else {
+                StorageBase::Parameter(position as u32)
+            };
+            spend(
+                left,
+                header.bindings.len().saturating_add(header.classes.len()),
+                f.span,
+            )?;
+            for row in header
+                .bindings
+                .iter()
+                .filter(|row| row.position.base == base)
+            {
+                spend(left, row.position.path.len().saturating_add(1), f.span)?;
+                bindings.push(StorageLifeBinding {
+                    position: row.position.clone(),
+                    binder: rename(row.binder, &mut fixed, &mut invocation, output, f.span)?,
+                });
+            }
+            for row in header
+                .classes
+                .iter()
+                .filter(|row| row.position.base == base)
+            {
+                spend(left, row.position.path.len().saturating_add(1), f.span)?;
+                classes.push(SignatureLifeClassBinding {
+                    position: row.position.clone(),
+                    binder: rename(row.binder, &mut fixed, &mut invocation, output, f.span)?,
+                });
+            }
+        }
+        header.bindings = bindings;
+        header.classes = classes;
+        header.fixed_binder_count = fixed.len() as u32;
+        header.invocation_binder_count = invocation.len() as u32;
+    }
+    Ok(())
+}

@@ -51,6 +51,7 @@ fn copy(row: &Row, left: &mut usize, span: Span) -> R<Row> {
     cost(row, left, span)?;
     Ok(row.clone())
 }
+#[allow(clippy::too_many_arguments)]
 fn leaves(
     module: &TypedModule,
     ty: &Type,
@@ -689,15 +690,17 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    if populate_creator_fixed(module, left)? {
-        helper_classes::populate(module, left, limits)?;
+    loop {
+        helper_classes::factory_inputs(module,left)?;
+        if !populate_creator_fixed(module, left)? {break;}
+        helper_classes::populate(module,left,limits)?;
     }
     Ok(())
 }
 
 // A proposal from the actual creator header. This never supplies targets: both
 // kernels must check the MakeClosure class equation and every source leaf.
-fn source_class(f: &TypedFunction, source: &StoragePosition, left: &mut usize) -> R<StorageBinder> {
+fn source_class(module:&TypedModule, f: &TypedFunction, source: &StoragePosition, left: &mut usize) -> R<StorageBinder> {
     spend(left, source.path.len().saturating_add(1), f.span)?;
     let StorageBase::Parameter(index) = source.base else {
         return Err(unsupported(
@@ -729,6 +732,10 @@ fn source_class(f: &TypedFunction, source: &StoragePosition, left: &mut usize) -
         Type::Address { inner, .. } => (inner.as_ref(), true),
         ty => (ty, false),
     };
+    if let Type::Closure(id)=ty {
+        let class=capture_class(module,*id,&source.path,0,left,f.span)?;
+        return header_class(f,index,if pointer{vec![LifeTypeProjection::Pointee]}else{Vec::new()},class,left);
+    }
     let Type::BorrowedStorage { life: shape, .. } = ty else {
         return Err(unsupported(
             f.span,
@@ -772,36 +779,39 @@ fn source_class(f: &TypedFunction, source: &StoragePosition, left: &mut usize) -
         left,
     )
 }
-fn header_class(
-    f: &TypedFunction,
-    parameter: u32,
-    path: Vec<LifeTypeProjection>,
-    class: u32,
-    left: &mut usize,
-) -> R<StorageBinder> {
-    let header = f
-        .storage_life
-        .as_ref()
-        .ok_or_else(|| unsupported(f.span, "capture class header absent"))?;
-    spend(
-        left,
-        header
-            .classes
-            .len()
-            .saturating_mul(path.len().saturating_add(1)),
-        f.span,
-    )?;
-    let position = SignatureLifeClass {
-        base: StorageBase::Parameter(parameter),
-        path,
-        class,
-    };
-    header
-        .classes
-        .iter()
-        .find(|row| row.position == position)
-        .map(|row| row.binder)
-        .ok_or_else(|| unsupported(f.span, "actual creator omits the captured nominal class"))
+fn capture_class(module:&TypedModule,id:ClosureId,path:&[ContractProjection],depth:usize,left:&mut usize,span:Span)->R<u32> {
+    spend(left,path.len().saturating_add(1),span)?;
+    if depth>module.closures.len() {return Err(unsupported(span,"captured class graph is cyclic"));}
+    let d=module.closures.get(id.0 as usize).ok_or_else(||unsupported(span,"captured class child absent"))?;
+    let Some((ContractProjection::Capture(index),tail))=path.split_first() else{return Err(unsupported(span,"nested class source omits its capture selector"));};
+    let ty=d.captures.get(*index as usize).ok_or_else(||unsupported(span,"captured class field absent"))?;
+    let life=d.storage_life.as_ref().ok_or_else(||unsupported(span,"captured class child relation absent"))?;
+    let base=StorageBase::Capture(*index);
+    let actual=match ty {
+        Type::Address{..}|Type::Desc(_) if tail.is_empty()=>{
+            spend(left,life.bindings.len(),span)?;
+            life.bindings.iter().find(|row|row.position.base==base && row.position.path.is_empty()).map(|row|row.binder)
+        },
+        Type::BorrowedStorage{life:shape,..}=>{
+            spend(left,shape.slots.len().saturating_mul(tail.len().saturating_add(1)).saturating_add(life.classes.len()),span)?;
+            let class=shape.slots.iter().find(|slot|tail.iter().copied().eq(slot.path.iter().copied().map(ContractProjection::Place))).map(|slot|slot.binder).ok_or_else(||unsupported(span,"nested class source is not an actual stored leaf"))?;
+            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
+        },
+        Type::Closure(child)=>{
+            let class=capture_class(module,*child,tail,depth+1,left,span)?;
+            spend(left,life.classes.len(),span)?;
+            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
+        },
+        _=>None,
+    }.ok_or_else(||unsupported(span,"captured leaf has no exact child class binding"))?;
+    match actual {StorageBinder::Fixed(class)=>Ok(class),_=>Err(unsupported(span,"captured child leaf is not Fixed"))}
+}
+fn header_class(f: &TypedFunction, parameter: u32, path: Vec<LifeTypeProjection>, class: u32, left: &mut usize) -> R<StorageBinder> {
+    let header = f.storage_life.as_ref().ok_or_else(||unsupported(f.span, "capture class header absent"))?;
+    spend(left, header.classes.len().saturating_mul(path.len().saturating_add(1)), f.span)?;
+    let position = SignatureLifeClass { base: StorageBase::Parameter(parameter), path, class };
+    header.classes.iter().find(|row|row.position==position).map(|row|row.binder)
+        .ok_or_else(||unsupported(f.span, "actual creator omits the captured nominal class"))
 }
 fn captured_parameter(
     f: &TypedFunction,
@@ -872,7 +882,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool>
         }
         let definition = &module.closures[contract.closure.0 as usize];
         if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
         if !definition.result.is_copy_value()
             || definition.parameters.iter().any(|ty| !ty.is_copy_value())
@@ -894,16 +904,12 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool>
             .as_ref()
             .ok_or_else(|| unsupported(f.span, "capture class source relation unknown"))?;
         for (index, ty) in definition.captures.iter().enumerate() {
-            let class_count = if let Type::BorrowedStorage { life, .. } = ty {
-                life.binder_count
-            } else {
-                0
+            let class_count = match ty {
+                Type::BorrowedStorage{life,..}=>life.binder_count,
+                Type::Closure(id)=>module.closures[id.0 as usize].storage_life.as_ref().map_or(0,|life|life.fixed_binder_count),
+                _=>0,
             };
-            let count = if matches!(ty, Type::Address { .. }) {
-                1
-            } else {
-                class_count
-            };
+            let count = if matches!(ty,Type::Address{..}) { 1 } else { class_count };
             for class in 0..count {
                 let mut actual = None;
                 for row in rows
@@ -920,18 +926,16 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool>
                                     .map(ContractProjection::Place))
                         }),
                         Type::Address { .. } => row.position.path.is_empty(),
+                        Type::Closure(id)=>capture_class(module,*id,&row.position.path,0,left,f.span)?==class,
                         _ => false,
                     };
                     if !selected {
                         continue;
                     }
                     for source in &row.sources {
-                        let key = source_class(f, source, left)?;
-                        if actual.replace(key).is_some_and(|old| old != key) {
-                            return Err(unsupported(
-                                f.span,
-                                "captured class has no single proved creator relation",
-                            ));
+                        let key = source_class(module,f, source, left)?;
+                        if actual.replace(key).is_some_and(|old|old!=key) {
+                            return Err(unsupported(f.span,"captured class has no single proved creator relation"));
                         }
                     }
                 }
