@@ -44,6 +44,7 @@ pub(crate) struct Provider {
 }
 #[derive(Clone)]
 pub(crate) struct Vtable {
+    pub(crate) self_classes: Vec<zil_ir::StorageBinder>,
     pub(crate) qualified_self: Option<zil_ir::Type>,
     pub(crate) ports: Vec<zil_ir::DynRetainedPortBinding>,
     pub(crate) actuals: Vec<zil_ir::DynGenericActual>,
@@ -60,6 +61,7 @@ pub(crate) struct Catalog {
     pub(crate) vtables: Vec<Vtable>,
     pub(crate) owned_interfaces: Vec<trait_instances::Reference>,
     pub(crate) context_types: Vec<(String, usize, bool)>,
+    context_constructors: Vec<(String, usize)>,
 }
 fn pay_key(key: &trait_instances::Key, budget: &mut Budget<'_>, span: Span) -> R<()> {
     budget.text(&key.name, span)?;
@@ -192,28 +194,84 @@ impl Catalog {
     }
 
     pub(in crate::generics) fn context_view_token(
-        &self,
+        &mut self,
         owned: &str,
+        table: usize,
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<String> {
-        let mut ordinal = None;
+        let selected = self
+            .vtables
+            .get(table)
+            .ok_or_else(|| error(span, "Context constructor table is absent"))?;
+        let interface = selected.interface;
+        let mut authenticated = false;
         for (symbol, at, is_owned) in &self.context_types {
             budget.text(symbol, span)?;
             budget.text(owned, span)?;
-            if *is_owned && symbol == owned {
-                ordinal = Some(*at);
-            }
+            authenticated |= *is_owned && *at == interface && symbol == owned;
         }
-        let ordinal =
-            ordinal.ok_or_else(|| error(span, "owned Context token has no actual interface"))?;
-        for (symbol, at, is_owned) in &self.context_types {
+        if !authenticated {
+            return Err(error(
+                span,
+                "Context constructor has the wrong complete interface",
+            ));
+        }
+        for (symbol, at) in &self.context_constructors {
             budget.text(symbol, span)?;
-            if !*is_owned && *at == ordinal {
+            if *at == table {
                 return Ok(symbol.clone());
             }
         }
-        Err(error(span, "Context view token is absent"))
+        budget.text("$dyn_constructor_00000000000000000000", span)?;
+        budget.node(span, 0)?;
+        let symbol = format!("$dyn_constructor_{table}");
+        self.context_constructors.push((symbol.clone(), table));
+        self.context_types.push((symbol.clone(), interface, false));
+        Ok(symbol)
+    }
+
+    /// A registered token selects an exact Source recipe. The ordinary kernels
+    /// still prove the table, complete Self and all actual class/source equations.
+    pub(crate) fn context_constructor(
+        &self,
+        ty: &TypeRef,
+        budget: &mut Budget<'_>,
+    ) -> R<Option<(zil_ir::DynInterfaceId, zil_ir::DynVtableId)>> {
+        let TypeKind::Named { path, args } = &ty.kind else {
+            return Ok(None);
+        };
+        if path.len() != 1 || !args.is_empty() {
+            return Ok(None);
+        }
+        for (symbol, at) in &self.context_constructors {
+            budget.text(symbol, ty.span)?;
+            budget.text(&path[0], ty.span)?;
+            if symbol != &path[0] {
+                continue;
+            }
+            let table = self
+                .vtables
+                .get(*at)
+                .ok_or_else(|| error(ty.span, "registered dyn constructor table is absent"))?;
+            let mut index = 0u32;
+            for previous in &self.vtables[..*at] {
+                budget.node(ty.span, 0)?;
+                if previous.implementation.module == table.implementation.module {
+                    index = index.checked_add(1).ok_or_else(|| {
+                        error(ty.span, "dyn constructor table relocation exhausted")
+                    })?;
+                }
+            }
+            return Ok(Some((
+                self.interface_id(table.interface, budget, ty.span)?,
+                zil_ir::DynVtableId {
+                    module: table.implementation.module,
+                    index,
+                },
+            )));
+        }
+        Ok(None)
     }
 
     fn find(
@@ -526,6 +584,7 @@ impl Index<'_> {
         }
         budget.ty(&witness.actual)?;
         Ok(Vtable {
+            self_classes: Vec::new(),
             qualified_self: None,
             ports: Vec::new(),
             actuals: Vec::new(),

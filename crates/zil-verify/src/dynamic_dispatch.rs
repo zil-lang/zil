@@ -459,6 +459,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     }
     let mut tables = BTreeSet::new();
     for item in &module.dyn_vtables {
+        if item.self_classes.len() > budget.limits.max_nodes {
+            return Err(limit("dyn Self class inventory exceeds node limit"));
+        }
+        budget.spend(item.self_classes.len().saturating_add(1))?;
         budget.spend(
             item.entries
                 .len()
@@ -486,6 +490,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             || !implementation.parameters.is_empty()
             || !item.actuals.is_empty()
             || !item.ports.is_empty()
+            || !item.self_classes.is_empty()
             || item.cleanup.is_some()
             || item.entries.len() != iface.slots.len()
             || !(matches!(&item.self_type, Type::Record { fields, .. }

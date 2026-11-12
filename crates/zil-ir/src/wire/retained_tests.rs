@@ -308,6 +308,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }],
     };
     let vtable = DynVtable {
+        self_classes: vec![],
         id: DynVtableId {
             module: ModuleId(0),
             index: 0,
@@ -363,6 +364,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     };
 
     let mut module = module;
+    module.dyn_vtables[0].self_classes = vec![StorageBinder::Fixed(0)];
     module.dyn_interfaces[0].context = Some(stored.clone());
     module.dyn_interfaces[0]
         .retained_life
@@ -579,7 +581,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         bytes
     );
 
-    for n in 0..5 {
+    for n in 0..8 {
         let mut changed = module.clone();
         match n {
             0 => changed.dyn_interfaces[0].context = None,
@@ -592,7 +594,10 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
                 changed.dyn_vtables[0].ports.pop();
             }
             3 => changed.functions[0].retained_return_sources = Some(vec![]),
-            _ => changed.functions[0].retained_return_sources = None,
+            4 => changed.functions[0].retained_return_sources = None,
+            5 => changed.dyn_vtables[0].self_classes.clear(),
+            6 => changed.dyn_vtables[0].self_classes[0] = StorageBinder::Fixed(1),
+            _ => changed.dyn_vtables[0].self_classes[0] = StorageBinder::Invocation(0),
         }
         assert_ne!(changed.fingerprint(), module.fingerprint());
         let bytes = wire::encode_module_candidate(&changed, &plan, &Limits::default()).unwrap();

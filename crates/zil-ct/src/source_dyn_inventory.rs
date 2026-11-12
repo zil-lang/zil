@@ -308,6 +308,7 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     for table in &core.dyn_vtables {
         w.node(0)?;
         w.ty(&table.self_type, 1)?;
+        w.path(table.self_classes.len(), 1)?;
         for actual in &table.actuals {
             w.actual(actual, 1)?;
         }

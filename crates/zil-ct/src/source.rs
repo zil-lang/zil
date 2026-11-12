@@ -3487,6 +3487,7 @@ mod tests {
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
+            self_classes: vec![],
             id: vtable,
             interface,
             self_type: Type::Record {

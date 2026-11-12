@@ -127,6 +127,9 @@ pub struct DynRetainedPortBinding {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreDynVtable {
+    /// Complete persistent Self-class order mapped into the interface Context.
+    /// Untrusted: includes phantom classes; only actual Fixed mappings qualify.
+    pub self_classes: Vec<StorageBinder>,
     pub id: DynVtableId,
     pub interface: DynInterfaceId,
     pub self_type: Type,
@@ -141,6 +144,8 @@ pub struct CoreDynVtable {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynVtable {
+    /// Complete persistent Self-class order mapped into the interface Context.
+    pub self_classes: Vec<StorageBinder>,
     pub id: DynVtableId,
     pub interface: DynInterfaceId,
     pub self_type: Type,
