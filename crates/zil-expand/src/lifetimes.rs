@@ -187,6 +187,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 && let [s::GenericArg::Type(parameters),s::GenericArg::Type(result)]=args.as_slice()
                 && let s::TypeKind::Tuple(parameters)=&reference(parameters).kind
             {
+                self.budget.note_stored_lifetimes();
+                self.budget.note_source_identity();
                 let mark=self.headers.len();
                 for header in parameters.iter().chain(std::iter::once(result)){
                     self.budget.node(header.span,depth+1).map_err(|error|vec![error])?;

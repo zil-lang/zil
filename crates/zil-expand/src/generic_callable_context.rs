@@ -22,7 +22,7 @@ fn unavailable(span: Span, message: &str) -> Diagnostic {
 pub(super) fn scalar_syntax(ty: &TypeRef) -> bool {
     matches!(&ty.kind,TypeKind::Named {path,args} if args.is_empty() && matches!(path.as_slice(),[name] if matches!(name.as_str(),"unit"|"void"|"bool"|"i32"|"i64"|"u8"|"u16"|"u64"|"usize"|"f32"|"f64")))
 }
-fn original_header_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
+pub(super) fn original_header_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
     use crate::ct_selection::Visitor;
     struct Header<'a, 'l> {
         budget: &'a mut Budget<'l>,
