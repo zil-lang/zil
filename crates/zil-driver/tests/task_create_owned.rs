@@ -560,12 +560,12 @@ fn borrowed_failure_raw_and_wire_reject_missing_inputs_and_wrong_parent_projecti
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let analyzed = zil_analyze::analyze(&typed, &limits);
     if analyzed.is_err() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../out/runs/task-failure-borrowed-first-counterexample");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("source.zil"), BORROWED).unwrap();
-        fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
-        fs::write(dir.join("diagnostics.txt"), format!("{analyzed:#?}")).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("source.zil"), BORROWED).unwrap();
+        std::fs::write(dir.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        std::fs::write(dir.join("diagnostics.txt"), format!("{analyzed:#?}")).unwrap();
     }
     let plan = analyzed.unwrap();
     for mutation in 0..4 {
