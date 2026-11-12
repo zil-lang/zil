@@ -55,6 +55,8 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
                     | Type::U8
                     | Type::U16
                     | Type::U32
+                    | Type::U64
+                    | Type::Usize
                     | Type::I32
                     | Type::I8
                     | Type::I16
@@ -87,6 +89,8 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
                 Type::U8
                 | Type::U16
                 | Type::U32
+                | Type::U64
+                | Type::Usize
                 | Type::I32
                 | Type::I8
                 | Type::I16
@@ -249,6 +253,8 @@ fn same_type(actual: &Type, expected: &Type, budget: &mut Budget) -> Check<bool>
             | (Type::U8, Type::U8)
             | (Type::U16, Type::U16)
             | (Type::U32, Type::U32)
+            | (Type::U64, Type::U64)
+            | (Type::Usize, Type::Usize)
             | (Type::I8, Type::I8)
             | (Type::I16, Type::I16)
             | (Type::Isize, Type::Isize)

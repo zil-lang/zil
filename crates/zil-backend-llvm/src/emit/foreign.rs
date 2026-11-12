@@ -90,11 +90,15 @@ fn callback_symbol(id: FunctionId) -> String {
 }
 fn needs_callback_adapter(function: &TypedFunction, target: &TargetProfile) -> bool {
     target.triple == "x86_64-unknown-linux-gnu"
-        && (matches!(function.return_type, Type::I8 | Type::I16)
-            || function
-                .parameters
-                .iter()
-                .any(|id| matches!(function.locals[id.0 as usize].ty, Type::I8 | Type::I16)))
+        && (matches!(
+            function.return_type,
+            Type::I8 | Type::I16 | Type::U8 | Type::U16
+        ) || function.parameters.iter().any(|id| {
+            matches!(
+                function.locals[id.0 as usize].ty,
+                Type::I8 | Type::I16 | Type::U8 | Type::U16
+            )
+        }))
 }
 impl FunctionEmitter<'_> {
     pub(super) fn foreign_callback_ref(
