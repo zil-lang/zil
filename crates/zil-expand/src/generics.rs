@@ -83,6 +83,8 @@ pub(crate) mod constant_plan;
 mod consts;
 #[path = "generic_copy.rs"]
 mod copy;
+#[path = "generic_dyn_context.rs"]
+pub(super) mod dyn_context;
 #[path = "generic_enum.rs"]
 mod enums;
 #[path = "generic_helper_graph.rs"]
@@ -1760,6 +1762,9 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if self.prepare_owned_dyn_context(ty, depth + 1)?.is_some() {
+            return Ok(());
+        }
         if matches!(ty.kind, TypeKind::ForLifetime { .. })
             && self.prepare_rich_pointer(ty, depth + 1)?
         {

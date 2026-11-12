@@ -1026,6 +1026,7 @@ impl Catalog {
         use crate::ct_selection::Visitor;
         struct Contains<'a, 'l> {
             budget: &'a mut Budget<'l>,
+            catalog: &'a Catalog,
             found: bool,
         }
         impl Visitor for Contains<'_, '_> {
@@ -1037,11 +1038,13 @@ impl Catalog {
             }
             fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
                 self.found |= matches!(ty.kind, TypeKind::Dyn { .. });
+                self.found |= self.catalog.context_type(ty, self.budget).map_err(|e| vec![e])?.is_some();
                 crate::ct_selection::walk_type(self, ty, depth)
             }
         }
         let mut contains = Contains {
             budget,
+            catalog: self,
             found: false,
         };
         contains.ty(ty, 0).map_err(|mut errors| errors.remove(0))?;
@@ -1069,7 +1072,7 @@ impl Catalog {
         ))
     }
 
-    fn interface_id(
+    pub(super) fn interface_id(
         &self,
         ordinal: usize,
         budget: &mut Budget<'_>,
@@ -1155,6 +1158,7 @@ impl Catalog {
         depth: usize,
     ) -> R<zil_ir::Type> {
         budget.node(ty.span, depth)?;
+        if let Some(actual) = self.context_type(ty, budget)? { return Ok(actual); }
         match &ty.kind {
             TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
                 let [GenericArg::Type(target)] = args.as_slice() else {
@@ -1326,15 +1330,28 @@ impl Catalog {
                     contract,
                 });
             }
+            let retained_life = if let Some(context) = &source.context {
+                crate::generics::dyn_context::retained(context, budget, span)?
+            } else { zil_ir::RetainedLifeShape {
+                binder_count: 0, ports: Vec::new(), retained: Vec::new(), nominal_arguments: Vec::new(),
+            } };
+            let mut cleanup_access = zil_ir::DynCallAccess { reads: Vec::new(), writes: Vec::new() };
+            for (index, port) in retained_life.ports.iter().enumerate() {
+                budget.node(span, 0)?;
+                let position = zil_ir::StoragePosition {
+                    base: zil_ir::StorageBase::Result,
+                    path: vec![zil_ir::ContractProjection::RetainedPort(u32::try_from(index)
+                        .map_err(|_| error(span, "dyn Context port ordinal overflow"))?)],
+                };
+                cleanup_access.reads.push(position.clone());
+                if port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress { cleanup_access.writes.push(position); }
+            }
             result.push(DynInterface {
-                context: None,
+                context: source.context.clone(),
                 owning_cleanup: Some(zil_ir::DynCleanupContract {
                     environment: true,
                     positions: Vec::new(),
-                    access: zil_ir::DynCallAccess {
-                        reads: Vec::new(),
-                        writes: Vec::new(),
-                    },
+                    access: cleanup_access,
                     effects: direct_effect_upper(),
                 }),
                 id: self.interface_id(ordinal, budget, span)?,
@@ -1342,12 +1359,7 @@ impl Catalog {
                 inherited,
                 associated_types: Vec::new(),
                 associated_constants: Vec::new(),
-                retained_life: zil_ir::RetainedLifeShape {
-                    binder_count: 0,
-                    ports: Vec::new(),
-                    retained: Vec::new(),
-                    nominal_arguments: Vec::new(),
-                },
+                retained_life,
                 slots,
             });
         }

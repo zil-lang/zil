@@ -580,6 +580,22 @@ impl<'a> Engine<'a> {
         depth: usize,
     ) -> R<bool> {
         self.budget.node(ty.span, depth)?;
+        if let Some(actual) = self.prepare_owned_dyn_context(ty, depth + 1)? {
+            for (class, life) in actual.classes.iter().enumerate() {
+                self.budget.node(ty.span, depth)?;
+                for _ in type_path.iter() { self.budget.node(ty.span, depth)?; }
+                occurrences.push(stored_types::Occurrence {
+                    position: stored_types::OccurrencePosition::Class(zil_ir::SignatureLifeClass {
+                        base, path: type_path.clone(),
+                        class: u32::try_from(class).map_err(|_| error(ty.span, "dyn Context class ordinal overflow"))?,
+                    }),
+                    life: *life,
+                    fixed_input: !matches!(base, zil_ir::StorageBase::Result),
+                });
+            }
+            *stored = true;
+            return Ok(false);
+        }
         match &mut ty.kind {
             TypeKind::Group(inner) => self.storage_header(
                 inner,

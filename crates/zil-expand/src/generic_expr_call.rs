@@ -169,6 +169,29 @@ impl Engine<'_> {
         } = &mut callee.kind
             && matches!(&base.kind, ExprKind::Name(name) if name == "owned_dyn")
         {
+            if type_args.len() == 2 {
+                for argument in type_args.iter() {
+                    let GenericArg::Type(ty) = argument else {
+                        return Err(error(e.span, "owned_dyn Context arguments must be actual types"));
+                    };
+                    self.budget.ty(ty)?;
+                }
+                let source_owner = TypeRef { span: e.span, kind: TypeKind::Named {
+                    path: vec!["OwnedDyn".into()], args: type_args.clone(),
+                } };
+                let mut owner = source_owner.clone();
+                let actual = self.prepare_owned_dyn_context(&mut owner, depth + 1)?
+                    .ok_or_else(|| error(e.span, "owned_dyn Context was not materialized"))?;
+                if arguments.len() != 1 {
+                    return Err(error(e.span, "owned_dyn requires one actual provider"));
+                }
+                self.expr_expected(&mut arguments[0].value, env, None, depth + 1)?;
+                let view = self.products.dynamic.context_view_token(&actual.name, &mut self.budget, e.span)?;
+                *type_args = vec![GenericArg::Type(named(&view, e.span))];
+                return Ok(Some(Some(TypeRef { span: e.span, kind: TypeKind::Error {
+                    error: Box::new(named("DynCreateError", e.span)), result: Box::new(source_owner),
+                } })));
+            }
             let [GenericArg::Type(target)] = type_args.as_mut_slice() else {
                 return Err(error(e.span, "owned_dyn needs one dyn interface type"));
             };

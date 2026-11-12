@@ -4,6 +4,7 @@ use super::*;
 #[path = "generic_trait_dyn_source.rs"]
 pub(crate) mod source;
 
+#[derive(Clone)]
 pub(crate) struct Slot {
     pub(crate) declaration: origins::MemberId,
     pub(crate) reference: trait_instances::Reference,
@@ -11,12 +12,15 @@ pub(crate) struct Slot {
     /// Empty syntax is an unresolved contract, not an empty effect/Hold claim.
     pub(crate) contract_written: bool,
 }
+#[derive(Clone)]
 pub(crate) struct Interface {
+    pub(crate) context: Option<zil_ir::Type>,
     pub(crate) reference: trait_instances::Reference,
     pub(crate) declaration: origins::DeclId,
     pub(crate) inherited: Vec<trait_instances::Reference>,
     pub(crate) slots: Vec<Slot>,
 }
+#[derive(Clone)]
 pub(crate) struct Provider {
     pub(crate) implementation: origins::DeclId,
     #[cfg_attr(
@@ -44,6 +48,7 @@ pub(crate) struct Provider {
     )]
     pub(crate) signature: Function,
 }
+#[derive(Clone)]
 pub(crate) struct Vtable {
     pub(crate) interface: usize,
     pub(crate) implementation: origins::DeclId,
@@ -57,6 +62,7 @@ pub(crate) struct Catalog {
     pub(crate) interfaces: Vec<Interface>,
     pub(crate) vtables: Vec<Vtable>,
     pub(crate) owned_interfaces: Vec<trait_instances::Reference>,
+    pub(crate) context_types: Vec<(String, usize, bool)>,
 }
 fn pay_key(key: &trait_instances::Key, budget: &mut Budget<'_>, span: Span) -> R<()> {
     budget.text(&key.name, span)?;
@@ -70,6 +76,87 @@ pub(in crate::generics) fn is_interface(ty: &TypeRef) -> bool {
     matches!(grouped(ty).kind, TypeKind::Dyn { .. })
 }
 impl Catalog {
+    pub(in crate::generics) fn materialize_context(
+        &mut self,
+        index: &Index<'_>,
+        target: &TypeRef,
+        context: zil_ir::Type,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<(String, zil_ir::Type)> {
+        let reference = index.dynamic_reference(target, budget)?;
+        let base = self.find(&reference, budget, span)?
+            .ok_or_else(|| error(span, "dyn Context has no actual trait recipe"))?;
+        let mut selected = None;
+        for (ordinal, interface) in self.interfaces.iter().enumerate() {
+            budget.node(span, 0)?;
+            pay_key(&interface.reference.key, budget, span)?;
+            if interface.reference.key == reference.key {
+                if let Some(existing) = &interface.context {
+                    crate::stored_types::pay_type(existing, budget, span, 0)?;
+                    crate::stored_types::pay_type(&context, budget, span, 0)?;
+                    if existing == &context { selected = Some(ordinal); break; }
+                }
+            }
+        }
+        let ordinal = if let Some(ordinal) = selected { ordinal } else {
+            let source = &self.interfaces[base];
+            for slot in &source.slots { budget.const_function(&slot.signature)?; }
+            for inherited in &source.inherited { pay_key(&inherited.key, budget, span)?; }
+            crate::stored_types::pay_type(&context, budget, span, 0)?;
+            let mut interface = source.clone();
+            interface.context = Some(context);
+            let ordinal = self.interfaces.len();
+            budget.node(span, 0)?;
+            self.interfaces.push(interface);
+            for owned in [false, true] {
+                budget.text("$dyn_context_owned_00000000000000000000", span)?;
+                let symbol = format!("$dyn_context_{}_{ordinal}", if owned { "owned" } else { "view" });
+                self.context_types.push((symbol, ordinal, owned));
+            }
+            ordinal
+        };
+        budget.node(span, 0)?;
+        self.owned_interfaces.push(reference);
+        let symbol = self.context_types.iter().find(|(_, at, owned)| *at == ordinal && *owned)
+            .ok_or_else(|| error(span, "materialized dyn Context token absent"))?.0.clone();
+        budget.text(&symbol, span)?;
+        Ok((symbol, zil_ir::Type::OwnedDyn { interface: self.interface_id(ordinal, budget, span)? }))
+    }
+
+    pub(in crate::generics) fn context_type(
+        &self, ty: &TypeRef, budget: &mut Budget<'_>,
+    ) -> R<Option<zil_ir::Type>> {
+        let TypeKind::Named { path, args } = &ty.kind else { return Ok(None); };
+        if path.len() != 1 || !args.is_empty() { return Ok(None); }
+        for (symbol, ordinal, owned) in &self.context_types {
+            budget.text(symbol, ty.span)?;
+            budget.text(&path[0], ty.span)?;
+            if symbol == &path[0] {
+                let interface = self.interface_id(*ordinal, budget, ty.span)?;
+                return Ok(Some(if *owned { zil_ir::Type::OwnedDyn { interface } } else { zil_ir::Type::Dyn { interface } }));
+            }
+        }
+        Ok(None)
+    }
+
+    pub(in crate::generics) fn context_view_token(
+        &self, owned: &str, budget: &mut Budget<'_>, span: Span,
+    ) -> R<String> {
+        let mut ordinal = None;
+        for (symbol, at, is_owned) in &self.context_types {
+            budget.text(symbol, span)?;
+            budget.text(owned, span)?;
+            if *is_owned && symbol == owned { ordinal = Some(*at); }
+        }
+        let ordinal = ordinal.ok_or_else(|| error(span, "owned Context token has no actual interface"))?;
+        for (symbol, at, is_owned) in &self.context_types {
+            budget.text(symbol, span)?;
+            if !*is_owned && *at == ordinal { return Ok(symbol.clone()); }
+        }
+        Err(error(span, "Context view token is absent"))
+    }
+
     fn find(
         &self,
         reference: &trait_instances::Reference,
@@ -80,7 +167,7 @@ impl Catalog {
             budget.node(span, 0)?;
             pay_key(&reference.key, budget, span)?;
             pay_key(&interface.reference.key, budget, span)?;
-            if interface.reference.key == reference.key {
+            if interface.context.is_none() && interface.reference.key == reference.key {
                 return Ok(Some(ordinal));
             }
         }
@@ -257,6 +344,7 @@ impl Index<'_> {
             }
         }
         Ok(Interface {
+            context: None,
             reference,
             declaration: origin.declaration,
             inherited,

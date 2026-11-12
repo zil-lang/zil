@@ -11,7 +11,7 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<bool> {
-        if name == "Task" {
+        if name == "Task" || name == "OwnedDyn" {
             // The retained Task envelope is a builtin qualified carrier.
             // Its Context is checked by the Task header/recipe consumer.
             return Ok(false);
@@ -91,6 +91,9 @@ impl Engine<'_> {
         ty: &mut TypeRef,
         depth: usize,
     ) -> R<Option<stored_types::QualifiedActual>> {
+        if let Some(actual) = self.prepare_owned_dyn_context(ty, depth + 1)? {
+            return Ok(Some(actual));
+        }
         if !self.qualified_actual_syntax(ty, depth)? {
             return Ok(None);
         }
