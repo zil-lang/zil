@@ -3,14 +3,10 @@
 use super::*;
 
 mod sources;
-pub(super) fn check_pending_sources(b: &Budget) -> CompileResult<()> {
-    if b.pending_returned_source_proofs.is_empty() {
-        Ok(())
-    } else {
-        Err(bad(
-            "returned callable has no completed actual terminal memory source proof",
-        ))
-    }
+mod return_life;
+pub(super) fn check_pending_sources(b:&Budget)->CompileResult<()> {
+    if b.pending_returned_source_proofs.is_empty() {Ok(())}
+    else {Err(bad("returned callable has no completed actual terminal memory source proof"))}
 }
 pub(super) fn check_sources(
     module: &TypedModule,
@@ -90,6 +86,7 @@ pub(super) fn check_function(
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
 
+    return_life::check(module,function,contract,budget)?;
     let bindings = contract
         .capture_sources
         .as_ref()

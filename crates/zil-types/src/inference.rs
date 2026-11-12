@@ -1204,6 +1204,13 @@ pub(super) fn charge_returned_snapshot(
     *left = budget.work;
     Ok(())
 }
+pub(super) fn charge_returned_value_snapshot(bound:&CoreCallableReturn,span:Span,limits:&Limits,left:&mut usize)->R<()> {
+    let mut budget=Budget::new(limits);
+    budget.work=*left;
+    returned_snapshot(bound,span,&mut budget)?;
+    *left=budget.work;
+    Ok(())
+}
 fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
     let work = callable_return_metadata_work(
         bound,
@@ -1225,13 +1232,6 @@ fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
                 validate_type(ty, 0, span, budget)?;
             }
         }
-    }
-    if bound.life.is_some() || bound.source_life.is_some() {
-        return Err(Diagnostic::unsupported(
-            Phase::Types,
-            "callable return life bridge requires a checked concrete environment",
-            Some(span),
-        ));
     }
     Ok(())
 }

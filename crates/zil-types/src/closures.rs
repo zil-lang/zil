@@ -409,6 +409,7 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
+    pub returned_life_bounds: BTreeMap<FunctionId, CoreCallableReturn>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
     // Private compiler provenance; public Core/Typed/Wire cannot supply it.
@@ -539,6 +540,7 @@ impl State {
             helper_instances: BTreeMap::new(),
             forward_callers: BTreeSet::new(),
             forward_results: BTreeMap::new(),
+            returned_life_bounds: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,
             internal_product_fields: BTreeMap::new(),

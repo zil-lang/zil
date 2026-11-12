@@ -91,17 +91,7 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
-    if lending(d)
-        && !d.storage_life.as_ref().is_some_and(|life| {
-            life.bindings
-                .iter()
-                .any(|row| row.position.base == StorageBase::Receiver)
-        })
-    {
-        &Type::Unit
-    } else {
-        &d.result
-    }
+    if lending(d) && !d.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position.base==StorageBase::Result)) { &Type::Unit } else { &d.result }
 }
 pub(super) fn result_is_receiver(d: &ClosureDefinition) -> bool {
     d.storage_life.as_ref().is_some_and(|life| {
