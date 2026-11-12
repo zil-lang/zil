@@ -388,7 +388,9 @@ fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory(
         cleanup: vec![],
         lending_captures: vec![],
     });
-    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+    // Owned callback data signatures are admitted for actual opaque factories.
+    // This forged body still returns Reply instead of its claimed Closure.
+    raw.reject("E-VERIFY-RETURN");
 }
 
 #[test]

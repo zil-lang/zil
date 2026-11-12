@@ -280,7 +280,15 @@ pub(super) fn check_definitions(
                 ));
             }
             if let Type::Closure(id) = ty {
-                self_contained(module, *id, budget)?;
+                let leaves = crate::retained::sources::capture_leaves(module, *id, limits, budget)?;
+                if leaves.is_empty() {
+                    self_contained(module, *id, budget)?;
+                } else {
+                    // Moving an actual child environment preserves its own
+                    // target graph. It does not grant a closed capability.
+                    budget.returned_environment_sources = true;
+                    budget.nested_callable_sources = true;
+                }
             }
             // Borrowed byte descriptions carry no ownership or address loan.
             // Actual capture origins, storage effects and future uses are
@@ -674,30 +682,78 @@ pub(super) fn self_contained(
     budget: &mut Budget,
 ) -> Check<()> {
     let mut visited = std::collections::BTreeSet::new();
-    let mut pending = vec![root];
-    while let Some(id) = pending.pop() {
-        budget.spend(1)?;
-        if !visited.insert(id) {
+    let mut closures = vec![root];
+    let mut pending = Vec::new();
+    while !closures.is_empty() || !pending.is_empty() {
+        if let Some(id) = closures.pop() {
+            budget.spend(visited.len().saturating_add(1))?;
+            if !visited.insert(id) {
+                continue;
+            }
+            let definition = definition(module, id, None)?;
+            budget.spend(definition.captures.len())?;
+            pending.extend(definition.captures.iter());
             continue;
         }
-        let definition = definition(module, id, None)?;
-        budget.spend(definition.captures.len())?;
-        for ty in &definition.captures {
-            match ty {
-                Type::Closure(child) => pending.push(*child),
-                Type::Managed(_) | Type::Package { .. } => {}
-                ty if budget.inline_store_root(ty)?
-                    && dynamic_store::inline_sum_capture(ty, budget)? =>
-                {
-                    dynamic_store::check_owned_capture(module, ty, None, budget)?;
-                }
-                ty if ty.is_copy_value() => {}
-                _ => {
+        let ty = pending.pop().expect("nonempty type frontier");
+        budget.spend(1)?;
+        match ty {
+            Type::Address { .. } | Type::Desc(_) => {
+                return Err(unsupported(
+                    "self-contained environment retains an ordinary external address or description",
+                    None,
+                ));
+            }
+            Type::BorrowedStorage { storage, life } => {
+                if !life.slots.is_empty() || !life.retained.is_empty() {
                     return Err(unsupported(
-                        "owned nested closure capture requires a self-contained environment",
+                        "self-contained environment retains borrowed storage dependencies",
                         None,
                     ));
                 }
+                pending.push(storage);
+            }
+            Type::Closure(child) => closures.push(*child),
+            Type::Managed(payload) => pending.push(payload),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Array { element, .. } | Type::OwnedStore { element } => pending.push(element),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => {
+                return Err(unsupported(
+                    "self-contained environment retains external Task ports",
+                    None,
+                ));
+            }
+            // The sealed owners below contain their own storage. Function/code
+            // signatures do not describe captured addresses.
+            Type::ByteBuffer
+            | Type::Task { .. }
+            | Type::TaskI32
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. }
+            | Type::Mutex { .. } => {}
+            ty if ty.is_copy_value() => {}
+            _ => {
+                return Err(unsupported(
+                    "owned nested closure capture requires a self-contained environment",
+                    None,
+                ));
             }
         }
     }
@@ -965,4 +1021,30 @@ pub(super) fn supports(actual: CallableKind, requested: CallableKind) -> bool {
             CallableKind::FnMut | CallableKind::FnOnce
         ) | (CallableKind::FnOnce, CallableKind::FnOnce)
     )
+}
+
+#[cfg(test)]
+mod returned_closed_tests {
+    use super::*;
+    #[test]
+    fn structural_copy_of_shared_address_never_proves_closed() {
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../../../tests/returned-environment-sources/two-addresses.wire"),
+            &Limits::default(),
+        )
+        .unwrap();
+        let id = module
+            .functions
+            .iter()
+            .find_map(|f| f.callable_return_contract.as_ref().map(|c| c.closure))
+            .unwrap();
+        assert!(
+            module.closures[id.0 as usize]
+                .captures
+                .iter()
+                .all(Type::is_copy_value)
+        );
+        let errors = self_contained(&module, id, &mut Budget::new(&Limits::default())).unwrap_err();
+        assert!(errors.message.contains("external address"));
+    }
 }
