@@ -105,6 +105,34 @@ struct Index {
     const_parameters: BTreeMap<String, Vec<bool>>,
 }
 
+/// Successful scalar declaration inventory. No source spans, Core NodeIds or
+/// body products are stored here. Its only publisher is the sealed producer,
+/// which binds the complete current declaration/import/source environment.
+pub(super) struct ScalarInventory {
+    index: Index,
+    files: BTreeMap<FileId, usize>,
+    functions: Functions,
+    nodes: usize,
+    work: usize,
+}
+impl ScalarInventory {
+    pub(super) fn replay(&self, budget: &mut Budget<'_>) -> bool {
+        let mut remaining = budget.remaining_limits();
+        let Some(nodes) = remaining.max_nodes.checked_sub(self.nodes) else {
+            return false;
+        };
+        let Some(work) = remaining.max_analysis_steps.checked_sub(self.work) else {
+            return false;
+        };
+        // Check both before changing any ledger. Insufficient allowance takes
+        // the original ordered builder with its current diagnostic spans.
+        remaining.max_nodes = nodes;
+        remaining.max_analysis_steps = work;
+        budget.adopt_remaining(&remaining);
+        true
+    }
+}
+
 fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
     let parameters = match &item.kind {
         ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
@@ -492,76 +520,25 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
             }
         }
     }
-    let mut index = Index {
-        symbols: BTreeMap::new(),
-        imports: BTreeMap::new(),
-        const_parameters: BTreeMap::new(),
-    };
-    let mut files = BTreeMap::<FileId, usize>::new();
-    let mut functions = Functions::new();
-    for (position, ((source, module), edges)) in
-        sources.iter().zip(modules).zip(imports).enumerate()
+    if let Some(reuse) = reuse.as_deref_mut()
+        && origins.is_none()
+        && let Some(inventory) = reuse.scalar_inventory(&mut budget)
     {
-        let source: &SourceUnit = source.borrow();
-        if files.insert(source.file_id, position).is_some()
-            || index.symbols.contains_key(&module.id)
-        {
-            return Err(error(
-                "E-MODULE-ID",
-                module.span,
-                "duplicate project module or file identity",
-            ));
-        }
-        let mut symbols = BTreeMap::new();
-        for item in &module.items {
-            if let Some((name, function, generic)) = declaration(item) {
-                if symbols.contains_key(name)
-                    || super::primitive_name(name)
-                    || matches!(name, "bool" | "void" | "c_handle")
-                {
-                    return Err(error(
-                        "E-NAME-DUPLICATE",
-                        item.span,
-                        "duplicate declaration name",
-                    ));
-                }
-                let canonical = format!("$module{}_{}", module.id.0, name);
-                budget.text(&canonical, item.span)?;
-                let slots = const_slots(item, &mut budget)?;
-                if !slots.is_empty() {
-                    budget.text(&canonical, item.span)?;
-                    index.const_parameters.insert(canonical.clone(), slots);
-                }
-                if function {
-                    functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
-                }
-                symbols.insert(
-                    name.to_owned(),
-                    Symbol {
-                        canonical,
-                        public: item.public,
-                        function,
-                        generic,
-                    },
-                );
-            }
-        }
-        let mut aliases = BTreeMap::new();
-        for edge in edges {
-            if edge.alias == "Option"
-                || symbols.contains_key(&edge.alias)
-                || aliases.insert(edge.alias.clone(), edge.module).is_some()
-            {
-                return Err(error(
-                    "E-MODULE-ALIAS",
-                    edge.span,
-                    "module alias conflicts with another declaration",
-                ));
-            }
-        }
-        index.symbols.insert(module.id, symbols);
-        index.imports.insert(module.id, aliases);
+        return normalize_scalar(
+            modules,
+            imports,
+            limits,
+            products,
+            &inventory.index,
+            &inventory.files,
+            Cow::Borrowed(&inventory.functions),
+            budget,
+            reuse,
+        );
     }
+    let before_inventory = budget.remaining_limits();
+    let (index, files, mut functions) =
+        declaration_inventory(sources, modules, imports, &mut budget)?;
     if let Some(reuse) = reuse.as_deref_mut() {
         // The only producer of Reuse is the sealed scalar classifier. Keep a
         // whole-input fallback for a future domain extension; no partial
@@ -569,8 +546,25 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         if origins.is_some() {
             return Ok(None);
         }
+        let after = budget.remaining_limits();
+        let inventory = Arc::new(ScalarInventory {
+            index,
+            files,
+            functions,
+            nodes: before_inventory.max_nodes - after.max_nodes,
+            work: before_inventory.max_analysis_steps - after.max_analysis_steps,
+        });
+        reuse.save_scalar_inventory(inventory.clone());
         return normalize_scalar(
-            modules, imports, limits, products, &index, files, functions, budget, reuse,
+            modules,
+            imports,
+            limits,
+            products,
+            &inventory.index,
+            &inventory.files,
+            Cow::Borrowed(&inventory.functions),
+            budget,
+            reuse,
         );
     }
     let mut static_hosts = Vec::new();
@@ -1047,6 +1041,85 @@ fn normalize<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     Ok(Some(SpecializedModules::Ordinary(owned_products(output))))
 }
 
+fn declaration_inventory<S: std::borrow::Borrow<zil_base::SourceUnit>>(
+    sources: &[S],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    budget: &mut Budget<'_>,
+) -> R<(Index, BTreeMap<FileId, usize>, Functions)> {
+    let mut index = Index {
+        symbols: BTreeMap::new(),
+        imports: BTreeMap::new(),
+        const_parameters: BTreeMap::new(),
+    };
+    let mut files = BTreeMap::<FileId, usize>::new();
+    let mut functions = Functions::new();
+    for (position, ((source, module), edges)) in
+        sources.iter().zip(modules).zip(imports).enumerate()
+    {
+        let source: &SourceUnit = source.borrow();
+        if files.insert(source.file_id, position).is_some()
+            || index.symbols.contains_key(&module.id)
+        {
+            return Err(error(
+                "E-MODULE-ID",
+                module.span,
+                "duplicate project module or file identity",
+            ));
+        }
+        let mut symbols = BTreeMap::new();
+        for item in &module.items {
+            if let Some((name, function, generic)) = declaration(item) {
+                if symbols.contains_key(name)
+                    || super::primitive_name(name)
+                    || matches!(name, "bool" | "void" | "c_handle")
+                {
+                    return Err(error(
+                        "E-NAME-DUPLICATE",
+                        item.span,
+                        "duplicate declaration name",
+                    ));
+                }
+                let canonical = format!("$module{}_{}", module.id.0, name);
+                budget.text(&canonical, item.span)?;
+                let slots = const_slots(item, budget)?;
+                if !slots.is_empty() {
+                    budget.text(&canonical, item.span)?;
+                    index.const_parameters.insert(canonical.clone(), slots);
+                }
+                if function {
+                    functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
+                }
+                symbols.insert(
+                    name.to_owned(),
+                    Symbol {
+                        canonical,
+                        public: item.public,
+                        function,
+                        generic,
+                    },
+                );
+            }
+        }
+        let mut aliases = BTreeMap::new();
+        for edge in edges {
+            if edge.alias == "Option"
+                || symbols.contains_key(&edge.alias)
+                || aliases.insert(edge.alias.clone(), edge.module).is_some()
+            {
+                return Err(error(
+                    "E-MODULE-ALIAS",
+                    edge.span,
+                    "module alias conflicts with another declaration",
+                ));
+            }
+        }
+        index.symbols.insert(module.id, symbols);
+        index.imports.insert(module.id, aliases);
+    }
+    Ok((index, files, functions))
+}
+
 /// Scalar orchestration changes ownership only. All body operations below are
 /// the existing Normalize/Probe/Lifetime/Budget/Restore visitors, in their
 /// original ledgers and item order, on complete real ASTs.
@@ -1057,8 +1130,8 @@ fn normalize_scalar(
     limits: &Limits,
     products: &mut generics::products::Products,
     index: &Index,
-    files: BTreeMap<FileId, usize>,
-    mut functions: Functions,
+    files: &BTreeMap<FileId, usize>,
+    mut functions: Cow<'_, Functions>,
     mut budget: Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> R<Option<SpecializedModules>> {
@@ -1126,11 +1199,14 @@ fn normalize_scalar(
             )
         })?;
         if let ItemKind::Function(function) = &item.kind {
-            functions.entry(function.name.clone()).or_insert((
-                modules[position].id,
-                function.name.clone(),
-                false,
-            ));
+            // Original scalar declarations already have their canonical names
+            // in the retained table. Copy only if a real new output appears.
+            if !functions.contains_key(&function.name) {
+                functions.to_mut().insert(
+                    function.name.clone(),
+                    (modules[position].id, function.name.clone(), false),
+                );
+            }
         }
         positions[position].push(item);
     }

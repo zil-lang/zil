@@ -569,6 +569,7 @@ pub struct ExpandSession {
     namespace_context: Option<NamespaceContext>,
     epoch: Option<ExpansionEpoch>,
     entries: BTreeMap<ModuleId, Entry>,
+    scalar_inventory: Option<Arc<modules::ScalarInventory>>,
     stats: ProducerStats,
     profiling: bool,
 }
@@ -857,7 +858,16 @@ impl ExpandSession {
             .iter()
             .map(|p| (p.source().file_id, p.source().module_id))
             .collect();
+        // Keep tentative publication local. Errors/fallback never replace the
+        // last successful inventory or pair it with a different environment.
+        let mut scalar_inventory = self
+            .environment
+            .as_ref()
+            .filter(|old| old.compatible(&environment))
+            .and(self.scalar_inventory.as_ref())
+            .cloned();
         let mut reuse = Reuse {
+            scalar_inventory: &mut scalar_inventory,
             prior_entries: &self.entries,
             item_reuse: self
                 .environment
@@ -1062,6 +1072,7 @@ impl ExpandSession {
             modules: changed_modules.into(),
         };
         self.entries = entries;
+        self.scalar_inventory = scalar_inventory;
         self.environment = Some(environment);
         self.input_context = Some(input_context);
         self.namespace_context = Some(namespace_context);
@@ -1266,6 +1277,7 @@ fn header(function: &s::Function) -> s::Function {
     }
 }
 pub(crate) struct Reuse<'a> {
+    scalar_inventory: &'a mut Option<Arc<modules::ScalarInventory>>,
     prior_entries: &'a BTreeMap<ModuleId, Entry>,
     item_reuse: bool,
     entries: &'a mut BTreeMap<ModuleId, Entry>,
@@ -1278,6 +1290,16 @@ fn nanos(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl Reuse<'_> {
+    pub(super) fn scalar_inventory(
+        &mut self,
+        budget: &mut generics::Budget<'_>,
+    ) -> Option<Arc<modules::ScalarInventory>> {
+        let inventory = self.scalar_inventory.as_ref()?;
+        inventory.replay(budget).then(|| inventory.clone())
+    }
+    pub(super) fn save_scalar_inventory(&mut self, inventory: Arc<modules::ScalarInventory>) {
+        *self.scalar_inventory = Some(inventory);
+    }
     pub(super) fn item_lower_plan(&self, file: FileId) -> Option<item_lowering::ItemLowerPlan> {
         if !self.item_reuse {
             return None;
