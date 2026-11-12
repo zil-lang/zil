@@ -111,6 +111,7 @@ pub(super) fn check_function(
         ));
     }
     if !bindings.is_empty()
+        || (budget.address_capture && definition.captures.iter().any(|ty| matches!(ty, Type::Closure(_))))
         || definition.captures.iter().any(|ty| {
             matches!(
                 ty,

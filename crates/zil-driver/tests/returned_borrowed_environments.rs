@@ -267,3 +267,69 @@ fn main()->i32{let n=41;let f=make(wrap(&n));return f()-42}
     assert_eq!(contract.capture_sources.as_ref().unwrap().len(), 1);
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
+
+#[test]
+fn emit_untrusted_factory_candidates_for_independent_verify() {
+    use std::fs;
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../out/runs/returned-source-candidates-recovery-20261112");
+    fs::create_dir_all(&directory).unwrap();
+    let owned = format!("{PROJECT_MODEL}{PROJECT_FACTORY}{PROJECT_MAIN}")
+        .replace("import model;", "")
+        .replace("import factory;", "")
+        .replace("model.", "")
+        .replace("factory.", "");
+    for (label, text) in [
+        ("two-addresses", SOURCE.to_owned()),
+        ("owned-projected-multiple", owned),
+        ("nested-borrowed", NESTED_BORROWED.to_owned()),
+        ("wrapped-borrowed", WRAPPED_BORROWED.to_owned()),
+        ("holder-pointer", HOLDER_SOURCE.to_owned()),
+        (
+            "holder-pointer-replaced",
+            format!(
+                "{}{}",
+                HOLDER_SOURCE.split("fn main").next().unwrap(),
+                "fn main()->i32{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;return f()-41}"
+            ),
+        ),
+    ] {
+        let module = typed_source(&text);
+        let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+        fs::write(directory.join(format!("{label}.zil")), text).unwrap();
+        fs::write(directory.join(format!("{label}.wire")), wire).unwrap();
+        fs::write(
+            directory.join(format!("{label}.typed.txt")),
+            format!("{module:#?}"),
+        )
+        .unwrap();
+        fs::write(
+            directory.join(format!("{label}.candidate.txt")),
+            format!("{candidate:#?}"),
+        )
+        .unwrap();
+    }
+}
+
+const NESTED_BORROWED: &str = r#"
+fn make<life a>(pointer:&'a i32)->impl Fn()->i32{
+ let inner=move()=>*pointer
+ return move()=>inner()
+}
+fn main()->i32{let value=41;let outer=make(&value);return outer()-41}
+"#;
+const WRAPPED_BORROWED: &str = r#"
+fn wrap<F:Fn()->i32>(input:F)->impl Fn()->i32{return move()=>input()}
+fn main()->i32{let value=41;let pointer=&value;let inner=move()=>*pointer;let outer=wrap(inner);return outer()-41}
+"#;
+#[test]
+fn nested_borrowed_environments_propose_each_actual_leaf() {
+    for text in [NESTED_BORROWED,WRAPPED_BORROWED] {
+        let module=typed_source(text);
+        let contract=module.functions.iter().find_map(|function|function.callable_return_contract.as_ref()).unwrap();
+        assert!(contract.capture_sources.as_ref().unwrap().iter().any(|binding|binding.position.path.iter().any(|step|matches!(step,zil_ir::ContractProjection::Capture(_)))));
+        zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    }
+}

@@ -3657,6 +3657,15 @@ fn factory_source_roots(
     if source.path.is_empty() {
         return Ok(values[argument.0 as usize].clone());
     }
+    if source.path.iter().any(|step| matches!(step, zil_ir::ContractProjection::Capture(_))) {
+        // An environment selector is metadata, not an inline pointer offset.
+        // Keep the actual argument's conservative dependencies here; exact
+        // leaf substitution is reconstructed by the independent stored flow.
+        if !matches!(f.values[argument.0 as usize], Type::Closure(_)) {
+            return Err(bad("nested returned source lacks an actual environment input"));
+        }
+        return Ok(values[argument.0 as usize].clone());
+    }
     let path = source.path.iter().map(|step| match step {
         zil_ir::ContractProjection::Place(step) => Ok(*step),
         _ => Err(bad("returned capture metadata source needs its actual retained-slot transport")),
