@@ -1100,3 +1100,54 @@ fn sparse_changes_bind_actual_epoch_and_share_unmodified_input_tables() {
         interface.change_batch().context()
     );
 }
+
+#[test]
+fn private_body_projection_keeps_current_raw_node_and_temporary_bindings() {
+    let limits = Limits::default();
+    let text = "fn identity(x:i32)->i32=>x; fn first(x:i32)->i32=>x+1; fn second(x:i32)->i32 {return x |> identity;} fn third(x:i32)->i32=>x+3;";
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &[parsed(0, text)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let current_text = text.replace(
+        "fn first(x:i32)->i32=>x+1;",
+        "fn first(x:i32)->i32 {return x |> identity;}",
+    );
+    let current = checked(&mut session, &[parsed(0, &current_text)], &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_eq!(
+        current
+            .change_batch()
+            .changes()
+            .iter()
+            .filter(|c| c.body_changed())
+            .count(),
+        2,
+        "both edited function and later global-temporary consumer change"
+    );
+    assert_eq!(
+        cold.function_owner(ModuleId(0), "second"),
+        current.function_owner(ModuleId(0), "second")
+    );
+    assert_ne!(
+        cold.function_input_revision(ModuleId(0), "second"),
+        current.function_input_revision(ModuleId(0), "second")
+    );
+    assert!(
+        current
+            .change_batch()
+            .changes()
+            .iter()
+            .filter(|c| c.body_changed())
+            .any(|c| current.changed_function(c).unwrap().1.name == "second")
+    );
+    assert!(
+        !current
+            .change_batch()
+            .changes()
+            .iter()
+            .filter(|c| c.body_changed())
+            .any(|c| current.changed_function(c).unwrap().1.name == "third")
+    );
+}

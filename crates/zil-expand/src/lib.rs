@@ -301,6 +301,20 @@ struct LoweringDemand {
     work: usize,
     nodes: usize,
 }
+#[derive(Clone, Copy, Debug)]
+struct FunctionLowerBinding {
+    temporary_start: u32,
+    temporary_end: u32,
+    node_named: bool,
+}
+impl FunctionLowerBinding {
+    fn same_body_input(self, other: Self, old_id: NodeId, current_id: NodeId) -> bool {
+        let count = self.temporary_end.checked_sub(self.temporary_start);
+        count == other.temporary_end.checked_sub(other.temporary_start)
+            && (count == Some(0) || self.temporary_start == other.temporary_start)
+            && ((!self.node_named && !other.node_named) || old_id == current_id)
+    }
+}
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
     pub core: std::sync::Arc<CoreModule>,
@@ -321,6 +335,7 @@ pub struct ExpandedModule {
     // This is a successful producer receipt, never a safety certificate.
     lowering_demand: LoweringDemand,
     source_map_work: Option<usize>,
+    function_lower_bindings: std::sync::Arc<BTreeMap<NodeId, FunctionLowerBinding>>,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -814,7 +829,7 @@ fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
                     &products.method_providers,
                 ),
                 (&remaining, &remaining),
-                Some(&defaults),
+                (Some(&defaults), reuse.is_some()),
             );
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.production(clock);
@@ -1038,7 +1053,7 @@ fn expand_inner(
             method_providers,
         ),
         (lowering_limits, owner_limits),
-        None,
+        (None, false),
     )
 }
 
@@ -1074,8 +1089,9 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     sources: &[S],
     project: ProjectLowering<'_>,
     budgets: (&Limits, &Limits),
-    project_defaults: Option<&ProjectDefaults>,
+    options: (Option<&ProjectDefaults>, bool),
 ) -> CompileResult<ExpandedModule> {
+    let (project_defaults, capture_lower_bindings) = options;
     let (limits, owner_limits) = budgets;
     let (
         declarations,
@@ -1095,6 +1111,7 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         project_defaults,
         declarations,
     );
+    e.capture_lower_bindings = capture_lower_bindings;
     // Preserve the legacy single-module lowering allowance while binding the
     // newly introduced owner work to the caller's actual remaining budget.
     e.member_owner_limit = owner_limits.max_analysis_steps;
@@ -1185,6 +1202,7 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         member_owner_nodes: owner_nodes,
         lowering_demand,
         source_map_work: None,
+        function_lower_bindings: std::sync::Arc::new(e.function_lower_bindings),
     })
 }
 struct Expander<'a> {
@@ -1201,6 +1219,9 @@ struct Expander<'a> {
     imports_resolved: bool,
     next: u32,
     next_temporary: u32,
+    capture_lower_bindings: bool,
+    function_lower_bindings: BTreeMap<NodeId, FunctionLowerBinding>,
+    node_named_functions: BTreeSet<NodeId>,
     unsupported: Vec<UnsupportedFeature>,
     diagnostics: Vec<Diagnostic>,
     diagnosed_attributes: BTreeSet<Span>,
@@ -1258,6 +1279,9 @@ impl<'a> Expander<'a> {
             generated_exports: Vec::new(),
             next: 0,
             next_temporary: 0,
+            capture_lower_bindings: false,
+            function_lower_bindings: BTreeMap::new(),
+            node_named_functions: BTreeSet::new(),
             unsupported: Vec::new(),
             diagnostics: Vec::new(),
             diagnosed_attributes: BTreeSet::new(),
@@ -1658,7 +1682,14 @@ impl Expander<'_> {
                 }
                 let name = match &pattern.kind {
                     s::PatternKind::Name(n) => n.clone(),
-                    s::PatternKind::Wildcard => format!("$discard{}", self.next),
+                    s::PatternKind::Wildcard => {
+                        if self.capture_lower_bindings
+                            && let Some(function) = self.current_function
+                        {
+                            self.node_named_functions.insert(function);
+                        }
+                        format!("$discard{}", self.next)
+                    }
                     _ => {
                         return self.statement(
                             CoreStatementKind::Unsupported("binding destructuring".into()),
