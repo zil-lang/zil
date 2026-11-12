@@ -533,6 +533,9 @@ mod public_life_source_proofs {
             include_str!(
                 "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view-helper.zil"
             ),
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil"
+            ),
         ] {
             let module = typed(text);
             let defaults = Limits::default();
@@ -658,7 +661,8 @@ fn independently_reject_typed_attack(
     module: zil_ir::TypedModule,
     mut plan: zil_ir::CandidatePlan,
     label: &str,
-) {
+) -> Vec<String> {
+    let mut codes = Vec::new();
     let limits = Limits::default();
     let target = module.target.clone();
     // A stale cache identity must not substitute for a semantic rejection.
@@ -675,6 +679,7 @@ fn independently_reject_typed_attack(
         ),
     ] {
         let errors = checked.unwrap_err();
+        codes.extend(errors.iter().map(|error| error.code.to_string()));
         assert!(
             errors
                 .iter()
@@ -684,6 +689,7 @@ fn independently_reject_typed_attack(
             "{label} via {transport}: {errors:?}"
         );
     }
+    codes
 }
 
 #[test]
@@ -866,3 +872,181 @@ fn verify_authenticates_the_complete_expected_public_return_domain() {
         }
     }
 }
+
+#[test]
+fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slots() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil"
+    );
+    let module = typed(text);
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
+    let definition = &module.closures[0];
+    let life = definition.storage_life.as_ref().unwrap();
+    let outer = life
+        .bindings
+        .iter()
+        .find(|row| row.position.base == StorageBase::Result)
+        .unwrap()
+        .binder;
+    let inner = life
+        .classes
+        .iter()
+        .find(|row| row.position.base == StorageBase::Result)
+        .unwrap()
+        .binder;
+    assert_ne!(
+        outer, inner,
+        "the head and nominal pointee preserve distinct original scopes"
+    );
+    for attack in 0..3 {
+        let mut bad = module.clone();
+        if attack == 2 {
+            for instruction in bad.functions[definition.function.0 as usize]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+            {
+                if let zil_ir::InstructionKind::TakeCapture { index } = instruction.kind {
+                    instruction.kind = zil_ir::InstructionKind::ReadCapture { index };
+                }
+            }
+        } else {
+            let life = bad.closures[0].storage_life.as_mut().unwrap();
+            if attack == 0 {
+                life.classes
+                    .iter_mut()
+                    .find(|row| row.position.base == StorageBase::Result)
+                    .unwrap()
+                    .binder = outer;
+            } else {
+                life.classes
+                    .retain(|row| row.position.base != StorageBase::Result);
+            }
+            bad.functions[definition.function.0 as usize].storage_life = Some(life.clone());
+        }
+        assert!(
+            zil_analyze::analyze(&bad, &limits).is_err(),
+            "qualified capability attack {attack}"
+        );
+        independently_reject_typed_attack(
+            bad.clone(),
+            candidate.clone(),
+            &format!("qualified return {attack}"),
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &limits).is_err(),
+            "Wire qualified capability attack {attack}"
+        );
+    }
+    let bad = text.replace("let old=*data\n value=21", "value=21\n let old=*data");
+    let errors = zil_analyze::analyze(&typed(&bad), &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.category == zil_base::ResultCategory::SafeReject),
+        "old data SSA must retain its original root until last use: {errors:?}"
+    );
+}
+
+consumer!(
+    consuming_qualified_holder_head_preserves_actual_data_and_head_scopes_at_runtime,
+    "fnonce-qualified-holder-head-transfer"
+);
+
+consumer!(
+    consuming_qualified_head_reads_the_current_pointee_after_a_local_transfer,
+    "fnonce-qualified-head-updates-pointee"
+);
+
+#[test]
+fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
+    use zil_ir::{Constant, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-multiple-possible-holders.zil"
+    );
+    let original = typed(source);
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    accepted("multiple-possible-holders", source);
+    let mut bad = original;
+    let mut claim = plan;
+    let function = bad.functions.iter_mut().find(|f| f.name == "run").unwrap();
+    let local = function
+        .locals
+        .iter()
+        .find(|local| local.name == "a")
+        .unwrap()
+        .id;
+    let (block, at) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.kind, InstructionKind::CallClosureOnce { .. })
+                })
+                .map(|at| (block, at))
+        })
+        .unwrap();
+    let span = function.blocks[block].instructions[at].span;
+    let value = ValueId(function.values.len() as u32);
+    function.values.push(Type::I32);
+    function.blocks[block].instructions.splice(
+        at + 1..at + 1,
+        [
+            Instruction {
+                result: Some(value),
+                kind: InstructionKind::Constant(Constant::I32(99)),
+                span,
+            },
+            Instruction {
+                result: None,
+                kind: InstructionKind::Store { local, value },
+                span,
+            },
+        ],
+    );
+    claim
+        .functions
+        .iter_mut()
+        .find(|p| p.function == function.id)
+        .unwrap()
+        .holds
+        .push(ValueHold {
+            value,
+            roots: vec![],
+        });
+    let codes = independently_reject_typed_attack(
+        bad,
+        claim,
+        "weak update cannot erase an untouched original holder",
+    );
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|code| code.as_str() == "E-VERIFY-STORED")
+            .count(),
+        2,
+        "both transports must reject the actual retained loan, not a stale candidate: {codes:?}"
+    );
+}
+
+consumer!(
+    consuming_slice_capture_preserves_the_real_offset_length_and_parent_owner,
+    "fnonce-exclusive-slice-take"
+);

@@ -2415,11 +2415,34 @@ fn returns(
             let leaves = capture_after::leaves(module, d, b)?;
             let mut actual = BTreeSet::new();
             for (path, sources) in &facts.returned {
-                if !path.is_empty() || sources.is_empty() {
+                if sources.is_empty() {
                     return Err(failure(
                         "returned external view has no actual complete source",
                     ));
                 }
+                let result_slot = if path.is_empty() {
+                    None
+                } else {
+                    let (_, shape) = pointed_carrier(&d.result).ok_or_else(|| {
+                        failure("returned external view has undeclared nested data")
+                    })?;
+                    fee(
+                        b,
+                        shape
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                    )?;
+                    Some(
+                        shape
+                            .slots
+                            .iter()
+                            .find(|row| row.path == *path)
+                            .ok_or_else(|| {
+                                failure("returned external view omits an exact physical slot")
+                            })?,
+                    )
+                };
                 for source in sources {
                     let HoldRoot::Capture(index) = source.base else {
                         return Err(failure(
@@ -2446,12 +2469,28 @@ fn returns(
                                 "returned environment source is not an authenticated leaf",
                             ));
                         }
+                        if let Some(slot) = result_slot {
+                            let class = environment_memory::fixed(module, d.id, &key, 0, b)?;
+                            if binding(f, StorageBase::Result, path, b)?
+                                != StorageBinder::Fixed(class)
+                                || (slot.mode == StoredBorrowMode::ExclusiveAddress
+                                    && !leaves
+                                        .iter()
+                                        .any(|(path, mutable)| *path == key && *mutable))
+                            {
+                                return Err(failure(
+                                    "returned qualified pointee slot changes its actual class or capability",
+                                ));
+                            }
+                        }
                     } else if !super::stored_callables::result_is_receiver(d) {
                         return Err(failure(
                             "inline environment storage cannot supply a Fixed external result",
                         ));
                     }
-                    actual.insert(index);
+                    if path.is_empty() {
+                        actual.insert(index);
+                    }
                 }
             }
             if actual.into_iter().collect::<Vec<_>>() != d.lending_captures {
@@ -5102,6 +5141,27 @@ fn transfer(
                 heap_element: None,
             });
         }
+    }
+    if b.qualified_head_returns
+        && let Some(result) = i.result
+        && let Some((storage, shape)) = pointed_carrier(value_type(f, result)?)
+        && matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        && shape.retained.is_empty()
+    {
+        // A qualified address denotes current memory, not the slot snapshot
+        // cached when its capability entered the environment. In particular a
+        // consuming call may have just published a write through that head.
+        // Ordinary extracted data addresses do not enter this branch: their
+        // own permissions and parent loans stay frozen until their last use.
+        fee(b, shape.slots.len().saturating_add(1))?;
+        let mut current = BTreeMap::new();
+        for declaration in &shape.slots {
+            fee(b, declaration.path.len())?;
+            let actual = select(state, &out.pointer, &declaration.path, b)?;
+            ordered(b, current.len(), declaration.path.len())?;
+            current.insert(declaration.path.clone(), actual);
+        }
+        out.slots = current;
     }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;

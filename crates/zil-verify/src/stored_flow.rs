@@ -18,6 +18,7 @@ mod dyn_returns;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
+mod qualified_heads;
 mod receiver;
 mod relation_index;
 pub(super) mod replacements;
@@ -1946,6 +1947,9 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    // Schedules extra current-memory work; the actual rows still come from
+    // this kernel's checked types, instructions and frame at each use.
+    b.qualified_head_returns |= qualified_heads::shape(&f.return_type).is_some();
     if super::ordinary_heads::check(module, f, b)? {
         return Ok(());
     }
@@ -4130,6 +4134,13 @@ fn step(
         out.store_description = permission;
     }
     captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    if b.qualified_head_returns
+        && let Some(id) = i.result
+        && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
+    {
+        out.leaves.copy_work(b)?;
+        out.leaves = current;
+    }
     if let Some(id) = i.result
         && b.store_descriptions()
         && matches!(i.kind, InstructionKind::Call { .. })
@@ -4704,7 +4715,28 @@ fn instruction_rows(
     }
     Ok(rows)
 }
+fn current_head_rows(
+    function: Option<&TypedFunction>,
+    id: usize,
+    payload: &Payload,
+    frame: &Frame,
+    values: usize,
+    b: &mut Budget,
+) -> Check<Option<leaf_rows::Rows>> {
+    if !b.qualified_head_returns {
+        return Ok(None);
+    }
+    let f = function.ok_or_else(|| err("qualified head liveness lacks its actual function"))?;
+    let ty = if id < values {
+        f.values.get(id)
+    } else {
+        f.locals.get(id - values).map(|local| &local.ty)
+    }
+    .ok_or_else(|| err("qualified head liveness type is absent"))?;
+    qualified_heads::rows(ty, payload, frame, b)
+}
 fn live_loans(
+    function: Option<&TypedFunction>,
     solution: &Solution,
     state: &Frame,
     live: &WordRow,
@@ -4742,7 +4774,8 @@ fn live_loans(
                 loans.add(&p.permission.loans, b)?;
             }
         }
-        for (_, p) in &payload.leaves {
+        let current = current_head_rows(function, id, payload, state, solution.values.len(), b)?;
+        for (_, p) in current.as_ref().unwrap_or(&payload.leaves) {
             loans.add(&p.loans, b)?;
         }
         Ok(())
@@ -4803,6 +4836,7 @@ fn live_loans(
 }
 #[cfg(test)]
 fn live_loans_main_fullscan(
+    function: Option<&TypedFunction>,
     solution: &Solution,
     state: &Frame,
     live: &[bool],
@@ -4836,7 +4870,8 @@ fn live_loans_main_fullscan(
                 add_loans_by_scan(&mut loans, &p.permission.loans, b)?;
             }
         }
-        for (_, p) in &payload.leaves {
+        let current = current_head_rows(function, id, payload, state, solution.values.len(), b)?;
+        for (_, p) in current.as_ref().unwrap_or(&payload.leaves) {
             add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
     }
@@ -5069,7 +5104,11 @@ fn windows(
     )?;
     let owned_byte_sites = owned_byte_views::Sites::collect(f, b)?;
     let output_live = live_out(module, f, g, b)?;
-    let ssa_groups = ssa_loan_groups::Sources::collect(&solution.values, b)?;
+    let ssa_groups = if b.qualified_head_returns {
+        None
+    } else {
+        ssa_loan_groups::Sources::collect(&solution.values, b)?
+    };
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
         if !g.reachable[bi] {
@@ -5104,6 +5143,7 @@ fn windows(
                 .transpose()?
                 .flatten();
             let mut active = live_loans(
+                Some(f),
                 solution,
                 &state,
                 &live,
@@ -6883,7 +6923,12 @@ fn solve_check(
         }
         if let Some(definition) = capture_result_definition {
             let mut used = Vec::new();
-            for (_, sources) in &s.result {
+            for (path, sources) in &s.result {
+                // lending_captures names the outer returned head. Every inner
+                // slot is checked below against its own actual class relation.
+                if !path.is_empty() {
+                    continue;
+                }
                 for source in sources {
                     b.spend(used.len().saturating_add(1))?;
                     if let HoldRoot::Capture(index) = source.base {

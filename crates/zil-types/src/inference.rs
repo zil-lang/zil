@@ -3282,16 +3282,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "capturing a new State declaration source is outside the finite preserved capability profile",
                 ));
             }
-            if self.owner.is_some()
-                && binding.owner != self.owner
-                && let Term::Address(variable, _) = &binding.term
-                && self.graph.is_slice(*variable)
-            {
-                return Err(unsupported(
-                    span,
-                    "slice capture or use in a closure is not implemented",
-                ));
-            }
+            // The concrete capture checker preserves the complete slice type
+            // and its actual address mode. Inference only relates that type;
+            // the source/loan kernels independently prove the captured window.
             // This graph collects source type relationships only. The concrete
             // closure checker later admits explicit-move Package captures and
             // independently classifies their responsibility slots.
@@ -6125,6 +6118,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
+                || lending::transferred_result(t)
                 || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
         }) || parameters.iter().any(|p| {

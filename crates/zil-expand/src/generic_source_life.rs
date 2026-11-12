@@ -1650,6 +1650,25 @@ impl Check<'_, '_, '_> {
                 Box::new(self.ty(&owner, scope, depth + 1)?),
             ));
         }
+        if explicit.is_none()
+            && let Some(name) = root
+        {
+            self.budget.text(name, e.span)?;
+            self.lookup(env.len(), name.len(), e.span)?;
+            if let Some(Fact::Function(parameters, result)) = env.get(name) {
+                self.pay(e.span, parameters.len().saturating_add(actuals.len()))?;
+                if parameters.len() != actuals.len() {
+                    return Err(error(
+                        e.span,
+                        "source callable argument count differs from its actual code signature",
+                    ));
+                }
+                for (parameter, actual) in parameters.iter().zip(actuals) {
+                    self.compatible(parameter, actual, e.span)?;
+                }
+                return self.copy(result, e.span);
+            }
+        }
         let mut output = Fact::Unknown;
         if root.is_none()
             && let Some(variant) =
@@ -2294,7 +2313,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         scope: &Scope<'_>,
         env: &mut Facts,
-        _wanted: Option<&Fact>,
+        wanted: Option<&Fact>,
         depth: usize,
     ) -> R<Fact> {
         let actual = match &e.kind {
@@ -2305,22 +2324,63 @@ impl Check<'_, '_, '_> {
                 ..
             } => {
                 let mut child = self.environment(env, e.span)?;
-                for p in params {
-                    let f =
+                let expected = match wanted {
+                    Some(Fact::Function(parameters, result)) => Some((parameters, result.as_ref())),
+                    _ => None,
+                };
+                if expected.is_some_and(|(parameters, _)| parameters.len() != params.len()) {
+                    return Err(error(
+                        e.span,
+                        "closure parameter count differs from its actual expected code signature",
+                    ));
+                }
+                let mut inputs = Vec::new();
+                for (index, p) in params.iter().enumerate() {
+                    let annotation =
                         p.ty.as_ref()
                             .map(|t| self.ty(t, scope, depth + 1))
+                            .transpose()?;
+                    let expected = expected.map(|(parameters, _)| &parameters[index]);
+                    if let (Some(expected), Some(annotation)) = (expected, annotation.as_ref()) {
+                        self.compatible(expected, annotation, p.span)?;
+                    }
+                    let f = match annotation {
+                        Some(actual) => actual,
+                        None => expected
+                            .map(|expected| self.copy(expected, p.span))
                             .transpose()?
-                            .unwrap_or(Fact::Unknown);
+                            .unwrap_or(Fact::Unknown),
+                    };
+                    inputs.push(self.copy(&f, p.span)?);
                     self.budget.text(&p.name, p.span)?;
                     self.lookup(child.len(), p.name.len(), p.span)?;
                     child.insert(p.name.clone(), f);
                 }
-                let output = return_type
+                let annotation = return_type
                     .as_ref()
                     .map(|t| self.ty(t, scope, depth + 1))
                     .transpose()?;
-                self.arrow(body, scope, &mut child, output.as_ref(), depth + 1)?;
-                Fact::Unknown
+                if let (Some((_, expected)), Some(annotation)) = (expected, annotation.as_ref()) {
+                    self.compatible(expected, annotation, e.span)?;
+                }
+                let output = match annotation {
+                    Some(actual) => Some(actual),
+                    None => expected
+                        .map(|(_, expected)| self.copy(expected, e.span))
+                        .transpose()?,
+                };
+                let result = match body {
+                    ArrowBody::Expression(expression) => {
+                        self.expr(expression, scope, &mut child, output.as_ref(), depth + 1)?
+                    }
+                    ArrowBody::Block(block) => {
+                        self.block(block, scope, &mut child, output.as_ref(), depth + 1)?;
+                        output.unwrap_or(Fact::Unknown)
+                    }
+                };
+                // A code P/R fact records checked expressions and declarations.
+                // It says nothing about capture roots, Drop or migration.
+                Fact::Function(inputs, Box::new(result))
             }
             _ => unreachable!("source fact expression dispatcher"),
         };
