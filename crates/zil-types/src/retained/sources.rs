@@ -2082,9 +2082,9 @@ type StaticNode = (ClosureId, StoragePosition);
 // A complete actual child Closure identity may conditionally refer to its
 // constant field. The all-constructor graph below must discharge that field;
 // an ordinary address parameter never acquires such a dependency by its Type.
-fn static_child_node(
-    module: &TypedModule,
-    mut ty: &Type,
+fn static_child_node<'a>(
+    module: &'a TypedModule,
+    mut ty: &'a Type,
     mut path: &[ContractProjection],
     left: &mut usize,
     span: Span,

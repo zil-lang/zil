@@ -2,7 +2,7 @@
 //! proposed zero domain is never itself a ClosedEnvironment proof.
 use super::*;
 
-pub(super) fn potential(
+pub(crate) fn potential(
     definitions: &[closures::Pending],
     root: ClosureId,
     left: &mut usize,
@@ -36,7 +36,7 @@ pub(super) fn potential(
     Ok(has_constant_candidate)
 }
 
-pub(super) fn check(
+pub(crate) fn check(
     module: &TypedModule,
     obligations: &BTreeMap<ClosureId,Span>,
     left: &mut usize,
