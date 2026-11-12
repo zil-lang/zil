@@ -771,6 +771,27 @@ fn static_slice_target_keeps_its_nonzero_context_without_input_roots() {
         .unwrap();
     assert_eq!(context.retained_life.binder_count, 1);
     assert!(!context.retained_life.nominal_arguments.is_empty());
+    let factory = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    assert!(factory.parameters.is_empty());
+    let life = factory.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 1)
+    );
+    assert!(life.bindings.is_empty() && life.static_bindings.is_empty());
+    assert_eq!(life.classes.len(), 1);
+    assert_eq!(life.classes[0].binder, zil_ir::StorageBinder::Invocation(0));
+    assert_eq!(life.classes[0].position.base, zil_ir::StorageBase::Result);
+    assert_eq!(
+        life.classes[0].position.path,
+        [zil_ir::LifeTypeProjection::Place(
+            zil_ir::PlaceProjection::ErrorArm(false)
+        )]
+    );
     let limits = zil_base::Limits::default();
     let target = module.target.clone();
     zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
@@ -778,4 +799,97 @@ fn static_slice_target_keeps_its_nonzero_context_without_input_roots() {
     let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
+}
+
+#[test]
+fn static_context_sources_are_distinct_from_same_typed_formal_and_empty_targets() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/static-slice-with-input.zil");
+    let (_, module, _, _) = context_candidate(text, "static-same-leaf-attacks");
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| f.name == "create")
+        .unwrap();
+    let input = module.functions[factory].parameters[0];
+    let exact = StorageSource::Exact(StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![],
+    });
+    let static_atom = module.functions[factory]
+        .retained_return_sources
+        .as_ref()
+        .unwrap()[0]
+        .sources
+        .iter()
+        .find(|a| matches!(a, StorageSource::Static { .. }))
+        .unwrap()
+        .clone();
+    let Type::Address { mutable: false, .. } =
+        module.functions[factory].locals[input.0 as usize].ty
+    else {
+        panic!("full same-typed input required")
+    };
+    let limits = zil_base::Limits::default();
+    let roundtrip = |module: &TypedModule| {
+        let bytes = zil_ir::wire::encode_module_candidate(
+            module,
+            &CandidatePlan::empty_for(module),
+            &limits,
+        )
+        .unwrap();
+        zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0
+    };
+    for mutation in 0..5 {
+        let mut attack = module.clone();
+        let f = &mut attack.functions[factory];
+        f.retained_return_sources.as_mut().unwrap()[0].sources = vec![static_atom.clone()];
+        match mutation {
+            0 => f.retained_return_sources.as_mut().unwrap()[0].sources = vec![exact.clone()],
+            1 => f.retained_return_sources.as_mut().unwrap()[0]
+                .sources
+                .clear(),
+            2 => {
+                let instruction = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::StaticUtf8 { .. }))
+                    .unwrap();
+                // Same full SSA result Type and same class; only the actual
+                // target changes from static bytes to the input permission.
+                assert_eq!(
+                    f.values[instruction.result.unwrap().0 as usize],
+                    f.locals[input.0 as usize].ty
+                );
+                instruction.kind = InstructionKind::Load(input);
+            }
+            3 => f.storage_life.as_mut().unwrap().classes.clear(),
+            _ => f.retained_return_sources.as_mut().unwrap()[0]
+                .sources
+                .push(static_atom.clone()),
+        }
+        for input_module in [&attack, &roundtrip(&attack)] {
+            let errors = zil_analyze::analyze(input_module, &limits).expect_err(
+                "static dependency proof must use actual targets and complete occurrences",
+            );
+            assert!(
+                errors.iter().any(|d| d.code == "E-ANALYZE-IR"),
+                "case {mutation}: {errors:?}"
+            );
+        }
+        if mutation == 2 {
+            // A real input target is valid under Exact, with the same body,
+            // header and full leaf that was rejected under the Static claim.
+            attack.functions[factory]
+                .retained_return_sources
+                .as_mut()
+                .unwrap()[0]
+                .sources = vec![exact.clone()];
+            zil_analyze::analyze(&attack, &limits).unwrap();
+            zil_analyze::analyze(&roundtrip(&attack), &limits).unwrap();
+        }
+    }
 }
