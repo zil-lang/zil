@@ -3444,6 +3444,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .insert(local, (index as u32, stored));
                 continue;
             }
+            // A shared receiver may read a moved exclusive capability only
+            // through a shared reborrow. The environment retains the affine
+            // capture; the activation never receives its full capability.
+            let stored = if builder.closures.pending[id.0 as usize].callable_kind() == CallableKind::Fn {
+                if let Type::Address { mutable: true, inner } = stored {
+                    Type::Address { mutable: false, inner }
+                } else { stored }
+            } else { stored };
             let inline_copy = stored.is_copy_value();
             let local =
                 builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;

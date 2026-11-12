@@ -1111,4 +1111,56 @@ fn captured_mutable_holder_publishes_the_original_external_slot() {
     let source=include_str!("../../../tests/fixtures/returned-owning-holders/captured-mutable-holder.zil");
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let helpers = "fn invoke<F:FnMut()->i32>(f:&mut F)->i32{return f()} fn relay<F:FnMut()->i32>(f:&mut F)->i32{return invoke(f)}";
+    let helper = source.replace("fn main", &format!("{helpers} fn main"))
+        .replace("let first=f()", "let first=relay(&mut f)")
+        .replace("let second=f()", "let second=relay(&mut f)");
+    zil_analyze::analyze(&typed_source(&helper),&Limits::default()).unwrap();
+    let head=source.split("fn main").next().unwrap();
+    let body="fn main()->i32{var a=20;var b=22;var c=30;var d=32;var holder=hold(&a);var another=hold(&c);var f=make(&mut holder,&b);var g=make(&mut another,&d);let first=relay(&mut f);a=21;let third=relay(&mut g);c=31;let second=relay(&mut f);let fourth=relay(&mut g);let x=*holder.pointer;let y=*another.pointer;b=23;d=33;return first+second+third+fourth+x+y+a+b+c+d-266}";
+    zil_analyze::analyze(&typed_source(&format!("{head}{helpers}{body}")),&Limits::default()).unwrap();
+    for body in [
+        "fn main()->i32{var a=20;var b=22;var holder=hold(&a);let saved=holder.pointer;var f=make(&mut holder,&b);let first=f();a=21;return first+*saved}",
+        "fn main()->i32{var a=20;var b=22;var holder=hold(&a);var f=make(&mut holder,&b);let first=f();b=23;return first+f()}",
+    ] {
+        assert!(zil_analyze::analyze(&typed_source(&format!("{head}{body}")),&Limits::default()).is_err());
+    }
+}
+
+#[test]
+fn exclusive_capture_readonly_fn_is_repeatable_but_its_environment_is_affine() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/exclusive-capture-readonly-fn.zil");
+    let module=typed_source(source);
+    assert_eq!(module.closures[0].kind,zil_ir::CallableKind::Fn);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let bad=source.replace("let a=f();let b=f()", "let g=f;let a=f();let b=g()");
+    let result=typed_source_with_limit(&bad,&Limits::default())
+        .and_then(|m|zil_analyze::analyze(&m,&Limits::default()));
+    assert!(result.is_err(), "an affine environment cannot be called after moving it");
+    let mut forged=module;
+    let entry=&mut forged.functions[forged.closures[0].function.0 as usize];
+    let output=entry.blocks.iter().flat_map(|b|&b.instructions)
+        .find_map(|i| matches!(i.kind,zil_ir::InstructionKind::ReadCapture{..}).then_some(i.result).flatten()).unwrap();
+    let zil_ir::Type::Address{mutable,..}=&mut entry.values[output.0 as usize] else{panic!()};
+    *mutable=true;
+    assert!(zil_analyze::analyze(&forged,&Limits::default()).is_err(), "Fn cannot expose its exclusive captured capability");
+}
+
+#[test]
+fn captured_mutable_holder_keeps_pointee_classes_and_call_scoped_leases() {
+    for source in [
+        include_str!("../../../tests/fixtures/returned-owning-holders/captured-holder-distinct-pointee-classes.zil"),
+        include_str!("../../../tests/fixtures/returned-owning-holders/fnmut-exclusive-capture-escape.zil"),
+    ] {
+        let result = typed_source_with_limit(source, &Limits::default())
+            .and_then(|module| zil_analyze::analyze(&module, &Limits::default()));
+        let errors = result.expect_err("captured invocation cannot change a pointee class or escape");
+        assert!(errors.iter().any(|e| e.category != zil_base::ResultCategory::Unsupported), "{errors:?}");
+    }
+}
+
+#[test]
+fn captured_mutable_holder_call_before_return_updates_external_memory() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/captured-mutable-holder-call-before-return.zil");
+    zil_analyze::analyze(&typed_source(source),&Limits::default()).unwrap();
 }

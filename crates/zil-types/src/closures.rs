@@ -299,9 +299,6 @@ impl Capture {
             return false;
         }
         self.written
-            || (self.moved
-                && !self.borrowed
-                && matches!(self.ty, Type::Address { mutable: true, .. }))
     }
 }
 
@@ -333,6 +330,11 @@ impl Pending {
     }
     pub fn owns_resources(&self) -> bool {
         self.captures.iter().any(|capture| {
+            // The environment owns the unique capability, not the referent's
+            // data cleanup. DropClosure retires the ticket without dropping T.
+            if capture.moved && matches!(capture.ty, Type::Address { mutable: true, .. }) {
+                return true;
+            }
             if matches!(capture.ty, Type::Managed(_)) {
                 capture.moved
             } else {

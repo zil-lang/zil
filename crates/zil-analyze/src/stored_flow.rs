@@ -416,6 +416,9 @@ struct State {
     captures: BTreeMap<u32, Value>,
     // A bound view aliases environment storage, never activation storage.
     capture_views: BTreeMap<LocalId, u32>,
+    /// Empty-target invocation anchor grants no data access. Actual capture
+    /// reborrows retain it alongside the original complete parent chain.
+    receiver_loan: Option<usize>,
     /// A missing row is definitely initialized. Join unions holes, so a slot
     /// is usable only if every incoming path kept it initialized.
     vacant: BTreeSet<Target>,
@@ -639,6 +642,8 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     target_work(&s.vacant, b)?;
     out.vacant = s.vacant.clone();
     out.capture_views = s.capture_views.clone();
+    out.receiver_loan = s.receiver_loan;
+    if s.receiver_loan.is_some() {fee(b,1)?;}
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
@@ -792,6 +797,13 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
+    if let Some(receiver) = from.receiver_loan {
+        fee(b, 1)?;
+        if to.receiver_loan.is_some_and(|current| current != receiver) {
+            return Err(failure("joined receiver invocation identities differ"));
+        }
+        to.receiver_loan = Some(receiver);
+    }
     for (local, index) in &from.capture_views {
         ordered(b, to.capture_views.len(), 0)?;
         if to.capture_views.insert(*local, *index).is_some_and(|old| old != *index) {
@@ -2451,6 +2463,14 @@ fn seed(
             ordered(b,state.external.len(),0)?;
             state.external.insert(HoldRoot::Parameter(index as u32),rows);
         }
+        if let Type::Closure(id)=&f.locals[local.0 as usize].ty
+            && !value.environment.is_empty()
+            && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
+            b.stored_slot_updates=true;
+            let rows=copy_permission_rows(&value.environment,b)?;
+            ordered(b,state.external.len(),0)?;
+            state.external.insert(HoldRoot::Parameter(index as u32),rows);
+        }
         if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
             if super::stored_callables::resource_payload(payload, b)?)
         {
@@ -2464,6 +2484,11 @@ fn seed(
         .and_then(|id| module.closures.get(id.0 as usize))
         && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
+        if d.captures.iter().any(super::stored_callables::exclusive_capture) {
+            fee(b, 1)?;
+            state.receiver_loan = Some(loans.len());
+            loans.push(Loan::default());
+        }
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
             let mut value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
@@ -2826,6 +2851,12 @@ fn slot_loan_ids(
                         else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
                             let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
                             for (path,mutable) in capture_after::leaves(module,d,b)? {add(position as u32,&path,mutable,b)?;}
+                        }
+                        else if let Type::Closure(id)=&callee.locals[local.0 as usize].ty
+                            && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
+                            for (path,mutable) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
+                                add(position as u32,&path,mutable,b)?;
+                            }
                         }
                     }
                 }
@@ -3404,6 +3435,30 @@ fn transfer(
                 }
             }
             let mut updates = Vec::new();
+            // Moving F transfers its environment ticket, while writes through
+            // captured addresses still affect the caller's original storage.
+            // Reconstruct all terminal rows before publishing any destination.
+            let mut moved_contexts=Vec::new();
+            for (position,local) in callee.parameters.iter().enumerate() {
+                let Type::Closure(id)=&callee.locals[local.0 as usize].ty else {continue;};
+                let definition=&module.closures[id.0 as usize];
+                if !capture_after::has_context(module,definition,b)? {continue;}
+                let argument=*arguments.get(position).ok_or_else(||failure("moved context argument absent"))?;
+                let before=environment_memory::current(get(argument)?,state,b)?;
+                let mut after=copy_permission_rows(&before,b)?;
+                for (path,_) in capture_after::leaves(module,definition,b)? {
+                    let mut permission=Permission::default();
+                    if let Some(sources)=summary.external_after.get(&(position as u32,path.clone())) {
+                        for source in sources {union(&mut permission,&substitute(source,arguments,values,state,b)?,b)?;}
+                    }
+                    if !permission.targets.is_empty() {
+                        permission=retain_slot(&permission,i,position as u32,&path,slot_ids,loans,b)?;
+                    }
+                    ordered(b,after.len(),path.len())?;
+                    after.insert(path,permission);
+                }
+                moved_contexts.push((definition,before,after));
+            }
             for ((parameter, path), sources) in &summary.external_after {
                 let index = *parameter as usize;
                 let local = *callee
@@ -3447,19 +3502,35 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.base, actual_path, permission, matches!(&callee.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))));
+                updates.push((root.base, actual_path, permission, match &callee.locals[local.0 as usize].ty {
+                    Type::Address { inner, .. } => match inner.as_ref() { Type::Closure(id) => Some(*id), _ => None },
+                    _ => None,
+                }));
             }
+            let mut environments = BTreeMap::new();
             for (base, path, permission, environment) in updates {
-                if environment {
-                    let mut rows=copy_permission_rows(environment_memory::rows(state,base,b)?,b)?;
+                if let Some(id) = environment {
+                    ordered(b, environments.len(), 0)?;
+                    if let std::collections::btree_map::Entry::Vacant(entry)=environments.entry(base) {
+                        entry.insert((id,copy_permission_rows(environment_memory::rows(state,base,b)?,b)?));
+                    }
+                    let (_,rows)=environments.get_mut(&base).unwrap();
                     ordered(b,rows.len(),path.len())?;
                     rows.insert(path,permission);
-                    environment_memory::publish(state,base,rows,b)?;
                 } else {
                     let holder=actual_slot_rows_mut(state,base,b)?;
                     ordered(b,holder.len(),path.len())?;
                     holder.insert(path,permission);
                 }
+            }
+            for (definition,before,after) in moved_contexts {
+                capture_after::publish_contexts(module,definition,state,&before,&after,b)?;
+            }
+            for (base,(id,rows)) in environments {
+                let before=copy_permission_rows(environment_memory::rows(state,base,b)?,b)?;
+                let definition=module.closures.get(id.0 as usize).ok_or_else(||failure("external mutable environment definition absent"))?;
+                capture_after::publish_contexts(module,definition,state,&before,&rows,b)?;
+                environment_memory::publish(state,base,rows,b)?;
             }
             if callee.foreign.is_some()
                 || callee.environment.is_some()
@@ -3626,6 +3697,15 @@ fn transfer(
                     .ok_or_else(|| failure("actual environment capture is absent"))?,
                 b,
             )?;
+            if matches!(i.kind, InstructionKind::ReadCapture { .. })
+                && f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|d| d.captures.get(*index as usize))
+                    .is_some_and(super::stored_callables::exclusive_capture)
+            {
+                fee(b, 1)?;
+                out.pointer.loans.insert(state.receiver_loan.ok_or_else(||
+                    failure("exclusive capture read has no actual receiver invocation"))?);
+            }
         }
         InstructionKind::DescribePackageField { local, index }
             if pure_copy::ordinary_package_description(f, i, b)? => {
@@ -3891,7 +3971,11 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
-        ) || ordinary_error_borrow(f, i, b)?
+        ) || matches!(i.kind, InstructionKind::ReadCapture { index }
+                if f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|d| d.captures.get(index as usize))
+                    .is_some_and(super::stored_callables::exclusive_capture))
+            || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(value_type(f, result)?, Type::Address { .. })
@@ -4010,9 +4094,8 @@ fn separate(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if intersects(left, right, b)? {
-        return Err(failure(
-            "simultaneously live access overlaps an actual stored target/parent loan",
-        ));
+        return Err(vec![Diagnostic::error(Phase::Analyze,"E-BORROW-CONFLICT",None,
+            "simultaneously live access overlaps an actual stored target/parent loan")]);
     }
     if may_alias(left, right) {
         let width = target_width(left)
@@ -4579,7 +4662,7 @@ fn windows(
                 current.remove(&(v.0 as usize));
             }
             owned_byte_sites.check(module, f, i, &state, values, &current, loans, apart, b)?;
-            {
+            let checked = (|| -> CompileResult<()> {
                 let mut access = permission_access::Access::new(&current, loans, b)?;
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
@@ -4764,6 +4847,17 @@ fn windows(
                         });
                         let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
                         access.check(&actual, write, apart, b)?;
+                    }
+                    InstructionKind::ReadCapture { index }
+                        if f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|d| d.captures.get(*index as usize))
+                            .is_some_and(super::stored_callables::exclusive_capture) =>
+                    {
+                        let actual = state.captures.get(index)
+                            .ok_or_else(|| failure("capture reborrow has no actual capability"))?;
+                        access.check(&actual.pointer,
+                            matches!(i.result.and_then(|v| f.values.get(v.0 as usize)),Some(Type::Address { mutable: true, .. })),
+                            apart, b)?;
                     }
                     InstructionKind::BorrowCapture { index, mutable } => {
                         let actual = Permission {
@@ -5140,7 +5234,14 @@ fn windows(
                     }
                     _ => {}
                 }
-            }
+                Ok(())
+            })();
+            checked.map_err(|mut errors| {
+                for error in &mut errors {
+                    error.notes.push(format!("actual stored access in {}: {:?}", f.name, i.kind));
+                }
+                errors
+            })?;
             transfer(
                 module, f, i, &mut state, values, summaries, slot_ids, loans, b,
             )?;
@@ -5466,6 +5567,18 @@ fn derive_cfg(
                 if value.creation_complete == Some(false) {
                     grounded = false;
                 }
+                let environment = match ty {
+                    Type::Closure(id)=>Some(*id),
+                    Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>Some(*id),_=>None},
+                    _=>None,
+                };
+                if let Some(id)=environment
+                    && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
+                    for (path,_) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
+                        ordered(b,value.environment.len(),path.len())?;
+                        grounded &= value.environment.get(&path).is_some_and(|p|!p.targets.is_empty());
+                    }
+                }
                 if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
                     grounded = false;
                 }
@@ -5581,6 +5694,13 @@ fn derive_cfg(
                             else if let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty && let Type::Closure(id)=inner.as_ref() {
                                 let d=module.closures.get(id.0 as usize).ok_or_else(||failure("external callable definition absent"))?;
                                 for (path,_) in capture_after::leaves(module,d,b)? {
+                                    ordered(b,summary.external_after.len(),path.len())?;
+                                    grounded &= summary.external_after.get(&(position as u32,path)).is_some_and(|row|!row.is_empty());
+                                }
+                            }
+                            else if let Type::Closure(id)=&callee.locals[local.0 as usize].ty
+                                && capture_after::has_context(module,&module.closures[id.0 as usize],b)? {
+                                for (path,_) in capture_after::leaves(module,&module.closures[id.0 as usize],b)? {
                                     ordered(b,summary.external_after.len(),path.len())?;
                                     grounded &= summary.external_after.get(&(position as u32,path)).is_some_and(|row|!row.is_empty());
                                 }
