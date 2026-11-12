@@ -217,8 +217,8 @@ struct Fact {
     sources: BTreeSet<Source>,
     birth: BTreeSet<Birth>,
 }
-// Large actual inventories share immutable cells across CFG snapshots. Small
-// functions retain their existing inline representation and exact fee path.
+// Large actual typed inventories share immutable cells across CFG snapshots.
+// Small functions retain their existing inline representation and exact fee path.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Cell {
     Inline(Fact),
@@ -4042,9 +4042,14 @@ fn analyze_function_program(
                 budget,
             )?;
         }
-        initial
-            .cells
-            .insert(*place, stored_fact(fact, shapes.len() >= 64, budget)?);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {
@@ -4565,9 +4570,14 @@ fn analyze_function_eager_reference(
                 budget,
             )?;
         }
-        initial
-            .cells
-            .insert(*place, stored_fact(fact, shapes.len() >= 64, budget)?);
+        initial.cells.insert(
+            *place,
+            stored_fact(
+                fact,
+                f.locals.len().saturating_add(f.values.len()) >= 64,
+                budget,
+            )?,
+        );
     }
     for (index, local) in f.parameters.iter().enumerate() {
         if let Some(s) = shapes.get(&Place::Local(*local)) {

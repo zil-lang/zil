@@ -53,6 +53,24 @@ pub(crate) fn admit_owned(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    // The preflight inventory contains only this immutable request module's
+    // actual Package nodes. Generic helpers and temporary inferred Types cannot
+    // register here or reuse another node's admission. This memo contains no
+    // current cell, initialization, ownership source, borrow or cleanup fact.
+    let cacheable = budget.large_tag_layout && budget.owned_store_package_type(ty)?;
+    let key = (
+        module as *const TypedModule as usize,
+        ty as *const Type as usize,
+    );
+    if cacheable {
+        budget.lookup(
+            budget.admitted_owned_products.len(),
+            "ordinary Product admission memo lookup",
+        )?;
+        if let Some(has_stores) = budget.admitted_owned_products.get(&key) {
+            return Ok(*has_stores);
+        }
+    }
     let has_stores = admit_shape(ty, budget, true, Some(module), false)?;
     fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         let Type::Package { fields, .. } = package_storage(ty) else {
@@ -72,6 +90,14 @@ pub(crate) fn admit_owned(
     // Products allocate no new state and retain their historical charge.
     if has_stores {
         stores(module, ty, budget)?;
+    }
+    if cacheable {
+        budget.lookup(
+            budget.admitted_owned_products.len(),
+            "ordinary Product admission memo insertion",
+        )?;
+        budget.spend(3, "ordinary Product admission memo publication and release")?;
+        budget.admitted_owned_products.insert(key, has_stores);
     }
     Ok(has_stores)
 }

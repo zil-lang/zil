@@ -26,6 +26,9 @@ pub(super) struct Budget {
     addressed_copy_sums: BTreeMap<usize, bool>,
     pub(super) large_tag_layout: bool,
     pub(super) addressed_tag_layout: BTreeMap<usize, bool>,
+    // Successes only for exact immutable module roots already registered by
+    // the complete raw preflight's owned Store Package inventory.
+    pub(super) admitted_owned_products: BTreeMap<(usize, usize), bool>,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
@@ -136,6 +139,7 @@ impl Budget {
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
             addressed_tag_layout: BTreeMap::new(),
+            admitted_owned_products: BTreeMap::new(),
             static_utf8: false,
             pod_stores: false,
             pod_store_carriers: None,
