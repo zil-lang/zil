@@ -203,6 +203,10 @@ fn signatures(
             errors.push(diagnostic);
             continue;
         }
+        if let Err(diagnostic) = retained::reserve_owned_signature(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
+        }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }

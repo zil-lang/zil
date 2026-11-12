@@ -532,6 +532,20 @@ impl Dependencies<'_, '_> {
     }
 }
 
+pub(super) fn reserve_owned_signature(function: &CoreFunction, work: &mut usize, limits: &Limits) -> R<()> {
+    let Some(bound) = &function.callable_return else { return Ok(()) };
+    // Old Copy/lending boundaries retain their existing accounting. Newly
+    // admitted owned data pays every complete header walk before classification.
+    if closures::supported_signature(&bound.parameters, &bound.result) { return Ok(()) }
+    for ty in bound.parameters.iter().chain(std::iter::once(&bound.result)) {
+        let cost = inference::type_snapshot_work(ty, function.span, limits)?;
+        *work = work.checked_sub(cost.saturating_mul(12)).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "owned factory signature work budget exceeded", Some(function.span))
+        })?;
+    }
+    Ok(())
+}
+
 pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
     let Some(bound) = &function.callable_return else {
         return Ok(());
@@ -549,7 +563,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || !function.state_parameters.is_empty()
         || function.result_mode != PassingMode::Infer
         || bound.kind == CallableKind::FunctionPointer
-        || !closures::supported_signature(&bound.parameters, &bound.result)
+        || !closures::value_signature(&bound.parameters, &bound.result)
         || (lending::supported_result(&bound.result) && bound.kind == CallableKind::FnOnce)
         || function.return_type
             != (Type::Opaque {

@@ -94,7 +94,9 @@ pub(super) fn check_claim(
         ));
     }
     let d = closures::definition(module, id, Some(f.span))?;
-    closures::old_container_signature(module, id, Some(f.span), budget)?;
+    // The concrete entry signature is independently checked by check_definitions.
+    // Returning its self-contained environment does not narrow its data slots.
+    owned_callbacks::signature(module, d, budget)?;
     if c.closure != id || c.kind != d.kind {
         return Err(bad(
             f,
