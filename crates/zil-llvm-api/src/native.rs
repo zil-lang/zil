@@ -231,6 +231,7 @@ struct NativeAttempt<'a> {
     products: Option<crate::NativeWorkProducts>,
     timings: AttemptTimings,
 }
+#[cfg(feature = "native-products")]
 pub(super) fn compile_module_with_native_products(
     module: &crate::model::Module,
     config: &Config<'_>,
@@ -666,7 +667,7 @@ fn compile_input(
     ))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native-products"))]
 mod native_product_tests {
     use super::*;
     use crate::model::{Arg, Block, Function, Inst, Item, Linkage, Op, Signature, Ty};
@@ -804,5 +805,62 @@ mod native_product_tests {
             assert_eq!(recovered.bytes, reference.bytes);
             assert!(recovered.receipt.verify_before_after);
         }
+    }
+
+    #[test]
+    fn installed_native_extension_reuses_real_o2_stages_and_machine_functions() {
+        let source = module(42);
+        let (cold, _, products) = compile_products(&source, None);
+        let stats = cold
+            .receipt
+            .native_products
+            .expect("current native consumer statistics");
+        assert_eq!(
+            stats.available, 1,
+            "strict native-products acceptance requires the audited extension DSO"
+        );
+        assert!(stats.optimizer_function_stage_executions > 0);
+        assert_eq!(stats.machine_function_executions, 2);
+        let products = products.expect("successful cold compilation publishes native products");
+        let (warm, _, _) = compile_products(&source, Some(&products));
+        let stats = warm.receipt.native_products.unwrap();
+        assert_eq!(stats.available, 1);
+        assert!(stats.optimizer_function_stage_reuses > 0);
+        assert_eq!(stats.machine_function_reuses, 2);
+        assert_eq!(stats.machine_function_executions, 0);
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+        assert!(
+            warm.receipt.preflight_ns > 0,
+            "same-input native work still runs current preflight"
+        );
+        assert!(warm.receipt.verify_before_after);
+        assert_eq!(warm.bytes, cold.bytes);
+        assert_eq!(
+            warm.bytes,
+            compile_module(&source, &config(), FunctionMerging::Disabled, &|| false)
+                .unwrap()
+                .bytes
+        );
+
+        // Only answer's implementation changes; its signature and sibling stay
+        // byte-identical. Exactly that sibling may reuse its machine function.
+        let edited = module(43);
+        let (changed, _, _) = compile_products(&edited, Some(&products));
+        let stats = changed.receipt.native_products.unwrap();
+        assert_eq!(stats.available, 1);
+        assert!(stats.optimizer_function_stage_reuses > 0);
+        assert!(stats.optimizer_function_stage_executions > 0);
+        assert_eq!(stats.machine_function_reuses, 1);
+        assert_eq!(stats.machine_function_executions, 1);
+        assert_eq!(stats.fresh_context_fallbacks, 0);
+        assert!(changed.receipt.preflight_ns > 0);
+        assert!(changed.receipt.verify_before_after);
+        assert_eq!(
+            changed.bytes,
+            compile_module(&edited, &config(), FunctionMerging::Disabled, &|| false)
+                .unwrap()
+                .bytes
+        );
+        assert_ne!(changed.bytes, cold.bytes);
     }
 }

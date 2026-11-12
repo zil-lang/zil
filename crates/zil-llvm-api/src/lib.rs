@@ -108,13 +108,15 @@ impl NativeProductStats {
     }
 }
 
-/// Opaque immutable native snapshots, without LLVM context/module ownership.
+/// Opaque immutable snapshots and closed X86 target value state, without LLVM
+/// context/module/instruction ownership. Only the opt-in native-products build
+/// can construct a resident native product.
 /// Equality only identifies the same retained allocation; it authorizes no reuse.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeWorkProducts {
-    #[cfg(feature = "native")]
+    #[cfg(all(feature = "native", feature = "native-products"))]
     inner: std::sync::Arc<native::products::Product>,
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(all(feature = "native", feature = "native-products")))]
     _private: (),
 }
 
@@ -290,7 +292,7 @@ pub fn compile_module_with_native_products(
     cancelled: &(dyn Fn() -> bool + Sync),
     prior: Option<&NativeWorkProducts>,
 ) -> Result<(Object, PreflightReceipt, Option<NativeWorkProducts>), Error> {
-    #[cfg(feature = "native")]
+    #[cfg(all(feature = "native", feature = "native-products"))]
     {
         native::compile_module_with_native_products(
             module,
@@ -300,12 +302,14 @@ pub fn compile_module_with_native_products(
             prior,
         )
     }
-    #[cfg(not(feature = "native"))]
+    #[cfg(not(all(feature = "native", feature = "native-products")))]
     {
         let _ = (module, config, function_merging, cancelled, prior);
         Err(Error {
             kind: ErrorKind::Unavailable,
-            message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+            message: format!(
+                "rebuild with native-products feature and audited LLVM {LLVM_VERSION}"
+            ),
         })
     }
 }
@@ -328,5 +332,30 @@ pub fn cache_runtime(config: &Config<'_>) -> Result<(String, std::path::PathBuf)
             kind: ErrorKind::Unavailable,
             message: "local object cache currently requires a Linux LLVM API host".into(),
         })
+    }
+}
+
+#[cfg(all(test, not(feature = "native-products")))]
+mod native_products_disabled_tests {
+    #[test]
+    fn explicit_native_product_entry_is_unavailable_without_its_feature() {
+        let module = crate::model::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "disabled-feature".into(),
+            items: Vec::new().into(),
+        };
+        let error = crate::compile_module_with_native_products(
+            &module,
+            &crate::Config {
+                triple: &module.triple,
+                optimization: crate::Optimization::O2,
+            },
+            crate::FunctionMerging::Disabled,
+            &|| false,
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, crate::ErrorKind::Unavailable);
+        assert!(error.message.contains("native-products feature"));
     }
 }
