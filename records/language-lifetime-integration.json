@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-13T01:38:36.270712+08:00",
-  "goal_before": "6aa4c73fe93e569640f056d449fd9cfcfc8df531",
+  "recorded_at": "2026-11-12T18:19:18.997824+00:00",
+  "goal_before": "dfac08241b3cd762c2034ff857da6921ea12101d",
   "authorization": "Complete all foundation tasks in parallel; keep every construction branch recoverable from GitHub; no partial parent acceptance.",
   "accepted_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
   "main_prs": [
@@ -15,16 +15,17 @@
   },
   "receiver": {
     "branch": "task/closure-receiver-proof",
-    "latest_checkpoint": "2a7051a73934d6a89649397921b95df8f9f46360",
+    "latest_checkpoint": "b41146064",
     "finite_static_review_accept": [
       "7de31c623224cb9a8dd52b46cb2207a30d647aa7",
       "0b23cc5c72802c634167c3d74988c9a0a4957eed"
     ],
     "tenth": "5 genuine Source/raw Verify/Wire Verify consumers, 20 native Clang/API O0/O2 processes passed",
     "thirteenth": "7 selected tests passed; six genuine Source/raw/Wire/native consumers include escaping short view, one Analyze-only source attack group; explicit FnOnce Source entry remains one excluded unresolved case",
-    "latest_test": "twentyfirst: 15/17 selected pass, one explicit FnOnce skipped. Cross-two-helper view now independently Verify/raw/Wire/four-native pass. Remaining FnOnce Fixed result dispatch and originalHolder old-target live-loan failure under repair; twentysecond queued.",
+    "latest_test": "b4e737692 closure26/26 + source_scope5/5, zero-filter; real Source/raw/Wire/four-native consumes include named and inferred exclusive Take, original holder update, two-helper view. 4498920bb adds direct independent Verify raw/Wire Take→Read/duplicateTake/read-afterTake/Receiver/expected-life attacks; selected28/28 with 1 new Static source probe excluded because it is still Types Unsupported.",
     "verification_rule": "head is strong public Hold debt reconstructed from actual non-target loan ancestry, never a data pointee target",
-    "log_root": "/workspace/zil-receiver-proof/out/runs/receiver/"
+    "log_root": "/workspace/zil-receiver-proof/out/runs/receiver/",
+    "unaccepted": "Current complete qualified Holder head Result.Pointee verification and four-native test queued. Static text capture and fat slice consuming result remain open. Independent review found no reproduced privilege bypass in reviewed finite V/Lower hunks but requires these consumers and phi weak-update attacks."
   },
   "return_life_metadata": {
     "branch": "task/callable-return-scope",
@@ -54,7 +55,8 @@
     "runtime_error_only_candidate": "09b2bc245",
     "full_recipe_schema": "e527e72e02390761d99b7dc7980bcc8188ebd8b4",
     "schema_actual": "workspace alltargets pass and independent byte oracle4/4 including depth112 roundtrip and depth130 ResourceLimit; no stack size or budget increase",
-    "unaccepted": "Original scope/equality recipe independent V scalar math finite checks pass; lexical instantiation/header embeddings and Desc semantic lifetime fields in progress, all new witness proposals remain failclosed until actual proof consumers"
+    "unaccepted": "Original scope/equality recipe independent V scalar math finite checks pass; lexical instantiation/header embeddings and Desc semantic lifetime fields in progress, all new witness proposals remain failclosed until actual proof consumers",
+    "new_public_scope": "44ab700537c0498425e3df8c29a6970482fe490b + 1900cd7cd8129996f50776e6d7175fa7ebb4d4c2; independent scope/Desc oracle6/6 passed; no semantic witness acceptance"
   },
   "source_atoms": {
     "branch": "task/storage-source-atoms",
@@ -69,13 +71,19 @@
   "parent_status": "Language usability completion remains open; do not deliver a final partial handoff.",
   "public_integration": {
     "branch": "task/language-public-integration",
-    "checkpoint": "9baefad0bb254ed0580a3101e02aac013640f21a",
+    "checkpoint": "b0c377e2c772fcc36a85249b348de5d9ddf76d15",
     "content": "root integration + callable return150 + original Core scope7ab + complete StorageSource atoms0d + complete recipe/equality metadata + anonymous f894 + Source417 + independent ordinary head A/V fixes",
-    "checks": "prior b08 workspace lib LLVM pass; new all-targets LLVM queued, no joint acceptance yet"
+    "checks": "914f all workspace/all-targets LLVM-api truePASS. ee5 six actual suites: anonymous10/10, closure26/26, source_scope5/5, dynamic_context3/3, ordinary_heads1/1, task_aggregate7/7; all zero-filter. Later libraries fail under new elided-head profiles; not accepted jointly."
   },
   "ct_catalogue": {
     "branch": "task/storage-source-atoms-ct",
-    "checkpoint": "f514bcd147ab19b6e8c1c0f41ca00f44de9c78ab",
-    "status": "new complete DAG and bounded inventory graph held in Artifact; earlier workspace alltargets passed. None/Someempty semantics corrected; actual full frozen Core binding and byte/budget/source tests in progress, no Type-query permission upgrade"
+    "checkpoint": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
+    "status": "f514 actual6/6 includes fullSource→fullCore→Artifact rawWire→independent V→CTVM, None distinct from Someempty. New73-record Scope/Desc/implicit schema transplant frozen/pushed but not yet jointly executed; generator strict style fixed, rerun pending."
+  },
+  "library_combination_regressions": {
+    "checkpoint": "40ecd3f8ce66029331a31ca18259ce0dd62ba9f0",
+    "actual": "graph0/3, iterator13/21, owning_hash3/15; first failures retained. Original Source and all budgets preserved. Prior standalone libraries passed, but new implicit lifetime headers activate unsupported ordinary Store/ByteBuffer/owned callback proof paths.",
+    "source_repair": "14cbc2b55a3fe4aa2c8c212393dab92cc151dcef aligns actual compiler-prelude insertion with existing Origins; graph3/3 now crosses Source/Types on author tree, later Analyze still rejects. Real regression test2f959343e passed1/1.",
+    "analyze_author": "task/stdlib-ordinary-head-analyze; V remains independently root-owned"
   }
 }

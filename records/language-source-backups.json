@@ -1,5 +1,6 @@
 {
-  "checked_at_utc": "2026-11-12T17:38:09.602106+00:00",
+  "checked_at_utc": "2026-11-12T18:19:18.997824+00:00",
+  "goal_before_update": "dfac08241b3cd762c2034ff857da6921ea12101d",
   "branches": [
     {
       "path": "/workspace/zil-anonymous-integration",
@@ -23,10 +24,10 @@
       "path": "/workspace/zil-async",
       "local_branch": "task/language-async",
       "remote_branch": "task/language-async",
-      "head": "a1e8716479dd29fe852e1d7fa764c2dbb2ee67b3",
-      "remote_head": "a1e8716479dd29fe852e1d7fa764c2dbb2ee67b3",
+      "head": "7eb46a3eee7027ce9bb6315e8ded463e65f92232",
+      "remote_head": "7eb46a3eee7027ce9bb6315e8ded463e65f92232",
       "committed_checkpoint_synced": true,
-      "uncommitted": true
+      "uncommitted": false
     },
     {
       "path": "/workspace/zil-borrowed-return-verify",
@@ -101,22 +102,40 @@
       "uncommitted": false
     },
     {
+      "path": "/workspace/zil-dyn-source-atoms-analyze",
+      "local_branch": "task/dyn-source-atoms-analyze",
+      "remote_branch": "task/dyn-source-atoms-analyze",
+      "head": "24a6001f3f21d539b8f78a16979a0d8680ead959",
+      "remote_head": "24a6001f3f21d539b8f78a16979a0d8680ead959",
+      "committed_checkpoint_synced": true,
+      "uncommitted": false
+    },
+    {
       "path": "/workspace/zil-dyn-source-atoms-verify",
       "local_branch": "task/dyn-source-atoms-verify",
       "remote_branch": "task/dyn-source-atoms-verify",
-      "head": "c40df9d7dad422bc4686889ab462869b56066352",
-      "remote_head": "c40df9d7dad422bc4686889ab462869b56066352",
+      "head": "c02c1d2cd435979766bd69b5030767bc71cfe9d1",
+      "remote_head": "c02c1d2cd435979766bd69b5030767bc71cfe9d1",
       "committed_checkpoint_synced": true,
-      "uncommitted": true
+      "uncommitted": false
+    },
+    {
+      "path": "/workspace/zil-dyn-source-provenance",
+      "local_branch": "task/dyn-source-provenance",
+      "remote_branch": "task/dyn-source-provenance",
+      "head": "2f959343ebfe8fad4805333e47f0ac4bff192d5d",
+      "remote_head": "2f959343ebfe8fad4805333e47f0ac4bff192d5d",
+      "committed_checkpoint_synced": true,
+      "uncommitted": false
     },
     {
       "path": "/workspace/zil-dyn-static-analyze",
       "local_branch": "task/dyn-static-analyze",
       "remote_branch": "task/dyn-static-analyze",
-      "head": "21c7c327f60af5d949c6c7fb463ddf51f848cf08",
-      "remote_head": "21c7c327f60af5d949c6c7fb463ddf51f848cf08",
+      "head": "8db569ec81c0884628cf998a086a4748782d125c",
+      "remote_head": "8db569ec81c0884628cf998a086a4748782d125c",
       "committed_checkpoint_synced": true,
-      "uncommitted": true
+      "uncommitted": false
     },
     {
       "path": "/workspace/zil-dyn-trait-life-source",
@@ -128,11 +147,20 @@
       "uncommitted": false
     },
     {
+      "path": "/workspace/zil-dyn-witness-current",
+      "local_branch": "task/dyn-witness-verify-current",
+      "remote_branch": "task/dyn-witness-verify-current",
+      "head": "44ab700537c0498425e3df8c29a6970482fe490b",
+      "remote_head": "44ab700537c0498425e3df8c29a6970482fe490b",
+      "committed_checkpoint_synced": true,
+      "uncommitted": true
+    },
+    {
       "path": "/workspace/zil-dyn-witness-verify",
       "local_branch": "task/dyn-witness-verify",
       "remote_branch": "task/dyn-witness-verify",
-      "head": "26cc04687cf298b538f7ddc29e8c12090cf7ad42",
-      "remote_head": "26cc04687cf298b538f7ddc29e8c12090cf7ad42",
+      "head": "a0a99a6fe18ad0d35eb7e87f9ad9136e51b65599",
+      "remote_head": "a0a99a6fe18ad0d35eb7e87f9ad9136e51b65599",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -221,8 +249,8 @@
       "path": "/workspace/zil-ownership",
       "local_branch": "task/language-ownership",
       "remote_branch": "task/language-ownership",
-      "head": "ef163487b4cb8bd637bfa123e7ed9ffa4ff85e84",
-      "remote_head": "ef163487b4cb8bd637bfa123e7ed9ffa4ff85e84",
+      "head": "98f062bb84e7ef6c41d2cce5ac7faf812a425964",
+      "remote_head": "98f062bb84e7ef6c41d2cce5ac7faf812a425964",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -236,11 +264,20 @@
       "uncommitted": false
     },
     {
+      "path": "/workspace/zil-ownership-public",
+      "local_branch": "task/language-ownership-public",
+      "remote_branch": "task/language-ownership-public",
+      "head": "3f55822d9d413c1c0b340a069559783ba4a76bad",
+      "remote_head": "d7fbfa31e15f737d40a81bd75518082a8217d06e",
+      "committed_checkpoint_synced": false,
+      "uncommitted": false
+    },
+    {
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-public-integration",
       "remote_branch": "task/language-public-integration",
-      "head": "9baefad0bb254ed0580a3101e02aac013640f21a",
-      "remote_head": "9baefad0bb254ed0580a3101e02aac013640f21a",
+      "head": "b0c377e2c772fcc36a85249b348de5d9ddf76d15",
+      "remote_head": "b0c377e2c772fcc36a85249b348de5d9ddf76d15",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -266,8 +303,8 @@
       "path": "/workspace/zil-receiver-proof",
       "local_branch": "task/closure-receiver-proof",
       "remote_branch": "task/closure-receiver-proof",
-      "head": "2a7051a73934d6a89649397921b95df8f9f46360",
-      "remote_head": "2a7051a73934d6a89649397921b95df8f9f46360",
+      "head": "b4114606405e0fb91c3559ea0a015d4de54fd72c",
+      "remote_head": "b4114606405e0fb91c3559ea0a015d4de54fd72c",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -284,8 +321,8 @@
       "path": "/workspace/zil-source-atoms-ct",
       "local_branch": "task/storage-source-atoms-ct",
       "remote_branch": "task/storage-source-atoms-ct",
-      "head": "f514bcd147ab19b6e8c1c0f41ca00f44de9c78ab",
-      "remote_head": "f514bcd147ab19b6e8c1c0f41ca00f44de9c78ab",
+      "head": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
+      "remote_head": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -306,8 +343,16 @@
       "remote_head": "23e2f33310c17f17327ff2c79b2e20518d8b0e9b",
       "committed_checkpoint_synced": true,
       "uncommitted": false
+    },
+    {
+      "path": "/workspace/zil-stdlib-ordinary-head-analyze",
+      "local_branch": "task/stdlib-ordinary-head-analyze",
+      "remote_branch": "task/stdlib-ordinary-head-analyze",
+      "head": "31f1835580a7a6517dbf6ce4c0f1c9ae2030a931",
+      "remote_head": "31f1835580a7a6517dbf6ce4c0f1c9ae2030a931",
+      "committed_checkpoint_synced": true,
+      "uncommitted": true
     }
   ],
-  "note": "Checkpoints are recoverable source, not acceptance. Active edits await author checkpoints; ignored build outputs are not source backups.",
-  "goal_before_update": "6aa4c73fe93e569640f056d449fd9cfcfc8df531"
+  "note": "Committed checkpoints are remote backups, not acceptance. Fresh local/remote samples can race an author push. Active edits are preserved at the next checkpoint; ignored reproducible build outputs are not uploaded."
 }
