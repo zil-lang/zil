@@ -1123,7 +1123,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         }
     }
     let mut public_return_paths = BTreeMap::new();
-    let mut static_return_leaves = BTreeMap::new();
+    let mut static_return_leaves: BTreeMap<FunctionId, BTreeMap<Path, Type>> = BTreeMap::new();
     for f in &module.functions {
         if f.callable_return_contract.is_some() {
             let mut paths = Vec::new();
@@ -1148,7 +1148,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                     spend(left, path.len().saturating_add(1), f.span)?;
                     static_return_leaves
                         .entry(f.id)
-                        .or_insert_with(BTreeMap::new)
+                        .or_default()
                         .insert(path.clone(), leaf.clone());
                 }
             }
