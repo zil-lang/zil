@@ -53,6 +53,10 @@ pub(super) fn check_resolved_program_recording(
     mut recording: Option<&mut push::Recording>,
 ) -> CompileResult<TypedProgram> {
     let context_started = reuse.as_ref().and_then(|reuse| reuse.start_cost());
+    if let Some(recording) = &mut recording {
+        recording.observed_complete = reuse.is_none();
+    }
+
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -137,6 +141,9 @@ pub(super) fn check_resolved_program_recording(
             "project root module does not exist",
         ));
     }
+    if let Some(recording) = &mut recording {
+        recording.project_work = limits.max_analysis_steps - work;
+    }
     // Preserve the single-module entry's lexical diagnostic precedence across
     // the entire bounded input graph. Unsupported aggregate/trait headers must
     // not conceal a receiver error in this module or a later dependency.
@@ -162,12 +169,15 @@ pub(super) fn check_resolved_program_recording(
     let mut has_source_contexts = false;
     for (core, exports, offset) in header_inputs {
         has_source_contexts |= !core.closure_life_contexts.is_empty();
-        let table = signatures(
+        let table = signatures_recording(
             core,
             limits,
             offset,
             Some(&exports),
             &mut closure_state.array_billing,
+            recording
+                .as_deref_mut()
+                .map(|recording| &mut recording.signature_costs),
         )?;
         signatures_by_module.insert(core.module_id, table);
     }
@@ -361,7 +371,7 @@ pub(super) fn check_resolved_program_recording(
     let mut task_interfaces = Vec::new();
     let mut resources = Vec::new();
     let mut root_functions = Vec::new();
-    for module in &program.modules {
+    for (module_index, module) in program.modules.iter().enumerate() {
         let core = &module.core;
         let table = &signatures_by_module[&core.module_id];
         resources.extend(resources::definitions(core, table).map_err(|e| vec![e])?);
@@ -369,7 +379,7 @@ pub(super) fn check_resolved_program_recording(
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
         let mut task_exports = Vec::new();
-        for f in core.functions.iter().filter(|f| {
+        for (function_index, f) in core.functions.iter().enumerate().filter(|(_, f)| {
             f.callable_parameters.is_empty()
                 && f.type_parameters.is_empty()
                 && f.state_parameters.is_empty()
@@ -377,6 +387,7 @@ pub(super) fn check_resolved_program_recording(
             let signature = &table[&f.name];
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
             let push_before = recording.as_ref().map(|_| closure_state.accounting());
+            let observed = std::cell::RefCell::new(BTreeSet::new());
             let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
             } else if let Some(typed) = match reuse.as_mut() {
@@ -401,6 +412,7 @@ pub(super) fn check_resolved_program_recording(
                         .map_err(|e| vec![e])?;
                     builder.imports = Some(&imports);
                     builder.enums = Some(&enum_types);
+                    builder.observed_signatures = recording.as_ref().map(|_| &observed);
                     builder.dyn_declarations = &dyn_declarations;
                     builder.dyn_interfaces = &dyn_interfaces;
                     builder.dyn_vtables = &dyn_vtables;
@@ -520,11 +532,12 @@ pub(super) fn check_resolved_program_recording(
             }
             if let Some(recording) = &mut recording {
                 recording.record(
-                    core.module_id,
-                    f,
+                    (module_index, function_index),
+                    (core.module_id, f),
                     &typed,
                     push_before.expect("recording accounting"),
                     closure_state.accounting(),
+                    observed.into_inner(),
                 );
             }
             functions.push(typed);
@@ -613,8 +626,14 @@ pub(super) fn check_resolved_program_recording(
         .map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
+        let before = remaining;
         interface.signature_fingerprint =
             interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
+        if let Some(recording) = &mut recording {
+            recording
+                .interface_costs
+                .insert(interface.module, before - remaining);
+        }
     }
     if let Some(recording) = &mut recording {
         recording.remaining = remaining;
@@ -660,7 +679,7 @@ pub(super) fn imports_for<'a>(
     Ok(imports)
 }
 
-fn interface_fingerprint(
+pub(super) fn interface_fingerprint(
     exports: &[ScalarFunction],
     target: &TargetProfile,
     module: &TypedModule,

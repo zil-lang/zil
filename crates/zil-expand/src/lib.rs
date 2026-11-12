@@ -17,8 +17,8 @@ mod item_lowering;
 mod mapping;
 pub use incremental::{
     ExpandSession, ExpandedProgram, ExpansionEpoch, FunctionChangeBatch, FunctionInputChange,
-    FunctionInputRevision, FunctionOwner, InputContext, ModuleRevision, ProducedProgram,
-    ProducerStats,
+    FunctionInputRevision, FunctionOwner, InputContext, ModuleRevision, NamespaceContext,
+    ProducedProgram, ProducerStats,
 };
 mod modules;
 mod project_traits;

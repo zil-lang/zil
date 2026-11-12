@@ -73,7 +73,7 @@ mod utf8_literals;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Signature {
     storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
@@ -117,6 +117,16 @@ fn signatures(
     exports: Option<&std::collections::BTreeSet<zil_base::NodeId>>,
     array_billing: &mut bool,
 ) -> CompileResult<BTreeMap<String, Signature>> {
+    signatures_recording(core, limits, offset, exports, array_billing, None)
+}
+fn signatures_recording(
+    core: &CoreModule,
+    limits: &Limits,
+    offset: usize,
+    exports: Option<&std::collections::BTreeSet<zil_base::NodeId>>,
+    array_billing: &mut bool,
+    mut costs: Option<&mut BTreeMap<FunctionId, usize>>,
+) -> CompileResult<BTreeMap<String, Signature>> {
     let mut errors = Vec::new();
     if core.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
@@ -144,6 +154,7 @@ fn signatures(
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
     'function: for f in &core.functions {
+        let signature_before = foreign_work;
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
@@ -317,6 +328,11 @@ fn signatures(
                 f.span,
                 format!("function {} is declared twice", f.name),
             ))
+        }
+        if let Some(costs) = &mut costs
+            && let Some(id) = signatures.get(&f.name).and_then(|s| s.id)
+        {
+            costs.insert(id, signature_before - foreign_work);
         }
     }
     if !errors.is_empty() {
@@ -671,6 +687,10 @@ struct Builder<'a, 'c> {
     state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
+    // Private push contexts use stable name/ID tables and actual current
+    // signature leaves. These fields carry neither Types nor Verify authority.
+    signature_values: Option<&'a PersistentVec<Signature>>,
+    observed_signatures: Option<&'a std::cell::RefCell<std::collections::BTreeSet<FunctionId>>>,
     dyn_declarations: &'a [DynDeclaration],
     dyn_interfaces: &'a [DynInterface],
     dyn_vtables: &'a [DynVtable],
@@ -795,6 +815,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
+            signature_values: None,
+            observed_signatures: None,
             dyn_declarations: &[],
             dyn_interfaces: &[],
             dyn_vtables: &[],
@@ -861,19 +883,36 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(b)
     }
+    fn current_signature(&self, signature: &'a Signature) -> &'a Signature {
+        self.signature_values
+            .and_then(|values| signature.id.and_then(|id| values.get(id.0 as usize)))
+            .unwrap_or(signature)
+    }
+    fn observed_signature(&self, signature: &'a Signature) -> &'a Signature {
+        let signature = self.current_signature(signature);
+        if let Some(observed) = self.observed_signatures
+            && let Some(id) = signature.id
+        {
+            observed.borrow_mut().insert(id);
+        }
+        signature
+    }
     fn resolve_callee(&self, callee: &CoreExpr) -> R<&'a Signature> {
         match &callee.kind {
             CoreExprKind::Name(name) => {
                 if self.lookup(name).is_some() {
                     return Err(unsupported(callee.span, "calling a stored callable"));
                 }
-                self.signatures.get(name).ok_or_else(|| {
-                    error(
-                        "E-UNKNOWN-NAME",
-                        callee.span,
-                        format!("unknown function {name}"),
-                    )
-                })
+                self.signatures
+                    .get(name)
+                    .map(|signature| self.observed_signature(signature))
+                    .ok_or_else(|| {
+                        error(
+                            "E-UNKNOWN-NAME",
+                            callee.span,
+                            format!("unknown function {name}"),
+                        )
+                    })
             }
             CoreExprKind::Member {
                 object,
@@ -894,7 +933,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return Err(unsupported(callee.span, "calling a stored member"));
                 }
                 if let Some(signature) = self.signatures.get(&format!("{alias}.{member}")) {
-                    return Ok(signature);
+                    return Ok(self.observed_signature(signature));
                 }
                 let imports = self.imports.ok_or_else(|| {
                     unsupported(callee.span, "module-qualified call requires a project")
@@ -913,6 +952,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         format!("module {alias} has no function {member}"),
                     )
                 })?;
+                let signature = self.observed_signature(signature);
                 if !signature.public {
                     return Err(error(
                         "E-MODULE-PRIVATE",
@@ -2808,7 +2848,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .or_else(|| self.sum_slots.get(&id).cloned())
                         .unwrap_or_else(|| self.function.locals[id.0 as usize].ty.clone())
                 })
-                .or_else(|| self.signatures.get(name).and_then(Signature::pointer_type)),
+                .or_else(|| self.signatures.get(name).map(|signature| self.observed_signature(signature)).and_then(Signature::pointer_type)),
             CoreExprKind::Index { object, .. } => match self.known_type(object)? {
                 Type::Array { element, .. } => Some(*element),
                 Type::Address { inner, .. } => match *inner {
