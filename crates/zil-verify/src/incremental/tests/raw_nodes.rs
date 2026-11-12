@@ -426,7 +426,7 @@ fn resource_entry_raw_ownership_change_is_not_authorized_by_shared_candidate() {
     verify(&mut session, &module, &plan, &limits).unwrap();
     let mut changed = module.clone();
     changed.functions[0].locals[0].ty = Type::OwnedDyn {
-        interface: DynInterfaceId(0),
+        interface: zil_ir::DynInterfaceId { module: zil_base::ModuleId(0), index: 0 },
     };
     let current = VerifiedInputs::SharedModule {
         module: Arc::new(changed),
