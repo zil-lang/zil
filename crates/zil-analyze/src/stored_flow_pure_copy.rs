@@ -534,7 +534,7 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Co
 // A shared scalar/Copy projection does not carry any stored leaf from its
 // actual owner. All children, including inactive Sum arms, are examined first;
 // the ordinary responsibility/loan kernel still proves initialization/liveness.
-fn ordinary_package_copy_borrow(
+fn ordinary_package_field_borrow(
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -575,7 +575,11 @@ fn ordinary_package_copy_borrow(
             _ => return Ok(false),
         };
     }
-    if !selected.is_copy_value() || !pure(selected, b, 0)? {
+    if selected.is_copy_value() {
+        if !pure(selected, b, 0)? {
+            return Ok(false);
+        }
+    } else if !matches!(selected, Type::Managed(_)) {
         return Ok(false);
     }
     if !matches!(value_type(f,i.result.ok_or_else(||failure("ordinary Package Copy borrow lacks result"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==selected)
@@ -593,7 +597,7 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if ordinary_package_copy_borrow(f, i, b)? {
+    if ordinary_package_field_borrow(f, i, b)? {
         return Ok(true);
     }
     let InstructionKind::BorrowPlaceLocal {

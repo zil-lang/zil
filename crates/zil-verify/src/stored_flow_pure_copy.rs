@@ -506,7 +506,11 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Ch
 // Only shared Copy endpoints of a complete address-free ordinary Package
 // can enter this no-stored-target lane. Current lifetime and moved-field
 // facts remain checked against the real local by the independent flow.
-fn ordinary_package_copy_borrow(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
+fn ordinary_package_field_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
     let InstructionKind::BorrowPlaceLocal {
         local,
         path,
@@ -541,10 +545,11 @@ fn ordinary_package_copy_borrow(f: &TypedFunction, i: &Instruction, b: &mut Budg
             .ok_or_else(|| err("ordinary Package Copy path absent"))?
             .1;
     }
-    if !endpoint.is_copy_value() {
+    if endpoint.is_copy_value() {
+        ordinary(endpoint, b, 0)?;
+    } else if !matches!(endpoint, Type::Managed(_)) {
         return Ok(false);
     }
-    ordinary(endpoint, b, 0)?;
     if !matches!(vt(f,i.result.ok_or_else(||err("ordinary Package Copy borrow lacks result"))?)?,Type::Address{mutable:false,inner} if inner.as_ref()==endpoint)
     {
         return Err(err("ordinary Package Copy borrow result differs"));
@@ -560,7 +565,7 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if ordinary_package_copy_borrow(f, i, b)? {
+    if ordinary_package_field_borrow(f, i, b)? {
         return Ok(true);
     }
     let InstructionKind::BorrowPlaceLocal {
