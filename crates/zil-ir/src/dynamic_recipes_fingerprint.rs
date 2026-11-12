@@ -5,6 +5,12 @@ enum Work<'a> {
     Word(u32),
     Length(usize),
     DynTypeValue(&'a DynTypeValue),
+    DynInstantiationScope(&'a DynInstantiationScope),
+    DynLifeEmbedding(&'a DynLifeEmbedding),
+    DynImplicitLifeKind(&'a DynImplicitLifeKind),
+    DynImplicitLifeRoot(&'a DynImplicitLifeRoot),
+    DynImplicitLifeOccurrence(&'a DynImplicitLifeOccurrence),
+    DynImplicitLifeDeclaration(&'a DynImplicitLifeDeclaration),
     DynLifePattern(&'a DynLifePattern),
     DynObligation(&'a DynObligation),
     DynParameterRecipe(&'a DynParameterRecipe),
@@ -83,6 +89,67 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 pending.push(Work::StorageLifeShape(&value.life));
                 pending.push(Work::Type(&value.ty));
             }
+            Work::DynInstantiationScope(value) => {
+                pending.push(Work::Word(value.invocation_binder_count));
+                pending.push(Work::Word(value.fixed_binder_count));
+            }
+            Work::DynLifeEmbedding(value) => {
+                pending.push(Work::StorageBinder(&value.to));
+                pending.push(Work::StorageBinder(&value.from));
+            }
+            Work::DynImplicitLifeKind(value) => match value {
+                DynImplicitLifeKind::Address => {
+                    b.push(0);
+                }
+                DynImplicitLifeKind::Description => {
+                    b.push(1);
+                }
+                DynImplicitLifeKind::LifetimeArgument => {
+                    b.push(2);
+                }
+            },
+            Work::DynImplicitLifeRoot(value) => match value {
+                DynImplicitLifeRoot::SelfPattern => {
+                    b.push(0);
+                }
+                DynImplicitLifeRoot::ImplementedTrait => {
+                    b.push(1);
+                }
+                DynImplicitLifeRoot::Supertrait(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(2);
+                }
+                DynImplicitLifeRoot::Requirement(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(3);
+                }
+                DynImplicitLifeRoot::AssociatedDefinition(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(4);
+                }
+                DynImplicitLifeRoot::MethodSignature(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(5);
+                }
+                DynImplicitLifeRoot::MethodDefinition(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(6);
+                }
+            },
+            Work::DynImplicitLifeOccurrence(value) => {
+                pending.push(Work::DynImplicitLifeKind(&value.kind));
+                for item in value.path.iter().rev() {
+                    pending.push(Work::Word(*item));
+                }
+                pending.push(Work::Length(value.path.len()));
+                pending.push(Work::DynImplicitLifeRoot(&value.root));
+            }
+            Work::DynImplicitLifeDeclaration(value) => {
+                for item in value.occurrences.iter().rev() {
+                    pending.push(Work::DynImplicitLifeOccurrence(item));
+                }
+                pending.push(Work::Length(value.occurrences.len()));
+            }
             Work::DynLifePattern(value) => match value {
                 DynLifePattern::DeclarationParameter(value_0) => {
                     pending.push(Work::Word(*value_0));
@@ -100,6 +167,10 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 DynLifePattern::Invocation(value_0) => {
                     pending.push(Work::Word(*value_0));
                     b.push(3);
+                }
+                DynLifePattern::ImplicitDeclaration(value_0) => {
+                    pending.push(Work::Word(*value_0));
+                    b.push(4);
                 }
             },
             Work::DynObligation(value) => match value {
@@ -354,6 +425,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 pending.push(Work::Length(value.declaration_actuals.len()));
                 pending.push(Work::DynTypeValue(&value.receiver));
                 pending.push(Work::DynDefinitionId(&value.definition));
+                for item in value.header_embedding.iter().rev() {
+                    pending.push(Work::DynLifeEmbedding(item));
+                }
+                pending.push(Work::Length(value.header_embedding.len()));
+                pending.push(Work::DynInstantiationScope(&value.scope));
             }
             Work::DynAssociatedValueRecipe(value) => match value {
                 DynAssociatedValueRecipe::Type(value_0) => {
@@ -427,6 +503,11 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                 pending.push(Work::LifeDeclarationId(&value.implementation));
                 pending.push(Work::DynTraitApplication(&value.application));
                 pending.push(Work::DynTypeValue(&value.receiver));
+                for item in value.to_context.iter().rev() {
+                    pending.push(Work::DynLifeEmbedding(item));
+                }
+                pending.push(Work::Length(value.to_context.len()));
+                pending.push(Work::DynInstantiationScope(&value.scope));
             }
             Work::DynFunctionTarget(value) => match value {
                 DynFunctionTarget::Core { module, source } => {
@@ -587,8 +668,12 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
                     pending.push(Work::DynTypePattern(value_0));
                     b.push(7);
                 }
-                DynTypePattern::Desc(value_0) => {
-                    pending.push(Work::DynTypePattern(value_0));
+                DynTypePattern::Desc { lifetime, inner } => {
+                    pending.push(Work::DynTypePattern(inner));
+                    if let Some(item) = lifetime {
+                        pending.push(Work::DynLifePattern(item));
+                    }
+                    pending.push(Work::Byte(u8::from((lifetime).is_some())));
                     b.push(8);
                 }
                 DynTypePattern::OwnedStore(value_0) => {
@@ -630,6 +715,12 @@ fn encode_recipe(b: &mut impl FingerprintSink, first: Work<'_>) {
 }
 pub(super) fn encode_dyn_type_value(b: &mut impl FingerprintSink, value: &DynTypeValue) {
     encode_recipe(b, Work::DynTypeValue(value));
+}
+pub(super) fn encode_dyn_implicit_life_declaration(
+    b: &mut impl FingerprintSink,
+    value: &DynImplicitLifeDeclaration,
+) {
+    encode_recipe(b, Work::DynImplicitLifeDeclaration(value));
 }
 pub(super) fn encode_dyn_obligation(b: &mut impl FingerprintSink, value: &DynObligation) {
     encode_recipe(b, Work::DynObligation(value));

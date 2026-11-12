@@ -1708,6 +1708,7 @@ impl Catalog {
                 pattern::pay(recipe, budget, span, 0)?;
             }
             result.push(DynDeclaration {
+                implicit_lifetimes: None,
                 direct_supertraits: None,
                 requirements: None,
                 associated_definitions: None,

@@ -3396,11 +3396,12 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
-direct_supertraits: None,
-requirements: None,
-associated_definitions: None,
-method_signatures: None,
-method_definitions: None,
+            implicit_lifetimes: None,
+            direct_supertraits: None,
+            requirements: None,
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             self_pattern: None,
             implemented_trait: None,
             id: declaration,

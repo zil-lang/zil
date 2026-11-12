@@ -239,6 +239,11 @@ pub(super) fn snapshot(
             }
         }
         w.rows(1)?;
+        if let Some(values) = &d.implicit_lifetimes {
+            w.rows(values.len())?;
+            for value in values { value.visit_dyn_metadata(&mut w,0)?; }
+        }
+        w.rows(1)?;
         if let Some(values) = &d.direct_supertraits {
             w.rows(values.len())?;
             for value in values {

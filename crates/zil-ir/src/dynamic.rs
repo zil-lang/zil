@@ -17,6 +17,7 @@ pub struct DynVtableId {
 /// nominal life inventory. Keys and stable identities must be jointly unique.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynDeclaration {
+    pub implicit_lifetimes: Option<Vec<DynImplicitLifeDeclaration>>,
     /// Original declaration scope; absence is Unknown, never an empty graph.
     pub direct_supertraits: Option<Vec<DynSelfPattern>>,
     pub requirements: Option<Vec<DynObligation>>,
@@ -106,7 +107,10 @@ pub enum DynTypePattern {
     },
     Slice(Box<DynTypePattern>),
     Managed(Box<DynTypePattern>),
-    Desc(Box<DynTypePattern>),
+    Desc {
+        lifetime: Option<DynLifePattern>,
+        inner: Box<DynTypePattern>,
+    },
     OwnedStore(Box<DynTypePattern>),
     ErrorUnion {
         error: Box<DynTypePattern>,
