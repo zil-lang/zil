@@ -1084,3 +1084,120 @@ fn nested_owned_regions_are_explicit_and_keep_the_actual_head() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn owned_region_claims_cannot_exchange_same_typed_heads_or_cross_pointer_selectors() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/owned-inline-region.zil");
+    let (_, module, _, _) = context_candidate(text, "owned-region-attacks");
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| f.name == "create")
+        .unwrap();
+    let first = module.functions[factory]
+        .retained_return_sources
+        .as_ref()
+        .unwrap()[0]
+        .sources
+        .iter()
+        .find(|source| {
+            matches!(source, StorageSource::OwnedView { head, .. }
+            if head.path == [ContractProjection::Place(PlaceProjection::Field(0))])
+        })
+        .unwrap()
+        .clone();
+    let limits = zil_base::Limits::default();
+    let roundtrip = |input: &TypedModule| {
+        let bytes =
+            zil_ir::wire::encode_module_candidate(input, &CandidatePlan::empty_for(input), &limits)
+                .unwrap();
+        zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0
+    };
+    let mut narrow = module.clone();
+    narrow.functions[factory]
+        .retained_return_sources
+        .as_mut()
+        .unwrap()[0]
+        .sources = vec![first.clone()];
+    zil_analyze::analyze(&narrow, &limits).unwrap();
+    zil_analyze::analyze(&roundtrip(&narrow), &limits).unwrap();
+    for mutation in 0..6 {
+        let mut attack = narrow.clone();
+        let sources = &mut attack.functions[factory]
+            .retained_return_sources
+            .as_mut()
+            .unwrap()[0]
+            .sources;
+        match mutation {
+            0 => {
+                let StorageSource::OwnedView { head, .. } = &mut sources[0] else {
+                    unreachable!()
+                };
+                head.path = vec![ContractProjection::Place(PlaceProjection::Field(1))];
+            }
+            1 => {
+                let StorageSource::OwnedView { head, .. } = &sources[0] else {
+                    unreachable!()
+                };
+                sources[0] = StorageSource::Exact(head.clone());
+            }
+            2 => {
+                let StorageSource::OwnedView { leaf, .. } = &mut sources[0] else {
+                    unreachable!()
+                };
+                *leaf = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::U8),
+                };
+            }
+            3 => {
+                let StorageSource::OwnedView { mode, .. } = &mut sources[0] else {
+                    unreachable!()
+                };
+                *mode = StoredBorrowMode::ExclusiveAddress;
+            }
+            4 => sources.push(first.clone()),
+            _ => {
+                let StorageSource::OwnedView { head, .. } = &mut sources[0] else {
+                    unreachable!()
+                };
+                head.path = vec![ContractProjection::RetainedPort(0)];
+            }
+        }
+        for input in [&attack, &roundtrip(&attack)] {
+            let errors = zil_analyze::analyze(input, &limits)
+                .expect_err("only the actual owning region can authorize its targets");
+            assert!(
+                errors.iter().any(|d| d.code == "E-ANALYZE-IR"),
+                "case {mutation}: {errors:?}"
+            );
+        }
+        if mutation == 0 {
+            let f = &mut attack.functions[factory];
+            let instruction = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| {
+                    if let InstructionKind::AddressField { address, index: 0 } = i.kind {
+                        matches!(&f.values[address.0 as usize],Type::Address{inner,..}
+                        if matches!(inner.as_ref(),Type::Record{name,..} if name.contains("Frame")))
+                    } else {
+                        false
+                    }
+                })
+                .unwrap();
+            let InstructionKind::AddressField { index, .. } = &mut instruction.kind else {
+                unreachable!()
+            };
+            *index = 1;
+            // The same head claim becomes valid only after the actual physical
+            // projection changes too, with all full Types/classes unchanged.
+            zil_analyze::analyze(&attack, &limits).unwrap();
+            zil_analyze::analyze(&roundtrip(&attack), &limits).unwrap();
+        }
+    }
+}
