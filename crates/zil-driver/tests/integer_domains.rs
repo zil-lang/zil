@@ -361,6 +361,10 @@ fn real_c_scalar_calls_and_record_layout_both_backends() {
             assert!(llvm.contains("declare i32 @echo_unsigned_word(i32)"));
             assert!(llvm.contains("define internal signext i8 @zil.c.callback."));
             assert!(llvm.contains("define internal signext i16 @zil.c.callback."));
+            assert!(llvm.contains("define internal zeroext i8 @zil.c.callback."));
+            assert!(llvm.contains("define internal zeroext i16 @zil.c.callback."));
+            assert!(llvm.contains("declare i64 @echo_u64(i64)"));
+            assert!(llvm.contains("declare i64 @echo_usize(i64)"));
             let output = Command::new(&report.artifacts["executable"])
                 .output()
                 .unwrap();
@@ -701,4 +705,62 @@ fn result()->i32 {
 "#;
     check(text);
     native(text, Some("result"), b"", true);
+}
+
+#[test]
+fn same_width_c_callback_targets_keep_the_exact_scalar_identity_raw_and_wire() {
+    let (module, plan) = raw(include_str!("../../../tests/integers/ffi.zil"));
+    let u64_target = module
+        .functions
+        .iter()
+        .find(|f| f.name == "callback_u64")
+        .unwrap()
+        .id;
+    let usize_target = module
+        .functions
+        .iter()
+        .find(|f| f.name == "callback_usize")
+        .unwrap()
+        .id;
+    for variant in 0..3 {
+        let mut changed = module.clone();
+        let caller = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "remaining_scalars")
+            .unwrap();
+        let instruction = caller.blocks.iter_mut().flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, zil_ir::InstructionKind::ForeignFunctionRef { function } if function == u64_target)).unwrap();
+        if variant != 1 {
+            instruction.kind = zil_ir::InstructionKind::ForeignFunctionRef {
+                function: usize_target,
+            };
+        }
+        if variant != 0 {
+            caller.values[instruction.result.unwrap().0 as usize] = Type::ForeignCallback {
+                parameters: vec![Type::Usize],
+                result: Box::new(Type::Usize),
+            };
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = changed.fingerprint();
+        assert!(
+            zil_verify::verify_module(
+                changed.clone(),
+                claim.clone(),
+                &changed.target,
+                &Limits::default()
+            )
+            .is_err(),
+            "raw {variant}"
+        );
+        let wire =
+            zil_ir::wire::encode_module_candidate(&changed, &claim, &Limits::default()).unwrap();
+        let (decoded, claim) =
+            zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+        assert!(
+            zil_verify::verify_module(decoded, claim, &changed.target, &Limits::default()).is_err(),
+            "Wire {variant}"
+        );
+    }
 }
