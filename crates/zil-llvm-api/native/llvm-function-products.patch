@@ -25,7 +25,7 @@
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-@@ -160,0 +183,85 @@
+@@ -160,0 +183,92 @@
 +
 +// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
 +// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
@@ -111,6 +111,13 @@
 +}
 +
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionProductHookABI() { return 2; }
++
++extern "C" LLVM_ABI int ZilLLVMReadMachineBlockProbabilities(
++    const void *IR, uint32_t *Out, uint64_t Count) {
++  if (!IR) return 0;
++  return static_cast<const llvm::MachineBasicBlock *>(IR)
++      ->zilReadProductProbabilities(Out, Count);
++}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
 @@ -18,0 +19 @@
@@ -563,9 +570,14 @@
 +  }
 --- a/llvm/include/llvm/CodeGen/MachineBasicBlock.h
 +++ b/llvm/include/llvm/CodeGen/MachineBasicBlock.h
-@@ -239,0 +240,8 @@
+@@ -239,0 +240,13 @@
 +public:
 +  // Pure inspection: unlike getSymbol()/getEndSymbol(), never creates owners.
++  int zilReadProductProbabilities(uint32_t *Out, uint64_t Count) const {
++    if (Count != Probs.size() || (Count && !Out)) return 0;
++    for (uint64_t I = 0; I != Count; ++I) Out[I] = Probs[I].getNumerator();
++    return 1;
++  }
 +  bool zilProductHasCachedOwners() const {
 +    return CachedMCSymbol || CachedEHContMCSymbol || CachedEndMCSymbol ||
 +           !PrefetchTargets.empty();
