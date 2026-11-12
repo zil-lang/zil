@@ -184,9 +184,18 @@ impl Walk<'_> {
     }
     fn guarantee(&mut self, g: &DynGuarantee, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
-        if let DynGuarantee::State { position, ty, .. } = g {
-            self.position(position, depth + 1)?;
-            self.ty(ty, depth + 1)?;
+        match g {
+            DynGuarantee::State { position, ty, .. } => {
+                self.position(position, depth + 1)?;
+                self.ty(ty, depth + 1)?;
+            }
+            DynGuarantee::StorageSources(binding) => {
+                self.position(&binding.position, depth + 1)?;
+                for source in &binding.sources {
+                    self.position(source, depth + 1)?;
+                }
+            }
+            DynGuarantee::ManageResult => {}
         }
         Ok(())
     }
@@ -291,6 +300,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
     for declaration in &core.dyn_declarations {
         w.node(1)?;
         if let Some(pattern) = &declaration.self_pattern {
+            w.self_pattern(pattern, 2)?;
+        }
+        w.node(1)?;
+        if let Some(pattern) = &declaration.implemented_trait {
             w.self_pattern(pattern, 2)?;
         }
         w.node(0)?;

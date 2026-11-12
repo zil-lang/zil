@@ -723,6 +723,22 @@ fn main()->i32{return 0}
             table.self_type,
             zil_ir::Type::BorrowedStorage { .. }
         ));
+        let declaration = module
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == table.implementation)
+            .unwrap();
+        let pattern = declaration.self_pattern.as_ref().unwrap();
+        assert_eq!(
+            pattern.arguments,
+            [zil_ir::DynPatternActual::LifeParameter(0)]
+        );
+        let instance = module
+            .life_instances
+            .iter()
+            .find(|i| i.ty == table.self_type)
+            .unwrap();
+        assert_eq!(pattern.declaration, instance.declaration);
         assert_eq!(table.self_classes, [zil_ir::StorageBinder::Fixed(0)]);
         assert!(
             module
@@ -793,5 +809,76 @@ fn main()->i32{return 0}
             .collect();
         assert!(selected.contains(&tables[0].id));
         assert!(selected.contains(&tables[1].id));
+    }
+    #[test]
+    fn impl_recipe_preserves_reordered_formals_and_merged_life_occurrences() {
+        let module = expand(
+            r#"
+struct Context<life x,life y>{left:&'x i32,right:&'y i32}
+struct P<life first,life second>{left:&'first i32,right:&'second i32}
+trait Read{fn read(self:&Self)->i32;}
+impl<life a,life b> Read for P<'b,'a>{fn read(self:&Self)->i32{return *self.left+*self.right}}
+fn separate<life x,life y>(p:P<'x,'y>)->DynCreateError!OwnedDyn<dyn Read,Context<'x,'y>>{return owned_dyn::<dyn Read,Context<'x,'y>>(p)}
+fn merged<life x>(p:P<'x,'x>)->DynCreateError!OwnedDyn<dyn Read,Context<'x,'x>>{return owned_dyn::<dyn Read,Context<'x,'x>>(p)}
+fn main()->i32{return 0}
+"#,
+        );
+        let tables: Vec<_> = module
+            .dyn_vtables
+            .iter()
+            .filter(|t| !t.actuals.is_empty())
+            .collect();
+        assert_eq!(tables.len(), 2);
+        for table in tables {
+            let declaration = module
+                .dyn_declarations
+                .iter()
+                .find(|d| d.id == table.implementation)
+                .unwrap();
+            let pattern = declaration.self_pattern.as_ref().unwrap();
+            assert_eq!(
+                pattern.arguments,
+                [
+                    zil_ir::DynPatternActual::LifeParameter(1),
+                    zil_ir::DynPatternActual::LifeParameter(0)
+                ]
+            );
+            let instance = module
+                .life_instances
+                .iter()
+                .find(|i| i.ty == table.self_type)
+                .unwrap();
+            assert_eq!(pattern.declaration, instance.declaration);
+            assert_eq!(instance.arguments.len(), 2);
+            match table.self_classes.as_slice() {
+                [
+                    zil_ir::StorageBinder::Fixed(0),
+                    zil_ir::StorageBinder::Fixed(1),
+                ] => assert_eq!(
+                    table.actuals,
+                    [
+                        zil_ir::DynGenericActual::Life(zil_ir::StorageBinder::Fixed(1)),
+                        zil_ir::DynGenericActual::Life(zil_ir::StorageBinder::Fixed(0))
+                    ]
+                ),
+                [zil_ir::StorageBinder::Fixed(0)] => {
+                    assert_eq!(
+                        table.actuals,
+                        [
+                            zil_ir::DynGenericActual::Life(zil_ir::StorageBinder::Fixed(0)),
+                            zil_ir::DynGenericActual::Life(zil_ir::StorageBinder::Fixed(0))
+                        ]
+                    );
+                    assert_eq!(
+                        instance.arguments,
+                        [
+                            zil_ir::LifeNominalActual::Lifetime(0),
+                            zil_ir::LifeNominalActual::Lifetime(0)
+                        ]
+                    );
+                }
+                other => panic!("unexpected complete Self class mapping {other:?}"),
+            }
+        }
     }
 }

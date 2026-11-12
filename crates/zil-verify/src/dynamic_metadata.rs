@@ -248,3 +248,35 @@ pub(super) fn pattern(root: Option<&DynSelfPattern>, b: &mut Budget) -> Check<()
     }
     Ok(())
 }
+
+/// Receiver-after source uppers are metadata until the actual CFG proves them.
+pub(super) fn guarantees(values: Option<&[DynGuarantee]>, b: &mut Budget) -> Check<()> {
+    let cap = b.limits.max_nodes;
+    let depth = b.limits.max_call_depth.min(128);
+    let mut nodes = 0usize;
+    pay(b, &mut nodes, cap, 1)?;
+    if let Some(values) = values {
+        pay(b, &mut nodes, cap, values.len())?;
+        for value in values {
+            match value {
+                DynGuarantee::StorageSources(binding) => {
+                    path(b, &mut nodes, cap, depth, binding.position.path.len())?;
+                    pay(b, &mut nodes, cap, binding.sources.len())?;
+                    for source in &binding.sources {
+                        path(b, &mut nodes, cap, depth, source.path.len())?;
+                    }
+                }
+                DynGuarantee::State {
+                    position,
+                    ty: value,
+                    ..
+                } => {
+                    path(b, &mut nodes, cap, depth, position.path.len())?;
+                    ty(value, b)?;
+                }
+                DynGuarantee::ManageResult => {}
+            }
+        }
+    }
+    Ok(())
+}

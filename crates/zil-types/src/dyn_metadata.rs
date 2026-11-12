@@ -127,9 +127,19 @@ impl Work<'_, '_> {
         if let Some(rows) = &c.guarantees {
             self.rows(rows.len())?;
             for r in rows {
-                if let DynGuarantee::State { position, ty, .. } = r {
-                    self.position(position)?;
-                    self.ty(ty)?;
+                match r {
+                    DynGuarantee::State { position, ty, .. } => {
+                        self.position(position)?;
+                        self.ty(ty)?;
+                    }
+                    DynGuarantee::StorageSources(binding) => {
+                        self.position(&binding.position)?;
+                        self.rows(binding.sources.len())?;
+                        for source in &binding.sources {
+                            self.position(source)?;
+                        }
+                    }
+                    DynGuarantee::ManageResult => {}
                 }
             }
         }
@@ -257,6 +267,10 @@ pub(super) fn snapshot(
         }
         w.rows(1)?;
         if let Some(p) = &d.self_pattern {
+            w.pattern(p)?;
+        }
+        w.rows(1)?;
+        if let Some(p) = &d.implemented_trait {
             w.pattern(p)?;
         }
         w.rows(d.parameters.len().saturating_add(d.members.len()))?;

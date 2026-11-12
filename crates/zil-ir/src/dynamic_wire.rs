@@ -20,6 +20,10 @@ impl Writer<'_> {
         if let Some(pattern) = &value.self_pattern {
             self.dyn_self_pattern(pattern, 0)?;
         }
+        self.boolean(value.implemented_trait.is_some())?;
+        if let Some(pattern) = &value.implemented_trait {
+            self.dyn_self_pattern(pattern, 0)?;
+        }
         self.count(value.parameters.len(), self.limits.max_nodes)?;
         for value in &value.parameters {
             self.parameter_kind(value, 0)?;
@@ -440,6 +444,14 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_guarantee(&mut self, value: &DynGuarantee) -> WireResult<()> {
         match value {
+            DynGuarantee::StorageSources(binding) => {
+                self.u8(2)?;
+                self.storage_position(&binding.position)?;
+                self.count(binding.sources.len(), self.limits.max_nodes)?;
+                for source in &binding.sources {
+                    self.storage_position(source)?;
+                }
+            }
             DynGuarantee::ManageResult => {
                 self.u8(0)?;
             }
@@ -587,6 +599,11 @@ impl Reader<'_> {
             identity: self.declaration_identity()?,
             kind: self.dyn_declaration_kind()?,
             self_pattern: if self.boolean()? {
+                Some(self.dyn_self_pattern(0)?)
+            } else {
+                None
+            },
+            implemented_trait: if self.boolean()? {
                 Some(self.dyn_self_pattern(0)?)
             } else {
                 None
@@ -1062,6 +1079,15 @@ impl Reader<'_> {
                 ty: self.ty(0)?,
                 variant: self.u32()?,
             },
+            2 => {
+                let position = self.storage_position()?;
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut sources = Vec::with_capacity(count);
+                for _ in 0..count {
+                    sources.push(self.storage_position()?);
+                }
+                DynGuarantee::StorageSources(StorageSourceBinding { position, sources })
+            }
             _ => return Err(malformed("E-WIRE-TAG", "unknown DynGuarantee tag")),
         })
     }

@@ -300,6 +300,14 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        crate::dynamic_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
+        if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
+        {
+            return Err(bad(
+                "trait declaration cannot claim an implemented-trait recipe",
+                None,
+            ));
+        }
         if declaration.self_pattern.is_some() {
             return Err(bad(
                 "dyn Self recipe requires complete implementation substitution proof",
@@ -391,6 +399,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         }
         let mut members = BTreeSet::new();
         for slot in &item.slots {
+            crate::dynamic_metadata::guarantees(slot.contract.guarantees.as_deref(), budget)?;
             for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
                 if !ty.is_b0_scalar() {
                     check_type_shape(ty, &module.target, &budget.limits.clone(), budget)?;
@@ -492,6 +501,18 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .iter()
             .find(|d| d.id == item.implementation)
             .ok_or_else(|| bad("dyn implementation declaration absent", None))?;
+        if implementation
+            .implemented_trait
+            .as_ref()
+            .is_none_or(|recipe| {
+                recipe.declaration != iface.application.declaration || !recipe.arguments.is_empty()
+            })
+        {
+            return Err(bad(
+                "dyn provider has no proved implemented-trait application",
+                None,
+            ));
+        }
         if item.id.module != implementation.id.module
             || implementation.kind != DynDeclarationKind::Impl
             || !implementation.parameters.is_empty()

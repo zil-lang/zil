@@ -26,6 +26,10 @@ fn fixture() -> TypedModule {
                 generation_path: vec![],
             },
             kind: DynDeclarationKind::Impl,
+            implemented_trait: Some(DynSelfPattern {
+                declaration: id(5),
+                arguments: vec![DynPatternActual::LifeParameter(0)],
+            }),
             self_pattern: Some(DynSelfPattern {
                 declaration: id(7),
                 arguments: vec![
@@ -102,6 +106,11 @@ fn independent_bytes(m: &TypedModule) -> Vec<u8> {
     small(&mut out, 2); // Element is type formal2.
     out.extend_from_slice(&[1, 0, 10]);
     word(&mut out, 7); // Actual const Value(Usize(7)).
+    out.push(1); // A complete implemented-trait application recipe.
+    decl(&mut out, 5);
+    word(&mut out, 1);
+    out.push(2);
+    small(&mut out, 0);
     word(&mut out, 4);
     out.extend_from_slice(&[2, 2, 0, 1, 27]); // Formal kind/order/domain.
     word(&mut out, 1);
@@ -128,11 +137,20 @@ fn recipe_occurrences_and_formal_ordinals_match_independent_identity() {
             .0,
         module
     );
-    for mutation in 0..6 {
+    for mutation in 0..9 {
         let mut changed = module.clone();
         let declaration = &mut changed.dyn_declarations[0];
         if mutation == 0 {
             declaration.self_pattern = None;
+        } else if mutation >= 6 {
+            match mutation {
+                6 => declaration.implemented_trait = None,
+                7 => declaration.implemented_trait.as_mut().unwrap().declaration = id(6),
+                _ => {
+                    declaration.implemented_trait.as_mut().unwrap().arguments[0] =
+                        DynPatternActual::LifeParameter(1)
+                }
+            }
         } else {
             let pattern = declaration.self_pattern.as_mut().unwrap();
             match mutation {
@@ -178,4 +196,139 @@ fn deeply_nested_recipe_stops_at_a_finite_wire_bound() {
         wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits)
             .is_err()
     );
+}
+
+#[test]
+fn receiver_after_sources_have_independent_bytes_and_preserve_before_selectors() {
+    let mut module = fixture();
+    let old = StoragePosition {
+        base: StorageBase::Parameter(0),
+        path: vec![ContractProjection::RetainedPort(0)],
+    };
+    let next = StoragePosition {
+        base: StorageBase::Parameter(1),
+        path: vec![],
+    };
+    let application = DynTraitApplication {
+        declaration: id(7),
+        actuals: vec![],
+    };
+    module.dyn_interfaces.push(DynInterface {
+        context: None,
+        owning_cleanup: None,
+        id: DynInterfaceId {
+            module: ModuleId(0),
+            index: 0,
+        },
+        application: application.clone(),
+        inherited: vec![],
+        associated_types: vec![],
+        associated_constants: vec![],
+        retained_life: RetainedLifeShape {
+            binder_count: 0,
+            ports: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        },
+        slots: vec![DynSlot {
+            member: DynMember {
+                application,
+                ordinal: 0,
+            },
+            actuals: vec![],
+            receiver: DynReceiver {
+                mutable: true,
+                mode: PassingMode::BorrowMut,
+            },
+            parameters: vec![],
+            parameter_modes: vec![],
+            result: Type::Unit,
+            result_mode: PassingMode::Infer,
+            call_kind: CallKind::Direct,
+            storage_life: None,
+            contract: DynContract {
+                requires: None,
+                guarantees: Some(vec![DynGuarantee::StorageSources(StorageSourceBinding {
+                    position: old.clone(),
+                    sources: vec![old, next],
+                })]),
+                hold: None,
+                call: None,
+                result: None,
+                cleanup: None,
+                effects: None,
+                resume: None,
+                threads: None,
+            },
+        }],
+    });
+    // This intentionally untrusted interface is transport data, not a callable
+    // certificate. Missing prerequisites remain unknown to semantic consumers.
+    let mut expected = independent_bytes(&module);
+    expected.truncate(expected.len() - 48);
+    word(&mut expected, 1);
+    expected.extend_from_slice(&[0, 0]);
+    small(&mut expected, 0);
+    small(&mut expected, 0);
+    decl(&mut expected, 7);
+    for _ in 0..4 {
+        word(&mut expected, 0);
+    }
+    small(&mut expected, 0);
+    for _ in 0..3 {
+        word(&mut expected, 0);
+    }
+    word(&mut expected, 1);
+    decl(&mut expected, 7);
+    word(&mut expected, 0);
+    small(&mut expected, 0);
+    word(&mut expected, 0);
+    expected.extend_from_slice(&[1, 6]);
+    word(&mut expected, 0);
+    word(&mut expected, 0);
+    expected.extend_from_slice(&[0, 7, 0, 0]);
+    expected.extend_from_slice(&[0, 1]);
+    word(&mut expected, 1);
+    expected.push(2);
+    let before_port = |out: &mut Vec<u8>| {
+        out.push(0);
+        small(out, 0);
+        word(out, 1);
+        out.push(1);
+        small(out, 0);
+    };
+    before_port(&mut expected);
+    word(&mut expected, 2);
+    before_port(&mut expected);
+    expected.push(0);
+    small(&mut expected, 1);
+    word(&mut expected, 0);
+    expected.extend_from_slice(&[0; 7]);
+    for _ in 0..5 {
+        word(&mut expected, 0);
+    }
+    assert_eq!(Fingerprint::of(&expected), module.fingerprint());
+    let encoded = wire::encode_module_candidate(
+        &module,
+        &CandidatePlan::empty_for(&module),
+        &Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        wire::decode_module_candidate(&encoded, &Limits::default())
+            .unwrap()
+            .0,
+        module
+    );
+    let mut changed = module.clone();
+    let DynGuarantee::StorageSources(binding) = &mut changed.dyn_interfaces[0].slots[0]
+        .contract
+        .guarantees
+        .as_mut()
+        .unwrap()[0]
+    else {
+        unreachable!()
+    };
+    binding.sources.remove(0);
+    assert_ne!(changed.fingerprint(), module.fingerprint());
 }

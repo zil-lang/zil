@@ -455,6 +455,27 @@ fn inventory_in_modules(
                 "dyn table has invalid slot or cleanup inventory",
             ));
         }
+        let implementation = core
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == table.implementation)
+            .ok_or_else(|| {
+                unsupported(Span::default(), "dyn implementation declaration is absent")
+            })?;
+        spend(&mut left, core.dyn_declarations.len())?;
+        if implementation
+            .implemented_trait
+            .as_ref()
+            .is_none_or(|recipe| {
+                recipe.declaration != interface.application.declaration
+                    || !recipe.arguments.is_empty()
+            })
+        {
+            return Err(unsupported(
+                Span::default(),
+                "dyn provider has no proved complete implemented-trait application",
+            ));
+        }
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
             let bound = interface.owning_cleanup.as_ref().ok_or_else(|| {
                 unsupported(
