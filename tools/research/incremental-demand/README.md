@@ -2,7 +2,7 @@
 
 > 最新追加：[d3真实负载诊断](full-push-diagnostic-d3f561bdc.json) 默认private464ms、cold7216/broad6664仍负，错误恢复1566ms负例保留；cold IRkey+capture约184ms，原3816组O2仍执行。共同closed private739ms、1机器复用/1执行。两策略各34valid/180native/15强产物对，不作新Rust比值。完整Types失败历史桥接后101/208及严格Clippy已过，格式修正与release10也过，尚未测量该修复。完整MIR平池与真实scheduler四类AU绑定继续集成，非终态。raw [v12](full-push-recovery-v12.json)/[v13](full-push-recovery-v13.json)已完整远端恢复核验；旧07/01、08/02、09/03本地原目录已逐manifest核后退役，侧文件与cleanup06 metadata仍在，完整raw从固定Git恢复。
 
-> **当前施工线：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，冻结源码 `244c5bdbd73db14a9ab06e86ee75a67afd5f1e52`；实际 main `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02`。目标未完成、研究开关默认关闭、未合 main。旧 [正式六轮三方结果](full-push-matched-433-raw-review.md) 仍绑定433/main42：private641ms/Rust704、多处898/970，cold/noop/broad/recovery负例保留；新main不能回填旧窗口。
+> **此前检查点：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，冻结源码 `244c5bdbd73db14a9ab06e86ee75a67afd5f1e52`；实际 main `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02`。目标未完成、研究开关默认关闭、未合 main。旧 [正式六轮三方结果](full-push-matched-433-raw-review.md) 仍绑定433/main42：private641ms/Rust704、多处898/970，cold/noop/broad/recovery负例保留；新main不能回填旧窗口。
 >
 > [最新真实425诊断](full-push-diagnostic-244c5bdbd.json)：默认private626ms/main1462ms，cold8656/main6260、broad8466/main5301仍负。共同closed附加策略private788ms，实际1机器函数复用/1执行、零回退；两策略各34有效请求/180native/15完整ELF及严格LLVM对。只是一轮profile，不作新Rust比值或跨窗口归因。schema3表明cold键构造540ms/捕获1031ms，private优化255ms仍高于main115ms；下一刀是降低缓存自身净成本。
 >
