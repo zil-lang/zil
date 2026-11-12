@@ -374,3 +374,168 @@ fn public_return_life_keeps_extra_capture_classes_and_rejects_raw_relabeling() {
         }
     }
 }
+
+mod public_life_source_proofs {
+use super::source_receiver_contracts::typed;
+use zil_base::{Limits, TargetProfile};
+use zil_ir::{StorageBase, StorageBinder};
+#[test]
+fn exclusive_stored_field_reborrow_keeps_the_actual_holder_receiver_region() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/captured-exclusive-holder-short-view.zil"
+    );
+    let module = typed(text);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let bad = text.replace(
+        "let second=*pointer",
+        "let other=f();let second=*pointer+*other",
+    );
+    assert!(zil_analyze::analyze(&typed(&bad), &Limits::default()).is_err());
+    let mut bad = module.clone();
+    let definition = &mut bad.closures[0];
+    let life = definition.storage_life.as_mut().unwrap();
+    life.bindings
+        .iter_mut()
+        .find(|row| row.position.base == StorageBase::Result)
+        .unwrap()
+        .binder = StorageBinder::Fixed(1);
+    bad.functions[definition.function.0 as usize].storage_life = Some(life.clone());
+    assert!(
+        zil_analyze::analyze(&bad, &Limits::default()).is_err(),
+        "an exclusive stored-slot reborrow cannot recover its full Fixed class"
+    );
+}
+
+#[test]
+fn public_return_life_keeps_extra_capture_classes_and_rejects_raw_relabeling() {
+    let limits = Limits::default();
+    for text in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-holder-fixed-data-result.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view.zil"
+        ),
+    ] {
+        let mut module = typed(text);
+        let factory = module
+            .functions
+            .iter()
+            .position(|f| f.name == "make")
+            .unwrap();
+        let id = module.functions[factory]
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .closure;
+        let mut expected = module.closures[id.0 as usize].storage_life.clone().unwrap();
+        expected
+            .bindings
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        expected
+            .classes
+            .retain(|row| !matches!(row.position.base, StorageBase::Capture(_)));
+        module.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .life = Some(expected);
+        let claim = zil_analyze::analyze(&module, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+        zil_analyze::analyze(&decoded, &limits).unwrap();
+        for attack in 0..3 {
+            let mut bad = module.clone();
+            let expected = bad.functions[factory]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .life
+                .as_mut()
+                .unwrap();
+            match attack {
+                0 => expected.fixed_binder_count -= 1,
+                1 => {
+                    expected
+                        .bindings
+                        .iter_mut()
+                        .find(|row| row.position.base == StorageBase::Result)
+                        .unwrap()
+                        .binder = StorageBinder::Fixed(0)
+                }
+                _ => expected
+                    .bindings
+                    .retain(|row| row.position.base != StorageBase::Result),
+            }
+            assert!(zil_analyze::analyze(&bad, &limits).is_err());
+            let wire = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+            assert!(zil_analyze::analyze(&decoded, &limits).is_err());
+        }
+    }
+}
+
+#[test]
+fn receiver_and_capture_epoch_analysis_has_exact_fresh_warm_and_wire_budgets() {
+    for text in [
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-exclusive-holder-short-view.zil"
+        ),
+        include_str!(
+            "../../../tests/fixtures/returned-owning-holders/captured-exclusive-short-view-helper.zil"
+        ),
+    ] {
+        let module = typed(text);
+        let defaults = Limits::default();
+        let expected = zil_analyze::analyze(&module, &defaults).unwrap();
+        let (mut low, mut high) = (1usize, defaults.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            let limits = Limits {
+                max_analysis_steps: middle,
+                ..defaults.clone()
+            };
+            match zil_analyze::analyze(&module, &limits) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+                    low = middle + 1;
+                }
+            }
+        }
+        eprintln!(
+            "actual receiver/capture budget {}: {low}",
+            module.functions[0].name
+        );
+        let exact = Limits {
+            max_analysis_steps: low,
+            ..defaults.clone()
+        };
+        let short = Limits {
+            max_analysis_steps: low - 1,
+            ..defaults.clone()
+        };
+        let wire = zil_ir::wire::encode_module_candidate(&module, &expected, &defaults).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &defaults).unwrap();
+        for actual in [&module, &decoded] {
+            assert_eq!(zil_analyze::analyze(actual, &exact).unwrap(), expected);
+            assert_eq!(
+                zil_analyze::analyze(actual, &short).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            let mut session = zil_analyze::AnalysisSession::default();
+            assert_eq!(session.analyze(actual, &exact).unwrap(), expected);
+            assert_eq!(session.analyze(actual, &exact).unwrap(), expected);
+            assert_eq!(
+                session.analyze(actual, &short).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert_eq!(session.analyze(actual, &exact).unwrap(), expected);
+        }
+    }
+}
+
+}
