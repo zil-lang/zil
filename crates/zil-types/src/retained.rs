@@ -3,6 +3,7 @@
 //! at call sites; direct calls retain their ordinary function identities.
 use super::*;
 use std::collections::BTreeSet;
+mod local_scopes;
 mod return_life;
 mod source_scope;
 mod sources;

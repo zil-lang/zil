@@ -2908,7 +2908,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 "moving a captured exclusive address into a nested environment requires an explicit transfer contract",
             ));
         }
-        if write && matches!(ty, Type::Address { .. }) {
+        if write && matches!(ty, Type::Address { .. }) && !self.move_capture {
             return Err(unsupported(
                 span,
                 "rebinding a captured address requires a nested address window",

@@ -355,3 +355,125 @@ fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventin
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
 }
+
+#[test]
+fn local_borrowed_callback_has_a_complete_actual_free_class_directory() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/local-borrowed-callback-scope.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    let scope = definition.storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count, 1);
+    assert_eq!(scope.invocation_binder_count, 1);
+    assert!(scope.static_bindings.is_empty());
+    let limits = Limits::default();
+    zil_analyze::analyze(&module, &limits).unwrap();
+}
+
+#[test]
+fn mutable_static_capture_publishes_only_real_static_replacements() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnMut);
+    assert_eq!(
+        definition.storage_life.as_ref().unwrap().static_bindings,
+        vec![zil_ir::StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    assert!(module.functions[definition.function.0 as usize].blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::WriteCapture{index:0,..})), "replacement must publish to the actual environment");
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+}
+
+#[test]
+fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
+    use zil_ir::*;
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-argument-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, CallableKind::FnMut);
+    let life = definition.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 1)
+    );
+    assert_eq!(
+        life.static_bindings,
+        vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let mut bad = module.clone();
+    let entry = &mut bad.functions[definition.function.0 as usize];
+    let parameter = entry.parameters[0];
+    let value = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| {
+            matches!(instruction.kind,InstructionKind::Load(local)if local==parameter)
+                .then_some(instruction.result)
+                .flatten()
+        })
+        .expect("actual loaded shared Slice parameter");
+    let write = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::WriteCapture { index: 0, .. }
+            )
+        })
+        .unwrap();
+    let InstructionKind::WriteCapture {
+        value: incoming, ..
+    } = &mut write.kind
+    else {
+        unreachable!()
+    };
+    *incoming = value;
+    for raw in [true, false] {
+        let actual = if raw {
+            bad.clone()
+        } else {
+            zil_ir::wire::decode_module_candidate(
+                &zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+            .0
+        };
+        let errors = zil_analyze::analyze(&actual, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("constant occurrence retains")),
+            "actual nonstatic write must reach the global capture invariant: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn local_borrowed_callback_keeps_owning_input_and_result_types() {
+    let text = "resource R{code:i32}package Item{manages token:R;value:i32}fn apply<F:FnMut(Item)->Item>(callback:&mut F,item:Item)->Item{return callback(item)}fn main()->i32{var total=0;var callback=(item:Item)=>{total+=item.value;return item};let result=apply(&mut callback,Item{token:R{code:1},value:22});return result.value+total-44}";
+    let module = typed(text);
+    let d = &module.closures[0];
+    let scope = d.storage_life.as_ref().unwrap();
+    assert_eq!((scope.fixed_binder_count, scope.invocation_binder_count),(1,0));
+    assert!(matches!(d.parameters[0],zil_ir::Type::Package{..}));
+    assert!(matches!(d.result,zil_ir::Type::Package{..}));
+    let role = module.functions.iter().filter_map(|f|f.callable_contract.as_ref()).flat_map(|c|&c.roles).find(|role|role.closure==d.id).unwrap();
+    assert_eq!(role.life.as_ref(),Some(scope));
+}
