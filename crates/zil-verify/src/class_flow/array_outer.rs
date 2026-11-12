@@ -593,6 +593,14 @@ impl Flow {
                         flow.copy_ports(&locals[local.0 as usize], value(values, *id)?, b)?;
                         consumer = Consumer::Copy;
                     }
+                    InstructionKind::BorrowPackageField { .. }
+                        if super::super::stored_flow::qualified_package_borrow(f, i, b)? =>
+                    {
+                        if let Some(outer) = out.and_then(|p| p.outer) {
+                            flow.seed(outer, b)?;
+                        }
+                        consumer = Consumer::Copy;
+                    }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if let Some(out) = out {
