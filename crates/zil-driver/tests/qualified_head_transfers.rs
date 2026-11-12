@@ -289,3 +289,48 @@ fn qualified_heads_and_slices_have_exact_fresh_warm_wire_analysis_budgets() {
         }
     }
 }
+
+#[test]
+fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventing_a_free_domain() {
+    let text = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
+    );
+    let module = typed(text);
+    let factory = module
+        .functions
+        .iter()
+        .find(|function| function.name == "make")
+        .unwrap();
+    let definition = &module.closures[0];
+    assert!(
+        definition.storage_life.is_none(),
+        "a missing domain remains unknown; no input-grounded Fixed class is invented"
+    );
+    let sources = factory
+        .callable_return_contract
+        .as_ref()
+        .unwrap()
+        .capture_sources
+        .as_ref()
+        .unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(
+        sources[0].position,
+        zil_ir::StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }
+    );
+    assert_eq!(
+        sources[0].sources,
+        vec![zil_ir::StorageSource::Static {
+            leaf: zil_ir::Type::Address {
+                mutable: false,
+                inner: Box::new(zil_ir::Type::Slice {
+                    element: Box::new(zil_ir::Type::U8)
+                })
+            },
+            mode: zil_ir::StoredBorrowMode::SharedAddress,
+        }]
+    );
+}

@@ -17,8 +17,63 @@ struct Origins {
     unknown: bool,
     // Proposal-only invocation dependency; kernels reconstruct actual loans.
     receiver: bool,
+    // Actual StaticUtf8 provenance; it is not an empty external input set.
+    static_utf8: bool,
 }
 type Row = BTreeMap<Path, Origins>;
+
+fn static_leaf<'a>(
+    module: &'a TypedModule,
+    mut ty: &'a Type,
+    path: &[ContractProjection],
+    left: &mut usize,
+    span: Span,
+) -> R<&'a Type> {
+    for step in path {
+        spend(left, 1, span)?;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+        }
+        ty = match (step, ty) {
+            (ContractProjection::Capture(index), Type::Closure(id)) => module
+                .closures
+                .get(id.0 as usize)
+                .and_then(|definition| definition.captures.get(*index as usize)),
+            (
+                ContractProjection::Place(PlaceProjection::Field(index)),
+                Type::Record { fields, .. } | Type::Package { fields, .. },
+            ) => fields.get(*index as usize).map(|(_, ty)| ty),
+            (ContractProjection::Place(PlaceProjection::Field(index)), Type::Tuple(fields)) => {
+                fields.get(*index as usize)
+            }
+            (
+                ContractProjection::Place(PlaceProjection::Variant(projection)),
+                Type::Enum { variants, .. },
+            ) => variants
+                .get(projection.variant as usize)
+                .and_then(|(_, fields)| fields.get(projection.index as usize)),
+            (
+                ContractProjection::Place(PlaceProjection::ErrorArm(error)),
+                Type::ErrorUnion { error: e, result },
+            ) => Some(if *error { e.as_ref() } else { result.as_ref() }),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            unsupported(
+                span,
+                "static capture has no complete actual leaf projection",
+            )
+        })?;
+    }
+    if !matches!(ty,Type::Address{mutable:false,inner} if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element} if **element==Type::U8))
+    {
+        return Err(unsupported(
+            span,
+            "StaticUtf8 capture must retain its complete immutable byte leaf",
+        ));
+    }
+    Ok(ty)
+}
 #[derive(Default)]
 struct Summary {
     returned: Row,
@@ -52,12 +107,14 @@ fn join(to: &mut Row, from: &Row, left: &mut usize, span: Span) -> R<bool> {
             at.local,
             at.unknown,
             at.receiver,
+            at.static_utf8,
         );
         at.inputs.extend(origins.inputs.iter().cloned());
         at.places.extend(origins.places.iter().cloned());
         at.local |= origins.local;
         at.unknown |= origins.unknown;
         at.receiver |= origins.receiver;
+        at.static_utf8 |= origins.static_utf8;
         changed |= before
             != (
                 at.inputs.len(),
@@ -65,6 +122,7 @@ fn join(to: &mut Row, from: &Row, left: &mut usize, span: Span) -> R<bool> {
                 at.local,
                 at.unknown,
                 at.receiver,
+                at.static_utf8,
             );
     }
     Ok(changed)
@@ -175,6 +233,7 @@ fn seed(
                 unknown: base.is_none(),
                 places: BTreeSet::new(),
                 receiver: false,
+                static_utf8: false,
             },
         );
     }
@@ -430,6 +489,13 @@ fn solve(
                 let at = instruction.span;
                 if let Some(result) = instruction.result {
                     let row = match i {
+                        InstructionKind::StaticUtf8 { .. } => Row::from([(
+                            Vec::new(),
+                            Origins {
+                                static_utf8: true,
+                                ..Origins::default()
+                            },
+                        )]),
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                             copy(&state[local.0 as usize], left, at)?
                         }
@@ -727,6 +793,7 @@ fn solve(
                                     local: origins.local,
                                     unknown: origins.unknown,
                                     receiver: origins.receiver,
+                                    static_utf8: origins.static_utf8,
                                     ..Origins::default()
                                 };
                                 for source in &origins.inputs {
@@ -751,6 +818,7 @@ fn solve(
                                         o.local |= from.local;
                                         o.unknown |= from.unknown;
                                         o.receiver |= from.receiver;
+                                        o.static_utf8 |= from.static_utf8;
                                     } else {
                                         o.local = true;
                                     }
@@ -1055,6 +1123,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         }
     }
     let mut public_return_paths = BTreeMap::new();
+    let mut static_return_leaves = BTreeMap::new();
     for f in &module.functions {
         if f.callable_return_contract.is_some() {
             let mut paths = Vec::new();
@@ -1068,6 +1137,21 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 f.span,
                 limits.max_call_depth,
             )?;
+            for path in &paths {
+                if summaries[f.id.0 as usize]
+                    .returned
+                    .get(path)
+                    .is_some_and(|origin| origin.static_utf8)
+                {
+                    let leaf = static_leaf(module, &f.return_type, path, left, f.span)?;
+                    inference::charge_type_snapshot(leaf, f.span, limits, left, 1)?;
+                    spend(left, path.len().saturating_add(1), f.span)?;
+                    static_return_leaves
+                        .entry(f.id)
+                        .or_insert_with(BTreeMap::new)
+                        .insert(path.clone(), leaf.clone());
+                }
+            }
             public_return_paths.insert(f.id, paths);
         }
     }
@@ -1089,7 +1173,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             }
             if origins.local
                 || origins.unknown
-                || origins.inputs.is_empty()
+                || (origins.inputs.is_empty() && !origins.static_utf8)
                 || origins
                     .inputs
                     .iter()
@@ -1109,17 +1193,31 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
                 ));
             };
             hold.insert(*index);
+            let mut sources = origins
+                .inputs
+                .iter()
+                .cloned()
+                .map(StorageSource::Exact)
+                .collect::<Vec<_>>();
+            if origins.static_utf8 {
+                let leaf = static_return_leaves
+                    .get(&f.id)
+                    .and_then(|rows| rows.get(path))
+                    .ok_or_else(|| {
+                        unsupported(f.span, "static capture omits its actual complete leaf")
+                    })?;
+                inference::charge_type_snapshot(leaf, f.span, limits, left, 1)?;
+                sources.push(StorageSource::Static {
+                    leaf: leaf.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                });
+            }
             bindings.push(StorageSourceBinding {
                 position: StoragePosition {
                     base: StorageBase::Capture(*index),
                     path: tail.to_vec(),
                 },
-                sources: origins
-                    .inputs
-                    .iter()
-                    .cloned()
-                    .map(StorageSource::Exact)
-                    .collect(),
+                sources,
             });
         }
         contract.capture_sources = Some(bindings);
