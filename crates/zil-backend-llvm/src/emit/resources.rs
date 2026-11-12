@@ -143,6 +143,14 @@ impl FunctionEmitter<'_> {
                     Some(instruction.span),
                 );
             }
+            // A moved owner leaves stale payload bytes. The live flag must
+            // dominate the pollable marker, including after continuation spills.
+            // Keep it true while marker polling is Pending; clear only at Ready.
+            let flag=self.temp();
+            let label=self.continuation;self.continuation+=1;
+            self.event(m::Event::Instruction(m::Inst::new(Some(m::name(flag.clone())),m::Op::Load{ty:m::Ty::Int(1),ptr:m::local(format!("resource.live.{}",local.0)),align:1})));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(flag),yes:format!("async.resource.drop.{label}"),no:format!("async.resource.done.{label}")})));
+            self.event(m::Event::Label(format!("async.resource.drop.{label}")));
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Call {
@@ -164,6 +172,8 @@ impl FunctionEmitter<'_> {
                     align: 1,
                 },
             )));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(format!("async.resource.done.{label}")))));
+            self.event(m::Event::Label(format!("async.resource.done.{label}")));
             return Ok(());
         }
         let Some(definition) = self
