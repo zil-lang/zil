@@ -487,3 +487,29 @@ fn static_callable_closed_bound_is_discharged_after_actual_typed_constructors() 
     assert_eq!(d.storage_life.as_ref().unwrap().static_bindings.len(),1);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }
+
+#[test]
+fn a_literal_actual_argument_does_not_close_a_declared_borrowed_environment() {
+    let source="fn make<life a>(text:&'a [u8])->impl Fn()->u8{return move()=>text[0]}fn invoke<F:Fn()->u8+ClosedEnvironment>(callback:F)->i32{return i32(callback())}fn main()->i32{return invoke(make(\"abc\"))-97}";
+    let errors=zil_types::check(&core(source),&TargetProfile::host_llvm(),&Limits::default()).unwrap_err();
+    assert!(errors.iter().any(|error|error.message.contains("actual environment retains free input classes")),"{errors:?}");
+}
+
+#[test]
+fn mixed_static_and_parameter_sources_preserve_the_actual_free_class() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mixed-static-parameter-capture.zil");
+    let module=typed(source);
+    let scope=module.closures[0].storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count,1);
+    assert!(scope.static_bindings.is_empty());
+    let sources=&module.functions.iter().find(|f|f.name=="make").unwrap().callable_return_contract.as_ref().unwrap().capture_sources.as_ref().unwrap()[0].sources;
+    assert!(sources.iter().any(|source|matches!(source,zil_ir::StorageSource::Static{..})));
+    assert!(sources.iter().any(|source|matches!(source,zil_ir::StorageSource::Exact(_))));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    let (decoded,plan)=zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&decoded,&limits).unwrap(),plan);
+    let bad=source.replace(" return i32(f())", " bytes[0]=1u8;return i32(f())");
+    let errors=zil_analyze::analyze(&typed(&bad),&limits).unwrap_err();
+    assert!(errors.iter().any(|error|error.category==zil_base::DiagnosticCategory::SafeReject),"{errors:?}");
+}
