@@ -1843,7 +1843,7 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && (closure.result.is_copy_value() || invocation)
+                && (closure.result.is_copy_value() || invocation || super::stored_callables::constant_result(closure))
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
@@ -1871,6 +1871,7 @@ pub(super) fn preflight(
             local_value(&closure.result, Span::default(), module, budget)?;
         } else if invocation
             || super::stored_callables::transferred(closure)
+            || super::stored_callables::constant_result(closure)
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
                 && matches!(
@@ -2048,6 +2049,16 @@ pub(super) fn preflight(
                     "retained result positions",
                 )?;
                 for atom in &binding.sources {
+                    if let zil_ir::StorageSource::Static{leaf,mode}=atom
+                        && super::stored_callables::constant_entry(module,function) {
+                        if *mode!=zil_ir::StoredBorrowMode::SharedAddress
+                            || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                            || leaf!=&function.return_type {
+                            return Err(bad("constant callable result requires its complete immutable actual leaf and mode"));
+                        }
+                        budget.input(if matches!(leaf,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Slice{..})){5}else{4},"constant callable full result leaf")?;
+                        continue;
+                    }
                     let source = crate::exact_storage_source(atom)?;
                     count(
                         0,

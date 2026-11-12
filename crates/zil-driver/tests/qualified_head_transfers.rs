@@ -355,3 +355,286 @@ fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventin
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
 }
+
+#[test]
+fn local_borrowed_callback_has_a_complete_actual_free_class_directory() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/local-borrowed-callback-scope.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    let scope = definition.storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count, 1);
+    assert_eq!(scope.invocation_binder_count, 1);
+    assert!(scope.static_bindings.is_empty());
+    let limits = Limits::default();
+    zil_analyze::analyze(&module, &limits).unwrap();
+}
+
+#[test]
+fn mutable_static_capture_publishes_only_real_static_replacements() {
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnMut);
+    assert_eq!(
+        definition.storage_life.as_ref().unwrap().static_bindings,
+        vec![zil_ir::StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    assert!(module.functions[definition.function.0 as usize].blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::WriteCapture{index:0,..})), "replacement must publish to the actual environment");
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+}
+
+#[test]
+fn static_slot_writes_are_checked_even_with_an_actual_same_typed_argument() {
+    use zil_ir::*;
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-argument-retarget.zil"
+    );
+    let module = typed(source);
+    let definition = &module.closures[0];
+    assert_eq!(definition.kind, CallableKind::FnMut);
+    let life = definition.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 1)
+    );
+    assert_eq!(
+        life.static_bindings,
+        vec![StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
+    );
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let mut bad = module.clone();
+    let entry = &mut bad.functions[definition.function.0 as usize];
+    let parameter = entry.parameters[0];
+    let value = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|instruction| {
+            matches!(instruction.kind,InstructionKind::Load(local)if local==parameter)
+                .then_some(instruction.result)
+                .flatten()
+        })
+        .expect("actual loaded shared Slice parameter");
+    let write = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::WriteCapture { index: 0, .. }
+            )
+        })
+        .unwrap();
+    let InstructionKind::WriteCapture {
+        value: incoming, ..
+    } = &mut write.kind
+    else {
+        unreachable!()
+    };
+    *incoming = value;
+    for raw in [true, false] {
+        let actual = if raw {
+            bad.clone()
+        } else {
+            zil_ir::wire::decode_module_candidate(
+                &zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+            .0
+        };
+        let errors = zil_analyze::analyze(&actual, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("constant occurrence retains")),
+            "actual nonstatic write must reach the global capture invariant: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn local_borrowed_callback_keeps_owning_input_and_result_types() {
+    let text = "resource R{code:i32}package Item{manages token:R;value:i32}fn apply<F:FnMut(Item)->Item>(callback:&mut F,item:Item)->Item{return callback(item)}fn main()->i32{var total=0;var callback=(item:Item)=>{total+=item.value;return item};let result=apply(&mut callback,Item{token:R{code:1},value:22});return result.value+total-44}";
+    let module = typed(text);
+    let d = &module.closures[0];
+    let scope = d.storage_life.as_ref().unwrap();
+    assert_eq!((scope.fixed_binder_count, scope.invocation_binder_count),(1,0));
+    assert!(matches!(d.parameters[0],zil_ir::Type::Package{..}));
+    assert!(matches!(d.result,zil_ir::Type::Package{..}));
+    let role = module.functions.iter().filter_map(|f|f.callable_contract.as_ref()).flat_map(|c|&c.roles).find(|role|role.closure==d.id).unwrap();
+    assert_eq!(role.life.as_ref(),Some(scope));
+}
+
+#[test]
+fn consuming_static_slice_result_has_no_fabricated_free_or_receiver_class() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-result.zil");
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.kind,zil_ir::CallableKind::FnOnce);
+    let life=d.storage_life.as_ref().unwrap();
+    assert_eq!((life.fixed_binder_count,life.invocation_binder_count),(0,0));
+    assert!(life.bindings.is_empty() && life.classes.is_empty());
+    assert!(life.static_bindings.iter().any(|position|position.base==StorageBase::Result));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    let wire=zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap();
+    let (module,plan)=zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&module,&limits).unwrap(),plan);
+}
+
+#[test]
+fn static_result_cannot_be_replaced_by_a_same_typed_actual_parameter() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-argument-result.zil");
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.kind,CallableKind::FnOnce);
+    let life=d.storage_life.as_ref().unwrap();
+    assert_eq!((life.fixed_binder_count,life.invocation_binder_count),(0,1));
+    assert!(life.static_bindings.iter().any(|position|position.base==StorageBase::Result));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    if let Ok(directory)=std::env::var("ZIL_STATIC_RESULT_ARTIFACT_DIR") {
+        let directory=std::path::Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("source.zil"),source).unwrap();
+        std::fs::write(directory.join("typed.txt"),format!("{module:#?}")).unwrap();
+        std::fs::write(directory.join("candidate.wire"),zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap()).unwrap();
+    }
+    let mut bad=module.clone();
+    let entry=&mut bad.functions[d.function.0 as usize];
+    let parameter=entry.parameters[0];
+    let value=entry.blocks.iter().flat_map(|block|&block.instructions).find_map(|i|
+        matches!(i.kind,InstructionKind::Load(local)if local==parameter).then_some(i.result).flatten()).expect("actual same-typed parameter load");
+    for block in &mut entry.blocks {
+        if let Terminator::Return(Some(result))=&mut block.terminator {*result=value;}
+    }
+    for raw in [true,false] {
+        let module=if raw{bad.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&bad,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&module,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")),"{errors:?}");
+    }
+}
+
+#[test]
+fn static_callable_closed_bound_is_discharged_after_actual_typed_constructors() {
+    let source = "fn make()->impl Fn()->u8{let text=\"abc\";return move()=>text[0]}fn invoke<F:Fn()->u8+ClosedEnvironment>(callback:F)->i32{return i32(callback())}fn main()->i32{return invoke(make())-97}";
+    let module=typed(source);
+    let d=&module.closures[0];
+    assert_eq!(d.storage_life.as_ref().unwrap().fixed_binder_count,0);
+    assert_eq!(d.storage_life.as_ref().unwrap().static_bindings.len(),1);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
+
+#[test]
+fn a_literal_actual_argument_does_not_close_a_declared_borrowed_environment() {
+    let source="fn make<life a>(text:&'a [u8])->impl Fn()->u8{return move()=>text[0]}fn invoke<F:Fn()->u8+ClosedEnvironment>(callback:F)->i32{return i32(callback())}fn main()->i32{return invoke(make(\"abc\"))-97}";
+    let errors=zil_types::check(&core(source),&TargetProfile::host_llvm(),&Limits::default()).unwrap_err();
+    assert!(errors.iter().any(|error|error.message.contains("actual environment retains free input classes")),"{errors:?}");
+}
+
+#[test]
+fn mixed_static_and_parameter_sources_preserve_the_actual_free_class() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mixed-static-parameter-capture.zil");
+    let module=typed(source);
+    let scope=module.closures[0].storage_life.as_ref().unwrap();
+    assert_eq!(scope.fixed_binder_count,1);
+    assert!(scope.static_bindings.is_empty());
+    let sources=&module.functions.iter().find(|f|f.name=="make").unwrap().callable_return_contract.as_ref().unwrap().capture_sources.as_ref().unwrap()[0].sources;
+    assert!(sources.iter().any(|source|matches!(source,zil_ir::StorageSource::Static{..})));
+    assert!(sources.iter().any(|source|matches!(source,zil_ir::StorageSource::Exact(_))));
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).unwrap();
+    if let Ok(directory)=std::env::var("ZIL_MIXED_STATIC_ARTIFACT_DIR") {
+        let directory=std::path::Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("source.zil"),source).unwrap();
+        std::fs::write(directory.join("typed.txt"),format!("{module:#?}")).unwrap();
+        std::fs::write(directory.join("candidate.wire"),zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap()).unwrap();
+    }
+    let (decoded,plan)=zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&decoded,&limits).unwrap(),plan);
+    let bad=source.replace(" return i32(f())", " bytes[0]=1u8;return i32(f())");
+    let errors=zil_analyze::analyze(&typed(&bad),&limits).unwrap_err();
+    assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::SafeReject),"{errors:?}");
+}
+
+
+#[test]
+fn every_same_definition_constructor_is_checked_even_in_an_uncalled_function() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil");
+    let mut module=typed(source);
+    let mut extra=module.functions.iter().find(|f|f.name=="make").unwrap().clone();
+    extra.id=FunctionId(module.functions.len() as u32);
+    extra.name="uncalled_extra_constructor".into();
+    let parameter=LocalId(extra.locals.len() as u32);
+    let ty=module.closures[0].captures[0].clone();
+    extra.locals.push(LocalDecl{id:parameter,name:"actual_parameter".into(),ty,mutable:false,span:extra.span});
+    extra.parameters.push(parameter);
+    for block in &mut extra.blocks {
+        if let Some(index)=block.instructions.iter().position(|i|matches!(i.kind,InstructionKind::ScopeExit{..})) {
+            block.instructions.insert(index,Instruction{result:None,kind:InstructionKind::StorageDead(parameter),span:extra.span});
+        }
+    }
+    module.functions.push(extra);
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).expect("extra real literal constructor must remain valid");
+    let last=module.functions.last_mut().unwrap();
+    let literal=last.blocks.iter_mut().flat_map(|block|&mut block.instructions).find(|i|matches!(i.kind,InstructionKind::StaticUtf8{..})).unwrap();
+    literal.kind=InstructionKind::Load(parameter);
+    for raw in [true,false] {
+        let actual=if raw{module.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&actual,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")),"{errors:?}");
+    }
+}
+
+#[test]
+fn constant_capture_cycles_need_an_actual_literal_constructor_root() {
+    use zil_ir::*;
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil");
+    let mut module=typed(source);
+    let d=module.closures[0].clone();
+    let entry=&mut module.functions[d.function.0 as usize];
+    let local=LocalId(entry.locals.len() as u32);
+    entry.locals.push(LocalDecl{id:local,name:"recursive_environment".into(),ty:Type::Closure(d.id),mutable:false,span:entry.span});
+    let value=ValueId(entry.values.len() as u32);
+    entry.values.push(Type::Closure(d.id));
+    let block=entry.blocks.iter_mut().find(|block|block.instructions.iter().any(|i|matches!(i.kind,InstructionKind::ReadCapture{index:0}))).unwrap();
+    let at=block.instructions.iter().position(|i|matches!(i.kind,InstructionKind::ReadCapture{index:0})).unwrap();
+    let capture=block.instructions[at].result.unwrap();
+    let span=entry.span;
+    let instructions=[
+        Instruction{result:None,kind:InstructionKind::StorageLive(local),span},
+        Instruction{result:Some(value),kind:InstructionKind::MakeClosure{closure:d.id,captures:vec![capture]},span},
+        Instruction{result:None,kind:InstructionKind::Store{local,value},span},
+        Instruction{result:None,kind:InstructionKind::DropClosure{local},span},
+        Instruction{result:None,kind:InstructionKind::StorageDead(local),span},
+    ];
+    block.instructions.splice(at+1..at+1,instructions);
+    let limits=Limits::default();
+    let candidate=zil_analyze::analyze(&module,&limits).expect("a cycle with a genuine literal constructor remains grounded");
+    let factory=module.functions.iter_mut().find(|f|f.name=="make").unwrap();
+    let terminal=BlockId(factory.blocks.len() as u32);
+    factory.blocks.push(BasicBlock{id:terminal,instructions:Vec::new(),terminator:Terminator::Trap});
+    factory.entry=terminal;
+    for raw in [true,false] {
+        let actual=if raw{module.clone()}else{zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&module,&candidate,&limits).unwrap(),&limits).unwrap().0};
+        let errors=zil_analyze::analyze(&actual,&limits).unwrap_err();
+        assert!(errors.iter().any(|error|error.message.contains("constant occurrence retains")||error.message.contains("constructor grounding")),"a pure source cycle is not a StaticUtf8 root: {errors:?}");
+    }
+}

@@ -79,6 +79,7 @@ struct Summary {
     returned: Row,
     captures: Row,
     external: BTreeMap<u32, Row>,
+    constructed: Vec<(ClosureId, u32, Row, bool)>,
 }
 
 fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
@@ -343,6 +344,7 @@ fn solve(
     summaries: &[Summary],
     left: &mut usize,
     limit: usize,
+    collect_static: bool,
 ) -> R<Summary> {
     let span = f.span;
     let captures = f
@@ -1041,6 +1043,33 @@ fn solve(
     }
     let mut summary = Summary::default();
     for (index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
+        if live && collect_static {
+            for instruction in &block.instructions {
+                match &instruction.kind {
+                    InstructionKind::MakeClosure { closure, captures } => {
+                        for (capture, value) in captures.iter().enumerate() {
+                            summary.constructed.push((
+                                *closure,
+                                capture as u32,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                true,
+                            ));
+                        }
+                    }
+                    InstructionKind::WriteCapture { index, value } => {
+                        if let Some(closure) = f.environment {
+                            summary.constructed.push((
+                                closure,
+                                *index,
+                                copy(&values[value.0 as usize], left, instruction.span)?,
+                                false,
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         if live && matches!(block.terminator, Terminator::Return(_)) {
             if let Terminator::Return(Some(value)) = block.terminator {
                 join(&mut summary.returned, &values[value.0 as usize], left, span)?;
@@ -1084,6 +1113,10 @@ fn solve(
 }
 
 pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
+    let local_scopes = local_scopes::populate(module, left, limits, true)?;
+    if local_scopes {
+        helper_classes::populate(module, left, limits)?;
+    }
     // Existing self-contained factories keep their old work profile.
     let mut active = module.functions.iter().any(|f| {
         f.callable_return_contract
@@ -1134,7 +1167,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut changed = false;
         for f in &module.functions {
             if f.foreign.is_none() && relevant[f.id.0 as usize] {
-                let actual = solve(module, f, &summaries, left, limits.max_call_depth)?;
+                let actual = solve(module, f, &summaries, left, limits.max_call_depth, false)?;
                 let summary = &mut summaries[f.id.0 as usize];
                 changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
                 changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
@@ -1269,7 +1302,10 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    populate_static_capture_contracts(module, left, limits)?;
+    populate_static_capture_contracts(module, &summaries, left, limits)?;
+    if local_scopes::populate(module, left, limits, false)? {
+        helper_classes::populate(module, left, limits)?;
+    }
     loop {
         helper_classes::factory_inputs(module, left)?;
         if !populate_creator_fixed(module, left, limits)? {
@@ -1283,6 +1319,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
 
 fn populate_static_capture_contracts(
     module: &mut TypedModule,
+    summaries: &[Summary],
     left: &mut usize,
     limits: &Limits,
 ) -> R<()> {
@@ -1292,9 +1329,17 @@ fn populate_static_capture_contracts(
             continue;
         };
         let definition = &module.closures[returned.closure.0 as usize];
+        let static_result = matches!(&definition.result,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8));
         if definition.storage_life.is_some()
-            || !definition.result.is_copy_value()
-            || definition.parameters.iter().any(|ty| !ty.is_copy_value())
+            || !(static_result
+                || local_scopes::closed(
+                    &definition.result,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )?)
         {
             continue;
         }
@@ -1309,9 +1354,61 @@ fn populate_static_capture_contracts(
             classes: Vec::new(),
         };
         let mut complete = true;
+        for (index, parameter) in definition.parameters.iter().enumerate() {
+            inference::charge_type_snapshot(parameter, factory.span, limits, left, 1)?;
+            if let Type::Address { inner, .. } = parameter {
+                let target = if let Type::Slice { element } = inner.as_ref() {
+                    element.as_ref()
+                } else {
+                    inner.as_ref()
+                };
+                if !local_scopes::closed(
+                    target,
+                    module,
+                    left,
+                    factory.span,
+                    0,
+                    limits.max_call_depth,
+                )? {
+                    complete = false;
+                    break;
+                }
+                let next = contract.invocation_binder_count;
+                contract.invocation_binder_count = next.checked_add(1).ok_or_else(|| {
+                    unsupported(factory.span, "static callable prototype count overflow")
+                })?;
+                contract.bindings.push(StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: Vec::new(),
+                    },
+                    binder: StorageBinder::Invocation(next),
+                });
+            } else if !local_scopes::closed(
+                parameter,
+                module,
+                left,
+                factory.span,
+                0,
+                limits.max_call_depth,
+            )? {
+                complete = false;
+                break;
+            }
+        }
+        if !complete {
+            continue;
+        }
         for (index, capture) in definition.captures.iter().enumerate() {
             inference::charge_type_snapshot(capture, factory.span, limits, left, 1)?;
-            if capture.is_copy_value() {
+            if local_scopes::closed(
+                capture,
+                module,
+                left,
+                factory.span,
+                0,
+                limits.max_call_depth,
+            )? {
                 continue;
             }
             let position = StoragePosition {
@@ -1325,15 +1422,30 @@ fn populate_static_capture_contracts(
             }
             contract.static_bindings.push(position);
         }
-        if complete && !contract.static_bindings.is_empty() {
+        if complete && static_result {
+            let origins = summaries[definition.function.0 as usize]
+                .returned
+                .get(&Vec::new());
+            complete = origins.is_some_and(|origin| {
+                !origin.local
+                    && !origin.unknown
+                    && !origin.receiver
+                    && origin.places.is_empty()
+                    && (origin.static_utf8 || !origin.inputs.is_empty())
+                    && origin
+                        .inputs
+                        .iter()
+                        .all(|source| contract.static_bindings.contains(source))
+            });
+            if complete {
+                contract.static_bindings.push(StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                });
+            }
+        }
+        if complete {
             borrowed_fp::charge_contract(&contract, |work| spend(left, work, factory.span), 2)?;
-            borrowed_fp_qualified::source_capture_relation(
-                &definition.parameters,
-                &definition.captures,
-                &definition.result,
-                &contract,
-                factory.span,
-            )?;
             changes.insert(definition.id, contract);
         }
     }
@@ -1341,6 +1453,31 @@ fn populate_static_capture_contracts(
         let entry = module.closures[id.0 as usize].function;
         module.closures[id.0 as usize].storage_life = Some(contract.clone());
         module.functions[entry.0 as usize].storage_life = Some(contract.clone());
+        if contract
+            .static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result)
+        {
+            let result = &module.closures[id.0 as usize].result;
+            inference::charge_type_snapshot(
+                result,
+                module.functions[entry.0 as usize].span,
+                limits,
+                left,
+                1,
+            )?;
+            module.functions[entry.0 as usize].retained_return_sources =
+                Some(vec![StorageSourceBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                    },
+                    sources: vec![StorageSource::Static {
+                        leaf: result.clone(),
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                }]);
+        }
         for function in &mut module.functions {
             if let Some(callable) = &mut function.callable_contract {
                 for role in &mut callable.roles {
@@ -1835,7 +1972,8 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|lending::transferred_result(&definition.result) && matches!(ty,Type::Address{..}) || matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}) || matches!(ty,Type::Managed(inner) if matches!(inner.as_ref(),Type::Task{retained_life,..} if retained_life.binder_count>0)) || matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+
         { continue; }
             if !(definition.result.is_copy_value()
                 || lending::transferred_result(&definition.result)
@@ -1887,6 +2025,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                     .ok_or_else(|| {
                         unsupported(f.span, "captured child has no standalone class domain")
                     })?,
+
                     _ => 0,
                 };
                 let pointed_classes = match ty {
@@ -1948,6 +2087,9 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                             continue;
                         }
                         for atom in &row.sources {
+                            if matches!(atom, StorageSource::Static { .. }) {
+                                continue;
+                            }
                             let source = crate::exact_storage_source(atom)?;
                             let key = if pointed_classes > 0 && class > 0 {
                                 let StorageBase::Parameter(input) = source.base else {
@@ -2142,4 +2284,275 @@ pub(crate) fn check_contexts(module: &TypedModule, left: &mut usize) -> R<()> {
         }
     }
     Ok(())
+}
+
+type StaticNode = (ClosureId, StoragePosition);
+
+// A complete actual child Closure identity may conditionally refer to its
+// constant field. The all-constructor graph below must discharge that field;
+// an ordinary address parameter never acquires such a dependency by its Type.
+fn static_child_node<'a>(
+    module: &'a TypedModule,
+    mut ty: &'a Type,
+    mut path: &[ContractProjection],
+    left: &mut usize,
+    span: Span,
+    limit: usize,
+) -> R<Option<StaticNode>> {
+    let mut depth = 0usize;
+    loop {
+        spend(left, 1, span)?;
+        if depth > limit {
+            return Err(unsupported(
+                span,
+                "constant child directory exceeds finite depth",
+            ));
+        }
+        depth += 1;
+        if let Type::BorrowedStorage { storage, .. } = ty {
+            ty = storage;
+            continue;
+        }
+        if let Type::Address { inner, .. } = ty {
+            if matches!(inner.as_ref(), Type::Closure(_)) {
+                ty = inner;
+                continue;
+            }
+        }
+        let Some((first, tail)) = path.split_first() else {
+            return Ok(None);
+        };
+        ty = match (ty, first) {
+            (Type::Closure(id), ContractProjection::Capture(index)) => {
+                let d = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| unsupported(span, "constant child identity is absent"))?;
+                let position = StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: tail.to_vec(),
+                };
+                spend(
+                    left,
+                    tail.len().saturating_add(
+                        d.storage_life
+                            .as_ref()
+                            .map_or(0, |c| c.static_bindings.len()),
+                    ),
+                    span,
+                )?;
+                if d.storage_life
+                    .as_ref()
+                    .is_some_and(|c| c.static_bindings.contains(&position))
+                {
+                    return Ok(Some((*id, position)));
+                }
+                let Some(ty) = d.captures.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            (
+                Type::Record { fields, .. } | Type::Package { fields, .. },
+                ContractProjection::Place(PlaceProjection::Field(index)),
+            ) => {
+                let Some((_, ty)) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            (Type::Tuple(fields), ContractProjection::Place(PlaceProjection::Field(index))) => {
+                let Some(ty) = fields.get(*index as usize) else {
+                    return Ok(None);
+                };
+                ty
+            }
+            _ => return Ok(None),
+        };
+        path = tail;
+    }
+}
+
+pub(super) fn prove_static_constructors(
+    module: &TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<BTreeSet<StaticNode>> {
+    spend(left, module.functions.len(), Span::default())?;
+    let mut summaries = (0..module.functions.len())
+        .map(|_| Summary::default())
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for f in &module.functions {
+            if f.foreign.is_some() {
+                continue;
+            }
+            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true)?;
+            let summary = &mut summaries[f.id.0 as usize];
+            changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+            changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+            for (parameter, row) in actual.external {
+                changed |= join(
+                    summary.external.entry(parameter).or_default(),
+                    &row,
+                    left,
+                    f.span,
+                )?;
+            }
+            summary.constructed = actual.constructed;
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut edges: BTreeMap<StaticNode, BTreeSet<StaticNode>> = BTreeMap::new();
+    let mut grounded = BTreeSet::new();
+    let mut constructors = BTreeSet::new();
+    for d in &module.closures {
+        let Some(life) = &d.storage_life else {
+            continue;
+        };
+        let span = module.functions[d.function.0 as usize].span;
+        for position in &life.static_bindings {
+            let StorageBase::Capture(index) = position.base else {
+                continue;
+            };
+            let ty = d
+                .captures
+                .get(index as usize)
+                .ok_or_else(|| unsupported(span, "constant field is absent"))?;
+            static_leaf(module, ty, &position.path, left, span)?;
+            spend(left, position.path.len().saturating_add(1), span)?;
+            edges.insert((d.id, position.clone()), BTreeSet::new());
+        }
+    }
+    for f in &module.functions {
+        for (id, index, row, constructor) in &summaries[f.id.0 as usize].constructed {
+            let d = &module.closures[id.0 as usize];
+            let Some(life) = &d.storage_life else {
+                continue;
+            };
+            for position in &life.static_bindings {
+                if position.base != StorageBase::Capture(*index) {
+                    continue;
+                }
+                cost(row, left, f.span)?;
+                let node = (*id, position.clone());
+                let origins = row.get(&position.path).ok_or_else(|| {
+                    unsupported(
+                        f.span,
+                        "constant constructor omits its complete field source",
+                    )
+                })?;
+                if origins.local
+                    || origins.unknown
+                    || origins.receiver
+                    || !origins.places.is_empty()
+                    || !origins.static_utf8 && origins.inputs.is_empty()
+                {
+                    return Err(error(
+                        "E-CLOSED-ENVIRONMENT",
+                        f.span,
+                        "constant constructor or write retains local, receiver or unknown storage",
+                    ));
+                }
+                if *constructor {
+                    constructors.insert(node.clone());
+                }
+                if origins.static_utf8 {
+                    grounded.insert(node.clone());
+                }
+                for source in &origins.inputs {
+                    spend(left, source.path.len().saturating_add(1), f.span)?;
+                    let dependency = match source.base {
+                        StorageBase::Capture(capture) => {
+                            let owner = f.environment.ok_or_else(|| {
+                                unsupported(f.span, "capture source has no actual environment")
+                            })?;
+                            let at = (owner, source.clone());
+                            if edges.contains_key(&at) {
+                                Some(at)
+                            } else {
+                                let ty = module.closures[owner.0 as usize]
+                                    .captures
+                                    .get(capture as usize)
+                                    .ok_or_else(|| {
+                                        unsupported(
+                                            f.span,
+                                            "constant capture dependency field absent",
+                                        )
+                                    })?;
+                                static_child_node(
+                                    module,
+                                    ty,
+                                    &source.path,
+                                    left,
+                                    f.span,
+                                    limits.max_call_depth,
+                                )?
+                            }
+                        }
+                        StorageBase::Parameter(parameter) => {
+                            let local = f.parameters.get(parameter as usize).ok_or_else(|| {
+                                unsupported(f.span, "constant dependency input absent")
+                            })?;
+                            static_child_node(
+                                module,
+                                &f.locals[local.0 as usize].ty,
+                                &source.path,
+                                left,
+                                f.span,
+                                limits.max_call_depth,
+                            )?
+                        }
+                        _ => None,
+                    }
+                    .ok_or_else(|| {
+                        error(
+                            "E-CLOSED-ENVIRONMENT",
+                            f.span,
+                            "constant field depends on an ordinary input or unproved capture",
+                        )
+                    })?;
+                    if !edges.contains_key(&dependency) {
+                        return Err(unsupported(
+                            f.span,
+                            "constant dependency lacks a complete actual field directory",
+                        ));
+                    }
+                    edges
+                        .get_mut(&node)
+                        .expect("declared constant node")
+                        .insert(dependency);
+                }
+            }
+        }
+    }
+    loop {
+        let mut changed = false;
+        for (node, dependencies) in &edges {
+            spend(left, dependencies.len().saturating_add(1), Span::default())?;
+            if dependencies
+                .iter()
+                .any(|dependency| grounded.contains(dependency))
+            {
+                changed |= grounded.insert(node.clone());
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    if edges
+        .keys()
+        .any(|node| !constructors.contains(node) || !grounded.contains(node))
+    {
+        return Err(error(
+            "E-CLOSED-ENVIRONMENT",
+            Span::default(),
+            "constant environment graph has no actual constructor or StaticUtf8 root",
+        ));
+    }
+    Ok(grounded)
 }
