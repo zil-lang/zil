@@ -2,7 +2,7 @@
 +++ b/llvm/lib/CodeGen/MachineFunctionPass.cpp
 @@ -13,0 +14,5 @@
 +#include "zil_llvm_work_products_hooks.h"
-+#include "llvm/CodeGen/AsmPrinter.h"
++#include "X86AsmPrinter.h"
 +#include "X86MachineFunctionInfo.h"
 +#include "llvm/IR/IntrinsicInst.h"
 +#include "llvm/Target/TargetMachine.h"
@@ -91,7 +91,7 @@
 +}
 +
 +extern "C" LLVM_ABI const void *ZilLLVMAsmPrinterPassID() {
-+  return llvm::AsmPrinter::zilProductPassID();
++  return &llvm::X86AsmPrinter::ID;
 +}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
@@ -209,8 +209,3 @@
 +        static_cast<const AnalysisKey *>(ID)), IR, ExtraArgs...);
 +  }
 +
---- a/llvm/include/llvm/CodeGen/AsmPrinter.h
-+++ b/llvm/include/llvm/CodeGen/AsmPrinter.h
-@@ -92,0 +93,2 @@
-+  // Fixed-adapter pass identity, without RTTI, name guessing or layout changes.
-+  static const void *zilProductPassID() { return &ID; }
