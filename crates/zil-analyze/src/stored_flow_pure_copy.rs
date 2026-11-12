@@ -528,7 +528,7 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 
-// Only the Copy error arm of an ordinary owned union is a new producer.
+// A selected Copy arm of an ordinary owned union is a new producer.
 // Its current tag and initialized/complete subtree are checked by Sum flow.
 pub(super) fn ordinary_error_borrow(
     f: &TypedFunction,
@@ -543,9 +543,9 @@ pub(super) fn ordinary_error_borrow(
     else {
         return Ok(false);
     };
-    if !matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
+    let [PlaceProjection::ErrorArm(is_error)] = path.as_slice() else {
         return Ok(false);
-    }
+    };
     let parent = &f
         .locals
         .get(local.0 as usize)
@@ -554,17 +554,22 @@ pub(super) fn ordinary_error_borrow(
     let Type::ErrorUnion { error, result } = parent else {
         return Ok(false);
     };
-    if !matches!(result.as_ref(), Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    let (selected, companion) = if *is_error {
+        (error.as_ref(), result.as_ref())
+    } else {
+        (result.as_ref(), error.as_ref())
+    };
+    if !matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
         return Ok(false);
     }
-    b.type_work(error, true, "ordinary Copy error borrow")?;
-    if !error.is_copy_value() {
+    b.type_work(selected, true, "ordinary Copy selected arm borrow")?;
+    if !selected.is_copy_value() {
         return Ok(false);
     }
-    if !pure(error, b, 0)? {
+    if !pure(selected, b, 0)? {
         return Ok(false);
     }
-    if !matches!(value_type(f, i.result.ok_or_else(|| failure("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == error.as_ref())
+    if !matches!(value_type(f, i.result.ok_or_else(|| failure("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == selected)
     {
         return Err(failure(
             "ordinary error borrow result differs from its complete actual arm",

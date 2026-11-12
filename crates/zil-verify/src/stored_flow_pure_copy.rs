@@ -500,7 +500,7 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
     Ok(true)
 }
 
-// Only the Copy error arm of an ordinary owned union is a new producer.
+// An actual selected Copy arm of an ordinary owned union is a new producer.
 // Its current tag and initialized/complete subtree are checked by Sum flow.
 pub(super) fn ordinary_error_borrow(
     f: &TypedFunction,
@@ -515,9 +515,10 @@ pub(super) fn ordinary_error_borrow(
     else {
         return Ok(false);
     };
-    if !matches!(path.as_slice(), [PlaceProjection::ErrorArm(true)]) {
-        return Ok(false);
-    }
+    let selected_error = match path.as_slice() {
+        [PlaceProjection::ErrorArm(error)] => *error,
+        _ => return Ok(false),
+    };
     let parent = &f
         .locals
         .get(local.0 as usize)
@@ -526,15 +527,25 @@ pub(super) fn ordinary_error_borrow(
     let Type::ErrorUnion { error, result } = parent else {
         return Ok(false);
     };
-    if !matches!(result.as_ref(), Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    let selected = if selected_error {
+        error.as_ref()
+    } else {
+        result.as_ref()
+    };
+    let other = if selected_error {
+        result.as_ref()
+    } else {
+        error.as_ref()
+    };
+    if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
         return Ok(false);
     }
-    resources::charge_payload(error, b)?;
-    if !error.is_copy_value() {
+    resources::charge_payload(selected, b)?;
+    if !selected.is_copy_value() {
         return Ok(false);
     }
-    ordinary(error, b, 0)?;
-    if !matches!(vt(f, i.result.ok_or_else(|| err("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == error.as_ref())
+    ordinary(selected, b, 0)?;
+    if !matches!(vt(f, i.result.ok_or_else(|| err("ordinary error borrow lacks result"))?)?, Type::Address { mutable: false, inner } if inner.as_ref() == selected)
     {
         return Err(err(
             "ordinary error borrow result differs from its complete actual arm",
