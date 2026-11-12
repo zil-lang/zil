@@ -13,6 +13,7 @@ mod lifetimes;
 mod record_enums;
 pub use generated_spans::{remap_generated_spans, remap_generated_spans_metered};
 mod incremental;
+mod item_lowering;
 mod mapping;
 pub use incremental::{
     ExpandSession, ExpandedProgram, ExpansionEpoch, FunctionChangeBatch, FunctionInputChange,
@@ -336,6 +337,10 @@ pub struct ExpandedModule {
     lowering_demand: LoweringDemand,
     source_map_work: Option<usize>,
     function_lower_bindings: std::sync::Arc<BTreeMap<NodeId, FunctionLowerBinding>>,
+    item_lower_receipts: std::sync::Arc<BTreeMap<usize, item_lowering::ItemLowerReceipt>>,
+    reused_lower_items: usize,
+    executed_lower_items: usize,
+    copied_lower_map_entries: usize,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -829,7 +834,13 @@ fn expand_program_impl<S: std::borrow::Borrow<zil_base::SourceUnit>>(
                     &products.method_providers,
                 ),
                 (&remaining, &remaining),
-                (Some(&defaults), reuse.is_some()),
+                (
+                    Some(&defaults),
+                    reuse.is_some(),
+                    reuse
+                        .as_deref()
+                        .and_then(|reuse| reuse.item_lower_plan(module.span.file)),
+                ),
             );
             if let Some(reuse) = reuse.as_deref_mut() {
                 reuse.production(clock);
@@ -1053,7 +1064,7 @@ fn expand_inner(
             method_providers,
         ),
         (lowering_limits, owner_limits),
-        (None, false),
+        (None, false, None),
     )
 }
 
@@ -1089,9 +1100,13 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     sources: &[S],
     project: ProjectLowering<'_>,
     budgets: (&Limits, &Limits),
-    options: (Option<&ProjectDefaults>, bool),
+    options: (
+        Option<&ProjectDefaults>,
+        bool,
+        Option<item_lowering::ItemLowerPlan>,
+    ),
 ) -> CompileResult<ExpandedModule> {
-    let (project_defaults, capture_lower_bindings) = options;
+    let (project_defaults, capture_lower_bindings, item_plan) = options;
     let (limits, owner_limits) = budgets;
     let (
         declarations,
@@ -1112,6 +1127,10 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         declarations,
     );
     e.capture_lower_bindings = capture_lower_bindings;
+    if let Some(plan) = &item_plan {
+        e.functions = plan.old.core.functions.clone();
+        e.function_cursor = Some(0);
+    }
     // Preserve the legacy single-module lowering allowance while binding the
     // newly introduced owner work to the caller's actual remaining budget.
     e.member_owner_limit = owner_limits.max_analysis_steps;
@@ -1152,10 +1171,25 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
     }
     for (ordinal, item) in module.items.iter().enumerate() {
         e.source_item_ordinal = ordinal;
-        e.item(item, None, None, None);
+        e.lower_item(source, ordinal, item, item_plan.as_ref());
     }
     if !e.diagnostics.is_empty() {
         return Err(e.diagnostics);
+    }
+    if e.function_cursor
+        .is_some_and(|cursor| cursor != e.functions.len())
+    {
+        // No partial installed output can escape if a future producer changes
+        // the declaration inventory without extending the item proof.
+        return expand_inner_project(
+            source,
+            module,
+            imports_resolved,
+            sources,
+            project,
+            budgets,
+            (project_defaults, capture_lower_bindings, None),
+        );
     }
     e.source_map
         .validate_iter(sources.iter().map(|source| source.borrow()), limits)?;
@@ -1181,7 +1215,7 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         schema_version: SCHEMA_VERSION,
         module_id: module.id,
         source_fingerprint: source.fingerprint(),
-        functions: e.functions.into(),
+        functions: e.functions,
         aggregates: e.aggregates,
         enums: e.enums,
         unsupported: e.unsupported,
@@ -1203,6 +1237,10 @@ fn expand_inner_project<S: std::borrow::Borrow<zil_base::SourceUnit>>(
         lowering_demand,
         source_map_work: None,
         function_lower_bindings: std::sync::Arc::new(e.function_lower_bindings),
+        item_lower_receipts: std::sync::Arc::new(e.item_lower_receipts),
+        reused_lower_items: e.reused_lower_items,
+        executed_lower_items: e.executed_lower_items,
+        copied_lower_map_entries: e.copied_lower_map_entries,
     })
 }
 struct Expander<'a> {
@@ -1225,7 +1263,12 @@ struct Expander<'a> {
     unsupported: Vec<UnsupportedFeature>,
     diagnostics: Vec<Diagnostic>,
     diagnosed_attributes: BTreeSet<Span>,
-    functions: Vec<CoreFunction>,
+    functions: zil_ir::PersistentVec<CoreFunction>,
+    function_cursor: Option<usize>,
+    item_lower_receipts: BTreeMap<usize, item_lowering::ItemLowerReceipt>,
+    reused_lower_items: usize,
+    executed_lower_items: usize,
+    copied_lower_map_entries: usize,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
     enum_sources: &'a [&'a s::Module],
@@ -1285,7 +1328,12 @@ impl<'a> Expander<'a> {
             unsupported: Vec::new(),
             diagnostics: Vec::new(),
             diagnosed_attributes: BTreeSet::new(),
-            functions: Vec::new(),
+            functions: zil_ir::PersistentVec::new(),
+            function_cursor: None,
+            item_lower_receipts: BTreeMap::new(),
+            reused_lower_items: 0,
+            executed_lower_items: 0,
+            copied_lower_map_entries: 0,
             aggregates: Vec::new(),
             enums: Vec::new(),
             enum_sources: &[],

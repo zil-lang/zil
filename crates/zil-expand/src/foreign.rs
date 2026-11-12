@@ -73,7 +73,7 @@ impl Expander<'_> {
             .return_type
             .as_ref()
             .map_or(Type::Unit, |t| self.type_ref(t));
-        self.functions.push(CoreFunction {
+        self.push_function(CoreFunction {
             storage_life: None,
             call_kind: Some(CallKind::Direct),
             life: None,

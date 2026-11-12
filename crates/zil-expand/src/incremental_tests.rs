@@ -1151,3 +1151,61 @@ fn private_body_projection_keeps_current_raw_node_and_temporary_bindings() {
             .any(|c| current.changed_function(c).unwrap().1.name == "third")
     );
 }
+
+#[test]
+fn item_lowering_replaces_actual_core_leaf_and_replays_current_source_map() {
+    let limits = Limits::default();
+    let text = "fn first(x:i32)->i32 {let a=x+1;return a+2;} fn second(x:i32)->i32 {let b=x+3;return b+4;} fn third(x:i32)->i32 {let c=x+5;return c+6;}";
+    let mut session = ExpandSession::default();
+    let cold = checked(&mut session, &[parsed(0, text)], &limits);
+    assert_eq!(session.last_stats().executed_lower_items, 3);
+    let input = [parsed(0, &text.replacen("x+1", "x+7", 1))];
+    let changed = checked(&mut session, &input, &limits);
+    assert_eq!(session.last_stats().reused_lower_items, 2);
+    assert_eq!(session.last_stats().executed_lower_items, 1);
+    assert!(session.last_stats().copied_lower_map_entries > 0);
+    let old_functions = &cold.modules[0].0.core.functions;
+    let current_functions = &changed.modules[0].0.core.functions;
+    assert_eq!(current_functions.changed_indices(old_functions), [0]);
+    for index in [1, 2] {
+        assert!(Arc::ptr_eq(
+            old_functions.owner(index).unwrap(),
+            current_functions.owner(index).unwrap()
+        ));
+    }
+    // A raw transformation of the current result cannot change the old owner.
+    let mut raw = changed.modules[0].0.core.clone();
+    Arc::make_mut(&mut raw).functions[1].name = "mutated".into();
+    assert_eq!(cold.modules[0].0.core.functions[1].name, "second");
+    assert_eq!(changed.modules[0].0.core.functions[1].name, "second");
+    let moved = [parsed(
+        0,
+        &input[0].source().text.replacen("x+7", "x+777", 1),
+    )];
+    let moved = checked(&mut session, &moved, &limits);
+    assert_eq!(
+        session.last_stats().reused_lower_items,
+        0,
+        "absolute Core/source-map positions stay current"
+    );
+    assert_eq!(session.last_stats().executed_lower_items, 3);
+    assert_eq!(
+        moved.modules[0]
+            .0
+            .core
+            .functions
+            .changed_indices(current_functions),
+        [0, 1, 2]
+    );
+    let inserted = [parsed(
+        0,
+        &text.replacen("let a=x+1;", "let extra=x+9;let a=x+1;", 1),
+    )];
+    checked(&mut session, &inserted, &limits);
+    assert_eq!(
+        session.last_stats().reused_lower_items,
+        0,
+        "changed NodeId/map-base requires real current lowering"
+    );
+    assert_eq!(session.last_stats().executed_lower_items, 3);
+}

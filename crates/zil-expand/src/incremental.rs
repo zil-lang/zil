@@ -228,6 +228,9 @@ statistics!(
     restore_modules,
     lower_modules,
     reused_lower_modules,
+    reused_lower_items,
+    executed_lower_items,
+    copied_lower_map_entries,
     receipt_hits,
     receipt_nodes,
     receipt_budget_misses,
@@ -693,6 +696,11 @@ impl ExpandSession {
             .map(|p| (p.source().file_id, p.source().module_id))
             .collect();
         let mut reuse = Reuse {
+            prior_entries: &self.entries,
+            item_reuse: self
+                .environment
+                .as_ref()
+                .is_some_and(|old| old.function_inputs_compatible(&environment)),
             entries: &mut entries,
             files,
             stats: &mut self.stats,
@@ -761,7 +769,9 @@ impl ExpandSession {
                 let same_body = declaration.and_then(|previous| {
                     let old = self.entries.get(&source.module_id)?;
                     let old_source = old.parsed.source();
-                    if old_source.file_id != source.file_id {
+                    if !old.parsed.same_parse_configuration(&entry.parsed)
+                        || old_source.file_id != source.file_id
+                    {
                         return None;
                     }
                     let old_text = old_source
@@ -900,6 +910,8 @@ fn header(function: &s::Function) -> s::Function {
     }
 }
 pub(crate) struct Reuse<'a> {
+    prior_entries: &'a BTreeMap<ModuleId, Entry>,
+    item_reuse: bool,
     entries: &'a mut BTreeMap<ModuleId, Entry>,
     files: BTreeMap<FileId, ModuleId>,
     stats: &'a mut ProducerStats,
@@ -910,6 +922,21 @@ fn nanos(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl Reuse<'_> {
+    pub(super) fn item_lower_plan(&self, file: FileId) -> Option<item_lowering::ItemLowerPlan> {
+        if !self.item_reuse {
+            return None;
+        }
+        let module = self.files.get(&file)?;
+        let old = self.prior_entries.get(module)?;
+        let current = self.entries.get(module)?;
+        if !old.parsed.same_parse_configuration(&current.parsed) {
+            return None;
+        }
+        Some(item_lowering::ItemLowerPlan {
+            old: old.lower.as_ref()?.1.clone(),
+            source: old.parsed.clone(),
+        })
+    }
     pub(crate) fn clock(&self) -> Option<Instant> {
         self.profiling.then(Instant::now)
     }
@@ -1092,6 +1119,9 @@ impl Reuse<'_> {
         let clock = self.clock();
         let value = Arc::new(expanded.clone());
         self.assembly(clock);
+        self.stats.reused_lower_items += value.reused_lower_items as u64;
+        self.stats.executed_lower_items += value.executed_lower_items as u64;
+        self.stats.copied_lower_map_entries += value.copied_lower_map_entries as u64;
         let entry = self.entry(file);
         entry.lower = Some((limits.clone(), value));
         entry.revision = ModuleRevision(Arc::new(()));
