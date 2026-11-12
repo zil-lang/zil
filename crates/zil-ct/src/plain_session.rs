@@ -128,8 +128,22 @@ impl PlainSourceSession {
         limits: &Limits,
         context: &SourceProgramContext<'_>,
     ) -> Option<Vec<SourceEvaluationUsage>> {
+        self.validate_program_with_allowance(program, target, limits, limits, context)
+    }
+    /// Bind the complete user contract separately from node/CT allowances
+    /// already consumed by the driver's current selection/expansion prefix.
+    /// Every current header, shape/body fee and ordered project charge still
+    /// uses `allowance`; this never replenishes either ledger.
+    pub fn validate_program_with_allowance(
+        &mut self,
+        program: &CoreProgram,
+        target: &TargetProfile,
+        user_limits: &Limits,
+        allowance: &Limits,
+        context: &SourceProgramContext<'_>,
+    ) -> Option<Vec<SourceEvaluationUsage>> {
         self.stats = PlainSourceStats::default();
-        let result = self.try_program(program, target, limits, context);
+        let result = self.try_program(program, target, user_limits, allowance, context);
         if result.is_none() {
             self.stats.fallbacks += 1;
         }
@@ -139,17 +153,26 @@ impl PlainSourceSession {
         &mut self,
         program: &CoreProgram,
         target: &TargetProfile,
+        user_limits: &Limits,
         limits: &Limits,
         context: &SourceProgramContext<'_>,
     ) -> Option<Vec<SourceEvaluationUsage>> {
         // This is the live, private index just built from this exact program,
         // not a hash, old context, public dirty list or independent capability.
-        if !std::ptr::eq(context.program, program) || context.limits != *limits {
+        let mut expected = user_limits.clone();
+        expected.max_nodes = limits.max_nodes;
+        expected.max_ct_steps = limits.max_ct_steps;
+        if limits.max_nodes > user_limits.max_nodes
+            || limits.max_ct_steps > user_limits.max_ct_steps
+            || expected != *limits
+            || !std::ptr::eq(context.program, program)
+            || context.limits != *limits
+        {
             return None;
         }
         let old = self.current.as_ref().filter(|old| {
             old.target == *target
-                && old.limits == *limits
+                && old.limits == *user_limits
                 && same_plain_hint_environment(&old.program, program)
         });
         self.stats.context_reuses = usize::from(old.is_some());
@@ -192,7 +215,7 @@ impl PlainSourceSession {
         self.current = Some(Arc::new(Epoch {
             program: program.clone(),
             target: target.clone(),
-            limits: limits.clone(),
+            limits: user_limits.clone(),
             modules,
         }));
         Some(usages)

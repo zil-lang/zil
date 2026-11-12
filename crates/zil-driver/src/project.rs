@@ -1306,9 +1306,10 @@ impl CompilationSession {
                 }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let plain_result = if options.push_reuse {
-                    let result = plain_source.validate_program(
+                    let result = plain_source.validate_program_with_allowance(
                         inferred,
                         &options.target,
+                        &options.limits,
                         &remaining,
                         &context,
                     );

@@ -518,3 +518,84 @@ fn renumbering_does_not_hide_changed_foreign_or_real_hint_headers() {
     assert_eq!(session.stats.context_reuses, 0);
     assert_eq!(session.stats.body_reuses, 0);
 }
+
+#[test]
+fn current_prefix_allowances_replay_fees_without_changing_the_user_contract() {
+    fn with_allowance(
+        session: &mut PlainSourceSession,
+        program: &CoreProgram,
+        target: &TargetProfile,
+        user: &Limits,
+        allowance: &Limits,
+    ) -> CompileResult<(CoreProgram, Vec<SourceEvaluationUsage>)> {
+        let context = SourceProgramContext::new(program, allowance)?;
+        if let Some(usages) =
+            session.validate_program_with_allowance(program, target, user, allowance, &context)
+        {
+            return Ok((program.clone(), usages));
+        }
+        fresh(program, target, allowance)
+    }
+    let program = program();
+    let user = Limits::default();
+    let target = TargetProfile::default();
+    let mut session = PlainSourceSession::default();
+    checked(&mut session, &program, &target, &user);
+    let mut current = user.clone();
+    current.max_nodes -= 5;
+    current.max_ct_steps = 0;
+    assert_eq!(
+        with_allowance(&mut session, &program, &target, &user, &current),
+        fresh(&program, &target, &current)
+    );
+    assert_eq!(session.stats.context_reuses, 1);
+    assert_eq!(session.stats.body_checks, 0);
+    assert_eq!(session.stats.body_reuses, 3);
+    assert_eq!(session.stats.declaration_modules, 1);
+
+    // Exercise the actual node boundary from both sides with a retained epoch:
+    // insufficiency must run the original path and preserve its exact error.
+    let mut saw_body_fallback = false;
+    let mut saw_successful_reuse = false;
+    for nodes in 0..200 {
+        current.max_nodes = nodes;
+        let context_exists = SourceProgramContext::new(&program, &current).is_ok();
+        let expected = fresh(&program, &target, &current);
+        let actual = with_allowance(&mut session, &program, &target, &user, &current);
+        assert_eq!(actual, expected, "current node allowance {nodes}");
+        saw_body_fallback |= context_exists && actual.is_err() && session.stats.fallbacks == 1;
+        saw_successful_reuse |= actual.is_ok() && session.stats.body_reuses == 3;
+    }
+    assert!(saw_body_fallback && saw_successful_reuse);
+
+    let wrong_context = SourceProgramContext::new(&program, &user).unwrap();
+    assert!(
+        session
+            .validate_program_with_allowance(&program, &target, &user, &current, &wrong_context)
+            .is_none()
+    );
+    let mut unsupported = user.clone();
+    unsupported.max_analysis_steps -= 1;
+    let context = SourceProgramContext::new(&program, &unsupported).unwrap();
+    assert!(
+        session
+            .validate_program_with_allowance(&program, &target, &user, &unsupported, &context)
+            .is_none()
+    );
+    let mut excessive = user.clone();
+    excessive.max_nodes += 1;
+    let context = SourceProgramContext::new(&program, &excessive).unwrap();
+    assert!(
+        session
+            .validate_program_with_allowance(&program, &target, &user, &excessive, &context)
+            .is_none()
+    );
+    let mut changed_user = user.clone();
+    changed_user.max_nodes -= 1;
+    assert_eq!(
+        with_allowance(&mut session, &program, &target, &changed_user, &current),
+        fresh(&program, &target, &current)
+    );
+    assert_eq!(session.stats.context_reuses, 0);
+    assert_eq!(session.stats.body_checks, 3);
+}
