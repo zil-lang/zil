@@ -15,7 +15,9 @@ mod dynamic;
 mod dynamic_fingerprint;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
+mod persistent_vec;
 mod program;
+pub use persistent_vec::{PersistentItem, PersistentVec};
 mod shared_vec;
 pub use shared_vec::SharedVec;
 pub mod wire;
@@ -1583,7 +1585,7 @@ pub struct TypedModule {
     pub module_id: ModuleId,
     pub source_fingerprint: Fingerprint,
     pub target: TargetProfile,
-    pub functions: Vec<TypedFunction>,
+    pub functions: PersistentVec<TypedFunction>,
     pub closures: Vec<ClosureDefinition>,
     pub resources: Vec<ResourceDefinition>,
     pub unsupported: Vec<UnsupportedFeature>,
@@ -2508,7 +2510,7 @@ pub struct CandidatePlan {
     pub schema_version: u32,
     pub module_fingerprint: Fingerprint,
     pub target_fingerprint: Fingerprint,
-    pub functions: Vec<FunctionPlan>,
+    pub functions: PersistentVec<FunctionPlan>,
     pub origins: Vec<OriginClaim>,
     pub responsibilities: Vec<ResponsibilityClaim>,
     pub unsupported: Vec<UnsupportedFeature>,
@@ -2578,7 +2580,7 @@ pub struct LirModule {
     pub module_id: ModuleId,
     pub verified_fingerprint: Fingerprint,
     pub target: TargetProfile,
-    pub functions: Vec<TypedFunction>,
+    pub functions: PersistentVec<TypedFunction>,
     pub closures: Vec<ClosureDefinition>,
     pub resources: Vec<ResourceDefinition>,
     pub layouts: Vec<ScalarLayout>,
@@ -2592,7 +2594,7 @@ pub struct LirView<'a> {
     pub module_id: ModuleId,
     pub verified_fingerprint: Fingerprint,
     pub target: &'a TargetProfile,
-    pub functions: &'a [TypedFunction],
+    pub functions: &'a PersistentVec<TypedFunction>,
     pub closures: &'a [ClosureDefinition],
     pub resources: &'a [ResourceDefinition],
     pub layouts: std::borrow::Cow<'a, [ScalarLayout]>,
@@ -2618,7 +2620,7 @@ impl LirView<'_> {
             module_id: self.module_id,
             verified_fingerprint: self.verified_fingerprint,
             target: self.target.clone(),
-            functions: self.functions.to_vec(),
+            functions: self.functions.clone(),
             closures: self.closures.to_vec(),
             resources: self.resources.to_vec(),
             layouts: self.layouts.to_vec(),
@@ -2707,7 +2709,24 @@ pub enum CtInstructionKind {
     Forbidden(String),
 }
 
+impl PersistentItem for TypedFunction {
+    fn persistent_fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPED-FUNCTION-STRUCTURAL-V1\0");
+        encode_function(&mut bytes, self);
+        bytes.finish()
+    }
+}
 impl TypedModule {
+    /// Versioned product identity. Unlike the legacy Wire digest, function
+    /// encodings and subtree hashes are retained across immutable snapshots.
+    /// All non-function inputs are encoded in full; this grants no authority.
+    pub fn structural_fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPED-MODULE-STRUCTURAL-V1\0");
+        encode_module_with_functions(&mut bytes, self, true);
+        bytes.finish()
+    }
     pub fn fingerprint(&self) -> Fingerprint {
         // Versioned, length-delimited encoding is implemented below. This must
         // not depend on Debug formatting or process-randomized hashing.
@@ -2722,7 +2741,7 @@ impl CandidatePlan {
             schema_version: SCHEMA_VERSION,
             module_fingerprint: module.fingerprint(),
             target_fingerprint: module.target.fingerprint(),
-            functions: Vec::new(),
+            functions: PersistentVec::new(),
             origins: Vec::new(),
             responsibilities: Vec::new(),
             unsupported: Vec::new(),
@@ -2789,6 +2808,13 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
+    encode_module_with_functions(bytes, module, false);
+}
+fn encode_module_with_functions(
+    bytes: &mut impl FingerprintSink,
+    module: &TypedModule,
+    structural: bool,
+) {
     bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V46\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
@@ -2809,8 +2835,12 @@ fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
     }
 
     encode_len(bytes, module.functions.len());
-    for f in &module.functions {
-        encode_function(bytes, f);
+    if structural {
+        bytes.extend_from_slice(&module.functions.structural_fingerprint().0);
+    } else {
+        for f in &module.functions {
+            encode_function(bytes, f);
+        }
     }
     encode_len(bytes, module.closures.len());
     for closure in &module.closures {
