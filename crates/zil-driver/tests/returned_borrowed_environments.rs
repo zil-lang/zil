@@ -821,10 +821,10 @@ fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target(
             .unwrap();
         assert_eq!(
             holder.sources,
-            vec![zil_ir::StoragePosition {
+            vec![zil_ir::StorageSource::Exact(zil_ir::StoragePosition {
                 base: zil_ir::StorageBase::Parameter(0),
                 path: vec![zil_ir::ContractProjection::Capture(1)]
-            }],
+            })],
             "{}",
             function.name
         );
