@@ -2169,11 +2169,6 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if byte_signature {
         b.spend(parameters.len())?;
     }
-    let check = if byte_signature {
-        super::signature_life::function_relation_byte_inputs
-    } else {
-        super::signature_life::function_relation
-    };
     // Actual Capture sources prove targets separately. If a factory publishes
     // output class rows, authenticate its complete Fixed class relation as well:
     // the result can only refer to classes already supplied by actual inputs.
@@ -2188,13 +2183,15 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
-    check(
+    super::signature_life::function_relation_resource_scopes(
         module,
         &parameters,
         result,
         c,
         Some(f.span),
         f.callable_contract.is_some() || factory,
+        byte_signature,
+        b,
     )?;
     Ok(())
 }

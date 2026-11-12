@@ -183,7 +183,18 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, false, None, None, false, None)
+    relation_inner(
+        parameters,
+        result,
+        c,
+        span,
+        false,
+        None,
+        None,
+        false,
+        None,
+        &[],
+    )
 }
 pub(super) fn function_relation(
     module: &TypedModule,
@@ -193,7 +204,16 @@ pub(super) fn function_relation(
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
-    function_relation_inner(module, parameters, result, c, span, allow_callback, false)
+    function_relation_inner(
+        module,
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        false,
+        &[],
+    )
 }
 pub(super) fn function_relation_byte_inputs(
     module: &TypedModule,
@@ -203,8 +223,98 @@ pub(super) fn function_relation_byte_inputs(
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
-    function_relation_inner(module, parameters, result, c, span, allow_callback, true)
+    function_relation_inner(
+        module,
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        true,
+        &[],
+    )
 }
+struct ZeroResourceRoot<'a> {
+    base: StorageBase,
+    whole_type: &'a Type,
+}
+
+/// Scheduling of an exact zero free-domain resource occurrence uses Verify's
+/// own actual definition inventory. No target or ownership follows from it.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_resource_scopes(
+    module: &TypedModule,
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    allow_byte_input: bool,
+    b: &mut Budget,
+) -> Check<()> {
+    let mut roots = Vec::new();
+    for (ordinal, ty) in parameters.iter().chain(std::iter::once(result)).enumerate() {
+        let base = if ordinal == parameters.len() {
+            StorageBase::Result
+        } else {
+            StorageBase::Parameter(
+                u32::try_from(ordinal)
+                    .map_err(|_| limit("resource occurrence ordinal overflow"))?,
+            )
+        };
+        let head = match ty {
+            Type::Address { inner, .. } => inner.as_ref(),
+            other => other,
+        };
+        let payload = match head {
+            Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+            other => other,
+        };
+        match payload {
+            Type::Registration { .. } | Type::AsyncRegistration { .. } => {
+                if b.task_input_scopes.is_none() {
+                    b.task_input_scopes = Some(crate::tasks::input_scope::build(
+                        module,
+                        &b.limits.clone(),
+                        b,
+                    )?);
+                }
+            }
+            Type::Task { retained_life, .. } if retained_life.binder_count == 0 => {
+                crate::tasks::require_closed_context(payload, span)?
+            }
+            _ => continue,
+        }
+        if crate::tasks::input_scope::domain(payload, b)?
+            != crate::tasks::input_scope::Domain::Known(0)
+        {
+            continue;
+        }
+        crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        roots.push(ZeroResourceRoot {
+            base,
+            whole_type: ty,
+        });
+    }
+    if !roots.is_empty() && !c.static_bindings.is_empty() {
+        return Err(reject(
+            "E-VERIFY-SIGNATURE-CLASS",
+            span,
+            "resource scope needs its complete static occurrence consumer",
+        ));
+    }
+    function_relation_inner(
+        module,
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        allow_byte_input,
+        &roots,
+    )
+}
+#[allow(clippy::too_many_arguments)]
 fn function_relation_inner(
     module: &TypedModule,
     parameters: &[Type],
@@ -213,6 +323,7 @@ fn function_relation_inner(
     span: Option<Span>,
     allow_callback: bool,
     allow_byte_input: bool,
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> Check<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -300,6 +411,7 @@ fn function_relation_inner(
         Some(module),
         allow_byte_input,
         None,
+        zero_resources,
     )
 }
 pub(super) fn closure_relation(
@@ -321,6 +433,7 @@ pub(super) fn closure_relation(
         Some(module),
         false,
         Some(kind),
+        &[],
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -334,6 +447,7 @@ fn relation_inner(
     module: Option<&TypedModule>,
     allow_byte_input: bool,
     closure_kind: Option<CallableKind>,
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -342,7 +456,7 @@ fn relation_inner(
             "incomplete, noncanonical or ungrounded signature class relation",
         )
     };
-    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
+    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 && zero_resources.is_empty() {
         return Err(invalid());
     }
     let rows = c
@@ -450,6 +564,12 @@ fn relation_inner(
             }
             _ => (ty, false),
         };
+        if zero_resources
+            .iter()
+            .any(|root| root.base == base && root.whole_type == ty)
+        {
+            continue;
+        }
         if super::stored_flow::shared_array_value(actual) {
             if capture {
                 return Err(invalid());

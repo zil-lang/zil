@@ -514,7 +514,9 @@ fn set_package_birth(
     Ok(())
 }
 fn borrow_only_failure_view(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
-    if !budget.task_failure_carriers {
+    if !budget.task_failure_carriers
+        || !matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Tuple(_)))
+    {
         return Ok(false);
     }
     budget.type_work(ty, false, "qualified failure borrow-only payload inventory")?;

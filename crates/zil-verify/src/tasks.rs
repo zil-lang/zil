@@ -443,7 +443,7 @@ pub(super) fn borrowed_signature(
         )?;
         return Ok(true);
     }
-    super::signature_life::function_relation(
+    super::signature_life::function_relation_resource_scopes(
         module,
         &parameters,
         &f.return_type,
@@ -452,6 +452,8 @@ pub(super) fn borrowed_signature(
         f.callable_return_contract
             .as_ref()
             .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
+        false,
+        budget,
     )?;
     Ok(true)
 }

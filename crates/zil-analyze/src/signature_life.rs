@@ -425,6 +425,16 @@ pub(super) fn function_relation_resource_scopes(
             "opaque resource header requires its complete static occurrence consumer",
         ));
     }
+    if roots.is_empty() {
+        return function_relation_in_module(
+            parameters,
+            result,
+            c,
+            allow_callback,
+            module,
+            allow_byte_input,
+        );
+    }
     function_relation_scopes_inner(
         parameters,
         result,
