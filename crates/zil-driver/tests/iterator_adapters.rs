@@ -109,7 +109,7 @@ fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
         zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits)
     {
         let directory = std::path::Path::new("../../out/runs/iterator-verifier-counterexample")
-            .join(typed.source_fingerprint.hex());
+            .join(typed.source_fingerprint.to_hex());
         std::fs::create_dir_all(&directory).unwrap();
         std::fs::write(directory.join("source.zil"), source).unwrap();
         std::fs::write(directory.join("typed.txt"), format!("{typed:#?}")).unwrap();
