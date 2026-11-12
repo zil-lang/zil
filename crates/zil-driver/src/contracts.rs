@@ -137,12 +137,24 @@ fn source_position_json(position: &zil_ir::StoragePosition) -> String {
     format!("{{\"base\":{base},\"path\":[{path}]}}")
 }
 
+fn source_atom_json(source: &zil_ir::StorageSource) -> String {
+    use zil_ir::StorageSource;
+    let quoted = |value: &dyn std::fmt::Debug| super::json_string(&format!("{value:?}"));
+    match source {
+        StorageSource::Exact(position) => format!("{{\"exact\":{}}}", source_position_json(position)),
+        StorageSource::PlaceAddress {place,mode} => format!("{{\"place_address\":{},\"mode\":{}}}",source_position_json(place),quoted(mode)),
+        StorageSource::OwnedView {head,leaf,mode} => format!("{{\"owned_view\":{{\"head\":{},\"leaf\":{},\"mode\":{}}}}}",source_position_json(head),quoted(leaf),quoted(mode)),
+        StorageSource::ReborrowedLeaf {source,head} => format!("{{\"reborrowed_leaf\":{{\"source\":{},\"head\":{}}}}}",source_position_json(source),source_position_json(head)),
+        StorageSource::Static {leaf,mode} => format!("{{\"static\":{{\"leaf\":{},\"mode\":{}}}}}",quoted(leaf),quoted(mode)),
+    }
+}
+
 pub(super) fn callable_return_json(interface: &ScalarInterface) -> String {
     use super::json_string;
     interface.callable_returns.as_ref().map_or_else(|| "null".into(), |contracts| {
         format!("[{}]", contracts.iter().map(|entry| {
             let c = &entry.contract;
-            let sources=c.capture_sources.as_ref().map_or_else(||"null".into(),|rows|format!("[{}]",rows.iter().map(|row|format!("{{\"position\":{},\"sources\":[{}]}}",source_position_json(&row.position),row.sources.iter().map(source_position_json).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(",")));
+            let sources=c.capture_sources.as_ref().map_or_else(||"null".into(),|rows|format!("[{}]",rows.iter().map(|row|format!("{{\"position\":{},\"sources\":[{}]}}",source_position_json(&row.position),row.sources.iter().map(source_atom_json).collect::<Vec<_>>().join(","))).collect::<Vec<_>>().join(",")));
             let source=match c.source {zil_ir::CallableReturnSource::Fresh=>"{\"fresh\":true}".into(),zil_ir::CallableReturnSource::Parameter(i)=>format!("{{\"parameter\":{i}}}")};
             format!("{{\"name\":{},\"closure\":{},\"kind\":{},\"source\":{},\"capture_sources\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{:?},\"lending_captures\":{:?}}}",
                 json_string(&entry.name), c.closure.0, json_string(&format!("{:?}", c.kind)), source,sources,
