@@ -16,6 +16,7 @@ mod dynamic_fingerprint;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
 mod program;
+pub mod source_projection;
 pub mod wire;
 pub use program::*;
 
