@@ -17,10 +17,18 @@ pub(super) struct Instance {
     pub(super) classes: Vec<LexicalLife>,
 }
 
+pub(super) struct SourceInputLife {
+    pub(super) parameter:u32,
+    pub(super) path:Vec<LifeTypeProjection>,
+    pub(super) binder:u32,
+}
+
 /// Candidate header types travel with the exact pending Source emission.
 /// They carry layout and lexical scope data, never origin or access authority.
 #[derive(Default)]
 pub(super) struct SignatureCandidate {
+    pub(super) source_scope:Vec<String>,
+    pub(super) source_inputs:Vec<SourceInputLife>,
     pub(super) parameters: BTreeMap<u32, Type>,
     pub(super) result: Option<Type>,
 }
@@ -202,7 +210,7 @@ impl Catalog {
             )?;
             let (module, restored, _) = functions
                 .get(&canonical)
-                .ok_or_else(|| invalid(span, "stored function lost actual project declaration"))?;
+                .ok_or_else(|| invalid(span, &format!("stored function lost actual project declaration: {canonical}")))?;
             budget.text(restored, span)?;
             budget.node(span, 0)?;
             self.project_functions

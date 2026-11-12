@@ -996,3 +996,59 @@ fn anonymous_tuple_raw_and_wire_require_real_sources_modes_and_owner_cleanup(){
  let report=compile_project(&project(&alias),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
  assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
 }
+
+#[test]
+fn elided_source_inputs_supply_real_independent_compound_domains(){
+ let text=include_str!("../../../tests/fixtures/qualified-values/elided-anonymous.zil");
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+ let source=SourceUnit::new(FileId(0),ModuleId(0),"elided-anonymous.zil",text);
+ let syntax=zil_syntax::parse(&source).into_result().unwrap();
+ let core=zil_expand::expand(&source,&syntax).unwrap();
+ let sum=core.functions.iter().find(|f|f.name=="sum").unwrap();
+ assert!(sum.type_parameters.is_empty());
+ let contract=sum.storage_life.as_ref().unwrap();
+ assert_eq!(contract.invocation_binder_count,2);
+ assert_eq!(contract.fixed_binder_count,0);
+ let identity=core.functions.iter().find(|f|matches!(f.return_type,zil_ir::Type::BorrowedStorage{..})).unwrap();
+ let zil_ir::Type::BorrowedStorage{life,..}=&identity.return_type else{unreachable!()};
+ assert_eq!(life.binder_count,2);
+ for invalid in ["fn ambiguous(left:&i32,right:&i32)->&i32{return left}fn main(){}", "fn missing()->&i32{var local:i32=7;return &local}fn main(){}"]{
+  let report=compile_project(&project(invalid),&CompileOptions::default());
+  assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+ }
+}
+
+#[test]
+fn buffer_anonymous_value_keeps_owner_and_heap_view_sources(){
+ let text=include_str!("../../../tests/fixtures/qualified-values/buffer-anonymous.zil");
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
+
+#[test]
+fn explicit_callable_lives_keep_their_code_signature_boundary(){
+ let text="fn make<life a>(value:&'a mut i32)->impl FnOnce()->&'a mut i32{return move()=>give value}fn main(){}";
+ let source=SourceUnit::new(FileId(0),ModuleId(0),"explicit-callable-life.zil",text);
+ let syntax=zil_syntax::parse(&source).into_result().unwrap();
+ zil_expand::expand(&source,&syntax).unwrap();
+ for text in ["fn make(value:&i32)->impl FnOnce()->&'missing i32{return ()=>value}fn main(){}"]{
+  let source=SourceUnit::new(FileId(0),ModuleId(0),"bad-callable-life.zil",text);
+  let syntax=zil_syntax::parse(&source).into_result().unwrap();
+  assert!(zil_expand::expand(&source,&syntax).is_err());
+ }
+}
+
+#[test]
+fn elided_relay_preserves_caller_input_domains(){
+ let text="fn identity<T:Value>(value:T)->T{return value}fn relay(value:&i32)->&i32{return value}fn sum(first:&i32,second:&i32)->i32{let pair=identity((relay(first),second));let(left,right)=pair;return *left+*right}fn main()->i32{var first:i32=20;var second:i32=22;return sum(&first,&second)-42}";
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
+
+#[test]
+fn nested_anonymous_value_preserves_child_scope_forest(){
+ let text=include_str!("../../../tests/fixtures/qualified-values/nested-anonymous.zil");
+ let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+ assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}
