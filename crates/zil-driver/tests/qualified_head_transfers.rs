@@ -511,5 +511,5 @@ fn mixed_static_and_parameter_sources_preserve_the_actual_free_class() {
     assert_eq!(zil_analyze::analyze(&decoded,&limits).unwrap(),plan);
     let bad=source.replace(" return i32(f())", " bytes[0]=1u8;return i32(f())");
     let errors=zil_analyze::analyze(&typed(&bad),&limits).unwrap_err();
-    assert!(errors.iter().any(|error|error.category==zil_base::DiagnosticCategory::SafeReject),"{errors:?}");
+    assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::SafeReject),"{errors:?}");
 }
