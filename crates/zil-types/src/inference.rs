@@ -6125,6 +6125,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
+                || lending::transferred_result(t)
                 || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
         }) || parameters.iter().any(|p| {
