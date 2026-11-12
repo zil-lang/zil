@@ -305,6 +305,30 @@ fn associated(
                 "associated result repeats a member or selects a method",
             ));
         }
+        let trait_definitions = trait_decl
+            .associated_definitions
+            .as_ref()
+            .ok_or_else(|| bad("original trait associated declarations are Unknown"))?;
+        b.spend(trait_definitions.len())?;
+        let mut originals = trait_definitions
+            .iter()
+            .filter(|row| row.member as usize == ordinal);
+        let original = originals
+            .next()
+            .ok_or_else(|| bad("associated result has no original trait declaration"))?;
+        if originals.next().is_some() {
+            return Err(bad(
+                "associated result original trait declaration is ambiguous",
+            ));
+        }
+        if let DynAssociatedValue::Constant { ty, .. } = &resolution.value {
+            let carrier = original
+                .carrier
+                .as_ref()
+                .ok_or_else(|| bad("original trait constant carrier is Unknown"))?;
+            let mut trait_args = arguments(trait_decl, &witness.application.actuals, b)?;
+            matching::ty(module, carrier, ty, &witness.receiver, &mut trait_args, b)?;
+        }
         let (owner, own_member, actuals) = match resolution.source {
             DynAssociatedSource::TraitDefault {
                 declaration,
@@ -478,6 +502,20 @@ mod tests {
                 kind: DynMemberKind::Constant,
             },
         ];
+        trait_decl.associated_definitions = Some(vec![
+            DynAssociatedDefinition {
+                member: 0,
+                carrier: None,
+                value: None,
+                requirements: vec![],
+            },
+            DynAssociatedDefinition {
+                member: 1,
+                carrier: Some(DynTypePattern::Concrete(Type::I32)),
+                value: None,
+                requirements: vec![],
+            },
+        ]);
         let mut implementation = declaration(91, DynDeclarationKind::Impl);
         implementation.members = vec![trait_decl.members[1].clone(), trait_decl.members[0].clone()];
         implementation.self_pattern = Some(DynTypePattern::Concrete(Type::I32));
@@ -603,6 +641,13 @@ mod tests {
     fn associated_original_impl_ordinals_are_not_trait_ordinals_or_inferred_from_abi() {
         let module = fixture();
         assert!(run(&module).is_ok());
+        let mut wrong_carrier = module.clone();
+        wrong_carrier.dyn_declarations[0]
+            .associated_definitions
+            .as_mut()
+            .unwrap()[1]
+            .carrier = Some(DynTypePattern::Concrete(Type::U32));
+        assert!(run(&wrong_carrier).is_err());
         let mut wrong = module.clone();
         wrong.dyn_vtables[0]
             .implementation_witnesses

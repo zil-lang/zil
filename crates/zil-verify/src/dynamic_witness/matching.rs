@@ -717,7 +717,7 @@ mod tests {
         );
         let mut overflow = expression.clone();
         if let DynConstPattern::Binary { right, .. } = &mut overflow {
-            *right = Box::new(DynConstPattern::IntegerLiteral("8".into()));
+            **right = DynConstPattern::IntegerLiteral("8".into());
         }
         assert!(
             constant(
