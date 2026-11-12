@@ -1988,6 +1988,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             {
                 return Err(err("stored signature requires complete class relation"));
             }
+            if b.dyn_contexts && crate::dynamic_ports::has_context(module, ty, b)? {
+                return Err(err(
+                    "Context-bearing signature requires its complete actual class relation",
+                ));
+            }
             let composite = |ty: &Type| {
                 matches!(
                     ty,
@@ -3675,6 +3680,7 @@ fn step(
             dyn_ports::call(
                 module,
                 f,
+                callee,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
@@ -6765,9 +6771,10 @@ fn solve_check(
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
-                return Err(err(
-                    "candidate differs from independently reconstructed stored target roots",
-                ));
+                return Err(err(&format!(
+                    "candidate differs from independently reconstructed stored target roots: {} value {v}: actual {actual:?}, candidate {:?}",
+                    f.name, claim.roots
+                )));
             }
         }
     }
