@@ -148,7 +148,10 @@ impl Recipe<'_, '_, '_> {
                     let inner = Box::new(self.ty(inner, depth + 1)?);
                     return Ok(match name.as_str() {
                         "Managed" => DynTypePattern::Managed(inner),
-                        "Desc" => DynTypePattern::Desc(inner),
+                        "Desc" => DynTypePattern::Desc {
+                            lifetime: None,
+                            inner,
+                        },
                         _ => DynTypePattern::OwnedStore(inner),
                     });
                 }
@@ -299,7 +302,7 @@ pub(super) fn pay(
             DynTypePattern::Address { inner, .. }
             | DynTypePattern::Slice(inner)
             | DynTypePattern::Managed(inner)
-            | DynTypePattern::Desc(inner)
+            | DynTypePattern::Desc { inner, .. }
             | DynTypePattern::OwnedStore(inner) => ty(inner, b, s, d + 1)?,
             DynTypePattern::Tuple(ts) => {
                 for t in ts {

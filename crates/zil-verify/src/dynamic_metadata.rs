@@ -404,7 +404,8 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     DynPatternActual::Life(
                         zil_ir::DynLifePattern::MethodParameter(_)
                         | zil_ir::DynLifePattern::Bound { .. }
-                        | zil_ir::DynLifePattern::Invocation(_),
+                        | zil_ir::DynLifePattern::Invocation(_)
+                        | zil_ir::DynLifePattern::ImplicitDeclaration(_),
                     ) => {
                         return Err(reject(
                             "E-VERIFY-DYN-PATTERN",
@@ -519,7 +520,7 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     }
                     DynTypePattern::Slice(node)
                     | DynTypePattern::Managed(node)
-                    | DynTypePattern::Desc(node)
+                    | DynTypePattern::Desc { inner: node, .. }
                     | DynTypePattern::OwnedStore(node) => children.push(Node::Ty(node, depth + 1)),
                     DynTypePattern::ErrorUnion { error, result } => {
                         children.push(Node::Ty(error, depth + 1));
@@ -648,6 +649,7 @@ fn recipe_rows<T: DynRecipeMetadata>(
 }
 pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> Check<()> {
     let work = &mut RecipeWork { b, nodes: 0 };
+    recipe_rows(&value.implicit_lifetimes, work)?;
     recipe_rows(&value.direct_supertraits, work)?;
     recipe_rows(&value.requirements, work)?;
     recipe_rows(&value.associated_definitions, work)?;

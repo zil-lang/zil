@@ -426,7 +426,7 @@ pub(super) fn declaration(
             }
             DynTypePattern::Slice(t)
             | DynTypePattern::Managed(t)
-            | DynTypePattern::Desc(t)
+            | DynTypePattern::Desc { inner: t, .. }
             | DynTypePattern::OwnedStore(t) => tp(t, m, d, b, depth + 1),
             DynTypePattern::ErrorUnion { error, result } => {
                 tp(error, m, d, b, depth + 1)?;
