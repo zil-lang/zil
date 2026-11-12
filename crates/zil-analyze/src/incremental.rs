@@ -62,6 +62,10 @@ impl AnalysisSession {
         self.stats
     }
 
+    pub(super) fn retained_initializations(&self) -> usize {
+        self.entries.len()
+    }
+
     pub fn last_function_results(&self) -> &[AnalysisFunctionResult] {
         &self.function_results
     }
