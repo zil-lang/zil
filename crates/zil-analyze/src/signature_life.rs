@@ -485,21 +485,37 @@ fn relation_inner(
                     self.class += 1;
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
-            } else if let Type::Dyn { interface } | Type::OwnedDyn { interface } = target {
+            } else if let Some((interface, arm)) = match target {
+                Type::Dyn { interface } | Type::OwnedDyn { interface } => Some((*interface, None)),
+                Type::ErrorUnion { error, result }
+                    if **error == super::dyn_dispatch::create_error() =>
+                {
+                    match result.as_ref() {
+                        Type::OwnedDyn { interface } => {
+                            Some((*interface, Some(PlaceProjection::ErrorArm(false))))
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            } {
                 let item = self
                     .interfaces
                     .iter()
-                    .find(|item| item.id == *interface)
+                    .find(|item| item.id == interface)
                     .ok_or_else(|| bad("dyn signature class selector has no actual interface"))?;
                 for local in 0..item.retained_life.binder_count {
                     let row = self.c.classes.get(self.class).ok_or_else(|| {
                         bad("dyn signature omits its complete Context class domain")
                     })?;
-                    let path = if pointed {
-                        row.position.path.as_slice() == [LifeTypeProjection::Pointee]
-                    } else {
-                        row.position.path.is_empty()
-                    };
+                    let mut path = Vec::new();
+                    if pointed {
+                        path.push(LifeTypeProjection::Pointee);
+                    }
+                    if let Some(arm) = arm {
+                        path.push(LifeTypeProjection::Place(arm));
+                    }
+                    let path = row.position.path == path;
                     if row.position.base != base || row.position.class != local || !path {
                         return Err(bad(
                             "dyn signature class must select its actual Context boundary",

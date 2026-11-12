@@ -16,6 +16,7 @@ mod active_projection_tests;
 #[cfg(test)]
 mod binding_index_tests;
 mod dyn_address;
+mod dyn_return;
 pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
@@ -27,6 +28,14 @@ use std::collections::BTreeMap;
 pub(super) mod owned;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
+
+pub(super) fn dyn_return_header(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    dyn_return::header(module, f, b)
+}
 
 // Class grounding may recognize only this independently authenticated origin.
 pub(super) fn ordinary_error_borrow(
@@ -3275,6 +3284,7 @@ fn transfer(
                 .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             task_address::call(summary, arguments, values, state, &mut out, b)?;
+            dyn_return::call(summary, arguments, values, state, &mut out, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -5255,6 +5265,7 @@ fn derive_cfg(
                         add(path, permission)?;
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
+                    dyn_return::summarize(module, f, value, &mut actual, b)?;
                 }
             }
             let mut grounded = true;
