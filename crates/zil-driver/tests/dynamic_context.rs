@@ -121,6 +121,35 @@ fn main()->i32{let value=42;let other=99;return start(&value,&other)-42}
         arguments: vec![input, input],
     };
     attacks.push(("recursive-upper-is-not-an-actual-producer", wrong));
+    let mut wrong = module.clone();
+    let caller = wrong
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "start")
+        .unwrap();
+    let conditions = caller
+        .blocks
+        .iter()
+        .filter_map(|block| match block.terminator {
+            zil_ir::Terminator::Branch { condition, .. } => Some(condition),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        conditions.len(),
+        2,
+        "fixture must retain both actual match guards"
+    );
+    for (index, condition) in conditions.iter().enumerate() {
+        let definition = caller
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|instruction| instruction.result == Some(*condition))
+            .unwrap();
+        definition.kind = zil_ir::InstructionKind::Constant(zil_ir::Constant::Bool(index != 0));
+    }
+    attacks.push(("owner-take-without-any-actual-tag-guard", wrong));
     let mut missing = module.clone();
     missing.dyn_vtables[context_table].ports.clear();
     attacks.push(("missing-port", missing));
