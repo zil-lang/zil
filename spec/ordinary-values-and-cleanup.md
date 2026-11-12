@@ -8,7 +8,7 @@ These are definition obligations, not core permissions. Actual canonical Product
 
 A generic Product recipe records whether each ordinary formal requires `Value` or `StoreElement`. Types checks the actual argument against that declaration and independently checks every written `Store<T>` recipe. Changing a Value-only field recipe to a Store field cannot manufacture an element qualification. These source recipes do not become TypedIR ownership certificates.
 
-`std.iter.Iterator` transfers each actual owning `Item` out of its receiver. Its item and mapper output explicitly require `Value+SyncDrop`. Only `collect` separately requires `where I.Item:StoreElement`; an ordinary owning item can itself contain a Store header without being placed in a second Store. `Map` and `Filter` own their complete source and callback as ordinary `Value+SyncDrop` fields. They are lazy iterators and can be nested without a collection between adapters. `Drain` owns a Store header; it is an ordinary Value and does not qualify as an element of another Store. Recursive manager provenance for `Store<Drain<T>>` remains unsupported.
+`std.iter.Iterator` transfers each actual owning `Item` out of its receiver. Its item and mapper output explicitly require `Value+SyncDrop`. Only `collect` separately requires `where I.Item:StoreElement`; ordinary inline ownership remains a weaker promise than Store admission. `Map` and `Filter` own their complete source and callback as ordinary `Value+SyncDrop` fields. They are lazy iterators and can be nested without a collection between adapters. `Drain` owns a Store header and can itself be placed in a Store when its complete finite element shape proves the sealed element and cleanup contract. Each layer retains a distinct actual manager, heap interval and parent loan. This also permits a Package containing Store headers and explicit direct owners such as `Store<Managed<Store<Item>>>`, `Store<Managed<ByteBuffer>>` and `Store<Managed<Ticket>>`. A bare resource name remains a description, so `Store<Store<Item>>` does not silently become owning storage. Inline unguarded recursion and unresolved element shapes do not qualify.
 
 `drain` visits the last stored element first. `into_iter` prepares a reverse stack once so later traversal follows insertion order. `collect` grows its private Store through `std.store.push_growing`; allocation failure cleans the rejected item, partial result, remaining iterator and callback owners exactly once. `Collected` transfers that storage through `into_store`. `for_each_owned`, `for_each_lent` and `fold_owned` use the same associated Item identity with ordinary mutable callback helpers. Lending callbacks receive only the current invocation's shared Item address; capturing and mutating that iterator's live receiver conflicts with its actual loan. A fold callback consumes its previous owning accumulator and yields its next complete accumulator.
 
@@ -17,3 +17,18 @@ Qualified ordinary Type actuals retain separate physical syntax and semantic sou
 Associated arguments keep the complete trait application and each independent binder throughout definition checking and specialization, including protected binders and cross-module declarations. A candidate trait must actually declare the requested method. Equal parameter spellings, equal machine layout and unrelated bare method names do not merge providers. Nominal premises cannot supply a missing structural, callable, or cleanup obligation.
 
 Executable controls are in `crates/zil-driver/tests/iterator_adapters.rs`, `generic_product_methods.rs` and `borrowed_product_store_captures.rs`, with ordinary library consumers and an allocation observer in `tests/language-readiness/iterator-adapters`. Native acceptance uses Clang and LLVM API at O0/O2. Raw Core recipe mutations and raw/Wire TypedIR mutations must be rejected by their actual independent consumers after refreshing the untrusted fingerprint.
+
+An omitted lifetime on an ordinary Source function's data Address input denotes
+an implicit invocation domain at that exact declaration, parameter ordinal and
+nested type path. Independent omitted input occurrences have independent source
+domains; actual call substitution may relate them only through the real inputs.
+These hygienic domains are not additional user generic parameters. A bare
+borrowed result uses the receiver domain, or the unique input domain when there
+is no receiver; an ambiguous result needs an explicit relation. A generic result
+that transfers the whole actual `T` preserves the complete joint input shape
+rather than selecting one of its borrowed leaves. Ordinary helper result hints
+are substituted through the complete semantic input applications before another
+generic call uses them. Code signatures introduce their own invocation domain:
+`Fn`, `FnMut` and `FnOnce` parameter/result lifetimes are code contracts, not
+inferred retained slots of the callable environment. Neither elision nor a
+Source hint supplies actual roots, class equality, ownership or access rights.

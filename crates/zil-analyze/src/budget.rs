@@ -48,6 +48,7 @@ pub(super) struct Budget {
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) mutable_capture_contexts: bool,
+    pub(super) receiver_borrows: bool,
     // Schedules actual returned-environment transport; contracts grant no roots.
     pub(super) returned_borrowed_environments: BTreeSet<zil_ir::ClosureId>,
     pub(super) pending_returned_source_proofs: BTreeSet<zil_ir::FunctionId>,
@@ -108,6 +109,7 @@ pub(super) struct Budget {
     /// A false row is an unselected ordinary function, not an empty proof.
     pub(super) task_stored_coverage: Vec<bool>,
     pub(super) stored_borrows: bool,
+    pub(super) ordinary_input_head_candidates: bool,
     pub(super) stored_slot_updates: bool,
     // Current function's actual loan arena, including reserved exclusive sites.
     // Reset for each facts solve; false skips only read/read constructor checks.
@@ -172,6 +174,7 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             mutable_capture_contexts: false,
+            receiver_borrows: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),
             callable_receiver_roles: BTreeMap::new(),
@@ -221,6 +224,7 @@ impl Budget {
             task_pointer_parents: Vec::new(),
             task_stored_coverage: Vec::new(),
             stored_borrows: false,
+            ordinary_input_head_candidates: false,
             stored_slot_updates: false,
             stored_exclusive_loans: false,
             composition_stored: Vec::new(),
@@ -1052,7 +1056,9 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::BorrowedStorage { life, .. } if context.in_tuple => {
+                Type::BorrowedStorage { storage, life }
+                    if context.in_tuple || matches!(storage.as_ref(), Type::Tuple(_)) =>
+                {
                     budget.input(life.slots.len(), "affine compound exclusive slots")?;
                     new_sum |= life
                         .slots
@@ -1167,7 +1173,8 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
-                    budget.stored_compound_values |= context.in_tuple;
+                    budget.stored_compound_values |=
+                        context.in_tuple || matches!(storage.as_ref(), Type::Tuple(_));
                     new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
@@ -1534,6 +1541,10 @@ pub(super) fn preflight(
     for closure in &module.closures {
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
+            budget.receiver_borrows |= life
+                .bindings
+                .iter()
+                .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
             budget.stored_borrows = true;
             budget.capture_relations = true;
         }
@@ -1794,6 +1805,7 @@ pub(super) fn preflight(
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
         } else if invocation
+            || super::stored_callables::transferred(closure)
             || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
                 && matches!(
@@ -1888,6 +1900,17 @@ pub(super) fn preflight(
                 budget.stored_borrows = true;
             }
         }
+        // The complete header was charged and checked above. This marker only
+        // schedules the separate actual type/inventory proof; it grants no loan.
+        if let Some(contract) = &function.storage_life {
+            budget.ordinary_input_head_candidates |= contract.fixed_binder_count == 0
+                && contract.invocation_binder_count > 0
+                && contract.classes.is_empty()
+                && contract.bindings.iter().all(|row| {
+                    matches!(row.position.base, zil_ir::StorageBase::Parameter(_))
+                        && row.position.path.is_empty()
+                });
+        }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));
         }
@@ -1907,6 +1930,13 @@ pub(super) fn preflight(
         }
         budget.input(1, "function preflight")?;
         budget.input(1, "retained return source discriminant")?;
+        budget.input(1, "dynamic definition instance presence")?;
+        if let Some(instance) = &function.dyn_instance {
+            super::dyn_metadata::recipe(instance, budget)?;
+            return Err(super::bad(
+                "dynamic function instance requires its complete definition proof",
+            ));
+        }
         if let Some(bindings) = &function.retained_return_sources {
             count(
                 0,
@@ -1967,9 +1997,6 @@ pub(super) fn preflight(
                 )
                 .ok_or_else(|| exhausted("callable return relation metadata"))?;
                 budget.input(work, "callable return relation")?;
-                return Err(bad(
-                    "callable return relation requires independent concrete environment proof",
-                ));
             }
             // Prepay untrusted provenance before CandidatePlan::empty_for hashes it.
             budget.input(1, "callable source presence")?;
@@ -2008,7 +2035,7 @@ pub(super) fn preflight(
                         "callable source paths",
                     )?;
                     for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom)?;
+                        let source = crate::exact_storage_source(atom)?;
                         count(
                             0,
                             source.path.len(),

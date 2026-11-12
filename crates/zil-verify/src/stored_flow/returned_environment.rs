@@ -87,6 +87,7 @@ pub(super) fn seed(
         let loan = loans.len();
         let exclusive = writes(ty);
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive,
@@ -333,7 +334,10 @@ pub(super) fn check_summary(
                     .map_or(1, |binding| binding.sources.len())
                     .saturating_mul(actual.path.len().saturating_add(1)),
             )?;
-            if !match upper { Some(binding)=>crate::exact_storage_sources_contain(&binding.sources,&actual)?, None=>false } {
+            if !match upper {
+                Some(binding) => crate::exact_storage_sources_contain(&binding.sources, &actual)?,
+                None => false,
+            } {
                 return Err(err(
                     "environment source claim omits an actual stored target input",
                 ));
@@ -363,4 +367,30 @@ pub(super) fn borrowed_child(
         .and_then(|id| module.closures.get(id.0 as usize))
         .and_then(|d| d.captures.get(index as usize))
         .is_some_and(|ty| matches!(ty, Type::Closure(_))))
+}
+
+/// Capturing an address retains the pointer and its original parents. Its
+/// pointee slots are memory, so each invocation reads the actual current row.
+/// Already extracted SSA data pointers keep their immutable payload instead.
+pub(super) fn current_leaf(
+    definition: &ClosureDefinition,
+    environment: &Payload,
+    path: &[PlaceProjection],
+    snapshot: &Permission,
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Permission> {
+    if let Some((PlaceProjection::Field(index), tail)) = path.split_first()
+        && !tail.is_empty()
+        && matches!(
+            definition.captures.get(*index as usize),
+            Some(Type::Address { .. })
+        )
+    {
+        let head = leaf(environment, &[PlaceProjection::Field(*index)], b)?
+            .ok_or_else(|| err("captured pointee lacks its actual head"))?;
+        return select(state, head, tail, b);
+    }
+    permission_work(snapshot, b)?;
+    Ok(snapshot.clone())
 }

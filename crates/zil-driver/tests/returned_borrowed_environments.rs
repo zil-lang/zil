@@ -149,13 +149,13 @@ fn analyze_reconstructs_sources_when_same_typed_operands_or_claims_are_forged() 
             let c = factory.callable_return_contract.as_mut().unwrap();
             match mutation {
                 1 => {
-                    c.capture_sources.as_mut().unwrap()[0].sources[0].base =
+                    exact_source_mut(&mut c.capture_sources.as_mut().unwrap()[0].sources[0]).base =
                         StorageBase::Parameter(1)
                 }
                 2 => c.capture_sources = Some(vec![]),
                 3 => c.capture_sources = None,
                 4 => {
-                    c.capture_sources.as_mut().unwrap()[0].sources[0].base =
+                    exact_source_mut(&mut c.capture_sources.as_mut().unwrap()[0].sources[0]).base =
                         StorageBase::Parameter(99)
                 }
                 _ => {
@@ -821,10 +821,10 @@ fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target(
             .unwrap();
         assert_eq!(
             holder.sources,
-            vec![zil_ir::StoragePosition {
+            vec![zil_ir::StorageSource::Exact(zil_ir::StoragePosition {
                 base: zil_ir::StorageBase::Parameter(0),
                 path: vec![zil_ir::ContractProjection::Capture(1)]
-            }],
+            })],
             "{}",
             function.name
         );
@@ -854,7 +854,7 @@ fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target(
             .iter_mut()
             .find(|row| row.position.base == zil_ir::StorageBase::Capture(0))
             .unwrap();
-        holder.sources[0].path = vec![
+        exact_source_mut(&mut holder.sources[0]).path = vec![
             zil_ir::ContractProjection::Capture(0),
             zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(1)),
         ];
@@ -1052,7 +1052,8 @@ fn nested_qualified_factory_preserves_child_classes_sources_and_cleanup() {
                 .iter_mut()
                 .find(|row| row.position.path.len() > 1)
                 .unwrap();
-            row.sources[0].path = vec![zil_ir::ContractProjection::Capture(1)];
+            exact_source_mut(&mut row.sources[0]).path =
+                vec![zil_ir::ContractProjection::Capture(1)];
         }
         assert!(
             zil_analyze::analyze(&dishonest, &Limits::default()).is_err(),
@@ -1214,4 +1215,11 @@ fn captured_mutable_holder_branch_targets_preserve_unselected_dependencies() {
     zil_analyze::analyze(&typed_source(source), &Limits::default()).unwrap();
     let bad = source.replace("f();let x", "f();a=21;let x");
     assert!(zil_analyze::analyze(&typed_source(&bad), &Limits::default()).is_err());
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
+    }
 }

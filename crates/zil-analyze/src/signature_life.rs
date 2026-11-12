@@ -1,5 +1,7 @@
 //! Semantic class equations are not target origins or access paths.
 use super::*;
+#[path = "signature_ordinary_heads.rs"]
+pub(super) mod ordinary_heads;
 
 // The signature relation assigns no loan to a value-only Array. The module
 // preflight separately validates every qualified child and its exact instance.
@@ -8,6 +10,45 @@ fn pure_array_value(ty: &Type) -> bool {
         return false;
     }
     pure_value_tree(ty)
+}
+
+// A complete class-free owning tree contributes no lifetime equation. This
+// only classifies the known domain: canonical resource admission, moves and
+// cleanup remain mandatory in the independent ownership consumers. Unknown
+// shells, Address, Closure, Task and qualified children never become empty.
+fn class_free_owned_tree(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::Managed(payload)
+                if matches!(
+                    payload.as_ref(),
+                    Type::Record { .. } | Type::ByteBuffer | Type::OwnedStore { .. }
+                ) =>
+            {
+                pending.push(payload)
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, ty)| ty))
+            }
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields)
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::Array { element, .. } | Type::OwnedStore { element } => pending.push(element),
+            Type::ByteBuffer => {}
+            Type::Unit | Type::Bool | Type::ForeignHandle | Type::CWideString => {}
+            other if other.is_integer() || other.is_float() => {}
+            _ => return false,
+        }
+    }
+    true
 }
 
 fn pure_nominal_value(ty: &Type) -> bool {
@@ -139,7 +180,7 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false, &[])
+    relation_inner(parameters, None, result, c, false, &[], false, &[], None)
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -238,11 +279,13 @@ fn function_relation_inner(
         closures,
         allow_byte_input,
         interfaces,
+        None,
     )
 }
 
-pub(super) fn capture_relation(
+pub(super) fn closure_relation(
     closures: &[ClosureDefinition],
+    kind: CallableKind,
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
@@ -257,6 +300,7 @@ pub(super) fn capture_relation(
         closures,
         false,
         &[],
+        Some(kind),
     )
 }
 pub(super) fn function_relation_in_module(
@@ -287,7 +331,14 @@ fn relation_inner(
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
     interfaces: &[DynInterface],
+    receiver_kind: Option<CallableKind>,
 ) -> CompileResult<()> {
+    if c.classes
+        .iter()
+        .any(|row| row.position.base == StorageBase::Receiver)
+    {
+        return Err(bad("receiver head has no persistent class directory"));
+    }
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
             "vacuous borrowed signature must use the ordinary callable type",
@@ -494,9 +545,9 @@ fn relation_inner(
                 let Type::Task { retained_life, .. } = task else {
                     unreachable!()
                 };
-                if retained_life.ports.is_empty() {
-                    return Err(bad("closed Task has no rich retained class relation"));
-                }
+                // This is an actual complete Task shape, already checked by
+                // require_closed_context. Zero data rows stay known empty;
+                // an outer head Borrow was consumed independently above.
                 let mut class_path = Vec::new();
                 let mut borrow_path = Vec::new();
                 if let Some(arm) = arm {
@@ -598,7 +649,7 @@ fn relation_inner(
                     storage.as_ref(),
                     Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
                 ) || (!life.retained.is_empty()
-                    && !matches!(storage.as_ref(), Type::Package { .. })))
+                    && !matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))))
                     && !pure_nominal_value(target)
                     && !super::stored_flow::enum_address::signature(target)
                     && !super::stored_flow::option_address::signature(target)
@@ -719,6 +770,7 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                || class_free_owned_tree(target)
                 || pure_array_value(target)
                 // A proved query's exact weak input has no semantic class.
                 // It creates/grounds no row and is not an owning consumer.
@@ -780,6 +832,28 @@ fn relation_inner(
             cursor.ty(capture, StorageBase::Capture(i))?;
         }
     }
+    if let Some(row) = c.bindings.get(cursor.borrow)
+        && row.position.base == StorageBase::Receiver
+    {
+        if !matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            || !row.position.path.is_empty()
+            || !matches!(row.binder, StorageBinder::Invocation(_))
+        {
+            return Err(bad(
+                "Receiver requires an actual non-consuming borrowed closure head",
+            ));
+        }
+        if receiver_kind == Some(CallableKind::Fn)
+            && matches!(result, Type::Address { mutable: true, .. })
+            && c.bindings
+                .iter()
+                .any(|r| r.position.base == StorageBase::Result && r.binder == row.binder)
+        {
+            return Err(bad("shared receiver cannot grant an exclusive result view"));
+        }
+        cursor.borrow += 1;
+        cursor.binder(row.binder, false)?;
+    }
     cursor.inputs = Some((cursor.fixed, cursor.invocation));
     cursor.ty(result, StorageBase::Result)?;
     if cursor.borrow != c.bindings.len()
@@ -810,7 +884,32 @@ fn relation_inner(
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        }) && !cursor.array_result_input
+        }) && !(matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            && (!mutable || receiver_kind == Some(CallableKind::FnMut))
+            && outer(c, StorageBase::Receiver).is_some_and(|receiver| Some(receiver) == out))
+            && !captures.is_some_and(|captures| {
+                captures.iter().enumerate().any(|(index, ty)| {
+                    matches!(ty,Type::Address{mutable:available,..}if (!mutable||*available)
+                    && outer(c,StorageBase::Capture(index as u32))==out)
+                })
+            })
+            && !c.classes.iter().any(|row| {
+                let StorageBase::Capture(index) = row.position.base else {
+                    return false;
+                };
+                Some(row.binder) == out
+                    && captures
+                        .and_then(|captures| captures.get(index as usize))
+                        .is_some_and(|ty| {
+                            !mutable
+                                || matches!(
+                                    ty,
+                                    Type::Address { mutable: true, .. }
+                                        | Type::BorrowedStorage { .. }
+                                )
+                        })
+            })
+            && !cursor.array_result_input
         {
             return Err(bad(
                 "signature Address result has no eligible declared input",
@@ -946,8 +1045,9 @@ mod tests {
             }],
         };
         assert!(
-            capture_relation(
+            closure_relation(
                 &[],
+                CallableKind::Fn,
                 &[],
                 std::slice::from_ref(&child),
                 &Type::Unit,
@@ -958,7 +1058,7 @@ mod tests {
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        capture_relation(&[], &[], &[child], &Type::Unit, &contract).unwrap();
+        closure_relation(&[], CallableKind::Fn, &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

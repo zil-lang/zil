@@ -8,7 +8,11 @@ use zil_ir::*;
 pub(crate) fn exact_storage_source(source: &StorageSource) -> Result<&StoragePosition, Diagnostic> {
     match source {
         StorageSource::Exact(position) => Ok(position),
-        _ => Err(Diagnostic::unsupported(Phase::Types, "source atom requires an independent region consumer", None)),
+        _ => Err(Diagnostic::unsupported(
+            Phase::Types,
+            "source atom requires an independent region consumer",
+            None,
+        )),
     }
 }
 mod addresses;
@@ -708,6 +712,7 @@ pub fn check(
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
     let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
     let thread_entries = std::mem::take(&mut closure_state.thread_entries);
+    let returned_life_bounds = std::mem::take(&mut closure_state.returned_life_bounds);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -758,6 +763,8 @@ pub fn check(
     tasks::append_failure_inventory(&mut module, limits, &mut remaining).map_err(|e| vec![e])?;
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
+    retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
@@ -835,6 +842,47 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
+        if let Some(bound) = &f.callable_return
+            && (bound.life.is_some() || bound.source_life.is_some())
+        {
+            let mut remaining = closures.remaining_work();
+            inference::charge_returned_value_snapshot(bound, f.span, limits, &mut remaining)?;
+            closures.snapshot(closures.remaining_work() - remaining, f.span)?;
+            remaining = closures.remaining_work();
+            inference::charge_function_scope_snapshot(
+                f.source_scope.as_ref(),
+                f.span,
+                limits,
+                &mut remaining,
+            )?;
+            closures.snapshot(closures.remaining_work() - remaining, f.span)?;
+            if let Some(context) = &bound.source_life {
+                let actual = f.source_scope.as_ref().ok_or_else(|| {
+                    error(
+                        "E-CALLABLE-RETURN-SCOPE",
+                        f.span,
+                        "return-bound bridge requires its actual original Definition scope",
+                    )
+                })?;
+                if actual.declaration != context.declaration
+                    || actual.identity != context.identity
+                    || actual.parameters != context.parameters
+                {
+                    return Err(error(
+                        "E-CALLABLE-RETURN-SCOPE",
+                        f.span,
+                        "return-bound bridge differs from the actual Core owner source scope",
+                    ));
+                }
+            }
+            closures.returned_life_bounds.insert(
+                id,
+                retained::ReturnedLifeBound {
+                    bound: bound.clone(),
+                    source_scope: f.source_scope.clone(),
+                },
+            );
+        }
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)
             && f.life.as_ref().is_some_and(|life| {
@@ -869,6 +917,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                dyn_instance: f.dyn_instance.clone(),
                 retained_return_sources: f.retained_return_sources.clone(),
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
@@ -3219,6 +3268,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3427,7 +3478,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            dyn_instance: None,
             retained_return_sources: None,
+            source_scope: None,
             storage_life,
             call_kind: None,
             resume_bound: zil_ir::TaskResumeBound::Local,
@@ -3656,9 +3709,18 @@ impl<'a, 'c> Builder<'a, 'c> {
             if capture.borrowed {
                 builder.borrowed_captures.insert(local, capture.ty.clone());
             }
+            let take = capture.consumed
+                && builder.closures.pending[id.0 as usize].callable_kind() == CallableKind::FnOnce
+                && matches!(stored, Type::Address { mutable: true, .. });
             let value = builder.value(
-                InstructionKind::ReadCapture {
-                    index: index as u32,
+                if take {
+                    InstructionKind::TakeCapture {
+                        index: index as u32,
+                    }
+                } else {
+                    InstructionKind::ReadCapture {
+                        index: index as u32,
+                    }
                 },
                 stored,
                 capture.span,
@@ -4133,6 +4195,8 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,

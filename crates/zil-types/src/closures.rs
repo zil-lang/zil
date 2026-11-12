@@ -409,6 +409,7 @@ pub(super) struct State {
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub forward_callers: BTreeSet<helpers::Instance>,
     pub forward_results: BTreeMap<FunctionId, u32>,
+    pub returned_life_bounds: BTreeMap<FunctionId, retained::ReturnedLifeBound>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
     // Private compiler provenance; public Core/Typed/Wire cannot supply it.
@@ -539,6 +540,7 @@ impl State {
             helper_instances: BTreeMap::new(),
             forward_callers: BTreeSet::new(),
             forward_results: BTreeMap::new(),
+            returned_life_bounds: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,
             internal_product_fields: BTreeMap::new(),
@@ -1275,7 +1277,7 @@ pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
         && (result.is_copy_value()
             || (borrowed_fp::invocation(parameters, result)
                 && matches!(result,Type::Address{inner,..} if inner.is_address_pointee()))
-            || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
+            || (parameters.iter().all(Type::is_copy_value) && lending::transferred_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained
 /// factory, State and address profiles. This grants no capture/container right.
@@ -1851,10 +1853,11 @@ impl Graph {
                         return self.bind(variable, ty, span);
                     }
                 }
-                return Err(unsupported(
-                    span,
-                    "closure value requires a finite Copy type",
-                ));
+                let mut diagnostic = unsupported(span, "closure value requires a finite Copy type");
+                diagnostic
+                    .notes
+                    .push(format!("actual closure constraint type: {ty:?}"));
+                return Err(diagnostic);
             }
         };
         self.constrain(variable, domain, span)?;
@@ -3642,6 +3645,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 "give requires a whole managed local or capture",
             ));
         };
+        if matches!(value, LocalType::Address(_, true)) {
+            if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                capture.moved = true;
+                capture.borrowed = false;
+                capture.consumed = true;
+            }
+            return Ok(value);
+        }
         if let Some(local) = self.lookup(name) {
             return match local {
                 LocalType::Resource(variable, true) => Ok(LocalType::Resource(variable, true)),

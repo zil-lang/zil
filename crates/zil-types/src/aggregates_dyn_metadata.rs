@@ -2,16 +2,20 @@
 //! provider headers and life instances. The caller prepays the full snapshot.
 use super::*;
 fn actual(a: &mut DynGenericActual, r: &mut Resolver<'_>) -> R<()> {
-    if let DynGenericActual::Type(ty) = a {
-        *ty = r.ty(ty, 0, Span::default())?;
+    match a {
+        DynGenericActual::Type(ty) => *ty = r.ty(ty, 0, Span::default())?,
+        DynGenericActual::QualifiedType(value) => value.ty = r.ty(&value.ty, 0, Span::default())?,
+        DynGenericActual::Const(_) | DynGenericActual::Life(_) => {}
     }
     Ok(())
 }
 fn pattern(p: &mut DynSelfPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
     r.charge(depth, Span::default())?;
     for a in &mut p.arguments {
-        if let DynPatternActual::Type(t) = a {
-            type_pattern(t, r, depth + 1)?;
+        match a {
+            DynPatternActual::Type(t) => type_pattern(t, r, depth + 1)?,
+            DynPatternActual::Const(c) => const_pattern(c, r, depth + 1)?,
+            DynPatternActual::Life(_) => {}
         }
     }
     Ok(())
@@ -26,7 +30,10 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
         | DynTypePattern::Managed(inner)
         | DynTypePattern::Desc(inner)
         | DynTypePattern::OwnedStore(inner) => type_pattern(inner, r, depth + 1)?,
-        DynTypePattern::Array { element, .. } => type_pattern(element, r, depth + 1)?,
+        DynTypePattern::Array { element, length } => {
+            type_pattern(element, r, depth + 1)?;
+            const_pattern(length, r, depth + 1)?;
+        }
         DynTypePattern::Tuple(fields) => {
             for f in fields {
                 type_pattern(f, r, depth + 1)?;
@@ -36,7 +43,47 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
             type_pattern(error, r, depth + 1)?;
             type_pattern(result, r, depth + 1)?;
         }
-        DynTypePattern::Parameter(_) => {}
+        DynTypePattern::AssociatedProjection {
+            receiver,
+            application,
+            ..
+        } => {
+            type_pattern(receiver, r, depth + 1)?;
+            pattern(application, r, depth + 1)?;
+        }
+        DynTypePattern::Parameter(_)
+        | DynTypePattern::MethodParameter(_)
+        | DynTypePattern::SelfType => {}
+    }
+    Ok(())
+}
+fn const_pattern(p: &mut DynConstPattern, r: &mut Resolver<'_>, depth: usize) -> R<()> {
+    r.charge(depth, Span::default())?;
+    match p {
+        DynConstPattern::Unary { value, ty, .. } | DynConstPattern::Convert { value, ty } => {
+            const_pattern(value, r, depth + 1)?;
+            type_pattern(ty, r, depth + 1)?;
+        }
+        DynConstPattern::Binary {
+            left, right, ty, ..
+        } => {
+            const_pattern(left, r, depth + 1)?;
+            const_pattern(right, r, depth + 1)?;
+            type_pattern(ty, r, depth + 1)?;
+        }
+        DynConstPattern::AssociatedProjection {
+            receiver,
+            application,
+            ..
+        } => {
+            type_pattern(receiver, r, depth + 1)?;
+            pattern(application, r, depth + 1)?;
+        }
+        DynConstPattern::Value(_)
+        | DynConstPattern::Parameter(_)
+        | DynConstPattern::MethodParameter(_)
+        | DynConstPattern::IntegerLiteral(_)
+        | DynConstPattern::FloatLiteral(_) => {}
     }
     Ok(())
 }
@@ -87,7 +134,7 @@ pub(super) fn resolve(
         }
         for m in &mut d.members {
             match &mut m.kind {
-                DynMemberKind::Constant(t) => *t = r.ty(t, 0, Span::default())?,
+                DynMemberKind::Constant => {}
                 DynMemberKind::Method(ks) => {
                     for k in ks {
                         if let LifeParameterKind::Const(t) = k {
@@ -99,7 +146,7 @@ pub(super) fn resolve(
             }
         }
         if let Some(p) = &mut d.self_pattern {
-            pattern(p, r, 0)?;
+            type_pattern(p, r, 0)?;
         }
         if let Some(p) = &mut d.implemented_trait {
             pattern(p, r, 0)?;

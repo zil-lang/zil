@@ -324,6 +324,8 @@ mod hint_budget {
     }
     fn function() -> CoreFunction {
         CoreFunction {
+            source_scope: None,
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: None,

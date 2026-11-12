@@ -144,6 +144,12 @@ pub(super) fn types(
                 ));
             }
             let ty = capture(module, f, *index, i.span)?;
+            if matches!(ty, Type::Address { mutable: true, .. }) {
+                stored_flow::type_work(ty, &b.limits.clone(), b)?;
+                // Transfer the exact borrowed capability, not owned pointee
+                // cleanup. The entry and vacancy ledgers prove a unique Take.
+                return same_result(f, i, ty, b);
+            }
             shape(ty, i.span, b)?;
             if !owner(ty) {
                 return Err(bad(i.span, "TakeCapture requires an actual owned capture"));

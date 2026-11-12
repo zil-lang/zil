@@ -302,10 +302,51 @@ impl Engine<'_> {
                 "closure creator requires the complete life-only Definition profile",
             ));
         }
-        if self.life_scope.len() != function.generics.len() {
+        if self.life_scope.len() < function.generics.len() {
             return Err(unavailable(
                 "closure creator lost its actual source lifetime scope",
             ));
+        }
+        // The exact current Pending header may carry hygienic data-input
+        // elision domains after the original declared life parameters. They
+        // retain anonymous source identity; they are not new source formals.
+        if self.life_scope.len() != function.generics.len() {
+            let candidate = self.signature_candidate.as_ref().ok_or_else(|| {
+                unavailable("closure creator implicit input scope has no actual header")
+            })?;
+            self.budget.identity_work(
+                candidate
+                    .source_scope
+                    .len()
+                    .saturating_add(self.life_scope.len()),
+                span,
+            )?;
+            for name in candidate.source_scope.iter().chain(&self.life_scope) {
+                self.budget.text(name, span)?;
+            }
+            if candidate.source_scope != self.life_scope {
+                return Err(unavailable(
+                    "closure creator implicit input scope belongs to another header",
+                ));
+            }
+            for binder in function.generics.len()..self.life_scope.len() {
+                self.budget
+                    .identity_work(candidate.source_inputs.len().saturating_add(1), span)?;
+                if candidate
+                    .source_inputs
+                    .iter()
+                    .filter(|input| {
+                        input.binder as usize == binder
+                            && (input.parameter as usize) < function.params.len()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(unavailable(
+                        "closure creator implicit input class lacks its unique actual occurrence",
+                    ));
+                }
+            }
         }
         for (name, parameter) in self.life_scope.iter().zip(&function.generics) {
             self.budget.text(name, span)?;

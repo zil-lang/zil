@@ -34,15 +34,24 @@
 //! }
 //! ```
 
-pub(crate) fn exact_storage_source(source: &zil_ir::StorageSource) -> Result<&zil_ir::StoragePosition, zil_base::Diagnostic> {
+pub(crate) fn exact_storage_source(
+    source: &zil_ir::StorageSource,
+) -> Result<&zil_ir::StoragePosition, zil_base::Diagnostic> {
     match source {
         zil_ir::StorageSource::Exact(position) => Ok(position),
-        _ => Err(zil_base::Diagnostic::unsupported(zil_base::Phase::Verify, "source atom requires an independent region consumer", None)),
+        _ => Err(zil_base::Diagnostic::unsupported(
+            zil_base::Phase::Verify,
+            "source atom requires an independent region consumer",
+            None,
+        )),
     }
 }
 
-pub(crate) fn exact_storage_sources_contain(sources: &[zil_ir::StorageSource], position: &zil_ir::StoragePosition) -> Result<bool, zil_base::Diagnostic> {
-    let mut present=false;
+pub(crate) fn exact_storage_sources_contain(
+    sources: &[zil_ir::StorageSource],
+    position: &zil_ir::StoragePosition,
+) -> Result<bool, zil_base::Diagnostic> {
+    let mut present = false;
     for source in sources {
         present |= exact_storage_source(source)? == position;
     }
@@ -109,6 +118,7 @@ pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
 mod class_flow;
+mod ordinary_heads;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
@@ -891,16 +901,20 @@ fn check_module(
                     tasks::charge_result_selection(ty, &mut budget)?;
                 }
                 tasks::charge_result_selection(&function.return_type, &mut budget)?;
-                signature_life::charge(contract, &mut budget)?;
-                signature_life::function_relation(
-                    module,
-                    &parameters,
-                    &function.return_type,
-                    contract,
-                    Some(function.span),
-                    false,
-                )?;
-            } else if !tasks::borrowed_signature(module, function, &mut budget)? {
+                if !ordinary_heads::check(module, function, &mut budget)? {
+                    signature_life::charge(contract, &mut budget)?;
+                    signature_life::function_relation(
+                        module,
+                        &parameters,
+                        &function.return_type,
+                        contract,
+                        Some(function.span),
+                        false,
+                    )?;
+                }
+            } else if !ordinary_heads::check(module, function, &mut budget)?
+                && !tasks::borrowed_signature(module, function, &mut budget)?
+            {
                 stored_flow::header(module, function, &mut budget)?;
                 budget.stored_borrows = true;
             }
@@ -1035,7 +1049,9 @@ fn check_module(
                 if budget.stored_exclusive_shapes
                     && matches!(
                         instruction.kind,
-                        InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                        InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::MakePackage { .. }
+                            | InstructionKind::MakeOwnedTuple { .. }
                     )
                     && let Some(result) = instruction.result
                     && let Some(Type::BorrowedStorage { life, .. }) =
@@ -1217,7 +1233,7 @@ fn check_module(
             module
                 .functions
                 .iter()
-                .map(|function| stored_flow::qualified_function(function, &mut budget))
+                .map(|function| ordinary_heads::requires_stored(module, function, &mut budget))
                 .collect::<Check<Vec<_>>>()?,
         )
     } else {

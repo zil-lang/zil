@@ -106,6 +106,19 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     }
                 }
             }
+            if let s::ItemKind::Function(function) = &item.kind {
+                for parameter in &function.params {
+                    if generics::source_input_life::has_elided(
+                        &parameter.ty,
+                        self.budget,
+                        depth + 1,
+                    )
+                    .map_err(|error| vec![error])?
+                    {
+                        self.budget.note_stored_lifetimes();
+                    }
+                }
+            }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
                 // The trait method itself has a per-call life scope. A lifted
                 // provider retains its nominal Copy premise and the trait
@@ -177,6 +190,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            // Inferred generic actuals need the same source-class machinery as
+            // an explicit Tuple TypeApply. This only selects bounded producer
+            // work; actual type, class and source permission proofs stay separate.
+            if !self.binders.is_empty() && matches!(expression.kind, s::ExprKind::Tuple(_)) {
+                self.budget.note_stored_lifetimes();
+            }
             let old_type_argument = self.direct_type_argument;
             self.direct_type_argument = matches!(expression.kind, s::ExprKind::TypeApply { .. });
             let result = ct_selection::walk_expression(self, expression, depth);
@@ -187,6 +206,45 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if let s::TypeKind::Named { path, args } = &ty.kind
+                && matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce"))
+                && let [s::GenericArg::Type(parameters), s::GenericArg::Type(result)] =
+                    args.as_slice()
+                && let s::TypeKind::Tuple(parameters) = &reference(parameters).kind
+            {
+                if generics::callable_return_context::named_life(ty, self.budget)
+                    .map_err(|error| vec![error])?
+                {
+                    self.budget.note_stored_lifetimes();
+                    self.budget.note_source_identity();
+                }
+                let mark = self.headers.len();
+                for header in parameters.iter().chain(std::iter::once(result)) {
+                    self.budget
+                        .node(header.span, depth + 1)
+                        .map_err(|error| vec![error])?;
+                    self.headers.push(std::ptr::from_ref(reference(header)));
+                }
+                let mutable = self.mutable_life;
+                self.mutable_life = true;
+                let result = ct_selection::walk_type(self, ty, depth);
+                self.mutable_life = mutable;
+                self.headers.truncate(mark);
+                return result;
+            }
+            if matches!(ty.kind, s::TypeKind::Tuple(_))
+                && (self.direct_type_argument || self.headers.contains(&std::ptr::from_ref(ty)))
+            {
+                self.budget
+                    .node(ty.span, depth)
+                    .map_err(|error| vec![error])?;
+                self.budget.note_stored_lifetimes();
+                let old = self.stored_fields;
+                self.stored_fields = true;
+                let result = ct_selection::walk_type(self, ty, depth);
+                self.stored_fields = old;
+                return result;
+            }
             if matches!(&ty.kind, s::TypeKind::Array { element, length: Some(_) }
                 if matches!(element.kind, s::TypeKind::Reference { mutable: false, lifetime: Some(_), .. }))
                 && self.headers.contains(&std::ptr::from_ref(ty))

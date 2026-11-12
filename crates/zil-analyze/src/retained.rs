@@ -2,6 +2,7 @@
 //! from this module are exported as authority: Verify reconstructs its own.
 use super::*;
 
+mod return_life;
 mod sources;
 pub(super) fn check_pending_sources(b: &Budget) -> CompileResult<()> {
     if b.pending_returned_source_proofs.is_empty() {
@@ -90,6 +91,7 @@ pub(super) fn check_function(
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
 
+    return_life::check(module, function, contract, budget)?;
     let bindings = contract
         .capture_sources
         .as_ref()
@@ -109,7 +111,7 @@ pub(super) fn check_function(
             "callable source binding paths",
         )?;
         for atom in &binding.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source.path.len().saturating_add(1),
                 "callable actual source path",

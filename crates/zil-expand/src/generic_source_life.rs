@@ -573,6 +573,29 @@ impl Check<'_, '_, '_> {
             TypeKind::Array { element, .. } | TypeKind::Optional(element) => {
                 Fact::List(Box::new(self.ty(element, scope, depth + 1)?))
             }
+            TypeKind::Impl(bounds) if bounds.len() == 1 => {
+                // Callable signature lives are code contracts, not an opaque
+                // value's retained slots. The actual closure environment and
+                // return permissions are checked by the callable consumers.
+                let TypeKind::Named { path, args } = &grouped(&bounds[0]).kind else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                if path.len() != 1 || !matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce") {
+                    return self.unknown_type(ty, scope, depth + 1);
+                }
+                let [GenericArg::Type(parameters), GenericArg::Type(result)] = args.as_slice()
+                else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                let TypeKind::Tuple(parameters) = &grouped(parameters).kind else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                let mut out = Vec::new();
+                for parameter in parameters {
+                    out.push(self.ty(parameter, scope, depth + 1)?);
+                }
+                Fact::Function(out, Box::new(self.ty(result, scope, depth + 1)?))
+            }
             TypeKind::Function { params, result } => {
                 let mut out = Vec::new();
                 for p in params {

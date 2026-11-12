@@ -49,12 +49,15 @@ fn retained(
     Ok(())
 }
 pub(super) fn ty(root: &Type, b: &mut Budget) -> Check<()> {
+    ty_at(root, 0, b)
+}
+fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
     let cap = b.limits.max_nodes;
     let depth_cap = b.limits.max_call_depth.min(128);
     pay(b, &mut 0usize, cap, 1)?;
     let mut nodes = 0usize;
     let mut pending = std::collections::VecDeque::new();
-    pending.push_back((root, 0usize));
+    pending.push_back((root, initial_depth));
     while let Some((ty, depth)) = pending.pop_front() {
         pay(b, &mut nodes, cap, 1)?;
         if depth > depth_cap {
@@ -237,6 +240,7 @@ fn kinds(kinds: &[LifeParameterKind], b: &mut Budget) -> Check<()> {
     Ok(())
 }
 pub(super) fn declaration(declaration: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    recipe_declaration(declaration, b)?;
     pattern(declaration, b)?;
     kinds(&declaration.parameters, b)?;
     let identity = &declaration.identity;
@@ -265,7 +269,7 @@ pub(super) fn declaration(declaration: &DynDeclaration, b: &mut Budget) -> Check
     for member in &declaration.members {
         b.spend(member.name.len().saturating_add(1))?;
         match &member.kind {
-            DynMemberKind::Constant(node) => ty(node, b)?,
+            DynMemberKind::Constant => {}
             DynMemberKind::Method(formals) => kinds(formals, b)?,
             DynMemberKind::Type => {}
         }
@@ -290,6 +294,9 @@ pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budge
     for associated in &item.associated_types {
         actuals(&associated.member.application.actuals, b)?;
         ty(&associated.ty, b)?;
+        let mut work = RecipeWork { b, nodes: 0 };
+        DynRecipeVisitor::life(&mut work, &associated.life, 0)?;
+        work.count(associated.classes.len(), 0)?;
     }
     for associated in &item.associated_constants {
         actuals(&associated.member.application.actuals, b)?;
@@ -403,10 +410,10 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
     let mut count = 0usize;
     pay(b, &mut count, cap, 2)?;
     let mut pending = Vec::new();
-    for root in [&declaration.self_pattern, &declaration.implemented_trait]
-        .into_iter()
-        .flatten()
-    {
+    if let Some(root) = &declaration.self_pattern {
+        pending.push(Node::Ty(root, 0));
+    }
+    if let Some(root) = &declaration.implemented_trait {
         pending.push(Node::Nominal(root, 0));
     }
     while let Some(node) = pending.pop() {
@@ -420,11 +427,22 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Actual(actual, depth) => {
                 match actual {
+                    DynPatternActual::Life(
+                        zil_ir::DynLifePattern::MethodParameter(_)
+                        | zil_ir::DynLifePattern::Bound { .. }
+                        | zil_ir::DynLifePattern::Invocation(_),
+                    ) => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "persistent declaration life recipe is outside its original formal scope",
+                        ));
+                    }
                     DynPatternActual::Type(ty) => children.push(Node::Ty(ty, depth + 1)),
                     DynPatternActual::Const(value) => {
                         children.push(Node::Constant(value, depth + 1))
                     }
-                    DynPatternActual::LifeParameter(index) => {
+                    DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(index)) => {
                         if !matches!(
                             declaration.parameters.get(*index as usize),
                             Some(LifeParameterKind::Lifetime)
@@ -441,6 +459,17 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
             }
             Node::Constant(pattern, depth) => {
                 match pattern {
+                    DynConstPattern::MethodParameter(_)
+                    | DynConstPattern::Unary { .. }
+                    | DynConstPattern::Binary { .. }
+                    | DynConstPattern::Convert { .. }
+                    | DynConstPattern::AssociatedProjection { .. } => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "constant recipe requires a checked declaration specialization",
+                        ));
+                    }
                     DynConstPattern::Parameter(index) => {
                         if !matches!(
                             declaration.parameters.get(*index as usize),
@@ -457,11 +486,23 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                         pay(b, &mut count, cap, units.len())?;
                     }
                     DynConstPattern::Value(_) => {}
+                    DynConstPattern::IntegerLiteral(text) | DynConstPattern::FloatLiteral(text) => {
+                        pay(b, &mut count, cap, text.len())?;
+                    }
                 }
                 depth
             }
             Node::Ty(pattern, depth) => {
                 match pattern {
+                    DynTypePattern::SelfType
+                    | DynTypePattern::MethodParameter(_)
+                    | DynTypePattern::AssociatedProjection { .. } => {
+                        return Err(reject(
+                            "E-VERIFY-DYN-PATTERN",
+                            None,
+                            "Self recipe cannot be established by a receiver or projection claim",
+                        ));
+                    }
                     DynTypePattern::Concrete(node) => ty(node, b)?,
                     DynTypePattern::Parameter(index) => {
                         if !matches!(
@@ -479,11 +520,12 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
                     DynTypePattern::Address {
                         lifetime, inner, ..
                     } => {
-                        if lifetime.is_some_and(|index| {
-                            !matches!(
+                        if lifetime.is_some_and(|life| match life {
+                            zil_ir::DynLifePattern::DeclarationParameter(index) => !matches!(
                                 declaration.parameters.get(index as usize),
                                 Some(LifeParameterKind::Lifetime)
-                            )
+                            ),
+                            _ => true,
                         }) {
                             return Err(reject(
                                 "E-VERIFY-DYN-PATTERN",
@@ -528,4 +570,121 @@ pub(super) fn pattern(declaration: &DynDeclaration, b: &mut Budget) -> Check<()>
         pending.extend(children);
     }
     Ok(())
+}
+
+/// This visitor only bounds raw structure before fingerprinting. Actual
+/// declaration, substitution, origin and obligation proofs remain separate.
+struct RecipeWork<'a> {
+    b: &'a mut Budget,
+    nodes: usize,
+}
+impl RecipeWork<'_> {
+    fn count(&mut self, n: usize, depth: usize) -> Check<()> {
+        if depth > self.b.limits.max_call_depth.min(128) {
+            return Err(limit("dynamic recipe metadata quota exceeded"));
+        }
+        self.nodes = self
+            .nodes
+            .checked_add(n)
+            .ok_or_else(|| limit("dynamic recipe metadata quota exceeded"))?;
+        if self.nodes > self.b.limits.max_nodes {
+            return Err(limit("dynamic recipe metadata quota exceeded"));
+        }
+        self.b.spend(n)
+    }
+}
+impl DynRecipeVisitor for RecipeWork<'_> {
+    type Error = zil_base::Diagnostic;
+    fn node(&mut self, depth: usize) -> Check<()> {
+        self.count(1, depth)
+    }
+    fn rows(&mut self, n: usize, depth: usize) -> Check<()> {
+        self.count(n.saturating_add(1), depth)
+    }
+    fn ty(&mut self, value: &Type, depth: usize) -> Check<()> {
+        self.node(depth)?;
+        ty_at(value, depth, self.b)
+    }
+    fn life(&mut self, value: &StorageLifeShape, depth: usize) -> Check<()> {
+        self.rows(value.binder_count as usize, depth)?;
+        self.rows(
+            value
+                .slots
+                .len()
+                .saturating_add(value.retained.len())
+                .saturating_add(value.nominal_arguments.len()),
+            depth,
+        )?;
+        for row in &value.slots {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+        }
+        for row in &value.retained {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+        }
+        for row in &value.nominal_arguments {
+            self.rows(row.path.len(), depth.saturating_add(row.path.len()))?;
+        }
+        Ok(())
+    }
+    fn identity(&mut self, value: &LifeDeclarationIdentity, depth: usize) -> Check<()> {
+        self.node(depth)?;
+        self.rows(value.package.len(), depth)?;
+        self.rows(
+            value
+                .module_path
+                .len()
+                .saturating_add(value.declaration_path.len())
+                .saturating_add(value.generation_path.len()),
+            depth,
+        )?;
+        for part in value.module_path.iter().chain(&value.declaration_path) {
+            self.rows(part.len(), depth)?;
+        }
+        Ok(())
+    }
+    fn position(&mut self, value: &StoragePosition, depth: usize) -> Check<()> {
+        self.rows(value.path.len(), depth.saturating_add(value.path.len()))
+    }
+    fn constant(&mut self, value: &Constant, depth: usize) -> Check<()> {
+        self.node(depth)?;
+        if let Constant::WideString(units) = value {
+            self.rows(units.len(), depth)?;
+        }
+        Ok(())
+    }
+    fn text(&mut self, value: &str, depth: usize) -> Check<()> {
+        self.rows(value.len(), depth)
+    }
+}
+pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<()> {
+    value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+}
+fn recipe_rows<T: DynRecipeMetadata>(
+    values: &Option<Vec<T>>,
+    work: &mut RecipeWork<'_>,
+) -> Check<()> {
+    work.count(1, 0)?;
+    if let Some(values) = values {
+        work.count(values.len(), 0)?;
+        for value in values {
+            value.visit_dyn_metadata(work, 0)?;
+        }
+    }
+    Ok(())
+}
+pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> Check<()> {
+    let work = &mut RecipeWork { b, nodes: 0 };
+    recipe_rows(&value.direct_supertraits, work)?;
+    recipe_rows(&value.requirements, work)?;
+    recipe_rows(&value.associated_definitions, work)?;
+    recipe_rows(&value.method_signatures, work)?;
+    recipe_rows(&value.method_definitions, work)
+}
+pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> Check<()> {
+    let work = &mut RecipeWork { b, nodes: 0 };
+    work.count(1, 0)?;
+    if let Some(shape) = &value.self_life {
+        DynRecipeVisitor::life(work, shape, 0)?;
+    }
+    recipe_rows(&value.implementation_witnesses, work)
 }

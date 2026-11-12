@@ -960,6 +960,36 @@ fn resolve_indexed(
                 LifeNominalActual::Type(ty) => LifeNominalActual::Type(
                     resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
                 ),
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    aggregate_templates::spend(
+                        &mut resolver.remaining,
+                        (life.binder_count as usize)
+                            .saturating_add(life.slots.len())
+                            .saturating_add(life.retained.len())
+                            .saturating_add(life.nominal_arguments.len())
+                            .saturating_add(1),
+                        Span::default(),
+                    )
+                    .map_err(|e| vec![e])?;
+                    for length in life
+                        .slots
+                        .iter()
+                        .map(|r| r.path.len())
+                        .chain(life.retained.iter().map(|r| r.path.len()))
+                        .chain(life.nominal_arguments.iter().map(|r| r.path.len()))
+                    {
+                        aggregate_templates::spend(
+                            &mut resolver.remaining,
+                            length,
+                            Span::default(),
+                        )
+                        .map_err(|e| vec![e])?;
+                    }
+                    LifeNominalActual::QualifiedType {
+                        ty: resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
+                        life: life.clone(),
+                    }
+                }
                 LifeNominalActual::Const(value) => LifeNominalActual::Const(value.clone()),
                 LifeNominalActual::Lifetime(class) => LifeNominalActual::Lifetime(*class),
             });
@@ -1931,6 +1961,22 @@ impl Resolver<'_> {
                     mutable: *mutable,
                     inner: Box::new(inner),
                 }
+            }
+            Type::BorrowedStorage { storage, life }
+                if matches!(storage.as_ref(), Type::Tuple(_)) =>
+            {
+                // Anonymous scope is structural, never a fabricated nominal
+                // inventory entry. Resolve every real child and then validate
+                // complete slots/retained/nominal metadata against that shape.
+                let work = inference::type_snapshot_work(ty, span, &self.generic_limits)?;
+                aggregate_templates::spend(&mut self.remaining, work.saturating_mul(2), span)?;
+                let storage = self.ty(storage, depth + 1, span)?;
+                let qualified = Type::BorrowedStorage {
+                    storage: Box::new(storage),
+                    life: life.clone(),
+                };
+                stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                qualified
             }
             Type::BorrowedStorage { .. } => {
                 let work = inference::type_snapshot_work(
@@ -2962,7 +3008,7 @@ impl<'a> Builder<'a, '_> {
         let CoreExprKind::Tuple(items) = &e.kind else {
             unreachable!("expression dispatcher variant")
         };
-        let expected_fields = match expected {
+        let expected_fields = match expected.map(stored::physical) {
             Some(Type::Tuple(fs)) if fs.len() == items.len() => Some(fs),
             _ => None,
         };
@@ -2977,7 +3023,16 @@ impl<'a> Builder<'a, '_> {
             staged.push(self.stage_argument(id, &t, v.span)?);
             types.push(t);
         }
-        let ty = Type::Tuple(types);
+        let physical = Type::Tuple(types);
+        let ty = if let Some(expected @ Type::BorrowedStorage { storage, .. }) = expected
+            && matches!(storage.as_ref(), Type::Tuple(_))
+        {
+            self.same(&physical, storage, e.span)?;
+            self.closures.snapshot_type(expected, 1, 0, e.span)?;
+            expected.clone()
+        } else {
+            physical
+        };
         let pure = ty.is_copy_value()
             || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
             || stored::shared_compound(&ty, &mut self.match_work_left, self.limits, e.span)?;

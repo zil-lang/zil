@@ -18,7 +18,11 @@ pub(super) fn rows<'a>(
     )?;
     match base {
         HoldRoot::Local(local) => state.locals.get(&local).map(|v| &v.environment),
-        HoldRoot::Capture(index) => state.captures.get(&index).map(|v| &v.environment),
+        HoldRoot::Capture(index) => state
+            .captures
+            .get(&index)
+            .map(|v| &v.environment)
+            .or_else(|| state.external.get(&base)),
         HoldRoot::Parameter(_) => state.external.get(&base),
         HoldRoot::Static => None,
     }
@@ -86,6 +90,15 @@ pub(super) fn publish(
             .ok_or_else(|| failure("updated external callable unavailable"))?;
         *actual = rows;
         return Ok(());
+    }
+    if matches!(base, HoldRoot::Capture(_)) && state.external.contains_key(&base) {
+        let mirrored = copy_permission_rows(&rows, b)?;
+        state.external.insert(base, mirrored);
+        if let HoldRoot::Capture(index) = base
+            && !state.captures.contains_key(&index)
+        {
+            return Ok(());
+        }
     }
     let value = match base {
         HoldRoot::Local(local) => state.locals.get_mut(&local),

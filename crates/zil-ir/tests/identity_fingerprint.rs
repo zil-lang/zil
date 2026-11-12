@@ -270,6 +270,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -920,11 +921,15 @@ fn returned_capture_sources_bind_identity_including_unknown_empty_and_actual_pat
         sources: (vec![StoragePosition {
             base: StorageBase::Parameter(0),
             path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
-        }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+        }])
+        .into_iter()
+        .map(zil_ir::StorageSource::Exact)
+        .collect(),
     }]);
     let actual = zil_ir::callable_return_contract_fingerprint(&contract);
     assert_ne!(empty, actual);
-    contract.capture_sources.as_mut().unwrap()[0].sources[0].base = StorageBase::Parameter(1);
+    exact_source_mut(&mut contract.capture_sources.as_mut().unwrap()[0].sources[0]).base =
+        StorageBase::Parameter(1);
     assert_ne!(
         actual,
         zil_ir::callable_return_contract_fingerprint(&contract)
@@ -945,7 +950,10 @@ fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
             sources: (vec![StoragePosition {
                 base: StorageBase::Result,
                 path: vec![],
-            }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+            }])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
         }]),
         Some(vec![StorageSourceBinding {
             position: StoragePosition {
@@ -955,7 +963,10 @@ fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
             sources: (vec![StoragePosition {
                 base: StorageBase::Parameter(1),
                 path: vec![ContractProjection::Place(PlaceProjection::Field(2))],
-            }]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+            }])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
         }]),
     ] {
         // Transport controls deliberately assert no semantic kernel admission.
@@ -1024,7 +1035,10 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
     raw.functions[0].storage_life = Some(life);
     raw.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
         position: position(StorageBase::Result),
-        sources: (vec![position(StorageBase::Receiver)]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+        sources: (vec![position(StorageBase::Receiver)])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
     }]);
     let plan = CandidatePlan::empty_for(&raw);
     let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
@@ -1070,4 +1084,11 @@ fn callable_return_expected_life_is_distinct_and_lossless() {
     let (decoded, _) = wire::decode_module_candidate(&bytes, &limits).unwrap();
     assert_eq!(raw, decoded);
     assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
+    }
 }

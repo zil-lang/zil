@@ -99,6 +99,7 @@ pub fn request(scenario: Scenario) -> (TypedModule, CandidatePlan) {
             },
         ],
         functions: vec![TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,

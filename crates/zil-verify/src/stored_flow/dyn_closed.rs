@@ -504,7 +504,10 @@ mod tests {
                         writes: vec![],
                     }),
                     result: Some(DynResultSource::Borrow {
-                        sources: (vec![receiver]).into_iter().map(zil_ir::StorageSource::Exact).collect(),
+                        sources: (vec![receiver])
+                            .into_iter()
+                            .map(zil_ir::StorageSource::Exact)
+                            .collect(),
                         mutable: false,
                     }),
                     cleanup: Some(DynCleanupContract {

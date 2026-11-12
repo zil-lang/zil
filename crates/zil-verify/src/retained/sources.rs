@@ -259,7 +259,7 @@ pub(super) fn claim(
             })?;
         let mut seen = BTreeSet::new();
         for atom in &binding.sources {
-            let source=crate::exact_storage_source(atom)?;
+            let source = crate::exact_storage_source(atom)?;
             budget.spend(
                 source
                     .path
@@ -701,10 +701,14 @@ pub(super) fn check_bodies(
                     ))?;
                     for source in &actual {
                         let present = match declared {
-                            Some(binding) => crate::exact_storage_sources_contain(&binding.sources,source)?,
+                            Some(binding) => {
+                                crate::exact_storage_sources_contain(&binding.sources, source)?
+                            }
                             None => false,
                         };
-                        if present { continue; }
+                        if present {
+                            continue;
+                        }
                         return Err(invalid(
                             "callable source claim omits an actual reachable input source",
                         ));

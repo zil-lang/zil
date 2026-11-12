@@ -1531,6 +1531,38 @@ fn check_with(
                         }
                     }
                     InstructionKind::UnpackTuple { local, fields }
+                        if super::stored_flow::anonymous_operation(f, i, b)? =>
+                    {
+                        let actual = shape(&f.locals[local.0 as usize].ty)
+                            .ok_or_else(|| bad("anonymous Tuple class directory absent"))?;
+                        for (index, target) in fields.iter().enumerate() {
+                            if let Some(to) = locals[target.0 as usize].outer {
+                                let (class, _) = failure_view_slot(
+                                    actual,
+                                    &[PlaceProjection::Field(index as u32)],
+                                    b,
+                                )?
+                                .ok_or_else(|| {
+                                    bad("anonymous child has no exact parent slot class")
+                                })?;
+                                let from = *locals[local.0 as usize]
+                                    .classes
+                                    .get(class as usize)
+                                    .ok_or_else(|| bad("anonymous parent class variable absent"))?;
+                                array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                            } else {
+                                link_projection(
+                                    &f.locals[local.0 as usize].ty,
+                                    &locals[local.0 as usize],
+                                    &locals[target.0 as usize],
+                                    LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
+                        }
+                    }
+                    InstructionKind::UnpackTuple { local, fields }
                         if super::stored_flow::compound_operation(f, i, b)? =>
                     {
                         for (index, target) in fields.iter().enumerate() {
@@ -1782,7 +1814,11 @@ fn check_with(
                             }
                         }
                     }
-                    InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                    InstructionKind::LoadStoredBorrow {
+                        storage,
+                        path,
+                        mode,
+                    } => {
                         if !values[storage.0 as usize].array_elements.is_empty() {
                             let [PlaceProjection::Field(index)] = path.as_slice() else {
                                 return Err(bad("array load has no actual constant ordinal"));
@@ -1843,7 +1879,13 @@ fn check_with(
                             .iter()
                             .find(|s| s.path == *path)
                             .ok_or_else(|| bad("stored class slot is absent"))?;
-                        let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                        let class = if matches!(mode, StoredBorrowLoad::Reborrow { .. }) {
+                            values[storage.0 as usize].outer.ok_or_else(|| {
+                                bad("stored child reborrow has no actual head region")
+                            })?
+                        } else {
+                            values[storage.0 as usize].classes[leaf.binder as usize]
+                        };
                         array_outer::transport(
                             &mut e,
                             out.and_then(|o| o.outer)
@@ -1893,12 +1935,27 @@ fn check_with(
                                     .get(*index as usize)
                                     .ok_or_else(|| bad("aggregate class operand is absent"))?;
                                 let operand = &values[arg.0 as usize];
-                                let upper = match tail {
+                                let upper = if !tail.is_empty()
+                                    && matches!(
+                                        f.values[arg.0 as usize],
+                                        Type::BorrowedStorage { .. }
+                                    ) {
+                                    let actual_child = shape(&f.values[arg.0 as usize])
+                                        .ok_or_else(|| {
+                                            bad("nested constructor lacks actual child shape")
+                                        })?;
+                                    let (class, _) = failure_view_slot(actual_child, tail, b)?.ok_or_else(||bad("nested constructor has no exact physical child slot"))?;
+                                    *operand.classes.get(class as usize).ok_or_else(|| {
+                                        bad("nested constructor child class absent")
+                                    })?
+                                } else {
+                                    match tail {
                                 [] => operand.outer.ok_or_else(|| bad("stored class operand is not an Address"))?,
                                 [PlaceProjection::Field(ordinal)] => *operand.array_elements.get(*ordinal as usize)
                                     .ok_or_else(|| bad("stored Array class operand lacks its actual ordinal"))?,
                                 _ => return Err(bad("nested constructor class requires its physical operand consumer")),
-                            };
+                            }
+                                };
                                 array_outer::binding(
                                     &mut e,
                                     upper,
@@ -1980,14 +2037,47 @@ fn check_with(
                     }
                     InstructionKind::ExtractField { aggregate, index } => {
                         if let Some(out) = out {
-                            link_projection(
-                                &f.values[aggregate.0 as usize],
-                                &values[aggregate.0 as usize],
-                                out,
-                                LifeTypeProjection::Place(PlaceProjection::Field(*index)),
-                                &mut e,
-                                b,
-                            )?;
+                            if super::stored_flow::anonymous_operation(f, i, b)? {
+                                if let Some(to) = out.outer {
+                                    let actual = shape(&f.values[aggregate.0 as usize])
+                                        .ok_or_else(|| {
+                                            bad("anonymous snapshot class directory absent")
+                                        })?;
+                                    let (class, _) = failure_view_slot(
+                                        actual,
+                                        &[PlaceProjection::Field(*index)],
+                                        b,
+                                    )?
+                                    .ok_or_else(|| {
+                                        bad("anonymous snapshot has no exact actual slot class")
+                                    })?;
+                                    let from = *values[aggregate.0 as usize]
+                                        .classes
+                                        .get(class as usize)
+                                        .ok_or_else(|| {
+                                            bad("anonymous snapshot parent class variable absent")
+                                        })?;
+                                    array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                                } else {
+                                    link_projection(
+                                        &f.values[aggregate.0 as usize],
+                                        &values[aggregate.0 as usize],
+                                        out,
+                                        LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                                        &mut e,
+                                        b,
+                                    )?;
+                                }
+                            } else {
+                                link_projection(
+                                    &f.values[aggregate.0 as usize],
+                                    &values[aggregate.0 as usize],
+                                    out,
+                                    LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
                         }
                     }
                     InstructionKind::MakeErrorUnion { value, is_error }

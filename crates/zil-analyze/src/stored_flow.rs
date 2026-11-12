@@ -10,6 +10,7 @@ mod environment_memory;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
+mod receiver_results;
 mod returned_upper;
 #[cfg(test)]
 mod set_bits_tests;
@@ -620,6 +621,7 @@ struct Loan {
     targets: Targets,
     parents: Loans,
     mutable: bool,
+    receiver_head: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum TaskLoanAnchor {
@@ -686,7 +688,17 @@ pub(super) struct Facts {
     byte_reads: Vec<Target>,
     byte_covered: bool,
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
+    // Every reachable return preserves the exact seeded targets AND loans.
+    // This is derived from actual terminal states, never a type/life claim.
+    external_stable: BTreeSet<(u32, Path)>,
     capture_after: BTreeMap<Path, Vec<Target>>,
+    capture_stable: BTreeSet<Path>,
+    /// Actual entry-head ancestry of every reachable returned permission.
+    receiver_return: bool,
+    /// Structural callable input heads needed by the result, separate from
+    /// its data targets. Each ordinary invocation substitutes its own loans.
+    returned_head_inputs: BTreeSet<u32>,
+    capture_taken: BTreeSet<u32>,
     pub apart: BTreeSet<(Target, Target)>,
     head_accesses: BTreeMap<Target, bool>,
     complete: bool,
@@ -943,6 +955,21 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         value.work(b)?;
     }
     f.returned_variants.work(b)?;
+    if f.receiver_return {
+        fee(b, 1)?;
+    }
+    if !f.returned_head_inputs.is_empty() {
+        fee(b, f.returned_head_inputs.len())?;
+    }
+    if !f.capture_taken.is_empty() {
+        fee(b, f.capture_taken.len())?;
+    }
+    for (_, path) in &f.external_stable {
+        fee(b, path.len().saturating_add(1))?;
+    }
+    for path in &f.capture_stable {
+        fee(b, path.len().saturating_add(1))?;
+    }
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -1371,6 +1398,18 @@ pub(super) fn shared_compound(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous shared compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(!resources::sums::owned(storage)
+            && life
+                .slots
+                .iter()
+                .all(|slot| slot.mode == StoredBorrowMode::SharedAddress));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1422,6 +1461,18 @@ pub(super) fn affine_compound(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::BorrowedStorage { storage, life } = ty
+        && matches!(storage.as_ref(), Type::Tuple(_))
+    {
+        b.type_work(ty, true, "anonymous affine compound complete type")?;
+        physical(ty, b)?;
+        fee(b, life.slots.len())?;
+        return Ok(resources::sums::owned(storage)
+            || life
+                .slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress));
+    }
     if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
         return Ok(false);
     }
@@ -1526,7 +1577,8 @@ fn compound_extract(
     if !shared_compound(module, parent, b)? {
         return Ok(false);
     }
-    let Type::Tuple(fields) = parent else {
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(fields) = physical else {
         unreachable!()
     };
     let child = fields
@@ -1554,10 +1606,11 @@ fn compound_unpack(
         .get(local.0 as usize)
         .ok_or_else(|| failure("compound unpack local absent"))?
         .ty;
-    if !affine_compound(module, parent, b)? {
+    if !affine_compound(module, parent, b)? && !shared_compound(module, parent, b)? {
         return Ok(false);
     }
-    let Type::Tuple(types) = parent else {
+    let physical = carrier(parent).map_or(parent, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
         unreachable!()
     };
     if i.result.is_some() || fields.len() != types.len() {
@@ -1615,7 +1668,8 @@ fn compound_constructor(
     if !affine_compound(module, ty, b)? {
         return Ok(false);
     }
-    let Type::Tuple(types) = ty else {
+    let physical = carrier(ty).map_or(ty, |(storage, _)| storage);
+    let Type::Tuple(types) = physical else {
         unreachable!()
     };
     if types.len() != fields.len() {
@@ -2302,8 +2356,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             ));
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        return super::signature_life::capture_relation(
+        return super::signature_life::closure_relation(
             &module.closures,
+            d.kind,
             &parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -2349,8 +2404,63 @@ fn returns(
     if let Some(d) = f
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
-        && super::stored_callables::lending(d)
+        && (super::stored_callables::lending(d) || super::stored_callables::transferred(d))
     {
+        if receiver_results::applies(d) {
+            if super::stored_callables::result_is_receiver(d) && !facts.receiver_return {
+                return Err(failure(
+                    "receiver-bounded result lacks actual invocation-head ancestry on every return",
+                ));
+            }
+            let leaves = capture_after::leaves(module, d, b)?;
+            let mut actual = BTreeSet::new();
+            for (path, sources) in &facts.returned {
+                if !path.is_empty() || sources.is_empty() {
+                    return Err(failure(
+                        "returned external view has no actual complete source",
+                    ));
+                }
+                for source in sources {
+                    let HoldRoot::Capture(index) = source.base else {
+                        return Err(failure(
+                            "returned environment view has no actual capture source",
+                        ));
+                    };
+                    let ty = d
+                        .captures
+                        .get(index as usize)
+                        .ok_or_else(|| failure("returned environment source capture absent"))?;
+                    if super::stored_callables::transferred(d)
+                        && super::stored_callables::exclusive_capture(ty)
+                        && !facts.capture_taken.contains(&index)
+                    {
+                        return Err(failure(
+                            "full Fixed exclusive result did not uniquely take its captured capability",
+                        ));
+                    }
+                    if !super::stored_callables::scalar(ty) {
+                        let key = environment_path(index as usize, &source.stored, b)?;
+                        fee(b, leaves.len().saturating_mul(key.len().saturating_add(1)))?;
+                        if !leaves.iter().any(|(path, _)| *path == key) {
+                            return Err(failure(
+                                "returned environment source is not an authenticated leaf",
+                            ));
+                        }
+                    } else if !super::stored_callables::result_is_receiver(d) {
+                        return Err(failure(
+                            "inline environment storage cannot supply a Fixed external result",
+                        ));
+                    }
+                    actual.insert(index);
+                }
+            }
+            if actual.into_iter().collect::<Vec<_>>() != d.lending_captures {
+                return Err(failure(
+                    "returned environment view differs from its actual capture upper",
+                ));
+            }
+            return Ok(());
+        }
         fee(b, d.lending_captures.len().saturating_add(1))?;
         let mut actual = BTreeSet::new();
         for (path, sources) in &facts.returned {
@@ -2432,12 +2542,24 @@ fn returns(
             if (if source.retained_port.is_some() {
                 task_address::source_binding(f, source, b)?
             } else {
-                binding(f, StorageBase::Parameter(index), &source.stored, b)?
+                environment_memory::binding(module, f, index, &source.stored, b)?
             }) != upper
             {
-                return Err(failure(
-                    "actual returned target exceeds its declared stored/fresh relation",
-                ));
+                let bounded_head = matches!(upper, StorageBinder::Invocation(_))
+                    && facts.returned_head_inputs.iter().any(|position| {
+                        f.parameters.get(*position as usize).is_some_and(|local| {
+                            matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable,inner}
+                            if matches!(inner.as_ref(),Type::Closure(_))
+                            && (!matches!(f.return_type,Type::Address{mutable:true,..})||*mutable))
+                        }) && f.storage_life.as_ref().and_then(|life| {
+                            super::signature_life::outer(life, StorageBase::Parameter(*position))
+                        }) == Some(upper)
+                    });
+                if !bounded_head {
+                    return Err(failure(
+                        "actual returned target exceeds its declared stored/fresh relation",
+                    ));
+                }
             }
         }
     }
@@ -2577,7 +2699,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             }
             Type::BorrowedStorage { storage, life } => {
                 if !owning
-                    || (!matches!(storage.as_ref(), Type::Package { .. })
+                    || (!matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))
                         && !shared_record_child(ty, b)?)
                 {
                     if !retained::pure(ty, b)? {
@@ -2593,7 +2715,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     path,
                     out,
                     b,
-                    matches!(storage.as_ref(), Type::Package { .. }),
+                    matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
                 )?;
                 let boundary: Vec<_> = path
                     .iter()
@@ -2641,7 +2763,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         &mut Vec::new(),
         &mut actual,
         b,
-        matches!(storage, Type::Package { .. }),
+        matches!(storage, Type::Package { .. } | Type::Tuple(_)),
     )?;
     if actual.len() != life.slots.len()
         || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
@@ -2686,15 +2808,17 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !path
-                    .iter()
-                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+            && (!matches!(
+                storage,
+                Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+            ) || !path
+                .iter()
+                .all(|part| matches!(part, PlaceProjection::Field(_)))
                 || (child_class.is_none() && path.len() != 1))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "exclusive stored holder requires direct nominal address slots",
+                "exclusive stored holder requires exact inline address slots",
                 None,
             )]);
         }
@@ -2829,6 +2953,7 @@ fn seed_environment(
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
                 mutable,
+                receiver_head: false,
             });
             b.stored_exclusive_loans |= mutable;
             let permission = Permission {
@@ -2922,6 +3047,7 @@ fn seed_value(
             targets: BTreeSet::from([target.clone()]),
             parents: Loans::new(),
             mutable: *mutable,
+            receiver_head: matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))),
         });
         b.stored_exclusive_loans |= *mutable;
         value.pointer = Permission {
@@ -2948,6 +3074,7 @@ fn seed_value(
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
                 mutable: mode == StoredBorrowMode::ExclusiveAddress,
+                receiver_head: false,
             });
             b.stored_exclusive_loans |= mode == StoredBorrowMode::ExclusiveAddress;
             value.slots.insert(
@@ -2984,6 +3111,7 @@ fn seed_value(
                 targets: Targets::from([source.clone()]),
                 parents: Loans::new(),
                 mutable: false,
+                receiver_head: false,
             });
             ordered(b, value.slots.len(), 1)?;
             value.slots.insert(
@@ -3029,6 +3157,7 @@ fn seed_value(
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
                 mutable: decl.mode == StoredBorrowMode::ExclusiveAddress,
+                receiver_head: false,
             });
             b.stored_exclusive_loans |= decl.mode == StoredBorrowMode::ExclusiveAddress;
             ordered(b, slots.len(), decl.path.len())?;
@@ -3127,9 +3256,10 @@ fn seed(
         .and_then(|id| module.closures.get(id.0 as usize))
         && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
-        if d.captures
-            .iter()
-            .any(super::stored_callables::exclusive_capture)
+        if super::stored_callables::lending(d)
+            || d.captures
+                .iter()
+                .any(super::stored_callables::exclusive_capture)
         {
             fee(b, 1)?;
             state.receiver_loan = Some(loans.len());
@@ -3154,6 +3284,13 @@ fn seed(
                     loans,
                     b,
                 )?;
+                if let Type::Closure(child) = ty
+                    && capture_after::has_context(module, &module.closures[child.0 as usize], b)?
+                {
+                    let rows = copy_permission_rows(&value.environment, b)?;
+                    ordered(b, state.external.len(), 0)?;
+                    state.external.insert(HoldRoot::Capture(index as u32), rows);
+                }
             }
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(index as u32, value);
@@ -3505,12 +3642,14 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
+            let receiver_result = super::stored_callables::called(module, f, &instruction.kind)
+                .is_some_and(|(d, _)| super::stored_callables::result_is_receiver(d));
             let mutable_leaves = if let Some((d, _)) =
                 super::stored_callables::called(module, f, &instruction.kind)
                 && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
                 && capture_after::required(module, d, b)?
             {
-                capture_after::leaves(module, d, b)?
+                capture_after::outputs(module, d, b)?
             } else {
                 Vec::new()
             };
@@ -3529,8 +3668,25 @@ fn slot_loan_ids(
                     }
                     Ok(())
                 };
+            if receiver_result {
+                add(
+                    u32::MAX - 2,
+                    &Vec::new(),
+                    matches!(
+                        instruction.kind,
+                        InstructionKind::CallClosureMut { .. }
+                            | InstructionKind::CallClosureBorrowed {
+                                kind: CallableKind::FnMut,
+                                ..
+                            }
+                    ),
+                    b,
+                )?;
+            }
             match &instruction.kind {
-                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakePackage { .. }
+                | InstructionKind::MakeOwnedTuple { .. } => {
                     if let Some((_, shape)) = carrier(value_type(
                         f,
                         instruction
@@ -3852,6 +4008,10 @@ fn transfer(
                 heap_parents: Vec::new(),
                 heap_element: None,
             });
+            if matches!(base,HoldRoot::Capture(_)) && let Some(marker)=state.receiver_loan {
+                fee(b,1)?;
+                out.pointer.loans.insert(marker);
+            }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)? {
                 ordered(b, state.locals.len(), 0)?;
                 if let Some(held) = state.locals.get(local) {
@@ -4004,7 +4164,24 @@ fn transfer(
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
-                return Err(failure("anonymous input Tuple must be moved from its actual parent field"));
+                // A Task input view is ordinarily projected from its parent.
+                // A separate ordinary Tuple producer must instead prove its
+                // complete actual structure and mode, regardless of unrelated
+                // Task declarations. It still reconstructs every source below.
+                let result=i.result.ok_or_else(||failure("anonymous constructor result absent"))?;
+                let ty=value_type(f,result)?;
+                let shared=shared_compound(module,ty,b)?;
+                let affine=affine_compound(module,ty,b)?;
+                if !(shared && matches!(i.kind,InstructionKind::MakeAggregate{..})
+                    || affine && matches!(i.kind,InstructionKind::MakeOwnedTuple{..})){
+                    return Err(failure("anonymous input Tuple requires its actual parent projection or independently checked constructor"));
+                }
+                let Some((Type::Tuple(types),_))=carrier(ty) else{return Err(failure("anonymous constructor has no actual Tuple storage"))};
+                if types.len()!=fields.len(){return Err(failure("anonymous constructor omits actual fields"))}
+                for (field,expected) in fields.iter().zip(types){
+                    b.type_work(expected,false,"anonymous constructor complete field type")?;
+                    if value_type(f,*field)?!=expected{return Err(failure("anonymous constructor changes complete field Type"))}
+                }
             }
             let ty = value_type(
                 f,
@@ -4026,6 +4203,10 @@ fn transfer(
                         .insert(vec![PlaceProjection::Field(index as u32)], permission);
                 }
                 return Ok(out);
+            }
+            if matches!(carrier(ty).map_or(ty,|(storage,_)|storage),Type::Tuple(_))
+                && matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {
+                return Err(failure("affine compound requires an actual owning tuple constructor"));
             }
             if matches!(ty,Type::Tuple(_)) && (shared_compound(module,ty,b)? || affine_compound(module,ty,b)?) {
                 if matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {return Err(failure("affine compound requires an actual owning tuple constructor"))}
@@ -4248,6 +4429,13 @@ fn transfer(
                     out.slots.insert(path.clone(), permission);
                 }
             }
+            if !summary.returned_head_inputs.is_empty() {
+                for position in &summary.returned_head_inputs {
+                    let argument=*arguments.get(*position as usize).ok_or_else(||failure("returned head dependency input absent"))?;
+                    let actual=&get(argument)?.pointer;
+                    for loan in &actual.loans {ordered(b,out.pointer.loans.len(),0)?;out.pointer.loans.insert(*loan);}
+                }
+            }
             let mut updates = Vec::new();
             // Moving F transfers its environment ticket, while writes through
             // captured addresses still affect the caller's original storage.
@@ -4266,7 +4454,18 @@ fn transfer(
                         for source in sources {union(&mut permission,&substitute(source,arguments,values,state,b)?,b)?;}
                     }
                     if !permission.targets.is_empty() {
-                        permission=retain_slot(&permission,i,position as u32,&path,slot_ids,loans,b)?;
+                        let stable=if summary.external_stable.is_empty() {false} else {
+                            ordered(b,summary.external_stable.len(),path.len())?;
+                            summary.external_stable.contains(&(position as u32,path.clone()))
+                        };
+                        if stable {
+                            ordered(b,before.len(),path.len())?;
+                            let previous=before.get(&path).ok_or_else(||failure("stable moved context omits actual previous row"))?;
+                            permission_clone_work(previous,b)?;permission_clone_work(&permission,b)?;
+                            if *previous!=permission {return Err(failure("stable moved context changed actual targets or loans"));}
+                        } else {
+                            permission=retain_slot(&permission,i,position as u32,&path,slot_ids,loans,b)?;
+                        }
                     }
                     ordered(b,after.len(),path.len())?;
                     after.insert(path,permission);
@@ -4305,7 +4504,22 @@ fn transfer(
                     ));
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
-                let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
+                let stable=if summary.external_stable.is_empty() {false} else {
+                    ordered(b,summary.external_stable.len(),path.len())?;
+                    summary.external_stable.contains(&(*parameter,path.clone()))
+                };
+                let permission = if stable {
+                    let previous=match &callee.locals[local.0 as usize].ty {
+                        Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))=>{
+                            let rows=environment_memory::current(actual,state,b)?;
+                            copy_permission(rows.get(path).ok_or_else(||failure("stable callable row absent"))?,b)?
+                        },
+                        _=>select(state,&actual.pointer,path,b)?,
+                    };
+                    permission_clone_work(&previous,b)?;permission_clone_work(&permission,b)?;
+                    if previous!=permission {return Err(failure("stable external effect changed actual targets or loans"));}
+                    permission
+                } else {retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?};
                 for root in &actual.pointer.targets {
                     fee(b,target_width(root).saturating_add(path.len()))?;
                     if !root.stored.is_empty() || root.heap_element.is_some() || root.retained_port.is_some() {
@@ -4406,6 +4620,7 @@ fn transfer(
             let actual = state.captures.get(index)
                 .ok_or_else(||failure("nested captured environment has no actual frame value"))?;
             out = snapshot(actual, b)?;
+            if let Some(marker)=state.receiver_loan {fee(b,1)?;out.pointer.loans.insert(marker);}
             fee(b, 1)?;
             out.pointer.targets.insert(Target {
                 retained_port: None,
@@ -4438,6 +4653,13 @@ fn transfer(
                 heap_parents: Vec::new(),
                 heap_element: None,
             });
+            if let Some(marker)=state.receiver_loan {
+                fee(b,1)?;
+                out.pointer.loans.insert(marker);
+            }
+        }
+        kind if super::stored_callables::called(module,f,kind).is_some_and(|(d,_)|receiver_results::applies(d)) => {
+            out=receiver_results::invoke(module,f,i,state,values,summaries,slot_ids,loans,b)?;
         }
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(d, _)| super::stored_callables::lending(d)) =>
@@ -4508,7 +4730,7 @@ fn transfer(
                 && (matches!(i.kind,InstructionKind::ReadCapture{..})
                     || f.environment.and_then(|id|module.closures.get(id.0 as usize))
                         .and_then(|definition|definition.captures.get(*index as usize))
-                        .is_some_and(|ty|matches!(ty,Type::Closure(_)))) => {
+                        .is_some_and(|ty|matches!(ty,Type::Closure(_)) || super::stored_callables::exclusive_capture(ty))) => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -4517,6 +4739,11 @@ fn transfer(
                     .ok_or_else(|| failure("actual environment capture is absent"))?,
                 b,
             )?;
+            if matches!(i.kind,InstructionKind::TakeCapture{..}) {
+                let d=f.environment.and_then(|id|module.closures.get(id.0 as usize)).ok_or_else(||failure("capture transfer has no actual entry"))?;
+                if d.kind!=CallableKind::FnOnce {return Err(failure("capture capability transfer requires a genuinely consuming entry"));}
+                state.captures.remove(index);
+            }
             if matches!(i.kind, InstructionKind::ReadCapture { .. })
                 && f.environment.and_then(|id| module.closures.get(id.0 as usize))
                     .and_then(|d| d.captures.get(*index as usize))
@@ -4693,6 +4920,13 @@ fn transfer(
             for (index,field) in fields.iter().enumerate(){
                 let mut child=Value::default();
                 child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
+                    // A summary may still be empty in this fixed-point iteration.
+                    // Final address uses and returns independently demand real
+                    // nonempty targets; an empty candidate grants no permission.
+                    child.pointer=child.slots.remove(&Vec::new()).unwrap_or_default();
+                    if !child.slots.is_empty(){return Err(failure("anonymous Tuple address child has stray inline source slots"))}
+                }
                 union(&mut child.held,&source.held,b)?;
                 ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
             }
@@ -4707,7 +4941,8 @@ fn transfer(
         InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
             let parent=value_type(f,*aggregate)?;
             if shared_compound(module,parent,b)? {
-                let Type::Tuple(fields)=parent else{unreachable!()};
+                let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
+                let Type::Tuple(fields)=physical else{unreachable!()};
                 let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
                 let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
                 if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
@@ -4715,7 +4950,11 @@ fn transfer(
                 for (path,permission) in &source.slots{
                     fee(b,path.len().saturating_add(1))?;
                     if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
-                        union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        if matches!(child,Type::Address{..}) && tail.is_empty(){
+                            union(&mut out.pointer,permission,b)?;
+                        }else{
+                            union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        }
                     }
                 }
                 union(&mut out.held,&source.held,b)?;
@@ -4903,6 +5142,7 @@ fn transfer(
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. }
         ) || b.nested_store_windows
             && matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })
             || b.store_option_results
@@ -4928,6 +5168,7 @@ fn transfer(
         loan.targets = targets.targets;
         loan.parents = targets.loans;
         loan.mutable = matches!(value_type(f, result)?, Type::Address { mutable: true, .. });
+        loan.receiver_head |= matches!(value_type(f,result)?,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Closure(_)));
         b.stored_exclusive_loans |= loan.mutable;
         out.pointer.loans.clear();
         fee(b, 1)?;
@@ -5708,6 +5949,7 @@ fn windows(
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedTuple { fields }
                         if b.stored_exclusive_loans =>
                     {
                         let result = i.result.ok_or_else(|| failure("aggregate lacks result"))?;
@@ -6561,7 +6803,20 @@ fn derive_cfg(
                 byte_reads: Vec::new(),
                 byte_covered: false,
                 external_after: BTreeMap::new(),
+                external_stable: BTreeSet::new(),
                 capture_after: BTreeMap::new(),
+                capture_stable: BTreeSet::new(),
+                receiver_return: f.environment.is_some()
+                    && f.storage_life.as_ref().is_some_and(|life| {
+                        super::signature_life::outer(life, StorageBase::Receiver).is_some_and(
+                            |receiver| {
+                                super::signature_life::outer(life, StorageBase::Result)
+                                    == Some(receiver)
+                            },
+                        )
+                    }),
+                returned_head_inputs: BTreeSet::new(),
+                capture_taken: BTreeSet::new(),
                 apart: BTreeSet::new(),
                 head_accesses: BTreeMap::new(),
                 complete: false,
@@ -6602,6 +6857,23 @@ fn derive_cfg(
                     }
                 }
                 let mut root = roots(value, b)?;
+                if b.receiver_borrows {
+                    let mut dependencies = Loans::new();
+                    active_loans_union(&mut dependencies, &value.pointer, b)?;
+                    active_loans_union(&mut dependencies, &value.held, b)?;
+                    for permission in value.slots.values() {
+                        active_loans_union(&mut dependencies, permission, b)?;
+                    }
+                    for id in ancestry(&dependencies, &loans, b)? {
+                        if loans[id].receiver_head {
+                            for target in &loans[id].targets {
+                                ordered(b, root.len(), target_width(target))?;
+                                fee(b, target_width(target))?;
+                                root.insert(target.clone());
+                            }
+                        }
+                    }
+                }
                 if b.store_option_results
                     && b.shared_byte_borrow
                     && matches!(&f.values[id], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
@@ -6614,6 +6886,30 @@ fn derive_cfg(
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
             }
+            if b.receiver_borrows || b.mutable_capture_contexts {
+                for (base, rows) in &entry.external {
+                    let HoldRoot::Parameter(parameter) = base else {
+                        continue;
+                    };
+                    for path in rows.keys() {
+                        ordered(b, actual.external_stable.len(), path.len())?;
+                        fee(b, path.len().saturating_add(1))?;
+                        actual.external_stable.insert((*parameter, path.clone()));
+                    }
+                }
+            }
+            if let Some(d) = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                && capture_after::required(module, d, b)?
+            {
+                for (path, _) in capture_after::outputs(module, d, b)? {
+                    if capture_after::row(d, &entry, &path, b)?.is_some() {
+                        ordered(b, actual.capture_stable.len(), path.len())?;
+                        actual.capture_stable.insert(path);
+                    }
+                }
+            }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
                 if *live
@@ -6623,12 +6919,54 @@ fn derive_cfg(
                         .and_then(|id| module.closures.get(id.0 as usize))
                     && capture_after::required(module, d, b)?
                 {
+                    let mut changed_rows = Vec::new();
+                    for path in &actual.capture_stable {
+                        let initial = capture_after::row(d, &entry, path, b)?;
+                        let terminal = capture_after::row(d, &outputs[bi], path, b)?;
+                        if let Some(p) = initial {
+                            permission_clone_work(p, b)?;
+                        }
+                        if let Some(p) = terminal {
+                            permission_clone_work(p, b)?;
+                        }
+                        if initial != terminal {
+                            fee(b, path.len())?;
+                            changed_rows.push(path.clone());
+                        }
+                    }
+                    for path in changed_rows {
+                        ordered(b, actual.capture_stable.len(), path.len())?;
+                        actual.capture_stable.remove(&path);
+                    }
                     capture_after::summarize(module, f, &outputs[bi], &mut actual, b)?;
                 }
                 if b.stored_slot_updates
                     && *live
                     && matches!(block.terminator, Terminator::Return(_))
                 {
+                    let mut changed_rows = Vec::new();
+                    for (parameter, path) in &actual.external_stable {
+                        fee(b, path.len().saturating_add(1))?;
+                        let base = HoldRoot::Parameter(*parameter);
+                        let initial = entry.external.get(&base).and_then(|rows| rows.get(path));
+                        let terminal = outputs[bi]
+                            .external
+                            .get(&base)
+                            .and_then(|rows| rows.get(path));
+                        if let Some(value) = initial {
+                            permission_clone_work(value, b)?;
+                        }
+                        if let Some(value) = terminal {
+                            permission_clone_work(value, b)?;
+                        }
+                        if initial != terminal {
+                            changed_rows.push((*parameter, path.clone()));
+                        }
+                    }
+                    for row in changed_rows {
+                        ordered(b, actual.external_stable.len(), row.1.len())?;
+                        actual.external_stable.remove(&row);
+                    }
                     for (base, slots) in &outputs[bi].external {
                         let HoldRoot::Parameter(index) = base else {
                             continue;
@@ -6675,6 +7013,45 @@ fn derive_cfg(
                 }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    if let Some(marker) = entry.receiver_loan
+                        && f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .is_some_and(super::stored_callables::fixed_result)
+                        && ancestry(&value.pointer.loans, &loans, b)?.contains(&marker)
+                    {
+                        return Err(failure(
+                            "a Fixed result cannot erase its actual receiver-head dependency",
+                        ));
+                    }
+                    if actual.receiver_return {
+                        let marker = entry.receiver_loan.ok_or_else(|| {
+                            failure("receiver-bounded result has no actual entry head")
+                        })?;
+                        let parents = ancestry(&value.pointer.loans, &loans, b)?;
+                        actual.receiver_return &= parents.contains(&marker);
+                    }
+                    if b.receiver_borrows && matches!(f.return_type, Type::Address { .. }) {
+                        let parents = ancestry(&value.pointer.loans, &loans, b)?;
+                        for (position, local) in f.parameters.iter().enumerate() {
+                            if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Closure(_)))
+                            {
+                                let head = &entry
+                                    .locals
+                                    .get(local)
+                                    .ok_or_else(|| {
+                                        failure(
+                                            "returned callable dependency has no actual input head",
+                                        )
+                                    })?
+                                    .pointer;
+                                fee(b, head.loans.len())?;
+                                if head.loans.iter().any(|loan| parents.contains(loan)) {
+                                    ordered(b, actual.returned_head_inputs.len(), 0)?;
+                                    actual.returned_head_inputs.insert(position as u32);
+                                }
+                            }
+                        }
+                    }
                     actual
                         .returned_enum_variants
                         .join(&value.enum_variants, b)?;
@@ -6694,7 +7071,10 @@ fn derive_cfg(
                                 && !(matches!(target.base, HoldRoot::Capture(_))
                                     && f.environment
                                         .and_then(|id| module.closures.get(id.0 as usize))
-                                        .is_some_and(super::stored_callables::lending))
+                                        .is_some_and(|d| {
+                                            super::stored_callables::lending(d)
+                                                || super::stored_callables::transferred(d)
+                                        }))
                             {
                                 return Err(failure(
                                     "stored return would retain an activation-local target",
@@ -6742,6 +7122,30 @@ fn derive_cfg(
                     }
                     task_address::summarize(f, value, &mut actual, b)?;
                     dyn_return::summarize(module, f, value, &mut actual, b)?;
+                }
+            }
+            if let Some(d) = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                && super::stored_callables::transferred(d)
+            {
+                for (capture, ty) in d.captures.iter().enumerate() {
+                    if !super::stored_callables::exclusive_capture(ty) {
+                        continue;
+                    }
+                    let mut seen = false;
+                    let mut taken = true;
+                    for (index, block) in f.blocks.iter().enumerate() {
+                        if reachable[index] && matches!(block.terminator, Terminator::Return(_)) {
+                            seen = true;
+                            ordered(b, outputs[index].captures.len(), 0)?;
+                            taken &= !outputs[index].captures.contains_key(&(capture as u32));
+                        }
+                    }
+                    if seen && taken {
+                        ordered(b, actual.capture_taken.len(), 0)?;
+                        actual.capture_taken.insert(capture as u32);
+                    }
                 }
             }
             let mut grounded = true;
@@ -6961,7 +7365,7 @@ fn derive_cfg(
                     {
                         let summary = &summaries[d.function.0 as usize];
                         grounded &= summary.complete;
-                        for (path, _) in capture_after::leaves(module, d, b)? {
+                        for (path, _) in capture_after::outputs(module, d, b)? {
                             grounded &= summary
                                 .capture_after
                                 .get(&path)

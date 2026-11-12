@@ -44,8 +44,8 @@ fn forwarded_borrowed_environments_keep_sources_and_instance_contracts_raw_wire(
                 0 => claim.capture_sources = None,
                 1 => claim.capture_sources = Some(Vec::new()),
                 2 => {
-                    claim.capture_sources.as_mut().unwrap()[0].sources[0].base =
-                        StorageBase::Parameter(99)
+                    exact_source_mut(&mut claim.capture_sources.as_mut().unwrap()[0].sources[0])
+                        .base = StorageBase::Parameter(99)
                 }
                 3 => claim.source = CallableReturnSource::Fresh,
                 4 => claim.hold.clear(),
@@ -198,5 +198,12 @@ fn run_native_output(source: &str, name: &str, expected: &[u8]) {
             assert!(result.status.success(), "{result:?}");
             assert_eq!(result.stdout, expected);
         }
+    }
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
     }
 }

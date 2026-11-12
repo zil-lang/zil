@@ -760,6 +760,8 @@ fn inventory_in_modules(
             ));
         }
         output.push(DynVtable {
+            self_life: table.self_life.clone(),
+            implementation_witnesses: table.implementation_witnesses.clone(),
             self_classes: table.self_classes.clone(),
             id: table.id,
             interface: table.interface,

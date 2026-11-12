@@ -372,6 +372,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
         WORK,
     )?;
     for table in &module.dyn_vtables {
+        crate::dyn_metadata::recipe_table(table, budget)?;
+        if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            return Err(bad(
+                "dynamic implementation recipes require their complete static proof",
+            ));
+        }
         if table.self_classes.len() > budget.helper_nodes {
             return Err(bad("dyn Self class inventory exceeds node limit"));
         }
@@ -389,7 +395,20 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 crate::dyn_metadata::ty(ty, budget)?;
             }
         }
-        crate::dyn_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        crate::dyn_metadata::recipe_declaration(declaration, budget)?;
+        if declaration.direct_supertraits.is_some()
+            || declaration.requirements.is_some()
+            || declaration.associated_definitions.is_some()
+            || declaration.method_signatures.is_some()
+            || declaration.method_definitions.is_some()
+        {
+            return Err(bad(
+                "dynamic declaration recipes require their complete static proof",
+            ));
+        }
+        if let Some(pattern) = &declaration.self_pattern {
+            crate::dyn_metadata::recipe(pattern, budget)?;
+        }
         crate::dyn_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
         if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
         {
@@ -1291,6 +1310,7 @@ mod tests {
             generation_path: vec![],
         };
         let entry = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -1339,6 +1359,7 @@ mod tests {
             span: Span::default(),
         };
         let caller = TypedFunction {
+            dyn_instance: None,
             retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
@@ -1387,6 +1408,11 @@ mod tests {
         TypedModule {
             dyn_declarations: vec![
                 DynDeclaration {
+                    direct_supertraits: None,
+                    requirements: None,
+                    associated_definitions: None,
+                    method_signatures: None,
+                    method_definitions: None,
                     self_pattern: None,
                     implemented_trait: None,
                     id: trait_id,
@@ -1399,6 +1425,11 @@ mod tests {
                     }],
                 },
                 DynDeclaration {
+                    direct_supertraits: None,
+                    requirements: None,
+                    associated_definitions: None,
+                    method_signatures: None,
+                    method_definitions: None,
                     self_pattern: None,
                     implemented_trait: Some(DynSelfPattern {
                         declaration: trait_id,
@@ -1448,6 +1479,8 @@ mod tests {
                 }],
             }],
             dyn_vtables: vec![DynVtable {
+                self_life: None,
+                implementation_witnesses: None,
                 self_classes: vec![],
                 id: table_id,
                 interface: interface_id,

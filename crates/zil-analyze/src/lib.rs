@@ -62,12 +62,21 @@ use zil_ir::*;
 pub(crate) fn exact_storage_source(source: &StorageSource) -> CompileResult<&StoragePosition> {
     match source {
         StorageSource::Exact(position) => Ok(position),
-        _ => Err(vec![Diagnostic::unsupported(Phase::Analyze, "source atom requires an independent region consumer", None)]),
+        _ => Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "source atom requires an independent region consumer",
+            None,
+        )]),
     }
 }
-pub(crate) fn exact_storage_sources_contain(sources: &[StorageSource], position: &StoragePosition) -> CompileResult<bool> {
-    let mut present=false;
-    for source in sources { present |= exact_storage_source(source)? == position; }
+pub(crate) fn exact_storage_sources_contain(
+    sources: &[StorageSource],
+    position: &StoragePosition,
+) -> CompileResult<bool> {
+    let mut present = false;
+    for source in sources {
+        present |= exact_storage_source(source)? == position;
+    }
     Ok(present)
 }
 
@@ -146,7 +155,11 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks() {
+    let ordinary_input_heads =
+        budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
+    if !ordinary_input_heads
+        && (budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks())
+    {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
@@ -667,6 +680,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,

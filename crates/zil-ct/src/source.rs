@@ -109,7 +109,14 @@ impl<'a> SourceProgramContext<'a> {
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
                 let header_work = work;
-                let (life_nodes, life_work) = life_metadata_cost(function, limits)?;
+                let (life_nodes, life_work) = life_metadata_cost(
+                    function,
+                    &Limits {
+                        max_nodes: limits.max_nodes.saturating_sub(nodes),
+                        max_analysis_steps: work,
+                        ..limits.clone()
+                    },
+                )?;
                 nodes = nodes
                     .checked_add(life_nodes)
                     .filter(|n| *n <= limits.max_nodes)
@@ -257,6 +264,34 @@ impl<'a> SourceProgramContext<'a> {
 fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
     let mut storage_nodes = 0;
     let mut storage_work = limits.max_analysis_steps;
+    if let Some(scope) = &function.source_scope {
+        let (nodes, work) = core_function_scope_metadata_cost(
+            scope,
+            limits.max_nodes,
+            limits.max_call_depth,
+            storage_work,
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds metadata bounds",
+                Some(function.span),
+            )]
+        })?;
+        storage_nodes = nodes;
+        storage_work = storage_work.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "function source scope exceeds work budget",
+                Some(function.span),
+            )]
+        })?;
+        for formal in &scope.parameters {
+            if let LifeParameterKind::Const(ty) = formal {
+                hint_type(ty, 0, &mut storage_nodes, &mut storage_work, limits)?;
+            }
+        }
+    }
     if let Some(storage) = &function.storage_life {
         inventory::contract(storage, &mut storage_nodes, &mut storage_work, limits)?;
     }
@@ -970,6 +1005,8 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            source_scope: f.source_scope.clone(),
+            dyn_instance: f.dyn_instance.clone(),
             retained_return_sources: f.retained_return_sources.clone(),
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
@@ -1269,7 +1306,14 @@ impl<'a> Walker<'a> {
         }
         for f in &core.functions {
             let header_work = self.work_left;
-            let (life_nodes, life_work) = life_metadata_cost(f, self.limits)?;
+            let (life_nodes, life_work) = life_metadata_cost(
+                f,
+                &Limits {
+                    max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                    max_analysis_steps: self.work_left,
+                    ..self.limits.clone()
+                },
+            )?;
             self.nodes = self
                 .nodes
                 .checked_add(life_nodes)
@@ -3413,6 +3457,8 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                source_scope: None,
+                dyn_instance: None,
                 retained_return_sources: None,
                 storage_life: None,
                 call_kind: None,
@@ -3474,6 +3520,11 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            direct_supertraits: None,
+            requirements: None,
+            associated_definitions: None,
+            method_signatures: None,
+            method_definitions: None,
             self_pattern: None,
             implemented_trait: None,
             id: declaration,
@@ -3534,6 +3585,8 @@ mod tests {
             }],
         });
         core.dyn_vtables.push(CoreDynVtable {
+            self_life: None,
+            implementation_witnesses: None,
             self_classes: vec![],
             id: vtable,
             interface,

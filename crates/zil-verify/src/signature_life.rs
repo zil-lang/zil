@@ -605,7 +605,7 @@ fn relation_inner(
                     storage.as_ref(),
                     Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
                 ) || (!life.retained.is_empty()
-                    && !matches!(storage.as_ref(), Type::Package { .. })))
+                    && !matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))))
                     && !pure_nominal_value(actual)
                     && !super::stored_flow::enum_address::signature(actual)
                     && !super::stored_flow::option_address::signature(actual)
@@ -744,6 +744,26 @@ fn relation_inner(
         possible |= captures.is_some()
             && outer(c, StorageBase::Receiver).is_some_and(|head| Some(head) == upper)
             && (!*mutable || closure_kind == Some(CallableKind::FnMut));
+        if let Some(captures) = captures {
+            for (index, ty) in captures.iter().enumerate() {
+                possible |= matches!(ty, Type::Address { mutable: available, .. }
+                    if (!mutable || *available)
+                        && outer(c, StorageBase::Capture(index as u32)) == upper);
+            }
+            possible |= c.classes.iter().any(|row| {
+                let StorageBase::Capture(index) = row.position.base else {
+                    return false;
+                };
+                Some(row.binder) == upper
+                    && captures.get(index as usize).is_some_and(|ty| {
+                        !mutable
+                            || matches!(
+                                ty,
+                                Type::Address { mutable: true, .. } | Type::BorrowedStorage { .. }
+                            )
+                    })
+            });
+        }
         if !possible && !array_result_input {
             return Err(invalid());
         }

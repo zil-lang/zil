@@ -873,7 +873,7 @@ fn main()->i32{return 0}
         assert!(
             row.sources
                 .iter()
-                .any(|s| s.base == zil_ir::StorageBase::Parameter(1) && s.path.is_empty())
+                .any(|s| matches!(s, zil_ir::StorageSource::Exact(position) if position.base == zil_ir::StorageBase::Parameter(1) && position.path.is_empty()))
         );
         assert!(
             !slot.contract.call.as_ref().unwrap().writes.iter().any(|p| p
@@ -899,7 +899,9 @@ fn main()->i32{return 0}
             .unwrap();
         assert_eq!(
             declaration.implemented_trait.as_ref().unwrap().arguments,
-            [zil_ir::DynPatternActual::LifeParameter(0)]
+            [zil_ir::DynPatternActual::Life(
+                zil_ir::DynLifePattern::DeclarationParameter(0)
+            )]
         );
     }
     #[test]
@@ -934,10 +936,15 @@ fn main()->i32{return 0}
             .iter()
             .find(|d| d.id == table.implementation)
             .unwrap();
-        let pattern = declaration.self_pattern.as_ref().unwrap();
+        let zil_ir::DynTypePattern::Nominal(pattern) = declaration.self_pattern.as_ref().unwrap()
+        else {
+            unreachable!()
+        };
         assert_eq!(
             pattern.arguments,
-            [zil_ir::DynPatternActual::LifeParameter(0)]
+            [zil_ir::DynPatternActual::Life(
+                zil_ir::DynLifePattern::DeclarationParameter(0)
+            )]
         );
         let instance = module
             .life_instances
@@ -1041,12 +1048,16 @@ fn main()->i32{return 0}
                 .iter()
                 .find(|d| d.id == table.implementation)
                 .unwrap();
-            let pattern = declaration.self_pattern.as_ref().unwrap();
+            let zil_ir::DynTypePattern::Nominal(pattern) =
+                declaration.self_pattern.as_ref().unwrap()
+            else {
+                unreachable!()
+            };
             assert_eq!(
                 pattern.arguments,
                 [
-                    zil_ir::DynPatternActual::LifeParameter(1),
-                    zil_ir::DynPatternActual::LifeParameter(0)
+                    zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(1)),
+                    zil_ir::DynPatternActual::Life(zil_ir::DynLifePattern::DeclarationParameter(0))
                 ]
             );
             let instance = module

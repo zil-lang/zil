@@ -114,6 +114,7 @@ pub(super) fn substitute(
     let mut out = Origins {
         local: origins.local,
         unknown: origins.unknown,
+        receiver: origins.receiver,
         ..Origins::default()
     };
     spend(left, origins.inputs.len(), span)?;
