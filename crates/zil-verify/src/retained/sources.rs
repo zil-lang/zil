@@ -716,6 +716,27 @@ pub(super) fn envelope(
     leaves: &[Leaf<'_>],
     budget: &mut Budget,
 ) -> Check<()> {
+    borrowed_envelope(module, f, id, leaves, false, budget)
+}
+
+pub(super) fn parameter_envelope(
+    module: &TypedModule,
+    f: &TypedFunction,
+    id: ClosureId,
+    leaves: &[Leaf<'_>],
+    budget: &mut Budget,
+) -> Check<()> {
+    borrowed_envelope(module, f, id, leaves, true, budget)
+}
+
+fn borrowed_envelope(
+    module: &TypedModule,
+    f: &TypedFunction,
+    id: ClosureId,
+    leaves: &[Leaf<'_>],
+    parameter: bool,
+    budget: &mut Budget,
+) -> Check<()> {
     let c = f
         .callable_return_contract
         .as_ref()
@@ -723,16 +744,17 @@ pub(super) fn envelope(
     let definition = closures::definition(module, id, Some(f.span))?;
     if f.foreign.is_some()
         || f.environment.is_some()
-        || f.callable_contract.is_some()
+        || (!parameter && f.callable_contract.is_some())
         || f.result_mode != PassingMode::Infer
         || c.closure != id
-        || c.kind != definition.kind
+        || if parameter { !closures::supports(definition.kind, c.kind) } else { c.kind != definition.kind }
         || c.lending_captures != definition.lending_captures
     {
         return Err(invalid(
             "borrowed callable factory boundary differs from its actual definition",
         ));
     }
+    if !parameter {
     let mut input_closure = None;
     for local in &f.parameters {
         budget.spend(1)?;
@@ -743,6 +765,7 @@ pub(super) fn envelope(
                 "fresh callable factory requires one distinct grounded input environment",
             ));
         }
+    }
     }
     let (mut hold, mut call, mut writes) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
     for leaf in leaves {

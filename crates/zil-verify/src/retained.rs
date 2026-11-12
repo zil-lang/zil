@@ -323,18 +323,21 @@ fn check_parameter_claim(
         || claim.closure != id
         || claim.kind != role.kind
         || !closures::supports(definition.kind, role.kind)
-        || !claim.hold.is_empty()
-        || !claim.call.is_empty()
-        || !claim.writes.is_empty()
-        || !claim.lending_captures.is_empty()
-        || !definition.lending_captures.is_empty()
+        || claim.lending_captures != definition.lending_captures
     {
         return Err(bad(
             f,
             "forwarded source, declared mode or self-contained envelope differs from the actual role",
         ));
     }
-    closures::self_contained(module, id, budget)?;
+    // This branch checks a complete external envelope separately from the
+    // path-sensitive same-instance proof in check_body. Choosing the legacy
+    // empty path never hides a borrow: self_contained recursively rejects it.
+    let external = !claim.hold.is_empty() || !claim.call.is_empty() || !claim.writes.is_empty()
+        || claim.capture_sources.as_ref().is_some_and(|rows| !rows.is_empty());
+    if !external {
+        closures::self_contained(module, id, budget)?;
+    }
     budget.spend(f.locals.len().saturating_add(f.values.len()))?;
     for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
         if let Type::Array { element, length } = ty
@@ -364,6 +367,13 @@ fn check_parameter_claim(
             budget.spend(work)?;
             check_type(ty, Some(f.span))?;
         }
+    }
+    if external {
+        let leaves = sources::capture_leaves(module, id, &budget.limits.clone(), budget)?;
+        budget.returned_environment_sources = true;
+        budget.nested_callable_sources |= leaves.iter().any(|leaf| !leaf.position.path.is_empty());
+        owned_callbacks::signature(module, definition, budget)?;
+        return sources::parameter_envelope(module, f, id, &leaves, budget);
     }
     budget.spend(definition.captures.len())?;
     let mut cleanup = Vec::new();
