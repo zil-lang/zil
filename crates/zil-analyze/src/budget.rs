@@ -125,6 +125,7 @@ pub(super) struct Budget {
     pub(super) task_failure_carriers: bool,
     pub(super) owned_task_input_inventory: bool,
     pub(super) stored_fixed_owner: bool,
+    pub(super) owning_environment_captures: bool,
     pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -228,6 +229,7 @@ impl Budget {
             task_failure_carriers: false,
             owned_task_input_inventory: false,
             stored_fixed_owner: false,
+            owning_environment_captures: false,
             stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -1571,16 +1573,15 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
-            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
-            {
+            // Actual capture shape schedules the independent resource ledger;
+            // a qualifier wrapper never removes a physical owning ticket.
+            budget.owning_environment_captures |= matches!(super::resources::package_storage(ty),Type::Managed(_)|Type::Package{..}|Type::Closure(_)|Type::OwnedDyn{..});
+            if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. })) {
                 super::stored_flow::qualification(module, ty, limits, budget)?;
                 super::resources::product::admit_owned(module, ty, budget)?;
-                if matches!(ty,Type::BorrowedStorage{life,..} if life.binder_count>0)
-                    && closure.storage_life.is_none()
-                {
-                    return Err(bad(
-                        "qualified owning capture omits its actual Fixed class domain",
-                    ));
+                budget.owning_environment_captures=true;
+                if matches!(ty,Type::BorrowedStorage{life,..} if life.binder_count>0) && closure.storage_life.is_none() {
+                    return Err(bad("qualified owning capture omits its actual Fixed class domain"));
                 }
                 if closure.kind == zil_ir::CallableKind::Fn
                     && matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.iter().any(|slot| slot.mode == zil_ir::StoredBorrowMode::ExclusiveAddress))
