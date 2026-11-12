@@ -271,7 +271,7 @@ impl Epoch {
             rows.push(Row {
                 function: program.module.functions.owner(index)?.clone(),
                 callees,
-                output: candidate.functions[index].persistent_fingerprint(),
+                output: candidate.functions.item_fingerprint(index)?,
             });
             totals.push(Total::function(function, cost)?);
         }
@@ -298,12 +298,11 @@ impl Epoch {
             .functions
             .changed_indices(&self.program.module.functions);
         let mut work: BTreeSet<_> = dirty.iter().copied().collect();
+        let mut eligibility = BTreeMap::new();
         for &index in &dirty {
             let before = self.rows.get(index)?.function.as_ref();
             let after = program.module.functions.get(index)?;
-            if closed(after).is_none() {
-                return None;
-            }
+            eligibility.insert(index, closed(after)?);
             if !signature_eq(before, after) {
                 work.extend(self.readers.get(index)?.iter().copied());
             }
@@ -315,7 +314,14 @@ impl Epoch {
         let mut changed_outputs = 0;
         for index in work {
             let function = program.module.functions.get(index)?;
-            let callees = closed(function)?;
+            let prior = self.rows.get(index)?;
+            let callees = if let Some(callees) = eligibility.remove(&index) {
+                callees
+            } else if Arc::ptr_eq(&prior.function, program.module.functions.owner(index)?) {
+                prior.callees.clone()
+            } else {
+                return None;
+            };
             if callees.iter().any(|id| {
                 program
                     .module
@@ -328,7 +334,6 @@ impl Epoch {
             // A local failure or insufficient total allowance returns to the
             // original complete traversal; it must emit the original first error.
             let (result, cost) = execute(&program.module, index, function, limits).ok()?;
-            let prior = self.rows.get(index)?;
             for id in &prior.callees {
                 if !callees.contains(id) {
                     next.readers.get_mut(id.0 as usize)?.remove(&index);
@@ -344,14 +349,13 @@ impl Epoch {
             } else {
                 changed_outputs += 1;
                 stats.product_plan_rows_replaced += 1;
-                let fingerprint = result.persistent_fingerprint();
                 candidate.functions.replace(index, result);
-                fingerprint
+                candidate.functions.item_fingerprint(index)?
             };
             next.total = Sum::replace(&next.total, index, Total::function(function, cost)?)?;
             changes.push(AnalysisFunctionResult {
                 function: function.id,
-                input: function.persistent_fingerprint(),
+                input: program.module.functions.item_fingerprint(index)?,
                 dependencies: fingerprint_reads(&program.module, &callees),
                 output,
                 reused: false,
@@ -523,7 +527,40 @@ impl AnalysisSession {
         self.stats.product_admission_functions_checked = program.module.functions.len();
         self.stats.product_function_queries_executed = program.module.functions.len();
         self.stats.product_global_obligations_executed = 1;
-        self.product_changes = self.function_results.as_ref().clone();
+        self.product_changes = candidate
+            .functions
+            .iter()
+            .enumerate()
+            .map(|(index, _result)| {
+                let function = &program.module.functions[index];
+                let row = self
+                    .product
+                    .as_ref()
+                    .and_then(|epoch| epoch.rows.get(index));
+                AnalysisFunctionResult {
+                    function: function.id,
+                    input: program
+                        .module
+                        .functions
+                        .item_fingerprint(index)
+                        .expect("admitted current function"),
+                    dependencies: row.map_or(candidate.module_fingerprint, |row| {
+                        fingerprint_reads(&program.module, &row.callees)
+                    }),
+                    output: row.map_or_else(
+                        || {
+                            candidate
+                                .functions
+                                .item_fingerprint(index)
+                                .expect("complete candidate row")
+                        },
+                        |row| row.output,
+                    ),
+                    reused: false,
+                    function_scoped: row.is_some(),
+                }
+            })
+            .collect();
         Ok(candidate)
     }
     /// Only actual executed item results for the last successful product epoch.
@@ -532,3 +569,7 @@ impl AnalysisSession {
         &self.product_changes
     }
 }
+
+#[cfg(test)]
+#[path = "product_tests.rs"]
+mod tests;
