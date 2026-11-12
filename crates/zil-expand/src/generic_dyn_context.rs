@@ -873,7 +873,7 @@ fn main()->i32{return 0}
         assert!(
             row.sources
                 .iter()
-                .any(|s| s.base == zil_ir::StorageBase::Parameter(1) && s.path.is_empty())
+                .any(|s| matches!(s, zil_ir::StorageSource::Exact(position) if position.base == zil_ir::StorageBase::Parameter(1) && position.path.is_empty()))
         );
         assert!(
             !slot.contract.call.as_ref().unwrap().writes.iter().any(|p| p
