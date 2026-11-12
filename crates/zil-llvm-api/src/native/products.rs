@@ -58,6 +58,10 @@ mod enabled {
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineNumberingTests(enabled: c_int) -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineNumberingTestResults() -> u32;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -239,6 +243,36 @@ mod enabled {
         AnalysisDiagnosticsGuard(prior, machine_prior, std::marker::PhantomData)
     }
 
+    /// Explicit same-thread scratch checks. The bitmask reports observations;
+    /// it is not permission to reuse a machine function or bypass verification.
+    #[cfg(test)]
+    pub(crate) struct MachineNumberingTestsGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(test)]
+    impl MachineNumberingTestsGuard {
+        pub(crate) fn results(&self) -> u32 {
+            // SAFETY: synchronously read the test-only status on the same thread
+            // after LLVM returned; no native owner or callback crosses this call.
+            unsafe { ZilNativeProductsMachineNumberingTestResults() }
+        }
+    }
+    #[cfg(test)]
+    impl Drop for MachineNumberingTestsGuard {
+        fn drop(&mut self) {
+            // SAFETY: exactly restore this thread's preceding enable mode on
+            // success, cancellation or panic. The guard cannot move threads.
+            unsafe {
+                ZilNativeProductsMachineNumberingTests(self.0);
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn machine_numbering_tests_for_test() -> MachineNumberingTestsGuard {
+        // SAFETY: explicitly enable only independent scratch-MF validation at
+        // the first actual AsmPrinter boundary; production default stays off.
+        let prior = unsafe { ZilNativeProductsMachineNumberingTests(1) };
+        MachineNumberingTestsGuard(prior, std::marker::PhantomData)
+    }
+
     #[cfg(test)]
     thread_local! {
         static NEXT_FINISH_FAILURE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
@@ -280,7 +314,9 @@ mod enabled {
 #[cfg(feature = "native-products")]
 pub(crate) use enabled::{Product, Scope, Suspension};
 #[cfg(all(test, feature = "native-products"))]
-pub(crate) use enabled::{analysis_diagnostics_for_test, fail_next_finish_for_test};
+pub(crate) use enabled::{
+    analysis_diagnostics_for_test, fail_next_finish_for_test, machine_numbering_tests_for_test,
+};
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared
