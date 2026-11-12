@@ -993,6 +993,7 @@ fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
         path: Vec::new(),
     };
     let mut life = StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
         bindings: vec![StorageLifeBinding {
@@ -1055,6 +1056,7 @@ fn callable_return_expected_life_is_distinct_and_lossless() {
     let mut returned = return_contract(CallableKind::FnOnce);
     let absent = callable_return_contract_fingerprint(&returned);
     let relation = StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 2,
         invocation_binder_count: 0,
         bindings: vec![StorageLifeBinding {

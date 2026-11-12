@@ -469,7 +469,7 @@ fn value_is_an_inline_move_contract_and_cleanup_is_an_independent_premise() {
 }
 
 #[test]
-fn inline_values_do_not_acquire_nested_store_element_capability() {
+fn nested_iterator_store_uses_complete_actual_resource_definitions() {
     let valid =
         "import std.iter\nfn need<T:Value+SyncDrop>(){} fn main(){need::<iter.Drain<i32>>()}";
     let report = compile_project(&project(valid), &CompileOptions::default());
@@ -483,19 +483,18 @@ fn inline_values_do_not_acquire_nested_store_element_capability() {
     let report = compile_project(&project(nested), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("Store")),
-        "{}",
-        report.to_json()
-    );
+    raw(nested);
+    let consumer =
+        include_str!("../../../tests/language-readiness/iterator-adapters/nested-drain.zil");
+    raw(consumer);
+    native("nested-drain", consumer, b"BA", false);
 
+    // Changing an existing Store<i32> into Store<Drain<i32>> without its
+    // actual registered definition still cannot manufacture a valid owner.
     let source = "import std.iter\nfn make(give values:Store<i32>)->iter.Drain<i32>{return iter.drain(give values)} fn main(){let values:Store<i32>=store_new()}";
     let (mut typed, mut plan) = raw(source);
     let drain = typed

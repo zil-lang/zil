@@ -894,6 +894,12 @@ pub(crate) fn member_owner_type_cost(
                         v.node(span, depth + 2)?;
                     }
                 }
+                for position in &life.static_bindings {
+                    v.node(span, depth + 1)?;
+                    for _ in &position.path {
+                        v.node(span, depth + 2)?;
+                    }
+                }
                 for class in &life.classes {
                     v.node(span, depth + 1)?;
                     for _ in &class.position.path {

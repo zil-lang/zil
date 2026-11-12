@@ -284,6 +284,8 @@ pub(super) fn check_summary(
     module: &TypedModule,
     f: &TypedFunction,
     summary: &Summary,
+    solution: &Solution,
+    graph: &FunctionGraph,
     b: &mut Budget,
 ) -> Check<()> {
     let Some(contract) = &f.callable_return_contract else {
@@ -326,9 +328,31 @@ pub(super) fn check_summary(
                 if !source.leaf.is_empty()
                     || !source.inline.is_empty()
                     || source.heap_element.is_some()
+                    || source.retained_port.is_some()
+                    || !source.heap_parents.is_empty()
                 {
                     return Err(err("static environment source has an unproven projection"));
                 }
+                let Some(upper) = upper else {
+                    return Err(err("actual static capture has no explicit source upper"));
+                };
+                type_work(actual_leaf.ty, &b.limits.clone(), b)?;
+                let mut found = false;
+                b.spend(upper.sources.len())?;
+                for atom in &upper.sources {
+                    if let StorageSource::Static { leaf, mode } = atom {
+                        type_work(leaf, &b.limits.clone(), b)?;
+                        found |= *mode == StoredBorrowMode::SharedAddress
+                            && matches!(actual_leaf.ty, Type::Address { mutable: false, .. })
+                            && leaf == actual_leaf.ty;
+                    }
+                }
+                if !found {
+                    return Err(err(
+                        "actual static capture is omitted by its complete typed upper",
+                    ));
+                }
+                static_parents(f, path, solution, graph, b)?;
                 continue;
             }
             let actual = actual_input_position(module, f, source, b)?;
@@ -338,7 +362,10 @@ pub(super) fn check_summary(
                     .saturating_mul(actual.path.len().saturating_add(1)),
             )?;
             if !match upper {
-                Some(binding) => crate::exact_storage_sources_contain(&binding.sources, &actual)?,
+                Some(binding) => binding.sources.iter().any(|atom| {
+                    matches!(atom,
+                    StorageSource::Exact(source) if *source == actual)
+                }),
                 None => false,
             } {
                 return Err(err(
@@ -350,6 +377,55 @@ pub(super) fn check_summary(
     b.spend(b.pending_callable_sources.len())?;
     b.pending_callable_sources
         .retain(|function| *function != f.id);
+    Ok(())
+}
+
+/// Static target spelling cannot erase a retained activation or receiver head.
+/// Reconstruct every real reachable Return instead of trusting the upper.
+fn static_parents(
+    f: &TypedFunction,
+    path: &[PlaceProjection],
+    solution: &Solution,
+    graph: &FunctionGraph,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(f.blocks.len())?;
+    for (index, block) in f.blocks.iter().enumerate() {
+        if !graph.reachable[index] {
+            continue;
+        }
+        let Terminator::Return(Some(value)) = block.terminator else {
+            continue;
+        };
+        let actual = leaf(&solution.values[value.0 as usize], path, b)?
+            .ok_or_else(|| err("static capture Return has no actual leaf"))?;
+        b.spend(actual.sources.len())?;
+        if !actual
+            .sources
+            .iter()
+            .any(|source| source.base == HoldRoot::Static)
+        {
+            continue;
+        }
+        for id in ancestry(&actual.loans, &solution.loans, b)? {
+            let loan = solution
+                .loans
+                .get(id)
+                .ok_or_else(|| err("static capture parent lies outside actual loan arena"))?;
+            b.spend(loan.sources.len().saturating_add(1))?;
+            if loan.receiver_head
+                || loan.sources.is_empty()
+                || loan
+                    .sources
+                    .iter()
+                    .any(|source| source.base != HoldRoot::Static)
+            {
+                return Err(err(
+                    "static capture retains a nonstatic or ungrounded parent",
+                ));
+            }
+        }
+    }
     Ok(())
 }
 

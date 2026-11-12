@@ -332,19 +332,20 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods || names_budget.needs_source_identity() || products.origins.is_some() {
-        if let Some(origins) = &mut products.origins {
-            if prelude.len != 0 {
-                origins
-                    .prepend_compiler_prelude(module, prelude, &mut names_budget)
-                    .map_err(|e| vec![e])?;
-            }
-        } else {
-            products.origins = Some(
-                origins::Origins::single_prepared(module, prelude, &mut names_budget)
-                    .map_err(|e| vec![e])?,
-            );
+    // An existing project ledger describes the module before actual prelude
+    // insertion. Keep that correspondence even when this module needs no new
+    // source-identity consumer (including closed Task owning environments).
+    if let Some(origins) = &mut products.origins {
+        if prelude.len != 0 {
+            origins
+                .prepend_compiler_prelude(module, prelude, &mut names_budget)
+                .map_err(|e| vec![e])?;
         }
+    } else if has_generic_methods || names_budget.needs_source_identity() {
+        products.origins = Some(
+            origins::Origins::single_prepared(module, prelude, &mut names_budget)
+                .map_err(|e| vec![e])?,
+        );
     }
     if names_budget.needs_source_identity()
         && let Some((sources, context)) = context

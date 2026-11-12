@@ -267,6 +267,9 @@ pub struct StorageLifeContract {
     pub fixed_binder_count: u32,
     pub invocation_binder_count: u32,
     pub bindings: Vec<StorageLifeBinding>,
+    /// Complete constant program-static borrow occurrences. These positions
+    /// introduce no variable binder and never replace nominal/phantom classes.
+    pub static_bindings: Vec<StoragePosition>,
     pub classes: Vec<SignatureLifeClassBinding>,
 }
 impl StorageLifeContract {
@@ -301,6 +304,7 @@ impl StorageLifeContract {
             fixed_binder_count: 0,
             invocation_binder_count: life.binder_count,
             bindings,
+            static_bindings: Vec::new(),
             classes: Vec::new(),
         })
     }
@@ -310,6 +314,7 @@ impl StorageLifeContract {
     /// arity and independently checks the actual complete signature afterward.
     pub fn to_flat(&self, parameters: usize) -> Option<FunctionLifeContract> {
         if self.fixed_binder_count != 0
+            || !self.static_bindings.is_empty()
             || !self.classes.is_empty()
             || parameters > u32::MAX as usize
         {
@@ -3156,6 +3161,10 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
     for binding in &contract.bindings {
         encode_storage_position(b, &binding.position);
         encode_storage_binder(b, &binding.binder);
+    }
+    encode_len(b, contract.static_bindings.len());
+    for position in &contract.static_bindings {
+        encode_storage_position(b, position);
     }
     encode_len(b, contract.classes.len());
     for binding in &contract.classes {

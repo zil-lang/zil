@@ -365,6 +365,7 @@ mod tests {
             inner: Box::new(Type::I32),
         };
         let plain_life = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 1,
             invocation_binder_count: 0,
             bindings: vec![StorageBase::Parameter(0), StorageBase::Capture(0)]
@@ -385,6 +386,7 @@ mod tests {
         )
         .unwrap();
         let empty = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 0,
             bindings: vec![],

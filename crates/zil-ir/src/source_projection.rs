@@ -62,6 +62,9 @@ impl Fuel<'_> {
         for row in &life.bindings {
             self.pay(row.position.path.len().saturating_add(3))?;
         }
+        for position in &life.static_bindings {
+            self.pay(position.path.len().saturating_add(2))?;
+        }
         for row in &life.classes {
             self.pay(row.position.path.len().saturating_add(4))?;
         }
@@ -1222,6 +1225,7 @@ mod tests {
             0,
             vec![rich()],
             Some(StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 2,
                 invocation_binder_count: 0,
                 bindings: vec![],

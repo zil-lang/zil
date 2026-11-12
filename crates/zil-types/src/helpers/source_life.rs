@@ -549,6 +549,7 @@ impl Writer {
     }
     fn finish(self) -> StorageLifeContract {
         StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: self.fixed.len() as u32,
             invocation_binder_count: self.invocation.len() as u32,
             bindings: self.bindings,

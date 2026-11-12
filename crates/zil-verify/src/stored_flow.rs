@@ -6838,7 +6838,16 @@ fn solve_check(
             ));
         }
         if b.returned_environment_sources {
-            returned_environment::check_summary(module, f, s, b)?;
+            returned_environment::check_summary(
+                module,
+                f,
+                s,
+                solved[index]
+                    .as_ref()
+                    .ok_or_else(|| err("callable source solution is absent"))?,
+                &graphs[index],
+                b,
+            )?;
         }
         dyn_returns::validate(module, f, &s.dyn_ports, b)?;
         enum_address::projections(f, &graphs[index], s, b)?;

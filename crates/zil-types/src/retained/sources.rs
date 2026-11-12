@@ -1673,6 +1673,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             }
             let mut keys = BTreeMap::new();
             let mut proposed = StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 0,
                 invocation_binder_count: 0,
                 bindings: Vec::new(),

@@ -1265,6 +1265,7 @@ fn actual_registration_scope_and_phase_cannot_be_erased_by_failure_metadata() {
             0 => {
                 let d = forged.closures.first_mut().unwrap();
                 let c = StorageLifeContract {
+                    static_bindings: Vec::new(),
                     fixed_binder_count: 1,
                     invocation_binder_count: 0,
                     bindings: vec![],
@@ -1276,6 +1277,7 @@ fn actual_registration_scope_and_phase_cannot_be_erased_by_failure_metadata() {
             1 => {
                 let d = forged.closures.first_mut().unwrap();
                 let c = StorageLifeContract {
+                    static_bindings: Vec::new(),
                     fixed_binder_count: 0,
                     invocation_binder_count: 0,
                     bindings: vec![],

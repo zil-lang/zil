@@ -9188,6 +9188,7 @@ mod tests {
             let mut m = fixture::captured_fixed(CallableKind::Fn, wrong);
             let ty = address(Type::I64, false);
             let contract = StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 1,
                 invocation_binder_count: 0,
                 bindings: vec![
