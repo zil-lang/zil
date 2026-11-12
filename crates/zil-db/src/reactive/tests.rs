@@ -14,7 +14,14 @@ fn check_bonds<K: Ord + Clone + fmt::Debug, V: Clone + Eq>(graph: &ReactiveGraph
         }
         assert_eq!(
             graph.queue.contains(&(node.height, key.clone())),
-            node.dirty
+            node.dirty && node.live()
+        );
+        assert_eq!(
+            node.live_receivers,
+            node.receivers
+                .iter()
+                .filter(|receiver| graph.nodes[*receiver].live())
+                .count()
         );
     }
     assert_eq!(graph.edges, edges);
@@ -378,5 +385,210 @@ fn compiler_inputs_can_skip_an_intermediate_cycle_before_the_final_settle() {
     assert_eq!(graph.stats().equal_results, 1);
     assert_eq!(graph.stats().changed_results, 0);
     assert_eq!(graph.stats().deduplicated, 1);
+    check_bonds(&graph);
+}
+
+#[test]
+fn transaction_failure_restores_values_dynamic_bonds_deletion_and_activity() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 0), (1, 10), (2, 20)]).unwrap();
+    graph.ensure_deferred_query(3).unwrap();
+    graph.ensure_query(4).unwrap();
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| match key {
+        3 => read(&1),
+        4 => {
+            if read(&0)? == 0 {
+                read(&3)
+            } else {
+                read(&2)
+            }
+        }
+        _ => unreachable!(),
+    };
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.get_current(&4), Some(&10));
+    let result: Result<(), GraphError> = graph.transaction(|graph| {
+        graph.set_inputs([(0, 1), (2, 99)])?;
+        graph.flush(&evaluate)?;
+        assert_eq!(graph.get_current(&4), Some(&99));
+        assert!(!graph.nodes[&3].live());
+        graph.remove_owners([1, 3])?;
+        graph.set_observed(&4, false)?;
+        Err(GraphError::Evaluation("cancel publication".into()))
+    });
+    assert!(result.is_err());
+    assert_eq!(graph.get_current(&4), Some(&10));
+    assert_eq!(graph.get_current(&3), Some(&10));
+    assert_eq!(graph.get_current(&2), Some(&20));
+    assert!(graph.nodes[&3].receivers.contains(&4));
+    check_bonds(&graph);
+    graph
+        .transaction(|graph| {
+            graph.set_inputs([(1, 11)])?;
+            graph.flush(&evaluate)
+        })
+        .unwrap();
+    assert_eq!(graph.get_current(&4), Some(&11));
+    check_bonds(&graph);
+}
+
+#[test]
+fn transaction_rolls_back_poisoned_evaluation_and_panic_without_clear() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 10)]).unwrap();
+    graph.ensure_query(1).unwrap();
+    let evaluate = |_: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| {
+        let value = read(&0)?;
+        if value == 0 {
+            Err(GraphError::Evaluation("zero".into()))
+        } else {
+            Ok(value)
+        }
+    };
+    graph.flush(&evaluate).unwrap();
+    assert!(
+        graph
+            .transaction(|graph| {
+                graph.set_inputs([(0, 0)])?;
+                graph.flush(&evaluate)
+            })
+            .is_err()
+    );
+    assert_eq!(graph.get_current(&1), Some(&10));
+    assert_eq!(graph.active_count, 0);
+    check_bonds(&graph);
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        graph.transaction::<(), GraphError>(|graph| {
+            graph.clear();
+            graph.set_inputs([(9, 999)])?;
+            panic!("cancel during publication")
+        })
+    }));
+    assert!(panic.is_err());
+    assert_eq!(graph.get_current(&1), Some(&10));
+    assert!(!graph.nodes.contains_key(&9));
+    check_bonds(&graph);
+}
+
+#[test]
+fn transaction_savepoints_preserve_outer_undo_and_pending_queue() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 10)]).unwrap();
+    graph.ensure_query(1).unwrap();
+    let evaluate = |_: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| read(&0);
+    // The outer before-image intentionally contains an uncomputed query.
+    let result: Result<(), GraphError> = graph.transaction(|graph| {
+        graph.flush(&evaluate)?;
+        let inner: Result<(), GraphError> = graph.transaction(|graph| {
+            graph.set_inputs([(0, 20)])?;
+            graph.flush(&evaluate)?;
+            Err(GraphError::Evaluation("inner".into()))
+        });
+        assert!(inner.is_err());
+        assert_eq!(graph.get_current(&1), Some(&10));
+        graph.transaction(|graph| graph.set_inputs([(0, 30)]))?;
+        Err(GraphError::Evaluation("outer".into()))
+    });
+    assert!(result.is_err());
+    assert!(graph.nodes[&1].value.is_none());
+    assert_eq!(graph.queue, BTreeSet::from([(1, 1)]));
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.get_current(&1), Some(&10));
+    check_bonds(&graph);
+}
+
+#[test]
+fn delta_transaction_never_snapshots_unrelated_clean_inventory() {
+    let mut graph = ReactiveGraph::<u32, u32>::new();
+    graph.set_inputs((0..1000).map(|key| (key, key))).unwrap();
+    for key in 1000..2000 {
+        graph.ensure_query(key).unwrap();
+    }
+    let evaluate =
+        |key: &u32, read: &mut dyn FnMut(&u32) -> Result<u32, GraphError>| read(&(key - 1000));
+    graph.flush(&evaluate).unwrap();
+    graph.take_stats();
+    graph
+        .transaction(|graph| {
+            graph.set_inputs([(3, 99)])?;
+            graph.flush(&evaluate)
+        })
+        .unwrap();
+    assert_eq!(graph.get_current(&1003), Some(&99));
+    let stats = graph.take_stats();
+    assert_eq!(stats.journal_nodes, 2);
+    assert_eq!(stats.journal_queue_entries, 1);
+    assert_eq!(stats.executed, 1);
+    assert_eq!(stats.inventory_visits, 2);
+    graph
+        .transaction(|graph| graph.set_inputs([(3, 99)]))
+        .unwrap();
+    assert_eq!(graph.take_stats().journal_nodes, 0);
+    graph.remove_owners([4, 1004]).unwrap();
+    let stats = graph.take_stats();
+    assert!(stats.inventory_visits <= 4);
+    assert_eq!(stats.retained_nodes, 1998);
+    check_bonds(&graph);
+}
+
+#[test]
+fn deferred_consumers_and_shared_dependencies_activate_only_on_demand() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 1)]).unwrap();
+    for key in 1..=3 {
+        graph.ensure_deferred_query(key).unwrap();
+    }
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| match key {
+        1 => read(&0),
+        2 | 3 => Ok(read(&1)? + i32::from(*key)),
+        _ => unreachable!(),
+    };
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.stats().executed, 0);
+    assert_eq!(graph.read(&2, &evaluate).unwrap(), 3);
+    assert_eq!(graph.read(&3, &evaluate).unwrap(), 4);
+    graph.set_observed(&2, false).unwrap();
+    assert!(graph.nodes[&1].live());
+    graph.set_observed(&3, false).unwrap();
+    assert!(!graph.nodes[&1].live());
+    graph.take_stats();
+    graph.set_inputs([(0, 9)]).unwrap();
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.stats().executed, 0);
+    assert_eq!(graph.get_current(&2), None);
+    assert_eq!(graph.read(&2, &evaluate).unwrap(), 11);
+    assert_eq!(graph.stats().executed, 2);
+    assert!(graph.nodes[&3].dirty);
+    assert_eq!(graph.get_current(&3), None);
+    check_bonds(&graph);
+}
+
+#[test]
+fn new_dynamic_read_settles_a_dormant_transitive_dependency() {
+    let mut graph = ReactiveGraph::<u8, i32>::new();
+    graph.set_inputs([(0, 1), (1, 0)]).unwrap();
+    for key in 2..=4 {
+        graph.ensure_deferred_query(key).unwrap();
+    }
+    let evaluate = |key: &u8, read: &mut dyn FnMut(&u8) -> Result<i32, GraphError>| match key {
+        2 => read(&0),
+        3 => read(&2),
+        4 => {
+            if read(&1)? == 1 {
+                read(&3)
+            } else {
+                Ok(99)
+            }
+        }
+        _ => unreachable!(),
+    };
+    assert_eq!(graph.read(&3, &evaluate).unwrap(), 1);
+    graph.set_observed(&3, false).unwrap();
+    graph.ensure_query(4).unwrap();
+    graph.flush(&evaluate).unwrap();
+    graph.set_inputs([(0, 9), (1, 1)]).unwrap();
+    graph.flush(&evaluate).unwrap();
+    assert_eq!(graph.get_current(&4), Some(&9));
+    assert_eq!(graph.get_current(&3), Some(&9));
     check_bonds(&graph);
 }
