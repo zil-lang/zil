@@ -1160,12 +1160,31 @@ fn item_lowering_replaces_actual_core_leaf_and_replays_current_source_map() {
     let text = "fn first(x:i32)->i32 {let a=x+1;return a+2;} fn second(x:i32)->i32 {let b=x+3;return b+4;} fn third(x:i32)->i32 {let c=x+5;return c+6;}";
     let mut session = ExpandSession::default();
     let cold = checked(&mut session, &[parsed(0, text)], &limits);
+    let old_items = session.entries[&ModuleId(0)]
+        .shared_restored
+        .as_ref()
+        .unwrap()
+        .items
+        .clone();
     assert_eq!(session.last_stats().executed_lower_items, 3);
     let input = [parsed(0, &text.replacen("x+1", "x+7", 1))];
     let changed = checked(&mut session, &input, &limits);
     assert_eq!(session.last_stats().reused_lower_items, 2);
     assert_eq!(session.last_stats().executed_lower_items, 1);
     assert!(session.last_stats().copied_lower_map_entries > 0);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 1);
+    assert_eq!(session.last_stats().restored_item_deep_clones, 1);
+    assert_eq!(session.last_stats().restored_module_deep_clones, 0);
+    assert_eq!(session.last_stats().retained_restored_items, 2);
+    let current_items = &session.entries[&ModuleId(0)]
+        .shared_restored
+        .as_ref()
+        .unwrap()
+        .items;
+    for index in [1, 2] {
+        assert!(Arc::ptr_eq(&old_items[index], &current_items[index]));
+    }
+    assert!(!Arc::ptr_eq(&old_items[0], &current_items[0]));
     let old_functions = &cold.modules[0].0.core.functions;
     let current_functions = &changed.modules[0].0.core.functions;
     assert_eq!(current_functions.changed_indices(old_functions), [0]);

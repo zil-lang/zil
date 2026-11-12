@@ -241,6 +241,8 @@ statistics!(
     restored_module_deep_clones,
     retained_normalized_items,
     retained_restored_modules,
+    retained_restored_items,
+    restored_item_deep_clones,
     retained_lower_cores,
     retained_lower_source_maps,
     cloned_source_map_entries,
@@ -421,11 +423,32 @@ pub(crate) enum Stage {
     Lifetimes,
     Distribute,
     Restore,
+    RestoreItem,
 }
 #[derive(Clone, Copy)]
 struct Receipt {
     nodes: usize,
     work: usize,
+}
+#[derive(Clone, Debug)]
+pub(super) struct RestoreEpoch(Arc<()>);
+impl Default for RestoreEpoch {
+    fn default() -> Self {
+        Self(Arc::new(()))
+    }
+}
+impl PartialEq for RestoreEpoch {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for RestoreEpoch {}
+#[derive(Clone)]
+pub(super) struct RestoredItem {
+    pub(super) item: Arc<s::Item>,
+    before: RestoreEpoch,
+    pub(super) after: RestoreEpoch,
+    pub(super) added: Arc<[CoreImport]>,
 }
 #[derive(Clone, Debug)]
 struct FunctionInput {
@@ -451,8 +474,11 @@ struct Entry {
     scalar: bool,
     scalar_nodes: u64,
     scalar_depth_limit: usize,
-    receipts: BTreeMap<(Stage, usize), Receipt>,
-    normalized: BTreeMap<usize, Arc<s::Item>>,
+    receipts: Arc<BTreeMap<(Stage, usize), Receipt>>,
+    normalized: Arc<BTreeMap<usize, Arc<s::Item>>>,
+    restored_items: Arc<BTreeMap<usize, RestoredItem>>,
+    restore_base: RestoreEpoch,
+    shared_restored: Option<Arc<modules::SharedScalarModule>>,
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
     lower: Option<(Limits, Arc<ExpandedModule>)>,
     revision: ModuleRevision,
@@ -590,8 +616,15 @@ impl ExpandSession {
                     scalar,
                     scalar_nodes: nodes,
                     scalar_depth_limit: limits.max_call_depth,
-                    receipts: BTreeMap::new(),
-                    normalized: BTreeMap::new(),
+                    receipts: Arc::default(),
+                    normalized: Arc::default(),
+                    restored_items: Arc::default(),
+                    restore_base: self
+                        .entries
+                        .get(&module.id)
+                        .map(|entry| entry.restore_base.clone())
+                        .unwrap_or_default(),
+                    shared_restored: None,
                     restored: None,
                     lower: None,
                     revision: ModuleRevision(Arc::new(())),
@@ -672,13 +705,77 @@ impl ExpandSession {
                 .as_ref()
                 .is_some_and(|previous| previous.function_inputs_compatible(&environment));
             for entry in entries.values_mut() {
-                entry.receipts.clear();
-                entry.normalized.clear();
+                entry.receipts = Arc::default();
+                entry.normalized = Arc::default();
+                entry.restored_items = Arc::default();
+                entry.shared_restored = None;
+                entry.restore_base = RestoreEpoch::default();
                 entry.restored = None;
                 entry.lower = None;
                 entry.revision = ModuleRevision(Arc::new(()));
                 if !preserve_function_inputs {
                     entry.functions = Arc::default();
+                }
+            }
+        }
+        if self
+            .environment
+            .as_ref()
+            .is_some_and(|old| old.compatible(&environment))
+        {
+            for (module_id, entry) in &mut entries {
+                let Some(old) = self.entries.get(module_id) else {
+                    continue;
+                };
+                if old.parsed.same_revision(&entry.parsed)
+                    || !old.parsed.same_parse_configuration(&entry.parsed)
+                {
+                    continue;
+                }
+                for (item, prior) in entry
+                    .parsed
+                    .parsed()
+                    .module
+                    .items
+                    .iter()
+                    .zip(&old.parsed.parsed().module.items)
+                {
+                    if item.span != prior.span || item.span.file != entry.parsed.source().file_id {
+                        continue;
+                    }
+                    let current = entry
+                        .parsed
+                        .source()
+                        .text
+                        .get(item.span.start..item.span.end);
+                    let previous = old
+                        .parsed
+                        .source()
+                        .text
+                        .get(prior.span.start..prior.span.end);
+                    if current.is_none() || current != previous {
+                        continue;
+                    }
+                    if let Some(normalized) = old.normalized.get(&item.span.start) {
+                        Arc::make_mut(&mut entry.normalized)
+                            .insert(item.span.start, normalized.clone());
+                    }
+                    if let Some(restored) = old.restored_items.get(&item.span.start) {
+                        Arc::make_mut(&mut entry.restored_items)
+                            .insert(item.span.start, restored.clone());
+                    }
+                    for stage in [
+                        Stage::Normalize,
+                        Stage::Prepare,
+                        Stage::Lifetimes,
+                        Stage::Distribute,
+                        Stage::RestoreItem,
+                    ] {
+                        if let Some(receipt) = old.receipts.get(&(stage, item.span.start)) {
+                            Arc::make_mut(&mut entry.receipts)
+                                .insert((stage, item.span.start), *receipt);
+                        }
+                    }
                 }
             }
         }
@@ -937,6 +1034,83 @@ impl Reuse<'_> {
             source: old.parsed.clone(),
         })
     }
+    pub(super) fn restore_base(&mut self, file: FileId) -> RestoreEpoch {
+        self.entry(file).restore_base.clone()
+    }
+    pub(super) fn shared_restored(
+        &mut self,
+        file: FileId,
+    ) -> Option<Arc<modules::SharedScalarModule>> {
+        self.entry(file).shared_restored.clone()
+    }
+    pub(super) fn save_shared_restored(
+        &mut self,
+        file: FileId,
+        module: Arc<modules::SharedScalarModule>,
+    ) {
+        self.entry(file).shared_restored = Some(module);
+    }
+    pub(super) fn restored_item(
+        &mut self,
+        span: Span,
+        epoch: &RestoreEpoch,
+    ) -> Option<RestoredItem> {
+        self.entry(span.file)
+            .restored_items
+            .get(&span.start)
+            .filter(|item| &item.before == epoch)
+            .cloned()
+    }
+    pub(super) fn retain_restored_item(&mut self) {
+        self.stats.retained_restored_items += 1;
+    }
+    pub(super) fn restored_item_cloned(&mut self) {
+        self.stats.restored_item_deep_clones += 1;
+    }
+    pub(super) fn save_restored_item(
+        &mut self,
+        span: Span,
+        item: Arc<s::Item>,
+        before: RestoreEpoch,
+        added: &[CoreImport],
+    ) -> RestoreEpoch {
+        let after = if added.is_empty() {
+            before.clone()
+        } else {
+            self.files
+                .get(&span.file)
+                .and_then(|module| self.prior_entries.get(module))
+                .and_then(|entry| entry.restored_items.get(&span.start))
+                .filter(|old| old.before == before && old.added.as_ref() == added)
+                .map(|old| old.after.clone())
+                .unwrap_or_default()
+        };
+        Arc::make_mut(&mut self.entry(span.file).restored_items).insert(
+            span.start,
+            RestoredItem {
+                item,
+                before,
+                after: after.clone(),
+                added: added.into(),
+            },
+        );
+        after
+    }
+    pub(super) fn record_restore_module(
+        &mut self,
+        span: Span,
+        before: Limits,
+        budget: &generics::Budget<'_>,
+    ) {
+        let after = budget.remaining_limits();
+        Arc::make_mut(&mut self.entry(span.file).receipts).insert(
+            (Stage::Restore, span.start),
+            Receipt {
+                nodes: before.max_nodes - after.max_nodes,
+                work: before.max_analysis_steps - after.max_analysis_steps,
+            },
+        );
+    }
     pub(crate) fn clock(&self) -> Option<Instant> {
         self.profiling.then(Instant::now)
     }
@@ -1009,16 +1183,14 @@ impl Reuse<'_> {
             work: before.max_analysis_steps - after.max_analysis_steps,
         };
         self.stats.visited_nodes += receipt.nodes as u64;
-        self.entry(span.file)
-            .receipts
-            .insert((stage, span.start), receipt);
+        Arc::make_mut(&mut self.entry(span.file).receipts).insert((stage, span.start), receipt);
         if self.executed.insert((stage, span.file)) {
             match stage {
                 Stage::Preflight => self.stats.preflight_modules += 1,
                 Stage::Normalize => self.stats.normalize_modules += 1,
                 Stage::Prepare => self.stats.plain_prepare_modules += 1,
                 Stage::Lifetimes => self.stats.plain_lifetimes_modules += 1,
-                Stage::Restore => self.stats.restore_modules += 1,
+                Stage::Restore | Stage::RestoreItem => self.stats.restore_modules += 1,
                 Stage::Distribute => {}
             }
         }
@@ -1037,9 +1209,6 @@ impl Reuse<'_> {
     pub(crate) fn normalized_input_cloned(&mut self) {
         self.stats.normalized_item_deep_clones += 1;
     }
-    pub(crate) fn restored_input_cloned(&mut self) {
-        self.stats.restored_module_deep_clones += 1;
-    }
     pub(crate) fn retain_normalized(&mut self) {
         self.stats.retained_normalized_items += 1;
     }
@@ -1047,25 +1216,13 @@ impl Reuse<'_> {
         self.stats.retained_restored_modules += 1;
     }
     pub(crate) fn save_normalized_shared(&mut self, span: Span, item: Arc<s::Item>) {
-        self.entry(span.file).normalized.insert(span.start, item);
-    }
-    pub(crate) fn save_restored_owned(
-        &mut self,
-        file: FileId,
-        module: s::Module,
-        imports: Vec<CoreImport>,
-    ) -> Arc<(s::Module, Vec<CoreImport>)> {
-        let clock = self.clock();
-        let module = Arc::new((module, imports));
-        self.assembly(clock);
-        self.entry(file).restored = Some(module.clone());
-        module
+        Arc::make_mut(&mut self.entry(span.file).normalized).insert(span.start, item);
     }
     pub(crate) fn save_normalized(&mut self, span: Span, item: &s::Item) {
         let clock = self.clock();
         let value = Arc::new(item.clone());
         self.assembly(clock);
-        self.entry(span.file).normalized.insert(span.start, value);
+        Arc::make_mut(&mut self.entry(span.file).normalized).insert(span.start, value);
     }
     pub(crate) fn restored(&mut self, file: FileId) -> Option<Arc<(s::Module, Vec<CoreImport>)>> {
         let clock = self.clock();

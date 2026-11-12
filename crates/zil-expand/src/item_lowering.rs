@@ -225,3 +225,208 @@ fn closed_map_entry(
         SourceTarget::Span(other) => within(other),
     }
 }
+
+pub(super) fn debit_expanded(
+    expanded: &ExpandedModule,
+    remaining: &mut Limits,
+    source_count: usize,
+    span: Span,
+) -> CompileResult<usize> {
+    // New member constraints share the project's actual remaining allowance.
+    remaining.max_analysis_steps = remaining
+        .max_analysis_steps
+        .checked_sub(expanded.member_owner_work)
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project member owner work budget exceeded",
+                Some(span),
+            )]
+        })?;
+    remaining.max_nodes = remaining
+        .max_nodes
+        .checked_sub(expanded.member_owner_nodes)
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project member owner node budget exceeded",
+                Some(span),
+            )]
+        })?;
+    // New project trait work shares the project's remaining allowance; a
+    // later implementation module does not receive those steps again.
+    remaining.max_analysis_steps = remaining
+        .max_analysis_steps
+        .checked_sub(expanded.project_trait_work)
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project trait work budget exceeded",
+                Some(span),
+            )]
+        })?;
+    remaining.max_nodes = remaining
+        .max_nodes
+        .checked_sub(expanded.project_trait_nodes)
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project trait instance node budget exceeded",
+                Some(span),
+            )]
+        })?;
+    remaining.max_nodes = remaining
+        .max_nodes
+        .checked_sub(expanded.source_map.entries.len())
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project source-map node budget exceeded",
+                Some(span),
+            )]
+        })?;
+    // Raw/fresh paths retain the original checked map walk at this exact
+    // position. A sealed hit carries the same already validated sum.
+    let map_work = expanded.source_map_work.or_else(|| {
+        expanded
+            .source_map
+            .entries
+            .iter()
+            .try_fold(source_count, |work, entry| {
+                work.checked_add(entry.related.len().saturating_add(1))
+            })
+    });
+    remaining.max_analysis_steps = map_work
+        .and_then(|work| remaining.max_analysis_steps.checked_sub(work))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "project source-map work budget exceeded",
+                Some(span),
+            )]
+        })?;
+    Ok(map_work.expect("successful checked source-map debit"))
+}
+
+/// Consume complete shared syntax items directly. The current scalar producer
+/// admitted these exact items; richer products keep the ordinary full pipeline.
+pub(super) fn expand_shared_scalar<S: std::borrow::Borrow<SourceUnit>>(
+    sources: &[S],
+    modules: &[Arc<modules::SharedScalarModule>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    reuse: &mut incremental::Reuse<'_>,
+) -> CompileResult<Option<SharedProgramModules>> {
+    if products.metered()
+        || products.has_publications()
+        || sources.len() != modules.len()
+        || modules.iter().any(|module| {
+            module.items.iter().any(|item| {
+                !matches!(
+                    item.kind,
+                    s::ItemKind::Function(_) | s::ItemKind::Extern { .. }
+                )
+            })
+        })
+    {
+        return Ok(None);
+    }
+    let mut remaining = products.trait_limits(limits);
+    let mut output = Vec::with_capacity(modules.len());
+    for (source, module) in sources.iter().zip(modules) {
+        let source: &SourceUnit = source.borrow();
+        let input_limits = remaining.clone();
+        let cached = reuse.lower(module.span.file, &remaining);
+        let expanded = if let Some(cached) = cached {
+            cached
+        } else {
+            reuse.lower_executed();
+            let clock = reuse.clock();
+            let result = expand_scalar_items(
+                source,
+                module,
+                sources,
+                &remaining,
+                products,
+                reuse.item_lower_plan(module.span.file),
+            );
+            reuse.production(clock);
+            let mut expanded = result?;
+            let work = debit_expanded(&expanded, &mut remaining, sources.len(), module.span)?;
+            expanded.source_map_work = Some(work);
+            expanded.lowering_demand.work = expanded.lowering_demand.work.max(work);
+            reuse.save_lower(module.span.file, &input_limits, &expanded);
+            // Debits must occur exactly once for both cached and actual work.
+            output.push((
+                ProgramModule {
+                    exports: scalar_exports(module, &expanded.core),
+                    core: expanded.core,
+                    imports: module.imports.clone(),
+                },
+                expanded.source_map,
+            ));
+            continue;
+        };
+        debit_expanded(&expanded, &mut remaining, sources.len(), module.span)?;
+        output.push((
+            ProgramModule {
+                exports: scalar_exports(module, &expanded.core),
+                core: expanded.core,
+                imports: module.imports.clone(),
+            },
+            expanded.source_map,
+        ));
+    }
+    products.finish_closure_contexts(limits)?;
+    products.finish_callable_contexts(limits)?;
+    Ok(Some(output))
+}
+fn expand_scalar_items<S: std::borrow::Borrow<SourceUnit>>(
+    source: &SourceUnit,
+    module: &modules::SharedScalarModule,
+    sources: &[S],
+    limits: &Limits,
+    products: &generics::products::Products,
+    plan: Option<ItemLowerPlan>,
+) -> CompileResult<ExpandedModule> {
+    let declarations = BTreeMap::new();
+    let mut e = Expander::new(module.id, true, limits, None, &declarations);
+    e.capture_lower_bindings = true;
+    e.member_patterns = Some(&products.member_patterns);
+    e.dynamic_catalog = Some(&products.dynamic);
+    e.storage_catalog = Some(&products.storage);
+    e.method_providers = Some(&products.method_providers);
+    if let Some(plan) = &plan {
+        e.functions = plan.old.core.functions.clone();
+        e.function_cursor = Some(0);
+    }
+    for (ordinal, item) in module.items.iter().enumerate() {
+        e.source_item_ordinal = ordinal;
+        e.lower_item(source, ordinal, item, plan.as_ref());
+    }
+    if !e.diagnostics.is_empty() {
+        return Err(e.diagnostics);
+    }
+    if e.function_cursor
+        .is_some_and(|cursor| cursor != e.functions.len())
+    {
+        return expand_scalar_items(source, module, sources, limits, products, None);
+    }
+    finish_lowering(source, module.id, sources, limits, limits, e)
+}
+fn scalar_exports(module: &modules::SharedScalarModule, core: &CoreModule) -> Vec<NodeId> {
+    let names: BTreeMap<_, _> = core.functions.iter().map(|f| (&f.name, f.id)).collect();
+    module
+        .items
+        .iter()
+        .filter_map(|item| {
+            if !item.public {
+                return None;
+            }
+            let s::ItemKind::Function(function) = &item.kind else {
+                return None;
+            };
+            names.get(&function.name).copied()
+        })
+        .collect()
+}
