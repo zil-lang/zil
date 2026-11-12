@@ -1945,9 +1945,10 @@ pub(super) fn preflight(
                     )?;
                 }
             }
-            return Err(bad(
-                "explicit retained return sources lack complete retained result proof",
-            ));
+            super::stored_flow::dyn_return_header(module, function, budget)?;
+        }
+        if function.retained_return_sources.is_none() {
+            super::stored_flow::dyn_return_header(module, function, budget)?;
         }
         budget.input(function.name.len(), "function metadata")?;
         if let Some(contract) = &function.callable_return_contract {
