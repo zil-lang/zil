@@ -245,7 +245,13 @@ pub(super) fn callback_syntax_type(
     let valid = |ty: &Type| {
         matches!(
             ty,
-            Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64 | Type::ForeignHandle
+            Type::I32
+                | Type::U32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::I64
+                | Type::ForeignHandle
         )
     };
     let result = function.return_type.as_ref().map_or(Type::Unit, type_ref);

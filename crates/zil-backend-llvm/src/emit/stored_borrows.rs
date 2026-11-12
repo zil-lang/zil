@@ -1597,6 +1597,26 @@ mod tests {
                     alignment: 2,
                 },
                 ScalarLayout {
+                    ty: Type::U32,
+                    size: 4,
+                    alignment: 4,
+                },
+                ScalarLayout {
+                    ty: Type::I8,
+                    size: 1,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::I16,
+                    size: 2,
+                    alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::Isize,
+                    size: 8,
+                    alignment: 8,
+                },
+                ScalarLayout {
                     ty: Type::ForeignHandle,
                     size: 8,
                     alignment: 8,

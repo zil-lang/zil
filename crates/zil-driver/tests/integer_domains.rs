@@ -67,6 +67,19 @@ fn native(text: &str, entry: Option<&str>, stdout: &[u8], success: bool) {
                 report.to_json()
             );
             assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(
+                    codegen
+                        .object_reports
+                        .iter()
+                        .all(|r| r.contains("\"input_kind\":\"builder\"")
+                            && r.contains("\"verify_before_after\":true"))
+                );
+            }
             let result = Command::new(&report.artifacts["executable"])
                 .output()
                 .unwrap();
@@ -257,6 +270,12 @@ fn checked_runtime_failures_trap_in_both_backends() {
         ("isize", "isize(18446744073709551615u64)"),
         ("i8", "1i8<<8i8"),
         ("u32", "1u32/0u32"),
+        ("i8", "i8(0.0/0.0)"),
+        ("i8", "i8(127.5)"),
+        ("i16", "i16(32768.0)"),
+        ("u32", "u32(-1.0)"),
+        ("u32", "u32(f32(4294967295u32))"),
+        ("isize", "isize(9223372036854775808.0)"),
     ] {
         native(
             &format!("fn result()->{ty}{{return {expression}}}"),
@@ -324,10 +343,24 @@ fn real_c_scalar_calls_and_record_layout_both_backends() {
                 "{}",
                 report.to_json()
             );
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(
+                    codegen
+                        .object_reports
+                        .iter()
+                        .all(|r| r.contains("\"input_kind\":\"builder\"")
+                            && r.contains("\"verify_before_after\":true"))
+                );
+            }
             let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
             assert!(llvm.contains("declare signext i8 @echo_signed_byte(i8 signext)"));
             assert!(llvm.contains("declare signext i16 @echo_signed_word(i16 signext)"));
             assert!(llvm.contains("declare i32 @echo_unsigned_word(i32)"));
+            assert!(llvm.contains("define internal signext i8 @zil.c.callback."));
+            assert!(llvm.contains("define internal signext i16 @zil.c.callback."));
             let output = Command::new(&report.artifacts["executable"])
                 .output()
                 .unwrap();
@@ -361,8 +394,10 @@ fn ct_module(
     operation: zil_ir::CtInstructionKind,
     ty: Type,
 ) -> zil_ir::CtModule {
-    let mut target = TargetProfile::default();
-    target.pointer_width = width;
+    let target = TargetProfile {
+        pointer_width: width,
+        ..TargetProfile::default()
+    };
     let mut instructions = values
         .iter()
         .enumerate()
@@ -530,4 +565,118 @@ fn raw32_isize_out_of_range_is_rejected_by_each_kernel_and_wire() {
     assert!(zil_verify::verify_ct(ct.clone(), &ct.target, &Limits::default()).is_err());
     let bytes = zil_ir::wire::encode_ct(&ct, &Limits::default()).unwrap();
     assert!(zil_verify::verify_ct_bytes(&bytes, &ct.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn complete_integer_products_in_store_and_closure_capture() {
+    let text = r#"
+struct Numbers{a:i8;b:i16;c:u32;d:isize}
+fn result()->i32 {
+ let pool:Store<Numbers>=store_new()
+ if !store_reserve(pool,2){return 1}
+ let first=Numbers{a:-128i8,b:-32768i16,c:4294967295u32,d:-9223372036854775808isize}
+ let second=Numbers{a:127i8,b:32767i16,c:2147483648u32,d:9223372036854775807isize}
+ match store_push(pool,first){.ok(_)=>{},.err(_)=>{return 2}}
+ match store_push(pool,second){.ok(_)=>{},.err(_)=>{return 3}}
+ let a=store_at(pool,0)
+ if a.a!=first.a || a.b!=first.b || a.c!=first.c || a.d!=first.d{return 4}
+ let b=store_at(pool,1)
+ if b.a!=second.a || b.b!=second.b || b.c!=second.c || b.d!=second.d{return 5}
+ let captured=move()->bool=>first.a==-128i8 && first.b==-32768i16 && first.c==4294967295u32 && first.d==-9223372036854775808isize
+ if !captured(){return 6}
+ return 0
+}
+"#;
+    check(text);
+    native(text, Some("result"), b"0\n", true);
+}
+
+#[test]
+fn ct_nominal_scalar_keys_do_not_merge_distinct_integer_domains() {
+    use std::collections::BTreeSet;
+    use zil_ir::ct_artifact::*;
+    let mut keys = BTreeSet::new();
+    for constant in [
+        Constant::U8(0),
+        Constant::U16(0),
+        Constant::U32(0),
+        Constant::U64(0),
+        Constant::Usize(0),
+        Constant::I8(0),
+        Constant::I16(0),
+        Constant::I32(0),
+        Constant::I64(0),
+        Constant::Isize(0),
+    ] {
+        let schema = CtRecordSchema {
+            name: CtSymbolId {
+                module: ModuleId(0),
+                declaration: zil_base::NodeId(1),
+                generation_path: None,
+            },
+            life_context: None,
+            arguments: vec![CtSchemaArgument::Scalar(constant)],
+            fields: vec![],
+            origin: CtSchemaOrigin::UserPure,
+        };
+        let mut budget = zil_ct::CtExecutionBudget::new(CtDeclaredBudget {
+            max_steps: 100,
+            max_call_depth: 64,
+            max_live_cells: 100,
+            max_temporary_bytes: 1_000_000,
+            max_generated_nodes: 100_000,
+            max_instances: 100,
+            max_analysis_work: 1_000_000,
+        });
+        let key = zil_ct::artifact_type_key(
+            &CtTy::Record(CtRecordSchemaId(0)),
+            &[schema],
+            &[],
+            &mut budget,
+        )
+        .unwrap();
+        assert!(keys.insert(key));
+    }
+    assert_eq!(keys.len(), 10);
+}
+
+#[test]
+fn win64_integer_c_abi_has_exact_widths_without_linux_extensions() {
+    let text = include_str!("../../../tests/integers/ffi.zil")
+        .replace("fn result()->i32", "fn main()->i32");
+    let s = source(&text);
+    let ast = zil_syntax::parse(&s).into_result().unwrap();
+    let core = zil_expand::expand(&s, &ast).unwrap();
+    let target = TargetProfile::windows_x64_llvm();
+    let limits = Limits::default();
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let verified = zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    let llvm = zil_backend_llvm::emit(&verified, &lir).unwrap();
+    assert!(llvm.contains("declare i8 @echo_signed_byte(i8)"));
+    assert!(llvm.contains("declare i16 @echo_signed_word(i16)"));
+    assert!(llvm.contains("declare i32 @echo_unsigned_word(i32)"));
+    assert!(llvm.contains("declare i64 @echo_native_word(i64)"));
+    assert!(!llvm.contains("signext"));
+    assert!(!llvm.contains("zeroext"));
+}
+#[test]
+fn radix_literals_preserve_mathematical_range_and_explicit_identity() {
+    check(
+        "fn result()->i32{let a:i8=-0x80i8;let b:i16=-0o100000i16;let c:u32=0xffffffffu32;let d:isize=-0x8000000000000000isize;if a!=-128i8 || b!=-32768i16 || c!=4294967295u32 || d!=-9223372036854775808isize{return 1}return 0}",
+    );
+    for text in [
+        "fn main(){let x=0x80i8}",
+        "fn main(){let x=-0xffffffffu32}",
+        "fn main(){let x=0x100000000u32}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
 }
