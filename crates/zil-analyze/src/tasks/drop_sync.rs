@@ -8,9 +8,52 @@ struct Origins {
     vacant: bool,
     workers: BTreeSet<FunctionId>,
     parameters: BTreeSet<u32>,
+    captures: BTreeSet<u32>,
+    environment: BTreeMap<u32, Origins>,
 }
 impl Origins {
+    fn charge(&self, budget: &mut Budget) -> CompileResult<()> {
+        budget.spend(1, "Task frame origin inventory")?;
+        let mut pending = vec![self];
+        while let Some(row) = pending.pop() {
+            budget.spend(
+                row.workers
+                    .len()
+                    .saturating_add(row.parameters.len())
+                    .saturating_add(row.captures.len())
+                    .saturating_add(row.environment.len())
+                    .saturating_add(1),
+                "Task complete frame origin inventory",
+            )?;
+            pending.extend(row.environment.values());
+        }
+        Ok(())
+    }
+    fn snapshot(&self, budget: &mut Budget) -> CompileResult<Self> {
+        if !self.captures.is_empty() || !self.environment.is_empty() {
+            self.charge(budget)?;
+        }
+        Ok(self.clone())
+    }
     fn add(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
+        self.merge(other, budget, 0)
+    }
+    fn merge(&mut self, other: &Self, budget: &mut Budget, depth: usize) -> CompileResult<bool> {
+        if depth > budget.helper_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "Task frame origin nesting exceeded",
+                None,
+            )]);
+        }
+        if !self.captures.is_empty()
+            || !self.environment.is_empty()
+            || !other.captures.is_empty()
+            || !other.environment.is_empty()
+        {
+            self.charge(budget)?;
+            other.charge(budget)?;
+        }
         budget.spend(
             self.workers
                 .len()
@@ -25,6 +68,13 @@ impl Origins {
         self.vacant |= other.vacant;
         self.workers.extend(other.workers.iter().copied());
         self.parameters.extend(other.parameters.iter().copied());
+        self.captures.extend(other.captures.iter().copied());
+        for (index, child) in &other.environment {
+            self.environment
+                .entry(*index)
+                .or_default()
+                .merge(child, budget, depth + 1)?;
+        }
         Ok(*self != old)
     }
 }
@@ -214,7 +264,11 @@ fn require_origin(
         origins.workers.len().saturating_add(1),
         "Task Drop actual dependencies",
     )?;
-    if origins.unknown || (origins.workers.is_empty() && !origins.vacant) {
+    if origins.unknown
+        || !origins.parameters.is_empty()
+        || !origins.captures.is_empty()
+        || (origins.workers.is_empty() && !origins.vacant)
+    {
         return Err(fail(
             span.unwrap_or(f.span),
             "Task automatic Drop has no complete synchronous worker origin",
@@ -283,6 +337,9 @@ fn returned_origin(
                 .saturating_add(1),
             "Task factory cached return snapshot",
         )?;
+        if !origin.captures.is_empty() || !origin.environment.is_empty() {
+            origin.charge(budget)?;
+        }
         return Ok(origin.clone());
     }
     let target = module
@@ -341,6 +398,7 @@ fn returned_origin(
                     && !origin.vacant
                     && origin.workers.is_empty()
                     && origin.parameters.is_empty()
+                    && origin.captures.is_empty()
                 {
                     result.unknown = true;
                 }
@@ -359,8 +417,80 @@ fn returned_origin(
             .saturating_add(1),
         "Task factory return cache insertion",
     )?;
+    if !result.captures.is_empty() || !result.environment.is_empty() {
+        result.charge(budget)?;
+    }
     returned.insert(id, result.clone());
     Ok(result)
+}
+
+fn instantiate(
+    summary: &Origins,
+    arguments: &[ValueId],
+    values: &[Origins],
+    environment: Option<&Origins>,
+    budget: &mut Budget,
+    depth: usize,
+) -> CompileResult<Origins> {
+    if depth > budget.helper_depth {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "Task result origin substitution depth exceeded",
+            None,
+        )]);
+    }
+    if summary.captures.is_empty() && summary.environment.is_empty() && environment.is_none() {
+        budget.spend(
+            summary
+                .workers
+                .len()
+                .saturating_add(summary.parameters.len()),
+            "Task helper return actual source",
+        )?;
+        let mut out = Origins {
+            unknown: summary.unknown,
+            vacant: summary.vacant,
+            workers: summary.workers.clone(),
+            ..Origins::default()
+        };
+        for parameter in &summary.parameters {
+            let actual = arguments
+                .get(*parameter as usize)
+                .and_then(|v| values.get(v.0 as usize))
+                .ok_or_else(|| fail(Default::default(), "Task helper result input absent"))?;
+            out.add(actual, budget)?;
+        }
+        return Ok(out);
+    }
+    summary.charge(budget)?;
+    let mut out = Origins {
+        unknown: summary.unknown,
+        vacant: summary.vacant,
+        workers: summary.workers.clone(),
+        ..Origins::default()
+    };
+    for parameter in &summary.parameters {
+        let value = arguments
+            .get(*parameter as usize)
+            .and_then(|v| values.get(v.0 as usize))
+            .ok_or_else(|| fail(Default::default(), "Task result origin argument is absent"))?;
+        out.add(value, budget)?;
+    }
+    for capture in &summary.captures {
+        if let Some(value) = environment.and_then(|row| row.environment.get(capture)) {
+            out.add(value, budget)?;
+        } else {
+            out.unknown = true;
+        }
+    }
+    for (index, child) in &summary.environment {
+        let child = instantiate(child, arguments, values, environment, budget, depth + 1)?;
+        out.environment
+            .entry(*index)
+            .or_default()
+            .add(&child, budget)?;
+    }
+    Ok(out)
 }
 
 fn infer_origins(
@@ -413,7 +543,7 @@ fn infer_origins(
                             locals[local.0 as usize].workers.len().saturating_add(1),
                             "Task Drop actual graph",
                         )?;
-                        let origin = locals[local.0 as usize].clone();
+                        let origin = locals[local.0 as usize].snapshot(budget)?;
                         changed |= locals[field.0 as usize].add(&origin, budget)?;
                     }
                 }
@@ -429,35 +559,60 @@ fn infer_origins(
                         vacant: false,
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
+                        ..Origins::default()
                     },
                     InstructionKind::WithScopedThread { argument, .. } => {
-                        values[argument.0 as usize].clone()
+                        values[argument.0 as usize].snapshot(budget)?
                     }
                     InstructionKind::Call {
                         function,
                         arguments,
                     } => {
                         let summary = returned_origin(module, *function, budget, active, returned)?;
-                        let mut actual = Origins {
-                            unknown: summary.unknown,
-                            vacant: summary.vacant,
-                            workers: summary.workers.clone(),
-                            parameters: BTreeSet::new(),
+                        instantiate(&summary, arguments, &values, None, budget, 0)?
+                    }
+                    InstructionKind::CallClosureOnce { callee, arguments } => {
+                        let Type::Closure(id) = &f.values[callee.0 as usize] else {
+                            return Err(fail(i.span, "Task frame result has no actual callable"));
                         };
-                        budget.spend(
-                            summary
-                                .workers
-                                .len()
-                                .saturating_add(summary.parameters.len()),
-                            "Task helper return actual source",
-                        )?;
-                        for parameter in &summary.parameters {
-                            let source = arguments
-                                .get(*parameter as usize)
-                                .ok_or_else(|| fail(i.span, "Task helper result input absent"))?;
-                            actual.add(&values[source.0 as usize], budget)?;
+                        let d = module
+                            .closures
+                            .get(id.0 as usize)
+                            .filter(|d| d.kind == CallableKind::FnOnce)
+                            .ok_or_else(|| {
+                                fail(i.span, "Task frame result has no actual consuming entry")
+                            })?;
+                        let summary =
+                            returned_origin(module, d.function, budget, active, returned)?;
+                        instantiate(
+                            &summary,
+                            arguments,
+                            &values,
+                            Some(&values[callee.0 as usize]),
+                            budget,
+                            0,
+                        )?
+                    }
+                    InstructionKind::TakeCapture { index } => {
+                        let d = f
+                            .environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .filter(|d| {
+                                d.function == f.id
+                                    && d.kind == CallableKind::FnOnce
+                                    && d.captures.get(*index as usize).is_some()
+                            })
+                            .ok_or_else(|| {
+                                fail(
+                                    i.span,
+                                    "Task frame return capture is not an actual consuming input",
+                                )
+                            })?;
+                        let _ = d;
+                        Origins {
+                            captures: BTreeSet::from([*index]),
+                            ..Origins::default()
                         }
-                        actual
                     }
                     InstructionKind::MakeErrorUnion { value, .. }
                         if !relevant[value.0 as usize] =>
@@ -481,7 +636,7 @@ fn infer_origins(
                             locals[local.0 as usize].workers.len().saturating_add(1),
                             "Task automatic Drop actual origins",
                         )?;
-                        locals[local.0 as usize].clone()
+                        locals[local.0 as usize].snapshot(budget)?
                     }
                     InstructionKind::ReborrowAddress { address: value, .. }
                     | InstructionKind::DescribeAddress { address: value }
@@ -499,7 +654,7 @@ fn infer_origins(
                             values[value.0 as usize].workers.len().saturating_add(1),
                             "Task automatic Drop actual origins",
                         )?;
-                        values[value.0 as usize].clone()
+                        values[value.0 as usize].snapshot(budget)?
                     }
                     InstructionKind::ExtractField { aggregate, .. } => {
                         let value = aggregate;
@@ -507,19 +662,31 @@ fn infer_origins(
                             values[value.0 as usize].workers.len().saturating_add(1),
                             "Task automatic Drop actual origins",
                         )?;
-                        values[value.0 as usize].clone()
+                        values[value.0 as usize].snapshot(budget)?
                     }
                     InstructionKind::MakeAggregate { fields }
                     | InstructionKind::MakeVariant { fields, .. }
                     | InstructionKind::MakeOwnedTuple { fields }
                     | InstructionKind::MakePackage { fields }
-                    | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeClosure {
-                        captures: fields, ..
-                    } => {
+                    | InstructionKind::MakeOwnedArray { elements: fields } => {
                         let mut origin = Origins::default();
                         for value in fields {
                             origin.add(&values[value.0 as usize], budget)?;
+                        }
+                        origin
+                    }
+                    InstructionKind::MakeClosure {
+                        captures: fields, ..
+                    } => {
+                        let mut origin = Origins::default();
+                        for (index, value) in fields.iter().enumerate() {
+                            if !relevant[value.0 as usize] {
+                                continue;
+                            }
+                            let child = values[value.0 as usize].snapshot(budget)?;
+                            origin.add(&child, budget)?;
+                            budget.spend(1, "actual Task capture worker provenance slot")?;
+                            origin.environment.insert(index as u32, child);
                         }
                         origin
                     }
@@ -528,6 +695,7 @@ fn infer_origins(
                         vacant: false,
                         workers: BTreeSet::new(),
                         parameters: BTreeSet::new(),
+                        ..Origins::default()
                     },
                 };
                 changed |= values[out.0 as usize].add(&origin, budget)?;
