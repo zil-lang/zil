@@ -856,9 +856,11 @@ impl Slots {
             .iter()
             .enumerate()
             .map(|(index, ty)| -> Check<Option<usize>> {
-                if matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    || (budget.inline_store_root(ty)?
-                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                if matches!(
+                    ty,
+                    Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+                ) || (budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     let next = debt_count;
                     debt_count += 1;

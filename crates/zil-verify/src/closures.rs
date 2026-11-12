@@ -192,13 +192,23 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
-            if matches!(ty, Type::OwnedDyn { .. })
-                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            if let Type::OwnedDyn { interface } = ty {
+                if closure.kind != CallableKind::FnOnce {
+                    return Err(reject(
+                        "E-VERIFY-DYN",
+                        None,
+                        "owned dyn capture requires a consuming entry",
+                    ));
+                }
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
+                continue;
+            }
+            if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
             {
                 return Err(reject(
                     "E-VERIFY-DYN",
                     None,
-                    "owned dyn closure capture is outside the closed owner profile",
+                    "owned dyn error capture requires a selected whole owner",
                 ));
             }
             budget.owning_address_captures |= owning_capture_address(ty);
@@ -722,7 +732,7 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
         || definition.captures.iter().any(|ty| {
             matches!(
                 ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             )
         }))
 }
@@ -795,9 +805,11 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
-                if !matches!(ty, Type::Managed(_) | Type::Closure(_))
-                    && !(budget.inline_store_root(ty)?
-                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                if !matches!(
+                    ty,
+                    Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+                ) && !(budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)?)
                 {
                     return Err(reject(
                         "E-VERIFY-CAPTURE",

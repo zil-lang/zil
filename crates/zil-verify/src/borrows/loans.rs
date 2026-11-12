@@ -89,7 +89,9 @@ fn local_transfer(
         | InstructionKind::DropMutexGuard { local } => {
             state.remove(&local);
         }
-        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropDynOwned { local }
+        | InstructionKind::DropErrorUnion { local }
             if budget.borrowed_task_ports =>
         {
             state.remove(&local);
@@ -410,6 +412,12 @@ fn reconstruct(
                             }
                             InstructionKind::BorrowVariantAddress { address, .. }
                             | InstructionKind::BorrowPlaceAddress { address, .. } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::CallDynSlot {
+                                callee: address, ..
+                            } if matches!(f.values[id], Type::Address { .. }) => {
                                 row.insert(id);
                                 join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
@@ -1867,7 +1875,11 @@ pub(super) fn check(
                     }
                 }
                 InstructionKind::DropManaged { local }
-                    if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
+                | InstructionKind::DropDynOwned { local }
+                    if matches!(
+                        f.locals[local.0 as usize].ty,
+                        Type::Managed(_) | Type::OwnedDyn { .. }
+                    ) =>
                 {
                     access.check(&empty, &[Root::Local(*local)], true, budget)?;
                 }

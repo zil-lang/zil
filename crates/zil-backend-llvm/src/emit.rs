@@ -979,6 +979,7 @@ fn bind_lir(
                 break;
             }
             let legacy = ty.is_copy_value()
+                || (closure.kind == CallableKind::FnOnce && matches!(ty, Type::OwnedDyn { .. }))
                 || matches!(ty, Type::Closure(_))
                 || ty.is_shared_sync_cell_address()
                 || (captured_fixed_signature && shared_qualified_capture_address(ty))
@@ -2395,6 +2396,9 @@ impl FunctionEmitter<'_> {
                 )));
             }
             InstructionKind::ReborrowAddress { address, .. } => {
+                if dyn_dispatch::address(self.value_type(*address)?) {
+                    return self.reborrow_dyn(instruction, *address);
+                }
                 if self.value_type(*address)?.is_slice_address() {
                     return self.reborrow_slice(instruction, *address);
                 }
@@ -4052,7 +4056,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
-            || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
             || ty.is_shared_sync_cell_address()
             || shared_qualified_capture_address(ty)
             || sum_capture_address(ty)
@@ -4165,7 +4169,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 // Verify checked the complete inline environment DAG and depth
                 // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
-                    && !matches!(field, Type::Closure(_))
+                    && !matches!(field, Type::Closure(_) | Type::OwnedDyn { .. })
                     && !field.is_shared_sync_cell_address()
                     && !shared_qualified_capture_address(field)
                     && !sum_capture_address(field)

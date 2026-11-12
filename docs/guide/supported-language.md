@@ -18,7 +18,7 @@
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
 | --- | --- | --- | --- |
-| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 dyn 的共享/独占标量及 Unit 槽；自含 ByteBuffer Package 的显式 `OwnedDyn` Heap 路线 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、raw/Wire、缓存与四机器配置 | owned dyn 尚不接受 user Drop、Store/借入 provider 或闭包捕获；借入结果及一般关联/泛型槽未开放，未知合同仍拒绝 |
+| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 dyn 的共享/独占值槽、Panic 合同及共享字段地址结果；闭合 ByteBuffer/普通 user Drop/Store provider 的 `OwnedDyn` Heap 路线与 moved FnOnce 捕获 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、raw/Wire、缓存与四机器配置 | owned dyn 尚不接受借入 provider、共享拥有捕获或未选择的 owner 错误联合捕获；非接收者借入来源及一般关联/泛型槽未开放，未知合同仍拒绝 |
 | 普通集合、文本与 I/O | 完整 POD Tuple/Array/Record/标量 Store；[可增长 POD HashMap 和 Copy Set](../../spec/pod-hash-collections.md)；有限完整 owning K/V 的 Entry 与按实际 KeyEq 查找的线性 Map；UTF8 String、排序、文件/流 I/O | 真实普通库、私有跨模块 Key、增长/rehash 准备失败保留、old Entry 转交、容量/分配失败返还责任、短写/EOF、四机器配置 | POD 哈希容器要求 Copy + StoreElement；owning Map 仍为线性查找；已准入 owning Package／字段的 Option 借入 get 保留真实 manager；一般 owning K/V 哈希与完整 Unicode 排版仍有缺口 |
 | trait 与泛型库 | Type/const/life、关联项与字段/别名投影、默认/泛型方法、静态关联函数；普通标量/Enum 与有限拥有 Package 的共享／独占 trait provider；`Store<Item>` manager 的普通拥有 Item lending；多 binder Entry/Map | 未用定义的义务、真实 nominal/provider 身份、完整实参、独立两核与原生；零资源 Package 仍执行 affine 消费检查 | 一般 blanket/约束方程、更广 owning lending 和开放泛型方法槽仍需完整证明，实例不能补上定义期缺失前提 |
 | 普通程序组合 | 真实跨模块程序中的集合更新、错误传播与明确资源责任；同一普通函数可组合借入结果Task、拥有Map的Option借出、结束借出后的插入与移动，支持直接匹配临时Task构造结果 | 固定Source、真实两来源分支、默认预算、完整stdout/退出值、calloc/realloc失败清理、独立raw/Wire与最近反例；各范围按精确源码验收 | 上述Task共享结果可来自多共享输入中声明结果类的真实外部来源；更广holder、捕获环境、借入结果及跨线程运输仍须逐一证明，有限同函数组合不关闭父能力 |

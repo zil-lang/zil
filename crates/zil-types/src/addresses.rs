@@ -142,6 +142,7 @@ impl Builder<'_, '_> {
                             | Type::Managed(_)
                             | Type::Package { .. }
                             | Type::Closure(_)
+                            | Type::OwnedDyn { .. }
                     ) || owned_shapes::sum(&c.stored_type())
                 }),
             _ => false,

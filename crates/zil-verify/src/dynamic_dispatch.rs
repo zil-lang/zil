@@ -13,8 +13,10 @@ pub(super) fn present(module: &TypedModule) -> bool {
 }
 
 fn plain_value(ty: &Type) -> bool {
-    ty.is_b0_scalar() || *ty == Type::Unit
-        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+    ty.is_b0_scalar()
+        || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, Type::Array { element, .. } if plain_value(element))
 }
 
 fn bad(message: &str, span: Option<Span>) -> Diagnostic {
@@ -59,7 +61,9 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
                 && v.access.writes.is_empty()
                 && v.effects.is_empty()
         })
-        && c.effects.as_ref().is_some_and(|v| v.is_empty() || v.as_slice() == [DynEffect::Panic]);
+        && c.effects
+            .as_ref()
+            .is_some_and(|v| v.is_empty() || v.as_slice() == [DynEffect::Panic]);
     if !finite {
         return Err(bad(
             "dyn contract has an unknown or unbounded component",
@@ -84,7 +88,14 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
                 vec![]
             },
         }),
-        result: Some(DynResultSource::Value),
+        result: Some(if borrowed_result(&slot.result) {
+            DynResultSource::Borrow {
+                sources: vec![receiver_position()],
+                mutable: false,
+            }
+        } else {
+            DynResultSource::Value
+        }),
         cleanup: Some(DynCleanupContract {
             environment: false,
             positions: vec![],
@@ -108,6 +119,10 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
         ));
     }
     Ok(())
+}
+
+fn borrowed_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
 }
 
 fn scalar(ty: &Type) -> bool {
@@ -147,10 +162,20 @@ fn closed_owner_shape(
         }
         Type::Managed(payload) => {
             budget.spend(module.resources.len())?;
-            if !module.resources.iter().any(|r| r.payload == **payload) { return Ok(None); }
+            if !module.resources.iter().any(|r| r.payload == **payload) {
+                return Ok(None);
+            }
             match payload.as_ref() {
-                Type::Record { .. } if closed_owner_shape(payload, module, budget, depth + 1)? == Some(0) => return Ok(Some(1)),
-                Type::OwnedStore { element } if closed_owner_shape(element, module, budget, depth + 1)?.is_some() => return Ok(Some(1)),
+                Type::Record { .. }
+                    if closed_owner_shape(payload, module, budget, depth + 1)? == Some(0) =>
+                {
+                    return Ok(Some(1));
+                }
+                Type::OwnedStore { element }
+                    if closed_owner_shape(element, module, budget, depth + 1)?.is_some() =>
+                {
+                    return Ok(Some(1));
+                }
                 _ => return Ok(None),
             }
         }
@@ -299,6 +324,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     }
     let mut interfaces = BTreeSet::new();
     for item in &module.dyn_interfaces {
+        crate::dynamic_cleanup::metadata(module, item.owning_cleanup.as_ref(), budget)?;
         budget.spend(
             item.slots
                 .len()
@@ -341,6 +367,11 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         }
         let mut members = BTreeSet::new();
         for slot in &item.slots {
+            for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                if !ty.is_b0_scalar() {
+                    check_type_shape(ty, &module.target, &budget.limits.clone(), budget)?;
+                }
+            }
             budget.spend(
                 slot.parameters
                     .len()
@@ -351,7 +382,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 .members
                 .get(slot.member.ordinal as usize)
                 .ok_or_else(|| bad("dyn slot member ordinal absent", None))?;
-            let expected_life = StorageLifeContract {
+            let mut expected_life = StorageLifeContract {
                 fixed_binder_count: 0,
                 invocation_binder_count: 1,
                 bindings: vec![StorageLifeBinding {
@@ -360,8 +391,17 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 }],
                 classes: vec![],
             };
+            if borrowed_result(&slot.result) {
+                expected_life.bindings.push(StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                    },
+                    binder: StorageBinder::Invocation(0),
+                });
+            }
             if !slot.storage_life.as_ref().is_some_and(|life| {
-                life.bindings.len() == 1
+                life.bindings.len() == if borrowed_result(&slot.result) { 2 } else { 1 }
                     && life.bindings[0].position.path.is_empty()
                     && life.classes.is_empty()
             }) {
@@ -383,7 +423,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                     .parameter_modes
                     .iter()
                     .all(|mode| *mode == PassingMode::Infer)
-                || !plain_value(&slot.result)
+                || !(plain_value(&slot.result)
+                    || !slot.receiver.mutable && borrowed_result(&slot.result))
                 || slot.result_mode != PassingMode::Infer
                 || slot.call_kind != CallKind::Direct
                 || slot.storage_life.as_ref() != Some(&expected_life)
@@ -439,6 +480,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 "dyn table exceeds finite Copy record provider profile",
                 None,
             ));
+        }
+        if item.owned_storage == Some(DynOwnedStorage::Heap) {
+            let bound = crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
+            crate::dynamic_cleanup::prove(module, &item.self_type, bound, budget)?;
         }
         for (ordinal, entry) in item.entries.iter().enumerate() {
             budget.spend(1)?;
@@ -556,6 +601,23 @@ fn entry_body(
                         receiver_values.insert(result);
                     }
                 }
+                InstructionKind::ReborrowAddress {
+                    address,
+                    mutable: false,
+                } if field_values.contains(address) => {
+                    let input = function.values.get(address.0 as usize);
+                    let output = instruction
+                        .result
+                        .and_then(|v| function.values.get(v.0 as usize));
+                    if !matches!((input, output), (Some(Type::Address { inner: a, .. }), Some(Type::Address { mutable: false, inner: b })) if a == b && scalar(a))
+                    {
+                        return Err(bad(
+                            "dyn borrowed field reborrow loses its exact field type",
+                            Some(instruction.span),
+                        ));
+                    }
+                    field_values.insert(instruction.result.expect("checked result"));
+                }
                 InstructionKind::ReborrowAddress { address, mutable } => {
                     if *mutable != slot.receiver.mutable
                         || !receiver_values.contains(address)
@@ -612,29 +674,71 @@ fn entry_body(
                 }
                 InstructionKind::MakeAggregate { fields } => {
                     budget.spend(fields.len().saturating_add(1))?;
-                    if !fields.iter().all(|id| function.values.get(id.0 as usize).is_some_and(plain_value))
-                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(plain_value)) {
-                        return Err(bad("dyn aggregate has nonvalue fields or result", Some(instruction.span)));
+                    if !fields
+                        .iter()
+                        .all(|id| function.values.get(id.0 as usize).is_some_and(plain_value))
+                        || !instruction.result.is_some_and(|id| {
+                            function.values.get(id.0 as usize).is_some_and(plain_value)
+                        })
+                    {
+                        return Err(bad(
+                            "dyn aggregate has nonvalue fields or result",
+                            Some(instruction.span),
+                        ));
                     }
                 }
                 InstructionKind::ExtractField { aggregate, .. } => {
-                    if !function.values.get(aggregate.0 as usize).is_some_and(plain_value)
-                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(plain_value)) {
-                        return Err(bad("dyn aggregate projection has nonvalue result", Some(instruction.span)));
+                    if !function
+                        .values
+                        .get(aggregate.0 as usize)
+                        .is_some_and(plain_value)
+                        || !instruction.result.is_some_and(|id| {
+                            function.values.get(id.0 as usize).is_some_and(plain_value)
+                        })
+                    {
+                        return Err(bad(
+                            "dyn aggregate projection has nonvalue result",
+                            Some(instruction.span),
+                        ));
                     }
                 }
                 InstructionKind::Binary { left, right, .. } => {
-                    if !slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic))
-                        || ![*left, *right].iter().all(|id| function.values.get(id.0 as usize).is_some_and(scalar))
-                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(scalar)) {
-                        return Err(bad("dyn arithmetic lacks proved Panic upper bound or scalar operands", Some(instruction.span)));
+                    if !slot
+                        .contract
+                        .effects
+                        .as_ref()
+                        .is_some_and(|e| e.contains(&DynEffect::Panic))
+                        || ![*left, *right]
+                            .iter()
+                            .all(|id| function.values.get(id.0 as usize).is_some_and(scalar))
+                        || !instruction.result.is_some_and(|id| {
+                            function.values.get(id.0 as usize).is_some_and(scalar)
+                        })
+                    {
+                        return Err(bad(
+                            "dyn arithmetic lacks proved Panic upper bound or scalar operands",
+                            Some(instruction.span),
+                        ));
                     }
                 }
-                InstructionKind::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } => {
-                    if !slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic))
+                InstructionKind::Unary {
+                    op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+                    operand,
+                } => {
+                    if !slot
+                        .contract
+                        .effects
+                        .as_ref()
+                        .is_some_and(|e| e.contains(&DynEffect::Panic))
                         || !function.values.get(operand.0 as usize).is_some_and(scalar)
-                        || !instruction.result.is_some_and(|id| function.values.get(id.0 as usize).is_some_and(scalar)) {
-                        return Err(bad("dyn unary operation lacks proved Panic upper bound", Some(instruction.span)));
+                        || !instruction.result.is_some_and(|id| {
+                            function.values.get(id.0 as usize).is_some_and(scalar)
+                        })
+                    {
+                        return Err(bad(
+                            "dyn unary operation lacks proved Panic upper bound",
+                            Some(instruction.span),
+                        ));
                     }
                 }
                 InstructionKind::Call {
@@ -666,6 +770,9 @@ fn entry_body(
                     entry_body(module, callee, self_type, slot, budget, active, depth + 1)?;
                     called = true;
                     direct_result = instruction.result;
+                    if borrowed_result(&slot.result) {
+                        field_values.insert(instruction.result.expect("checked non-Unit call"));
+                    }
                     if slot.receiver.mutable {
                         saw_write = true;
                     }
@@ -709,6 +816,14 @@ fn entry_body(
                     ));
                 }
             }
+        }
+        if borrowed_result(&slot.result)
+            && !matches!(block.terminator, Terminator::Return(Some(v)) if field_values.contains(&v))
+        {
+            return Err(bad(
+                "dyn borrowed return does not originate at its actual receiver field",
+                Some(function.span),
+            ));
         }
         if !matches!(block.terminator, Terminator::Return(_)) {
             return Err(bad(
@@ -767,7 +882,8 @@ pub(super) fn type_owned(
     budget: &mut Budget,
 ) -> Check<()> {
     budget.spend(module.dyn_interfaces.len().saturating_add(1))?;
-    interface(module, interface_id)?;
+    let iface = interface(module, interface_id)?;
+    crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
     Ok(())
 }
 

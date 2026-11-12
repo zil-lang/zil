@@ -242,36 +242,67 @@ void free(void *p) {
         .output()
         .unwrap();
     assert!(compiled.status.success(), "{compiled:?}");
-    for backend in backends() {
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let executable = dir.join(format!("program-{}-{optimization:?}", backend.name()));
-            let report = compile(
-                OWNED_ALLOCATION,
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    stop_after: Stage::Build,
-                    entry: Some("main".into()),
-                    output: Some(executable.clone()),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            let success = Command::new(&executable).output().unwrap();
-            assert_eq!(success.status.code(), Some(0), "{success:?}");
-            assert_eq!(success.stdout, b"41\n");
-            let failed = Command::new(&executable)
-                .env("LD_PRELOAD", &interceptor)
-                .output()
-                .unwrap();
-            assert_eq!(failed.status.code(), Some(0), "{failed:?}");
-            assert_eq!(failed.stdout, b"77\n");
-            assert_eq!(failed.stderr, b"FD");
+    let user = format!(
+        "extern \"C\" fn putchar(code:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code)}}}}}}{}",
+        OWNED_ALLOCATION
+            .replace(
+                "manages data:ByteBuffer;",
+                "manages data:ByteBuffer;manages mark:Token;"
+            )
+            .replace(
+                "data:give data,n:41",
+                "data:give data,mark:Token{code:65},n:41"
+            )
+    );
+    let store = format!(
+        "extern \"C\" fn putchar(code:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code)}}}}}}package Item{{manages mark:Token;n:i32}}{}",
+        OWNED_ALLOCATION
+            .replace("manages data:ByteBuffer;", "manages data:Store<Item>;")
+            .replace("let data=bytes_new();", "let data:Store<Item>=store_new();")
+            .replace(
+                "bytes_reserve(data,64);",
+                "store_reserve(data,8);store_push(data,Item{mark:Token{code:65},n:1});"
+            )
+    );
+    for (label, text, prefix) in [
+        ("bytes", OWNED_ALLOCATION, ""),
+        ("user", user.as_str(), "A"),
+        ("store", store.as_str(), "A"),
+    ] {
+        for backend in backends() {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let executable = dir.join(format!(
+                    "program-{label}-{}-{optimization:?}",
+                    backend.name()
+                ));
+                let report = compile(
+                    text,
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        entry: Some("main".into()),
+                        output: Some(executable.clone()),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let success = Command::new(&executable).output().unwrap();
+                assert_eq!(success.status.code(), Some(0), "{success:?}");
+                assert_eq!(success.stdout, format!("{prefix}41\n").as_bytes());
+                let failed = Command::new(&executable)
+                    .env("LD_PRELOAD", &interceptor)
+                    .output()
+                    .unwrap();
+                assert_eq!(failed.status.code(), Some(0), "{failed:?}");
+                assert_eq!(failed.stdout, format!("{prefix}77\n").as_bytes());
+                assert_eq!(failed.stderr, b"FD");
+            }
         }
     }
 }
@@ -574,7 +605,7 @@ fn raw_closure_cannot_hide_an_owned_dyn_capture() {
     assert!(
         analyze_errors
             .iter()
-            .any(|e| e.message.contains("owned dyn closure capture")),
+            .any(|e| e.message.contains("owned dyn capture")),
         "{analyze_errors:?}"
     );
     plan.module_fingerprint = module.fingerprint();
@@ -585,9 +616,9 @@ fn raw_closure_cannot_hide_an_owned_dyn_capture() {
         zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap_err(),
     ] {
         assert!(
-            errors.iter().any(
-                |e| e.code == "E-VERIFY-DYN" && e.message.contains("owned dyn closure capture")
-            ),
+            errors
+                .iter()
+                .any(|e| e.code == "E-VERIFY-DYN" && e.message.contains("owned dyn capture")),
             "{errors:?}"
         );
     }
@@ -1131,6 +1162,165 @@ fn owned_raw_wire_rejects_forged_route_provider_and_loan() {
 }
 
 #[test]
+fn moved_fnonce_dyn_capture_transfers_and_cleans_owner_once() {
+    let source = "extern \"C\" fn putchar(code:i32)->i32;trait Read{fn read(self:&Self)->i32;}resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package A{manages mark:Token;pub n:i32}impl Read for A{fn read(self:&Self)->i32{return self.n}}fn consume(owner:OwnedDyn<dyn Read>)->i32{return owner.read()}fn invoke<F:FnOnce()->i32>(f:F)->i32{return f()}fn run(call:bool)->DynCreateError!i32{let owner=owned_dyn::<dyn Read>(A{mark:Token{code:65},n:42})?;let f=move()->i32=>consume(owner);if call{return invoke(f)}return 0}fn start()->DynCreateError!i32{return run(true)?+run(false)?}fn main()->i32{let r=start();match r{.ok(n)=>{return n},.err(_)=>{return 99}}}";
+    for bad in [
+        source.replace("let f=move()", "let f=()"),
+        source.replace("=>consume(owner)", "=>consume(owner)+consume(owner)"),
+    ] {
+        let report = compile(&bad, &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+    }
+    let (mut module, mut plan) = source_candidate_for(source);
+    let take = module
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::TakeCapture { .. }))
+        .unwrap();
+    let I::TakeCapture { index } = take.kind else {
+        unreachable!()
+    };
+    take.kind = I::ReadCapture { index };
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default())
+            .is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-fnonce-capture");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"AA42\n");
+        }
+    }
+}
+
+#[test]
+fn owned_user_teardown_and_store_prefix_use_whole_owner_cleanup_bound() {
+    let source = include_str!("dyn-owned-user-drop-store.zil");
+    let (module, plan) = source_candidate_for(source);
+    let bound = module.dyn_interfaces[0].owning_cleanup.as_ref().unwrap();
+    assert!(bound.environment);
+    assert!(bound.effects.contains(&zil_ir::DynEffect::Ffi));
+    assert!(bound.effects.contains(&zil_ir::DynEffect::Io));
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].owning_cleanup = None;
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0]
+            .owning_cleanup
+            .as_mut()
+            .unwrap()
+            .effects
+            .retain(|e| *e != zil_ir::DynEffect::Io);
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].owning_cleanup = m.dyn_interfaces[0].slots[0].contract.cleanup.clone();
+    });
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-user-drop-store");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"ABC42\n");
+        }
+    }
+}
+
+#[test]
+fn raw_owner_cleanup_metadata_is_bounded_before_fingerprinting() {
+    let (mut module, plan) = source_candidate_for(OWNED_PACKAGE);
+    let limits = Limits {
+        max_nodes: 2048,
+        ..Limits::default()
+    };
+    module.dyn_interfaces[0]
+        .owning_cleanup
+        .as_mut()
+        .unwrap()
+        .positions
+        .push(zil_ir::StoragePosition {
+            base: zil_ir::StorageBase::Result,
+            path: vec![zil_ir::ContractProjection::RetainedPort(0); 2049],
+        });
+    let wire = zil_ir::wire::encode_module_candidate(
+        &module,
+        &plan,
+        &Limits {
+            max_call_depth: 4096,
+            ..Limits::default()
+        },
+    )
+    .unwrap();
+    for errors in [
+        zil_analyze::analyze(&module, &limits).unwrap_err(),
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+            .unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn owned_raw_wire_rejects_user_drop_hidden_behind_erasure() {
     let source = format!(
         "{OWNED_PACKAGE}\nextern \"C\" fn putchar(x:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code);}}}}}}\n"
@@ -1338,36 +1528,217 @@ fn shared_dyn_cannot_call_mutable_slot_or_create_exclusive_dyn() {
 }
 
 #[test]
-fn arithmetic_provider_proves_panic_and_preserves_checked_execution() {
-    let source = "trait Change{fn step(self:&mut Self)->();}struct A{n:i32}impl Change for A{fn step(self:&mut Self)->(){self.n+=1;return ()}}fn main()->i32{var a=A{n:1};let d:&mut dyn Change=&mut a;d.step();return a.n}";
-    let (module, plan) = source_candidate_for(source);
-    assert_eq!(module.dyn_interfaces[0].slots[0].contract.effects, Some(vec![zil_ir::DynEffect::Panic]));
-    let target = module.target.clone();
-    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
-    zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap();
-    rejected(module.clone(), plan.clone(), |m| { m.dyn_interfaces[0].slots[0].contract.effects = Some(vec![]); });
-    rejected(module.clone(), plan.clone(), |m| { m.dyn_interfaces[0].slots[0].contract.effects = None; });
+fn cross_module_checked_mutation_and_shared_reborrow_keep_provider_identity() {
+    let files = [
+        (
+            "main",
+            "import api;import providers;extern \"C\" fn getchar()->i32;fn main()->i32{var a=providers.A{n:19};var b=providers.B{padding:3,n:21};var input:i32=0;unsafe{input=getchar();}if input==49{return api.bump(&mut a)+b.n}return api.bump(&mut b)+a.n}",
+        ),
+        (
+            "api",
+            "pub trait Change{fn step(self:&mut Self)->();fn read(self:&Self)->i32;}pub fn bump(d:&mut dyn Change)->i32{d.step();return d.read()}",
+        ),
+        (
+            "providers",
+            "import api;pub struct A{pub n:i32}pub struct B{pub padding:i64;pub n:i32}impl api.Change for A{fn step(self:&mut Self)->(){self.n+=1;return ()}fn read(self:&Self)->i32{return self.n}}impl api.Change for B{fn step(self:&mut Self)->(){self.n+=2;return ()}fn read(self:&Self)->i32{return self.n}}",
+        ),
+    ];
     for backend in backends() {
         for optimization in [Optimization::O0, Optimization::O2] {
-            for overflow in [false, true] {
-                let text = if overflow { source.replace("n:1}", "n:2147483647}") } else { source.to_string() };
-                let dir = directory("arithmetic-provider");
-                let executable = dir.join("program");
-                let report = compile(&text, &CompileOptions { backend, optimization, stop_after: Stage::Build, entry: Some("main".into()), output: Some(executable.clone()), ..CompileOptions::default() });
-                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
-                assert_eq!(report.verification_runs, 1);
-                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-                let output = Command::new(&executable).output().unwrap();
-                if overflow { assert!(!output.status.success(), "{output:?}"); assert_ne!(output.status.code(), Some(0)); }
-                else { assert_eq!(output.status.code(), Some(0), "{output:?}"); assert_eq!(output.stdout, b"2\n"); }
+            let dir = directory("project-checked-mutation");
+            let executable = dir.join("program");
+            let report = compile_project(
+                &project(&files),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            for (input, expected) in [
+                (b"1".as_slice(), b"41\n".as_slice()),
+                (b"0".as_slice(), b"42\n".as_slice()),
+            ] {
+                let mut child = Command::new(&executable)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(input).unwrap();
+                let output = child.wait_with_output().unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(output.stdout, expected);
             }
         }
     }
 }
 
 #[test]
+fn borrowed_dyn_results_keep_actual_receiver_through_helpers() {
+    let source = "trait View{fn view(self:&Self)->&i32;}struct A{n:i32}struct B{padding:i64;n:i32}impl View for A{fn view(self:&Self)->&i32{return &self.n}}impl View for B{fn view(self:&Self)->&i32{return &self.n}}fn pick(d:&dyn View)->&i32{return d.view()}fn main()->i32{var a=A{n:19};let b=B{padding:3,n:23};let p=pick(&a);let q=pick(&b);return *p+*q}";
+    let (module, plan) = source_candidate_for(source);
+    assert!(matches!(
+        module.dyn_interfaces[0].slots[0].contract.result,
+        Some(zil_ir::DynResultSource::Borrow { mutable: false, .. })
+    ));
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].slots[0].contract.result = Some(zil_ir::DynResultSource::Value);
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].slots[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .bindings
+            .pop();
+    });
+    let conflicting = source.replace("return *p+*q", "a=A{n:4};return *p+*q");
+    let report = compile(&conflicting, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(matches!(report.phase, Phase::Analyze | Phase::Verify));
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("borrowed-result-provider");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"42\n");
+        }
+    }
+}
+
+#[test]
+fn arithmetic_provider_proves_panic_and_preserves_checked_execution() {
+    let source = "trait Change{fn step(self:&mut Self)->();}struct A{n:i32}impl Change for A{fn step(self:&mut Self)->(){self.n+=1;return ()}}fn main()->i32{var a=A{n:1};let d:&mut dyn Change=&mut a;d.step();return a.n}";
+    let (module, plan) = source_candidate_for(source);
+    assert_eq!(
+        module.dyn_interfaces[0].slots[0].contract.effects,
+        Some(vec![zil_ir::DynEffect::Panic])
+    );
+    let target = module.target.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap();
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].slots[0].contract.effects = Some(vec![]);
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].slots[0].contract.effects = None;
+    });
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for overflow in [false, true] {
+                let text = if overflow {
+                    source.replace("n:1}", "n:2147483647}")
+                } else {
+                    source.to_string()
+                };
+                let dir = directory("arithmetic-provider");
+                let executable = dir.join("program");
+                let report = compile(
+                    &text,
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        entry: Some("main".into()),
+                        output: Some(executable.clone()),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let output = Command::new(&executable).output().unwrap();
+                if overflow {
+                    assert!(!output.status.success(), "{output:?}");
+                    assert_ne!(output.status.code(), Some(0));
+                } else {
+                    assert_eq!(output.status.code(), Some(0), "{output:?}");
+                    assert_eq!(output.stdout, b"2\n");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn large_aggregate_dyn_abi_preserves_complete_snapshots() {
+    let data = vec!["7"; 1024].join(",");
+    let source = format!(
+        "trait Pack{{fn pack(self:&Self,p:[i64;1024])->(i32,[i64;1024]);}}struct A{{n:i32}}struct B{{padding:i64;n:i32}}impl Pack for A{{fn pack(self:&Self,p:[i64;1024])->(i32,[i64;1024]){{return (self.n,p)}}}}impl Pack for B{{fn pack(self:&Self,p:[i64;1024])->(i32,[i64;1024]){{return (self.n,p)}}}}fn pack(d:&dyn Pack,p:[i64;1024])->(i32,[i64;1024]){{return d.pack(p)}}fn main()->i32{{let a=A{{n:19}};let b=B{{padding:3,n:23}};let data:[i64;1024]=[{data}];let left=pack(&a,data);let right=pack(&b,data);var sum:i64=i64(left.0+right.0);var index:usize=0;while index<1024{{sum+=left.1[index]+right.1[index];index+=1}}return i32(sum)}}"
+    );
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("large-aggregate-dyn");
+            let executable = dir.join("program");
+            let report = compile(
+                &source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"14378\n");
+        }
+    }
+}
+
+#[test]
 fn tuple_slot_arguments_and_results_preserve_selected_provider_values() {
-    let source = "trait Pair{fn pack(self:&Self,n:i32)->(i32,i32);fn echo(self:&Self,p:(i32,i32))->(i32,i32);}struct A{n:i32}struct B{n:i32}impl Pair for A{fn pack(self:&Self,n:i32)->(i32,i32){return (self.n,n)}fn echo(self:&Self,p:(i32,i32))->(i32,i32){return p}}impl Pair for B{fn pack(self:&Self,n:i32)->(i32,i32){return (n,self.n)}fn echo(self:&Self,p:(i32,i32))->(i32,i32){return p}}fn apply(d:&dyn Pair)->i32{let p=d.pack(11);let q=d.echo(p);return q.0*3+q.1}fn main()->i32{let a=A{n:7};let b=B{n:13};return apply(&a)+apply(&b)}";
+    let source = "trait Pair{fn pack(self:&Self,n:i32)->(i32,i32,());fn echo(self:&Self,p:(i32,i32,()))->(i32,i32,());}struct A{n:i32}struct B{n:i32}impl Pair for A{fn pack(self:&Self,n:i32)->(i32,i32,()){return (self.n,n,())}fn echo(self:&Self,p:(i32,i32,()))->(i32,i32,()){return p}}impl Pair for B{fn pack(self:&Self,n:i32)->(i32,i32,()){return (n,self.n,())}fn echo(self:&Self,p:(i32,i32,()))->(i32,i32,()){return p}}fn apply(d:&dyn Pair)->i32{let p=d.pack(11);let q=d.echo(p);return q.0*3+q.1}fn main()->i32{let a=A{n:7};let b=B{n:13};return apply(&a)+apply(&b)}";
     let (module, plan) = source_candidate_for(source);
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
@@ -1375,16 +1746,38 @@ fn tuple_slot_arguments_and_results_preserve_selected_provider_values() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = directory("tuple-provider");
             let executable = dir.join("program");
-            let report = compile(source, &CompileOptions { backend, optimization, stop_after: Stage::Build, entry: Some("main".into()), output: Some(executable.clone()), ..CompileOptions::default() });
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
             let output = Command::new(executable).output().unwrap();
-            assert_eq!(output.status.code(), Some(0), "{output:?}"); assert_eq!(output.stdout, b"78\n");
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"78\n");
         }
     }
     rejected(module, plan, |m| {
-        m.dyn_interfaces[0].slots[0].result = Type::Tuple(vec![Type::Address { mutable: false, inner: Box::new(Type::I32) }, Type::I32]);
+        m.dyn_interfaces[0].slots[0].result = Type::Tuple(vec![
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            Type::I32,
+        ]);
     });
 }
 

@@ -337,8 +337,10 @@ impl Pending {
                 capture.moved
             } else {
                 !capture.borrowed
-                    && (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
-                        || (capture.moved && owned_shapes::sum(&capture.ty)))
+                    && (matches!(
+                        capture.ty,
+                        Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
+                    ) || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
     }
@@ -1727,6 +1729,7 @@ impl Graph {
                     if matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                         && tasks::resource(ty))
                 || errors::owned(ty)
+                || matches!(ty, Type::OwnedDyn { .. })
                 || owned_shapes::enumeration(ty)
                 || owned_shapes::tuple(ty)
                 || owned_shapes::sum(ty)
@@ -2783,7 +2786,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let nested_owned = self.nested_moves != 0
             && matches!(
                 ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             )
             || (self.nested_moves != 0 && owned_sum_capture);
         let nested_writeback =
@@ -2801,7 +2804,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         // Package slots may be restored after the nested creation. Their flow
         // classification below decides FnMut/FnOnce at each actual exit.
         let nested_consumed = nested_owned
-            && (matches!(ty, Type::Managed(_) | Type::Closure(_)) || owned_sum_capture);
+            && (matches!(
+                ty,
+                Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
+            ) || owned_sum_capture);
         if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
             return Err(unsupported(
                 span,
@@ -2855,6 +2861,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
+            ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
             ty @ Type::Package { .. }
                 if packages::supported(ty)
                     || packages::product::nested(ty)
@@ -5222,6 +5229,32 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.mark_resource_write(variable, argument.span)?;
             }
             variable.bind(&mut self.graph, parameter, argument.span)?;
+            if matches!(parameter, Type::OwnedDyn { .. })
+                && let CoreExprKind::Name(name) = &argument.kind
+                && self.lookup(name).is_none()
+            {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(
+                        self.captures
+                            .len()
+                            .saturating_mul(name.len().saturating_add(1)),
+                    )
+                    .ok_or_else(|| {
+                        limit("owned dyn capture transfer budget exceeded", argument.span)
+                    })?;
+                if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                    if !capture.moved {
+                        return Err(unsupported(
+                            argument.span,
+                            "owned dyn capture requires an explicit move",
+                        ));
+                    }
+                    capture.borrowed = false;
+                    capture.consumed = true;
+                }
+            }
+
             if matches!(
                 parameter,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }

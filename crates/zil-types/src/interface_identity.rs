@@ -304,6 +304,30 @@ fn dyn_text(value: &str, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
 
 fn dyn_scalar(ty: &Type, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
     fee(left, 1)?;
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+    {
+        fee(left, 2)?;
+        bytes.push(11);
+        return dyn_scalar(inner, bytes, left);
+    }
+    if let Type::Array { element, length } = ty {
+        fee(left, 9)?;
+        bytes.push(12);
+        bytes.extend_from_slice(&length.to_le_bytes());
+        return dyn_scalar(element, bytes, left);
+    }
+    if let Type::Tuple(fields) = ty {
+        fee(left, fields.len().saturating_add(9))?;
+        bytes.push(10);
+        bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());
+        for field in fields {
+            dyn_scalar(field, bytes, left)?;
+        }
+        return Ok(());
+    }
     let tag = match ty {
         Type::Unit => 0,
         Type::Bool => 1,
@@ -368,6 +392,32 @@ fn dyn_type(
         ));
     }
     bytes.extend_from_slice(b"DYNSHARED-INTERFACE-1\0");
+    fee(left, 2)?;
+    bytes.push(u8::from(interface.owning_cleanup.is_some()));
+    if let Some(cleanup) = &interface.owning_cleanup {
+        fee(left, cleanup.effects.len().saturating_add(9))?;
+        if !cleanup.environment
+            || !cleanup.positions.is_empty()
+            || !cleanup.access.reads.is_empty()
+            || !cleanup.access.writes.is_empty()
+        {
+            return Err(invalid("exported dyn owner cleanup has unproved positions"));
+        }
+        bytes.push(1);
+        bytes.extend_from_slice(&(cleanup.effects.len() as u64).to_le_bytes());
+        for effect in &cleanup.effects {
+            bytes.push(match effect {
+                DynEffect::Alloc => 0,
+                DynEffect::Io => 1,
+                DynEffect::Block => 2,
+                DynEffect::Ffi => 3,
+                DynEffect::Reenter => 4,
+                DynEffect::Panic => 5,
+                _ => return Err(invalid("exported dyn owner cleanup has unproved effects")),
+            });
+        }
+    }
+
     dyn_text(&declaration.identity.package, bytes, left)?;
     for path in [
         &declaration.identity.module_path,
@@ -417,8 +467,8 @@ fn dyn_type(
                 .any(|mode| *mode != PassingMode::Infer)
             || slot.result_mode != PassingMode::Infer
             || slot.call_kind != CallKind::Direct
-            || slot.contract != dyn_dispatch::scalar_contract(slot.receiver.mutable)
-            || slot.storage_life.as_ref() != Some(&dyn_dispatch::shared_slot_life())
+            || !dyn_dispatch::valid_scalar_contract(slot)
+            || slot.storage_life.as_ref() != Some(&dyn_dispatch::slot_life(slot))
         {
             return Err(invalid(
                 "exported dyn slot differs from admitted fixed contract",
@@ -436,6 +486,14 @@ fn dyn_type(
         dyn_scalar(&slot.result, bytes, left)?;
         fee(left, 128)?;
         bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
+        bytes.push(u8::from(slot.receiver.mutable));
+        bytes.push(u8::from(dyn_dispatch::borrowed_result(&slot.result)));
+        bytes.push(u8::from(
+            slot.contract
+                .effects
+                .as_ref()
+                .is_some_and(|e| e.contains(&DynEffect::Panic)),
+        ));
         let life = slot.storage_life.as_ref().expect("checked slot relation");
         bytes.extend_from_slice(&life.fingerprint().0);
     }

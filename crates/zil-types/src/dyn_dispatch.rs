@@ -16,8 +16,28 @@ pub(super) fn owned_result(interface: DynInterfaceId) -> Type {
 }
 
 fn plain_value(ty: &Type) -> bool {
-    ty.is_b0_scalar() || *ty == Type::Unit
-        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+    ty.is_b0_scalar()
+        || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, Type::Array { element, .. } if plain_value(element))
+}
+
+pub(super) fn borrowed_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+}
+
+pub(super) fn slot_life(slot: &DynSlot) -> StorageLifeContract {
+    let mut life = shared_slot_life();
+    if borrowed_result(&slot.result) {
+        life.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: Vec::new(),
+            },
+            binder: StorageBinder::Invocation(0),
+        });
+    }
+    life
 }
 
 fn closed_owner_shape(
@@ -43,8 +63,16 @@ fn closed_owner_shape(
     match ty {
         Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => return Ok(Some(1)),
         Type::Managed(payload) => match payload.as_ref() {
-            Type::Record { .. } if closed_owner_shape(payload, left, depth + 1, limits)? == Some(0) => return Ok(Some(1)),
-            Type::OwnedStore { element } if closed_owner_shape(element, left, depth + 1, limits)?.is_some() => return Ok(Some(1)),
+            Type::Record { .. }
+                if closed_owner_shape(payload, left, depth + 1, limits)? == Some(0) =>
+            {
+                return Ok(Some(1));
+            }
+            Type::OwnedStore { element }
+                if closed_owner_shape(element, left, depth + 1, limits)?.is_some() =>
+            {
+                return Ok(Some(1));
+            }
             _ => return Ok(None),
         },
         Type::Record { fields, .. } => {
@@ -150,28 +178,87 @@ pub(super) fn scalar_contract(mutable: bool) -> DynContract {
     }
 }
 
-fn valid_scalar_contract(slot: &DynSlot) -> bool {
+pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
     let mut expected = scalar_contract(slot.receiver.mutable);
     if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
         expected.effects = Some(vec![DynEffect::Panic]);
     }
+    if borrowed_result(&slot.result) {
+        expected.result = Some(DynResultSource::Borrow {
+            sources: vec![receiver_position()],
+            mutable: false,
+        });
+    }
     slot.contract == expected
 }
 
-fn scalar_expression(expr: &CoreExpr, function: &CoreFunction, fields: &[(String, Type)], panic: bool, left: &mut usize, depth: usize) -> R<bool> {
-    *left = left.checked_sub(1 + fields.len() + function.parameters.len()).ok_or_else(|| Diagnostic::limit(Phase::Types, "dyn expression budget exceeded", Some(expr.span)))?;
+fn scalar_expression(
+    expr: &CoreExpr,
+    function: &CoreFunction,
+    fields: &[(String, Type)],
+    panic: bool,
+    left: &mut usize,
+    max_depth: usize,
+    depth: usize,
+) -> R<bool> {
+    *left = left
+        .checked_sub(1 + fields.len() + function.parameters.len())
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dyn expression budget exceeded",
+                Some(expr.span),
+            )
+        })?;
     // Depth is independently bounded even when a raw producer supplies a deep tree.
-    if depth > 128 { return Err(Diagnostic::limit(Phase::Types, "dyn expression depth exceeded", Some(expr.span))); }
+    if depth > max_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "dyn expression depth exceeded",
+            Some(expr.span),
+        ));
+    }
     Ok(match &expr.kind {
-        CoreExprKind::Integer(_) | CoreExprKind::Float(_) | CoreExprKind::Bool(_) | CoreExprKind::Literal(_) => true,
-        CoreExprKind::Name(name) => function.parameters.iter().skip(1).any(|p| p.name == *name && plain_value(&p.ty)),
-        CoreExprKind::Member { object, member, owner: None } => matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name) && fields.iter().any(|(name, ty)| name == member && ty.is_b0_scalar()),
-        CoreExprKind::Tuple(values) => {
-            for value in values { if !scalar_expression(value, function, fields, panic, left, depth + 1)? { return Ok(false); } }
+        CoreExprKind::Unit
+        | CoreExprKind::Integer(_)
+        | CoreExprKind::Float(_)
+        | CoreExprKind::Bool(_)
+        | CoreExprKind::Literal(_) => true,
+        CoreExprKind::Name(name) => function
+            .parameters
+            .iter()
+            .skip(1)
+            .any(|p| p.name == *name && plain_value(&p.ty)),
+        CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } => {
+            matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name)
+                && fields
+                    .iter()
+                    .any(|(name, ty)| name == member && ty.is_b0_scalar())
+        }
+        CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+            for value in values {
+                if !scalar_expression(value, function, fields, panic, left, max_depth, depth + 1)? {
+                    return Ok(false);
+                }
+            }
             true
         }
-        CoreExprKind::Binary { left: a, right: b, .. } if panic => scalar_expression(a, function, fields, panic, left, depth + 1)? && scalar_expression(b, function, fields, panic, left, depth + 1)?,
-        CoreExprKind::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } if panic => scalar_expression(operand, function, fields, panic, left, depth + 1)?,
+        CoreExprKind::Binary {
+            left: a, right: b, ..
+        } if panic => {
+            scalar_expression(a, function, fields, panic, left, max_depth, depth + 1)?
+                && scalar_expression(b, function, fields, panic, left, max_depth, depth + 1)?
+        }
+        CoreExprKind::Unary {
+            op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+            operand,
+        } if panic => {
+            scalar_expression(operand, function, fields, panic, left, max_depth, depth + 1)?
+        }
         _ => false,
     })
 }
@@ -276,6 +363,11 @@ fn inventory_in_modules(
             ));
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
+            for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                if !ty.is_b0_scalar() {
+                    inference::charge_type_snapshot(ty, Span::default(), limits, &mut left, 3)?;
+                }
+            }
             spend(&mut left, 256 + slot.parameters.len())?;
             if !valid_scalar_contract(slot)
                 || slot.receiver.mode
@@ -286,13 +378,14 @@ fn inventory_in_modules(
                     }
                 || !slot.actuals.is_empty()
                 || slot.parameters.iter().any(|ty| !plain_value(ty))
-                || !plain_value(&slot.result)
+                || !(plain_value(&slot.result)
+                    || !slot.receiver.mutable && borrowed_result(&slot.result))
                 || slot
                     .parameter_modes
                     .iter()
                     .any(|mode| *mode != PassingMode::Infer)
                 || slot.call_kind != CallKind::Direct
-                || slot.storage_life.as_ref() != Some(&shared_slot_life())
+                || slot.storage_life.as_ref() != Some(&slot_life(slot))
                 || slot.member.application != interface.application
                 || slot.member.ordinal as usize != ordinal
                 || core
@@ -339,6 +432,37 @@ fn inventory_in_modules(
                 Span::default(),
                 "dyn table has invalid slot or cleanup inventory",
             ));
+        }
+        if table.owned_storage == Some(DynOwnedStorage::Heap) {
+            let bound = interface.owning_cleanup.as_ref().ok_or_else(|| {
+                unsupported(
+                    Span::default(),
+                    "owned dyn whole-owner cleanup contract is Unknown",
+                )
+            })?;
+            spend(&mut left, bound.effects.len().saturating_add(1))?;
+            if bound.effects.len() > 6
+                || !bound.environment
+                || !bound.positions.is_empty()
+                || !bound.access.reads.is_empty()
+                || !bound.access.writes.is_empty()
+                || bound.effects.iter().any(|e| {
+                    !matches!(
+                        e,
+                        DynEffect::Alloc
+                            | DynEffect::Io
+                            | DynEffect::Block
+                            | DynEffect::Ffi
+                            | DynEffect::Reenter
+                            | DynEffect::Panic
+                    )
+                })
+            {
+                return Err(unsupported(
+                    Span::default(),
+                    "owned dyn cleanup bound has unproved authority",
+                ));
+            }
         }
         let mut entries = Vec::new();
         let mut canonical_self = None;
@@ -429,12 +553,16 @@ fn inventory_in_modules(
                         interface,
                         signatures,
                         program_signatures,
+                        max_depth: limits.max_call_depth,
                     },
                     function,
                     fields,
                     slot.receiver.mutable,
                     &slot.result,
-                    slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic)),
+                    slot.contract
+                        .effects
+                        .as_ref()
+                        .is_some_and(|e| e.contains(&DynEffect::Panic)),
                     &mut left,
                 )?
             {
@@ -450,6 +578,19 @@ fn inventory_in_modules(
         }
         let self_type =
             canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        if table.owned_storage == Some(DynOwnedStorage::Heap) {
+            crate::dyn_cleanup::prove(
+                &self_type,
+                modules,
+                interface
+                    .owning_cleanup
+                    .as_ref()
+                    .expect("checked whole owner bound"),
+                &mut left,
+                limits,
+                0,
+            )?;
+        }
         spend(&mut left, output.len())?;
         if output.iter().any(|prior: &DynVtable| {
             prior.interface == table.interface && prior.self_type == self_type
@@ -569,6 +710,11 @@ pub(super) fn inventory_program(
                 ));
             }
             for slot in &interface.slots {
+                for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                    if !ty.is_b0_scalar() {
+                        inference::charge_type_snapshot(ty, Span::default(), limits, &mut left, 3)?;
+                    }
+                }
                 spend(
                     &mut left,
                     256 + slot.parameters.len()
@@ -580,7 +726,8 @@ pub(super) fn inventory_program(
                     || !slot.actuals.is_empty()
                     || !slot.member.application.actuals.is_empty()
                     || slot.parameters.iter().any(|ty| !plain_value(ty))
-                    || !plain_value(&slot.result)
+                    || !(plain_value(&slot.result)
+                        || !slot.receiver.mutable && borrowed_result(&slot.result))
                 {
                     return Err(unsupported(
                         Span::default(),
@@ -697,6 +844,7 @@ struct ScalarBodyContext<'a> {
     interface: &'a DynInterface,
     signatures: &'a BTreeMap<String, Signature>,
     program_signatures: Option<&'a BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
+    max_depth: usize,
 }
 
 fn scalar_body(
@@ -715,6 +863,7 @@ fn scalar_body(
         interface,
         signatures,
         program_signatures,
+        max_depth,
     } = context;
     let mut current = function;
     let mut current_module = core.module_id;
@@ -729,6 +878,13 @@ fn scalar_body(
         })?;
         if seen.contains(&(current_module, current.id)) {
             return Ok(false);
+        }
+        if seen.len() >= max_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "dyn helper depth exceeded",
+                Some(current.span),
+            ));
         }
         seen.push((current_module, current.id));
         if mutable && current.body.statements.len() == 2 {
@@ -760,7 +916,7 @@ fn scalar_body(
                 return Ok(false);
             };
             if !matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                || !scalar_expression(value, current, fields, panic, left, 0)?
+                || !scalar_expression(value, current, fields, panic, left, max_depth, 0)?
                 || !fields
                     .iter()
                     .any(|(name, ty)| name == member && ty.is_b0_scalar())
@@ -938,7 +1094,21 @@ fn scalar_body(
     if mutable {
         return Ok(false);
     }
-    if scalar_expression(value, current, fields, panic, left, 0)? { return Ok(true); }
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = result
+    {
+        return Ok(
+            matches!(&value.kind, CoreExprKind::Unary { op: UnaryOp::Borrow, operand }
+            if matches!(&operand.kind, CoreExprKind::Member { object, member, owner: None }
+                if matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                    && fields.iter().any(|(name, ty)| name == member && ty == inner.as_ref()))),
+        );
+    }
+    if scalar_expression(value, current, fields, panic, left, max_depth, 0)? {
+        return Ok(true);
+    }
     Ok(match &value.kind {
         CoreExprKind::Member {
             object,
@@ -1205,6 +1375,21 @@ impl Builder<'_, '_> {
         let expected = Type::Address {
             mutable: slot.receiver.mutable,
             inner: Box::new(Type::Dyn { interface }),
+        };
+        let (receiver, actual) = if matches!(&actual, Type::Address { mutable: true, inner } if **inner == Type::Dyn { interface })
+            && !slot.receiver.mutable
+        {
+            let value = self.value(
+                InstructionKind::ReborrowAddress {
+                    address: receiver,
+                    mutable: false,
+                },
+                expected.clone(),
+                callee.span,
+            )?;
+            (value, expected.clone())
+        } else {
+            (receiver, actual)
         };
         self.same(&actual, &expected, callee.span)?;
         let mut values = Vec::new();

@@ -132,12 +132,11 @@ impl<'a> Budget<'a> {
             self.metadata(interface.slots.len())?;
             for slot in &interface.slots {
                 self.metadata(slot.parameters.len().saturating_add(2))?;
-                if !slot.result.is_b0_scalar() || !slot.parameters.iter().all(Type::is_b0_scalar) {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Lower,
-                        "borrowed dyn lowering requires fixed scalar or Unit slots",
-                        None,
-                    )]);
+                self.pay(&slot.result, 0)?;
+                self.copy_work(&slot.result, 0)?;
+                for parameter in &slot.parameters {
+                    self.pay(parameter, 0)?;
+                    self.copy_work(parameter, 0)?;
                 }
             }
         }

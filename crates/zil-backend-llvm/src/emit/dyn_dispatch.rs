@@ -11,8 +11,10 @@ pub(super) fn pair() -> m::Ty {
 }
 
 fn plain_value(ty: &Type) -> bool {
-    ty.is_b0_scalar() || *ty == Type::Unit
-        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+    ty.is_b0_scalar()
+        || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, Type::Array { element, .. } if plain_value(element))
 }
 
 fn table_symbol(id: DynVtableId) -> String {
@@ -52,7 +54,12 @@ fn call(name: Option<String>, result: m::Ty, callee: m::Val, args: Vec<m::Arg>) 
 }
 
 pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
-    let owning = lir.functions.iter().any(|f| {
+    let owning_capture = lir.closures.iter().any(|c| {
+        c.captures
+            .iter()
+            .any(|t| matches!(t, Type::OwnedDyn { .. }))
+    });
+    let owning = owning_capture || lir.functions.iter().any(|f| {
         let carrier = |ty: &Type| {
             matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
@@ -156,8 +163,16 @@ fn closed_owner_shape(
                 Type::OwnedStore { element } => element.as_ref(),
                 _ => return Ok(None),
             };
-            let Some((_, child_work)) = closed_owner_shape(child, module, limits, depth + 1)? else { return Ok(None); };
-            return Ok(Some((1, child_work.saturating_add(module.resources.len()).saturating_add(64))));
+            let Some((_, child_work)) = closed_owner_shape(child, module, limits, depth + 1)?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some((
+                1,
+                child_work
+                    .saturating_add(module.resources.len())
+                    .saturating_add(64),
+            )));
         }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
@@ -246,8 +261,14 @@ pub(super) fn reserve(
             return unsupported("shared dyn ABI has no retained environment ports", None);
         }
         for slot in &interface.slots {
+            for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
+                if !ty.is_b0_scalar() {
+                    copy_aggregates::reserve(ty, work, 0, limits)?;
+                }
+            }
             cost = cost.saturating_add(slot.parameters.len().saturating_mul(64));
-            if !plain_value(&slot.result)
+            if !(plain_value(&slot.result)
+                || matches!(&slot.result, Type::Address { mutable: false, inner } if inner.is_b0_scalar()))
                 || !slot.parameters.iter().all(plain_value)
             {
                 return unsupported("borrowed dyn ABI requires fixed scalar or Unit slots", None);
@@ -398,12 +419,13 @@ pub(super) fn tables(
                 interface: interface.id,
             }) || matches!(ty, Type::ErrorUnion { result, .. } if result.as_ref() == &(Type::OwnedDyn { interface: interface.id }))
         };
+        let owning_capture = module.closures.iter().any(|c| c.captures.iter().any(&owns));
         let owning_value = module.functions.iter().any(|f| {
             owns(&f.return_type)
                 || f.locals.iter().any(|l| owns(&l.ty))
                 || f.values.iter().any(&owns)
         });
-        if !owning_table && !owning_value {
+        if !owning_table && !owning_value && !owning_capture {
             continue;
         }
         code.push(m::Event::Begin(m::Function {
@@ -746,6 +768,30 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 
+    pub(super) fn reborrow_dyn(
+        &mut self,
+        instruction: &Instruction,
+        source: ValueId,
+    ) -> CompileResult<()> {
+        let payload = self.temp();
+        self.event(inst(
+            Some(m::name(&payload)),
+            m::Op::Extract {
+                arg: m::Arg::new(pair(), m::local(format!("v.{}", source.0))),
+                index: 0,
+            },
+        ));
+        self.event(inst(
+            Some(format!("v.{}", result(instruction)?.0)),
+            m::Op::Insert {
+                arg: m::Arg::new(pair(), m::local(format!("v.{}", source.0))),
+                field: m::Arg::new(m::Ty::Ptr, m::local(m::name(&payload))),
+                index: 0,
+            },
+        ));
+        Ok(())
+    }
+
     pub(super) fn call_dyn_slot(
         &mut self,
         instruction: &Instruction,
@@ -768,7 +814,14 @@ impl FunctionEmitter<'_> {
                     "dyn call slot is absent",
                 )]
             })?;
-        let return_type = llvm_type(&signature.result)?;
+        let memory_result = instruction
+            .result
+            .is_some_and(|v| self.copy_values.contains_key(&v));
+        let return_type = if memory_result {
+            m::Ty::Void
+        } else {
+            llvm_type(&signature.result)?
+        };
         let environment = self.temp();
         let table = self.temp();
         for (name, index) in [(&environment, 0), (&table, 1)] {
@@ -798,11 +851,19 @@ impl FunctionEmitter<'_> {
                 align: 8,
             },
         )));
-        let mut args = Vec::with_capacity(arguments.len().saturating_add(1));
+        let mut args = Vec::with_capacity(arguments.len().saturating_add(2));
+        if memory_result {
+            args.push(m::Arg::new(
+                m::Ty::Ptr,
+                copy_aggregates::pointer(result(instruction)?),
+            ));
+        }
         args.push(m::Arg::new(m::Ty::Ptr, m::local(m::name(&environment))));
         for argument in arguments {
             let ty = self.value_type(*argument)?;
-            if *ty != Type::Unit {
+            if self.copy_values.contains_key(argument) {
+                args.push(m::Arg::new(m::Ty::Ptr, copy_aggregates::pointer(*argument)));
+            } else if *ty != Type::Unit {
                 args.push(m::Arg::new(
                     llvm_type(ty)?,
                     m::local(format!("v.{}", argument.0)),

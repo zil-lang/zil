@@ -17,8 +17,8 @@ mod composition;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
-mod dyn_dispatch;
 mod dyn_cleanup;
+mod dyn_dispatch;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
