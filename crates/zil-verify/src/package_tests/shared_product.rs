@@ -520,7 +520,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5364, 5774, 7416][mode as usize]),
+                Some([5379, 5789, 7431][mode as usize]),
             )
         })
         .collect();
@@ -532,11 +532,11 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19588 } else { 16494 }),
+            Some(if indirect { 19603 } else { 16509 }),
         ));
     }
-    // Schema 48's retained_return_sources Option discriminant is checked
-    // once per actual function: +2 for each Product fixture, +3/+4 for Store.
+    // These pins include complete definition-backed capture-memory transport.
+    // Preserve the measured raw/Wire equality and all N-1/fresh controls.
     let mut observed = Vec::new();
     let mut recorded = Vec::new();
     for (label, module, plan, expected) in fixtures {

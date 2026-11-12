@@ -441,7 +441,7 @@ fn closure_proof_rejects_false_call_permissions_resources_and_unsupported_kinds(
                 inner: Box::new(Type::I32),
             };
         },
-        "E-VERIFY-CLOSURE-CALL",
+        "E-VERIFY-CAPTURE",
     );
     // FnMut is admitted only through its real-place calling instruction.
     let (mut mutable, plan) = candidate();
