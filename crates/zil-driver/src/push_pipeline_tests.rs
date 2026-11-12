@@ -91,6 +91,25 @@ fn current<'a>(session: &'a CompilationSession, report: &CompileReport) -> &'a T
         })
         .expect("current actual typed product")
 }
+fn assert_plain_checkpoint_is_bound(session: &CompilationSession, report: &CompileReport) {
+    let program = session
+        .raw
+        .values()
+        .find_map(|raw| match raw {
+            RawSnapshot::ProjectCore(prepared)
+                if prepared.program().source_fingerprint == report.input_fingerprint =>
+            {
+                Some(prepared.program())
+            }
+            _ => None,
+        })
+        .expect("actual completed CT raw owner retained");
+    assert!(
+        session.plain_source.checkpoint_for(program).is_some(),
+        "the active plain checkpoint must bind this actual successful ProjectCore, not the last broad epoch"
+    );
+}
+
 fn compare(
     session: &CompilationSession,
     report: &CompileReport,
@@ -210,6 +229,7 @@ fn retained_parent_restores_actual_push_consumers_after_broad_history() {
     let cold = dir.project("y=y*3+11;");
     let first = session.compile_project(&cold, &options);
     compare(&session, &first, &cold, &options);
+    assert_plain_checkpoint_is_bound(&session, &first);
     let epoch = session
         .raw
         .values()
@@ -236,6 +256,7 @@ fn retained_parent_restores_actual_push_consumers_after_broad_history() {
     let restored = dir.project("y=y*3+11;");
     let parent = session.compile_project(&restored, &options);
     compare(&session, &parent, &restored, &options);
+    assert_plain_checkpoint_is_bound(&session, &parent);
     assert!(parent.types_push_work.is_none(), "{}", parent.to_json());
     assert!(parent.initialization_work.is_none(), "{}", parent.to_json());
     let private = dir.project("y=y*3+12;");

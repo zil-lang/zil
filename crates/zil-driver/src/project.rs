@@ -309,6 +309,14 @@ impl CompilationSession {
                 .get()
                 .and_then(|session| session.checkpoint_for(&epoch.core))
                 .unwrap_or_default();
+            // The retained whole frontend route returns before the project CT
+            // query. Restore its plain consumer alongside inference here too,
+            // under the same sealed source/Expand-owner checks above.
+            self.plain_source = epoch
+                .plain_source
+                .get()
+                .and_then(|session| session.checkpoint_for(&epoch.core))
+                .unwrap_or_default();
         }
         let mut cache = self.producer_syntax.borrow_mut();
         for parsed in &epoch.inputs {
