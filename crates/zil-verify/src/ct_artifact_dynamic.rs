@@ -84,7 +84,15 @@ impl CtDynamicVisitor for Inventory<'_, '_> {
     fn type_reference(&mut self, id: CtDynamicTypeId, depth: usize) -> Check<()> {
         self.node(depth)?;
         let index = id.0 as usize;
-        if index >= self.raw.dynamic_catalogue.types.len() {
+        if index
+            >= self
+                .raw
+                .dynamic_catalogue
+                .as_ref()
+                .expect("present catalogue")
+                .types
+                .len()
+        {
             return Err(reject(
                 None,
                 "CT dynamic Type reference is outside the catalogue",
@@ -119,7 +127,10 @@ pub(super) fn check(
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    let count = raw.dynamic_catalogue.types.len();
+    let Some(catalogue) = &raw.dynamic_catalogue else {
+        return Ok(());
+    };
+    let count = catalogue.types.len();
     // Reserve the private postorder heights before constructing it.
     meter.charge(count, None)?;
     let bytes = count
@@ -138,7 +149,7 @@ pub(super) fn check(
         current: None,
         height: 1,
     };
-    raw.dynamic_catalogue.visit_ct_dynamic(&mut inventory, 0)
+    catalogue.visit_ct_dynamic(&mut inventory, 0)
 }
 
 #[cfg(test)]
@@ -152,7 +163,7 @@ mod tests {
             target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
             ambient_life_scopes: vec![],
-            dynamic_catalogue: CtDynamicCatalogue::default(),
+            dynamic_catalogue: None,
             functions: vec![],
             entry: CtFunctionId(0),
             constants: vec![],
@@ -182,7 +193,8 @@ mod tests {
     }
     fn fixture() -> CtArtifactProgram {
         let mut raw = raw();
-        raw.dynamic_catalogue.types = vec![
+        raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+        raw.dynamic_catalogue.as_mut().unwrap().types = vec![
             CtDynamicTypeNode::I32,
             CtDynamicTypeNode::Address {
                 mutable: false,
@@ -190,6 +202,8 @@ mod tests {
             },
         ];
         raw.dynamic_catalogue
+            .as_mut()
+            .unwrap()
             .function_sources
             .push(CtFunctionSourceBindings {
                 module: ModuleId(0),
@@ -218,20 +232,20 @@ mod tests {
             match attack {
                 0 => {}
                 1 => {
-                    raw.dynamic_catalogue.types[1] = CtDynamicTypeNode::Address {
+                    raw.dynamic_catalogue.as_mut().unwrap().types[1] = CtDynamicTypeNode::Address {
                         mutable: false,
                         inner: Box::new(CtDynamicTypeId(1)),
                     }
                 }
                 2 => {
-                    raw.dynamic_catalogue.types[0] = CtDynamicTypeNode::Address {
+                    raw.dynamic_catalogue.as_mut().unwrap().types[0] = CtDynamicTypeNode::Address {
                         mutable: false,
                         inner: Box::new(CtDynamicTypeId(1)),
                     }
                 }
                 _ => {
                     let CtStorageSource::Static { leaf, .. } =
-                        &mut raw.dynamic_catalogue.function_sources[0]
+                        &mut raw.dynamic_catalogue.as_mut().unwrap().function_sources[0]
                             .retained_return_sources
                             .as_mut()
                             .unwrap()[0]

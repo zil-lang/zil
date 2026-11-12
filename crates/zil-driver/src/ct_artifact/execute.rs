@@ -52,21 +52,40 @@ pub(super) struct Environment<'a> {
 }
 
 impl<'a> Environment<'a> {
-    fn attach_dynamic_catalogue(&mut self, expected: &mut CtArtifactProgram) -> CompileResult<()> {
-        if self.dynamic_catalogue.is_none() {
-            self.dynamic_catalogue = Some(if let Some(shape) = &self.shape {
-                super::dynamic_catalogue::from_core(&shape.core, &mut self.budget, &self.limits)?
-            } else {
-                CtDynamicCatalogue::default()
-            });
+    /// Bind only an actual complete immutable Core snapshot. The pure shape
+    /// snapshot is intentionally insufficient: it omits traits and providers.
+    #[cfg(test)]
+    pub(super) fn bind_frozen_core_inventory(
+        &mut self,
+        core: &zil_ir::CoreProgram,
+    ) -> CompileResult<()> {
+        if self.dynamic_catalogue.is_some() || self.budget.usage().steps != 0 {
+            return Err(error(
+                "CT full Core inventory must be frozen before execution",
+                Span::default(),
+            ));
         }
-        let catalogue = self
-            .dynamic_catalogue
-            .as_ref()
-            .expect("frozen catalogue initialized");
-        let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
-        self.budget.reserve_temporary_bytes(cost)?;
-        expected.dynamic_catalogue = catalogue.clone();
+        if core.source_fingerprint != self.source_fingerprint {
+            return Err(error(
+                "CT Core inventory belongs to another source snapshot",
+                Span::default(),
+            ));
+        }
+        self.dynamic_catalogue = Some(super::dynamic_catalogue::from_core(
+            core,
+            &mut self.budget,
+            &self.limits,
+        )?);
+        Ok(())
+    }
+    fn attach_dynamic_catalogue(&mut self, expected: &mut CtArtifactProgram) -> CompileResult<()> {
+        expected.dynamic_catalogue = if let Some(catalogue) = &self.dynamic_catalogue {
+            let cost = super::dynamic_catalogue::copy_cost(catalogue, &mut self.budget)?;
+            self.budget.reserve_temporary_bytes(cost)?;
+            Some(catalogue.clone())
+        } else {
+            None
+        };
         Ok(())
     }
     // The immutable project graph and request identity enter together; callers
@@ -1167,6 +1186,145 @@ impl<'a> Environment<'a> {
 mod tests {
     use super::*;
     use zil_base::FileId;
+
+    #[test]
+    fn complete_core_dynamic_inventory_is_data_not_a_provider_certificate() {
+        let text = r#"
+struct Provider { n:i32 }
+trait Read { fn read(self:&Self)->i32; }
+impl Read for Provider { fn read(self:&Self)->i32 { return self.n } }
+fn use_provider()->i32 {
+    match owned_dyn::<dyn Read>(Provider{n:42}) {
+      .err(_)=>{return 99}, .ok(owner)=>{return owner.read()-42}
+    }
+}
+fn identity(t:Type)->Type {return t}
+"#;
+        let sources = vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "complete.zil",
+            text,
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(
+            parsed[0].diagnostics.is_empty(),
+            "{:?}",
+            parsed[0].diagnostics
+        );
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let paths = BTreeMap::new();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &sources[0],
+            &parsed[0].module,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        assert!(!core.dyn_declarations.is_empty());
+        assert!(!core.dyn_interfaces.is_empty());
+        let program = zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: sources[0].fingerprint(),
+            modules: vec![zil_ir::ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        assert!(environment.dynamic_catalogue.is_none()); // Pure shapes are not a full inventory.
+        environment.bind_frozen_core_inventory(&program).unwrap();
+        let catalogue = environment.dynamic_catalogue.as_ref().unwrap();
+        assert_eq!(
+            catalogue.declarations.len(),
+            program.modules[0].core.dyn_declarations.len()
+        );
+        assert_eq!(
+            catalogue.interfaces.len(),
+            program.modules[0].core.dyn_interfaces.len()
+        );
+        assert_eq!(
+            catalogue.vtables.len(),
+            program.modules[0].core.dyn_vtables.len()
+        );
+        assert!(!catalogue.types.is_empty());
+        let item=parsed[0].module.items.iter().find(|item|matches!(&item.kind,zil_syntax::ast::ItemKind::Function(function) if function.name=="identity")).unwrap();
+        let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
+        let input = environment.empty_input(item.span).unwrap();
+        let argument = CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0),
+            ambient_classes: vec![],
+        });
+        // The full raw catalogue travels through real Artifact Wire and the
+        // independent CT verifier. A changed original declaration cannot reuse
+        // the frozen source authority of the actual provider function.
+        let syntax = parsed
+            .iter()
+            .map(|parsed| &parsed.module)
+            .collect::<Vec<_>>();
+        let modules = environment.index.modules(&sources, &syntax);
+        let (mut expected, _) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: target.pointer_width,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: Entry::Function(symbol.clone()),
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .unwrap();
+        environment.attach_dynamic_catalogue(&mut expected).unwrap();
+        let authority = FrozenAuthority {
+            source_fingerprint: sources[0].fingerprint(),
+            snapshot: &environment.snapshot,
+            input: &input,
+            index: &environment.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: None,
+        };
+        let bytes = zil_ir::ct_wire::encode_program(&expected, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+        zil_verify::verify_ct_artifact(decoded, &limits, &authority).unwrap();
+        let mut forged = expected.clone();
+        forged.dynamic_catalogue.as_mut().unwrap().declarations[0]
+            .identity
+            .package
+            .push_str("-forged");
+        let bytes = zil_ir::ct_wire::encode_program(&forged, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+        assert!(zil_verify::verify_ct_artifact(decoded, &limits, &authority).is_err());
+        let output = environment
+            .evaluate(
+                Entry::Function(symbol),
+                &input,
+                None,
+                std::slice::from_ref(&argument),
+                item.span,
+            )
+            .unwrap();
+        assert_eq!(output, argument);
+        assert!(environment.bind_frozen_core_inventory(&program).is_err());
+    }
 
     #[test]
     fn source_function_passes_frozen_authority_independent_verify_and_vm() {

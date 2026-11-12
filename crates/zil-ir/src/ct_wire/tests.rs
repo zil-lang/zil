@@ -995,8 +995,17 @@ fn ct_dynamic_atoms_have_independent_bytes_and_a_real_type_dag_holder() {
     }
     decoder.finish().unwrap();
     let mut raw = program();
-    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::I32);
+    let absent = program_fingerprint(&raw, &limits).unwrap();
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    assert_ne!(absent, program_fingerprint(&raw, &limits).unwrap());
     raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::I32);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
         .function_sources
         .push(CtFunctionSourceBindings {
             module: ModuleId(7),
@@ -1009,63 +1018,73 @@ fn ct_dynamic_atoms_have_independent_bytes_and_a_real_type_dag_holder() {
     let bytes = encode_program(&raw, &limits).unwrap();
     assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
     let key = program_fingerprint(&raw, &limits).unwrap();
-    raw.dynamic_catalogue.types[0] = CtDynamicTypeNode::U32;
+    raw.dynamic_catalogue.as_mut().unwrap().types[0] = CtDynamicTypeNode::U32;
     assert_ne!(key, program_fingerprint(&raw, &limits).unwrap());
 }
 #[test]
 fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees() {
     use crate::{LifeDeclarationId, LifeDeclarationIdentity};
     let mut raw = program();
-    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::Usize);
-    raw.dynamic_catalogue.declarations.push(CtDynDeclaration {
-        id: LifeDeclarationId {
-            module: ModuleId(2),
-            declaration: NodeId(9),
-            compiler: false,
-        },
-        identity: LifeDeclarationIdentity {
-            package: "actual".into(),
-            module_path: vec!["module".into()],
-            declaration_path: vec!["Trait".into()],
-            generation_path: vec![],
-        },
-        kind: CtDynDeclarationKind::Trait,
-        parameters: vec![
-            CtLifeParameterKind::Type,
-            CtLifeParameterKind::Const(CtDynamicTypeId(0)),
-        ],
-        members: vec![],
-        direct_supertraits: Some(vec![]),
-        requirements: Some(vec![
-            CtDynObligation::TypeEqual {
-                left: CtDynTypePattern::Parameter(0),
-                right: CtDynTypePattern::SelfType,
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::Usize);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .declarations
+        .push(CtDynDeclaration {
+            id: LifeDeclarationId {
+                module: ModuleId(2),
+                declaration: NodeId(9),
+                compiler: false,
             },
-            CtDynObligation::ConstEqual {
-                ty: CtDynTypePattern::Concrete(CtDynamicTypeId(0)),
-                left: CtDynConstPattern::Binary {
-                    op: BinaryOp::Add,
-                    left: Box::new(CtDynConstPattern::Value(Constant::Usize(20))),
-                    right: Box::new(CtDynConstPattern::Value(Constant::Usize(22))),
-                    ty: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(0))),
+            identity: LifeDeclarationIdentity {
+                package: "actual".into(),
+                module_path: vec!["module".into()],
+                declaration_path: vec!["Trait".into()],
+                generation_path: vec![],
+            },
+            kind: CtDynDeclarationKind::Trait,
+            parameters: vec![
+                CtLifeParameterKind::Type,
+                CtLifeParameterKind::Const(CtDynamicTypeId(0)),
+            ],
+            members: vec![],
+            direct_supertraits: Some(vec![]),
+            requirements: Some(vec![
+                CtDynObligation::TypeEqual {
+                    left: CtDynTypePattern::Parameter(0),
+                    right: CtDynTypePattern::SelfType,
                 },
-                right: CtDynConstPattern::IntegerLiteral("42".into()),
-            },
-        ]),
-        associated_definitions: Some(vec![]),
-        method_signatures: Some(vec![]),
-        method_definitions: Some(vec![]),
-        self_pattern: None,
-        implemented_trait: None,
-    });
+                CtDynObligation::ConstEqual {
+                    ty: CtDynTypePattern::Concrete(CtDynamicTypeId(0)),
+                    left: CtDynConstPattern::Binary {
+                        op: BinaryOp::Add,
+                        left: Box::new(CtDynConstPattern::Value(Constant::Usize(20))),
+                        right: Box::new(CtDynConstPattern::Value(Constant::Usize(22))),
+                        ty: Box::new(CtDynTypePattern::Concrete(CtDynamicTypeId(0))),
+                    },
+                    right: CtDynConstPattern::IntegerLiteral("42".into()),
+                },
+            ]),
+            associated_definitions: Some(vec![]),
+            method_signatures: Some(vec![]),
+            method_definitions: Some(vec![]),
+            self_pattern: None,
+            implemented_trait: None,
+        });
     let limits = Limits::default();
     let bytes = encode_program(&raw, &limits).unwrap();
     assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
     let key = program_fingerprint(&raw, &limits).unwrap();
-    let CtDynObligation::ConstEqual { right, .. } = &mut raw.dynamic_catalogue.declarations[0]
-        .requirements
-        .as_mut()
-        .unwrap()[1]
+    let CtDynObligation::ConstEqual { right, .. } =
+        &mut raw.dynamic_catalogue.as_mut().unwrap().declarations[0]
+            .requirements
+            .as_mut()
+            .unwrap()[1]
     else {
         unreachable!()
     };
@@ -1075,14 +1094,21 @@ fn ct_dynamic_equality_recipes_preserve_complete_carriers_and_expression_trees()
     for _ in 0..130 {
         pattern = CtDynTypePattern::Slice(Box::new(pattern));
     }
-    raw.dynamic_catalogue.declarations[0].self_pattern = Some(pattern);
+    raw.dynamic_catalogue.as_mut().unwrap().declarations[0].self_pattern = Some(pattern);
     assert_eq!(encode_program(&raw, &limits), Err(WireError::Limit));
 }
 #[test]
 fn ct_dynamic_wire_work_is_exact_n_minus_one_and_fresh() {
     let mut raw = program();
-    raw.dynamic_catalogue.types.push(CtDynamicTypeNode::F64);
+    raw.dynamic_catalogue = Some(CtDynamicCatalogue::default());
     raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
+        .types
+        .push(CtDynamicTypeNode::F64);
+    raw.dynamic_catalogue
+        .as_mut()
+        .unwrap()
         .function_sources
         .push(CtFunctionSourceBindings {
             module: ModuleId(0),

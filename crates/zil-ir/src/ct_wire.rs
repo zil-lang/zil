@@ -3401,7 +3401,7 @@ impl Wire for CtArtifactProgram {
                 target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
                 ambient_life_scopes: Vec::<CtAmbientLifeScope>::decode(d)?,
-                dynamic_catalogue: CtDynamicCatalogue::decode(d)?,
+                dynamic_catalogue: Option::<CtDynamicCatalogue>::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,
                 constants: <Vec<CtConstant> as Wire>::decode(d)?,

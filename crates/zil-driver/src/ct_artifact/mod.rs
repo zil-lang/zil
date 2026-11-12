@@ -4,6 +4,7 @@ mod authority;
 mod compiler;
 mod contextual_key;
 mod dynamic_catalogue;
+pub use dynamic_catalogue::from_core as reify_frozen_core_dynamic_metadata;
 mod execute;
 mod hygiene;
 mod input;

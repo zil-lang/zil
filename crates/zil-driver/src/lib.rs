@@ -6,6 +6,7 @@ mod artifacts;
 mod contracts;
 mod ct_artifact;
 pub use ct_artifact::SyntaxLock;
+pub use ct_artifact::reify_frozen_core_dynamic_metadata;
 mod ct_program;
 mod ct_selection;
 mod project;

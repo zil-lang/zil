@@ -79,7 +79,10 @@ impl CtDynamicReifier for Builder<'_> {
         Ok(id)
     }
 }
-pub(super) fn from_core(
+/// Reify an immutable Core snapshot as untrusted CT inventory data. The caller
+/// must attach the result to its actual source snapshot and retain independent
+/// authority checks. This function supplies no visibility or runtime permission.
+pub fn from_core(
     core: &CoreProgram,
     budget: &mut CtExecutionBudget,
     limits: &Limits,

@@ -776,8 +776,9 @@ pub struct CtArtifactProgram {
     pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
     pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
-    /// Full raw inventory; independently authenticated against the frozen Core view.
-    pub dynamic_catalogue: CtDynamicCatalogue,
+    /// Complete frozen Core inventory, when available. None is Unknown, never
+    /// an empty implementation set. Raw data remains independently authenticated.
+    pub dynamic_catalogue: Option<CtDynamicCatalogue>,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,
     pub constants: Vec<CtConstant>,
