@@ -1,0 +1,92 @@
+{
+  "schema": "independent-stage-consumer-review-v1",
+  "source": "3f9b6bf1fd781dd7fe1636e8c21088970d5c0353",
+  "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+  "base": "e11777565e89523ef25131aeb9687faef456cf2b",
+  "reviewer": "audit; non-author of this six-file backend slice",
+  "status": "bounded_static_accepted; exact_source_runtime_and_performance_pending",
+  "findings": [],
+  "changed_files": {
+    "crates/zil-backend-llvm/src/emit/incremental.rs": "f5f7b10eda48c93db382dc5231165cbd50da9ea526cb43da6a0b8d5c618b087b",
+    "crates/zil-backend-llvm/src/emit/incremental/whole.rs": "8b911d3227e986d5dd363b27a05ee41f4ee2db14b2d0db1818f8bb6258a8f7a0",
+    "crates/zil-backend-llvm/src/incremental.rs": "21fbbd4379dbe96b63ba669872bac5567ed94eed40a5229e98f480aed8a71512",
+    "crates/zil-backend-llvm/src/machine_cgu/recipe.rs": "981a0fbce641b8d473d586d50961b04fd7d0d09e08f6045a19ffd53a4c37efaa",
+    "crates/zil-backend-llvm/src/tests.rs": "f23f7c82ea9e4d718df51e10326f4b117a4415cfb2349e0c9972fdc1f6178a02",
+    "crates/zil-backend-llvm/src/whole_machine_tests.rs": "714d7da6bb84e06cff1149115fe3b9ae9a40b50eab18c76e5b1b71eae723aacd"
+  },
+  "consumer_dependency_files": {
+    "crates/zil-backend-llvm/src/build.rs": "4f767a7fc6ea994f0e5a827d33d59759c2a860ffee6697f0a7eaad2d6e340b9b",
+    "crates/zil-backend-llvm/src/emit.rs": "98813ba1e5132c516baa059677b576d312f6a2edac5393d891404c8e86690daf",
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "13aeb058c6ba2641cefd00f4783d550bf151d6684ed79f670829ac889cd3f742",
+    "crates/zil-backend-llvm/src/machine_cgu/layout.rs": "aaae0ac64f15591a272bf2432016cc363952e950fa90627ef3a836504b3f14f4",
+    "crates/zil-backend-llvm/src/machine_scalar.rs": "b072adda48aa7dd97724fcfb07cbd44c5048958d965d5090652e341a72c71879",
+    "crates/zil-driver/src/session.rs": "0b2a55a5f4e03c7ef348e4f6c93820a65d02c840ff4c2f60879d99ebe6555a32",
+    "crates/zil-ir/src/persistent_vec.rs": "c1cf1cd1d0cc3b2d17394f7f1504c797d8717c8ba22f76332f14fb534eccd201",
+    "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883",
+    "crates/zil-llvm-api/src/model.rs": "0f2919fc8301f9bda9b2699bed013c58992b0b63173ad54240535b52a0d9e9c5"
+  },
+  "actual_read_scope": [
+    "Complete six-file commit diff, complete current production Session/EntryTable/Context/eligibility/same_input/SourceProjection/publish/lower implementation in emit/incremental.rs",
+    "Complete whole-machine product/history/current binding/epoch restore/remember implementation in emit/incremental/whole.rs",
+    "Current FunctionProductIdentity/ScalarProducts/same_identity/PartitionInput and transform/partition products, plus actual build.rs transform/partition/recipe/cached path consumers",
+    "Complete production Recipe::new/replay/same_function_partition_inputs, all recipe tests; new product-root test, existing scalar-result equality test and historical epoch/failure/checkpoint tests",
+    "Original emitter prefix/current bind_lir/reservation/ordered per-function consumer/assembly/whole remember callsites; original complete CGU planner and layout.replay ownership/prefix/definitions/imports/declaration placement",
+    "PersistentVec changed_indices/replace/clear and immutable leaf/COW behavior; machine SharedVec actual equality/clone/mutation behavior; scalar transform actual LIR header consumer; driver pending BackendSession publication"
+  ],
+  "bounded_conclusions": [
+    {
+      "boundary": "Persistent machine/source result identity",
+      "source": "emit/incremental.rs:270,422-440,518-569; incremental.rs:109-128",
+      "evidence": "Each prepare resets active product_count. A complete current admitted consumer publishes ordered machine+source private owners; equal owner pairs keep the actual PersistentVec leaf/root, changed pairs replace only their path. Identity requires eligible AND product_count==products.len==admitted.len, so an incomplete/partial cache cannot expose a complete downstream scalar identity. Context change clears the active tree; retained successful history remains immutable. No digest or caller dirty list authorizes these identities."
+    },
+    {
+      "boundary": "Complete sparse equality",
+      "source": "incremental.rs:119-128,196-214; persistent_vec.rs:110-140,273-305",
+      "evidence": "same_products first requires equal length, obtains complete changed-owner indices from immutable tree structure, then compares both private Arc identities at every changed position. Shared subtree identity is used only for immutable values. Context owner is independently compared with ptr_eq. Position/order/function-count changes cannot silently reuse unrelated products."
+    },
+    {
+      "boundary": "Source projection actual consumers",
+      "source": "emit/incremental.rs:180-260,282-350,453-548; machine_cgu.rs:406-429; machine_scalar.rs:439-456",
+      "evidence": "same_input ignores only diagnostic function/local/instruction spans while comparing all nonspan fields; current Verify/LIR binding runs first. FileId is still in complete ordered Header context because partition consumes it. Source slots bind ordered blocks/instruction positions and actual direct callees where calls are consumed; observed fact rows include absence-to-presence. Same slots plus current same function ID determine the observed set. Ordinary policy without summaries has no source-call grouping consumer. Native machine output equality independently binds complete FunctionBatch, including body, intrinsics and generated adapter/helper products."
+    },
+    {
+      "boundary": "Whole historical root/map/count restoration",
+      "source": "emit/incremental/whole.rs:94-118,172-220,234-269",
+      "evidence": "Whole products are minted only after identity() succeeds and complete emission succeeds in the closed domain. Current full ModuleInput/functions/layouts/limits/options/initial ledger and checked-role domain bind restore after original current prefix+bind_lir. Restore updates context, entries, context_identity, products, admitted together and sets product_count to products.len. It cannot restore cold machine with broad identity or broad entry map. History count remains4; this is not an RSS bound."
+    },
+    {
+      "boundary": "All actual recipe consumers",
+      "source": "machine_cgu/recipe.rs:13-131; machine_cgu/layout.rs:35-113",
+      "evidence": "Recipe owns the source/layout and immutable index of EVERY definitions occurrence as (actual unit, exact prefix+definition slot). New and replay paths reject nonempty imports, so imported private/available_externally implementation bodies do not accidentally enter the ordinary recipe proof. Actual changed definitions patch every indexed consumer; no consumer causes fallback. Canonical declaration slots need no body patch because full signature/linkage/attrs remain equal. Globals/named types/declaration changes, deletion/count/reorder/target/topology/refs/directcalls/cost changes fall back to the original planner. Definitions with AvailableExternally linkage are copied unchanged if actually canonical; this does not claim support for imported optimizer-only copies."
+    },
+    {
+      "boundary": "Recipe caller and downstream validation",
+      "source": "incremental.rs:151-214; build.rs:365-394,424-612,621-665",
+      "evidence": "Current options (except output destination), stable names, collected status, closure function inventory and exact lowering-context owner bind recipe replay. Ordinary recipe excludes incremental imports and early closed transforms; lower scalar eligibility excludes nonempty resource/closure/dynamic/task helper domains. Pending Recipe and current units are created together, not assembled from independent historical parts. Original current per-unit API preflight/object key/native/link and publication paths remain; no old VerifiedModule is retained or transported."
+    },
+    {
+      "boundary": "Failure and checkpoint ownership",
+      "source": "emit/incremental/whole.rs:225-230; driver/session.rs:1287-1355",
+      "evidence": "An emitter miss invalidates active eligibility before work; incomplete product counts deny complete identity and no new whole epoch is remembered on Err. Persistent leaves and recipe indices are immutable/COW, so tentative updates cannot mutate earlier checkpoints. Production driver clones the complete BackendSession and installs it only after successful codegen/link/cancellation/artifact publication; failure discards pending raw/transform/partition changes. Hidden direct backend API still documents caller checkpoint responsibility, rather than promising implicit rollback."
+    }
+  ],
+  "counterexamples_read_not_run": [
+    "New current equal machine/source output keeps the exact result root; span-only/current-source change still runs actual function consumers; single machine change affects only its leaf; sibling leaf owner and historical cold root remain shared.",
+    "Existing scalar changed raw callee with equal published output preserves root; unequal output and None-to-Some facts invalidate real consumers; substituted raw LIR still current-binding error.",
+    "New recipe repeated definitions across units update all actual occurrences; imports reject; unowned or deleted changed definition rejects; two changed definitions match the complete fresh planner.",
+    "Existing recipe ABI/linkage/global/declaration/target/order/reference/call topology/cost changes require original planner; equal replay preserves unchanged unit item owners.",
+    "Existing complete history/current limits/layout/target/position/raw mutations, N/N-1 first error, broad-to-cold-to-private root/map restoration and failed caller-owned transaction/checkpoint isolation remain in source."
+  ],
+  "non_blocking_cost_limits": [
+    "Identity root sharing removes the old full product Vec clone/scan at downstream equality, but the current prepare/admission/header inventories and function-consumer publication still visit functions; per-slot PersistentVec lookup has tree-path cost. No full-pipeline O(changes) claim is established.",
+    "Recipe replay still scans source machine item equality and rebuilds unit headers/current diagnostic fingerprint. New direct index avoids rescanning every definition consumer for changed bodies; it retains an O(items+occurrences) optional index.",
+    "Changed unit SharedVec items mutation may COW-clone that unit item/header vector, while Function.blocks and instruction bodies remain shared for unchanged functions. A shared/borrowed body is not a deep CFG clone.",
+    "Initial tree/index construction and retained-owner metadata add costs. No measured net speed, cold/build improvement, memory/RSS bound or global minimality follows from static acceptance."
+  ],
+  "validation": {
+    "reviewer_execution": "Read-only Git/source review; no Cargo, C++ build, native program, benchmark or measurement execution.",
+    "exact_source_tests": "Pending at review time; this branch author reported only formatting/diff checks.",
+    "parent_gate_boundary": "Root reported prior e117 SDK16 batch09 LLVM API76/backend244/driver210 plus strict Clippy/fmt passes; these are not claimed as runs of this new3f9 six-file slice.",
+    "scope": "No CPP/LLVM or independent Verify implementation changes in this slice; this receipt does not reaccept all unchanged compiler domains."
+  }
+}

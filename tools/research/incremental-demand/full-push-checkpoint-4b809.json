@@ -1,0 +1,2066 @@
+{
+  "schema": "full-push-whole-component-checkpoint-v1",
+  "compiler_source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+  "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+  "build": {
+    "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+    "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+    "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--features",
+      "native-products"
+    ],
+    "exit_code": 0,
+    "elapsed_ns": 116481935241,
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+      "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+      "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+      "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+    },
+    "log_sha256": "5f5b38bc6ada17f9ed7f8b5ad06d17b339a1f2de0ae2413c8c6e6081e918a50d",
+    "binary": "/workspace/zil-push-main/out/binaries/4b809bbfedb92b23062d5bf151eb75fef4bfcd35/zil",
+    "sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "llvm_library": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+      "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+    }
+  },
+  "status": "in_progress_default_off_no_main_merge_no_general_Rust_lead",
+  "formal_comparison": "full-push-matched-328.json",
+  "formal_comparison_source": "328eb392d8d88148a75a743d899b43aebae73587",
+  "gates": {
+    "full-push-sdk16-build-01": {
+      "source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "tree": "2997658e92cc0417bdb14ee68a31ded6b9b27db1",
+      "source_after": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "argv": [
+        "python3",
+        "/workspace/zil-push-main/tools/llvm/build_function_products.py",
+        "--sdk",
+        "/workspace/.zil-environment/llvm-23.1.4",
+        "--prefix",
+        "/workspace/.zil-environment/llvm-function-products-v16"
+      ],
+      "controller_exit": 0,
+      "elapsed_ns": 47204253501,
+      "build_receipt": "/workspace/.zil-environment/llvm-function-products-v16/build-receipt.json",
+      "log_sha256": "59aa90a5b9438a644942cb42379e2c44bcb984fe22de012961c1a492f69ce78a",
+      "result": {
+        "status": "Pass",
+        "script_sha256": "42ba2d4dbb999893915169136045988b879e695ef5e13b69be11b36003e275dc",
+        "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+        "version": "23.1.4",
+        "patch_sha256": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+        "hook_header_sha256": "d12b9c80db692e3440bb2ed9dd3bbb7a8651650ed8fcaa8819a2e9b94faf2db9",
+        "sdk_receipt_sha256": "b7b444267bf1dc53aaad3fe4ef228c0f49d2e9536a3208c4db980d84b0d10f9c",
+        "original_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+        "commands": [
+          {
+            "name": "source-download-0",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MachineFunctionPass.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-0.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-0.stderr",
+              "sha256": "afc34e54a0b37ad7934da53e76d8faf0e9ec4c757ef406e171c8cd7b27440529"
+            }
+          },
+          {
+            "name": "source-download-1",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/PassManagerImpl.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManagerImpl.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-1.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-1.stderr",
+              "sha256": "bcfaf6cec644fc710fff5958ce0642e58252ca45db0146727c4cdc28cc405444"
+            }
+          },
+          {
+            "name": "source-download-2",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/PassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/PassManager.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-2.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-2.stderr",
+              "sha256": "acc9fcff9b9280e54367f232c4d96c22697440d9ece85322d7b39aa1b82f1131"
+            }
+          },
+          {
+            "name": "source-download-3",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Analysis/CGSCCPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis/CGSCCPassManager.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-3.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-3.stderr",
+              "sha256": "6a7e499dd5a532e7b7ea4c90703b0f34037caaf652ba2676eee28b0bdc9b442e"
+            }
+          },
+          {
+            "name": "source-download-4",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/LegacyPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/LegacyPassManager.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-4.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-4.stderr",
+              "sha256": "c0ad9940342e3625a6424b7e86b035839a641167cbf5354d0842b8264f34ff4f"
+            }
+          },
+          {
+            "name": "source-download-5",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/PassManager.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/PassManager.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-5.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-5.stderr",
+              "sha256": "e9322117b4efb0166d43ecd1b963052c730574a0bbea3066aaef24f6d219cac0"
+            }
+          },
+          {
+            "name": "source-download-6",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/Function.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/Function.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-6.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-6.stderr",
+              "sha256": "ce9d4706dd051b088456c199f729e85a2a8e38c09c5cc6c0f8d947e686fcb39d"
+            }
+          },
+          {
+            "name": "source-download-7",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/AssumptionCache.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AssumptionCache.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-7.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-7.stderr",
+              "sha256": "97e539d9c517513adeaaa5d74f6aba1aa8f4b735f8e5ca7a5a02a6bfe783b8b1"
+            }
+          },
+          {
+            "name": "source-download-8",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/CodeGen/MachineFunction.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineFunction.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-8.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-8.stderr",
+              "sha256": "e4382f1f8a7b88fa637ee130b48b582ba0a83bd84e113f5bd2691d637010fcbe"
+            }
+          },
+          {
+            "name": "source-download-9",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Transforms/InstCombine/InstCombine.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Transforms/InstCombine/InstCombine.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-9.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-9.stderr",
+              "sha256": "72cf8478ac8e8523b0a1cdbc8a647124c3762e2cf0da13cc2f4c2a563dea70d1"
+            }
+          },
+          {
+            "name": "source-download-10",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/LastRunTrackingAnalysis.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-10.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-10.stderr",
+              "sha256": "7d35cf0447cb416d0d6333e970e32b7773acc55b2eccba7ff207659d2c300fd7"
+            }
+          },
+          {
+            "name": "source-download-11",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/TargetLibraryInfo.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TargetLibraryInfo.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-11.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-11.stderr",
+              "sha256": "d2d624d9c32b720028daff56fa9d5cc221cde7b8867689f6e9d7f242625f6268"
+            }
+          },
+          {
+            "name": "source-download-12",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/BasicAliasAnalysis.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/BasicAliasAnalysis.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-12.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-12.stderr",
+              "sha256": "b2335a708e16f3d9dd463fb96262a203e31434e2a28129a567864aff2251f658"
+            }
+          },
+          {
+            "name": "source-download-13",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-13.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-13.stderr",
+              "sha256": "65b6cd79fd9dc7e89ec84956a2881ecd5727f79167439b7ca10d9184ccf00c03"
+            }
+          },
+          {
+            "name": "source-download-14",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-14.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-14.stderr",
+              "sha256": "a062b3c880fbdc24d9061364a14c1d1ad8f4e43b1b9bda73be523682028a9621"
+            }
+          },
+          {
+            "name": "source-download-15",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/CodeGen/MachineBasicBlock.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/CodeGen/MachineBasicBlock.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-15.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-15.stderr",
+              "sha256": "b4bf05267d3eaf020b6c57af12bb534352995c1ceb3445b897cf05e8649354f1"
+            }
+          },
+          {
+            "name": "source-download-16",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/AliasAnalysis.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/AliasAnalysis.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-16.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-16.stderr",
+              "sha256": "8d5567b20da328f6dac06708c8015b9891e900b838fac07eb7815ab9701ae9c8"
+            }
+          },
+          {
+            "name": "source-download-17",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Analysis/ProfileSummaryInfo.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/Analysis/ProfileSummaryInfo.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-17.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-17.stderr",
+              "sha256": "b4d5a27c3cc4565065a9ab7fa086557429ee2b26e880f6fd1c5108754c7056bb"
+            }
+          },
+          {
+            "name": "source-download-18",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar/LoopPassManager.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-18.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-18.stderr",
+              "sha256": "7b762d5d210ef4f73ea615e96b066cf7fcd3db94a3f2040fb3f8f1d85d72bb40"
+            }
+          },
+          {
+            "name": "source-download-19",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/ValueSymbolTable.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/ValueSymbolTable.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-19.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-19.stderr",
+              "sha256": "5026259f02cc0db101224f86d8af724dd351b21b3f1a74190f84acf5562d795d"
+            }
+          },
+          {
+            "name": "source-download-20",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/AsmWriter.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/AsmWriter.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-20.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-20.stderr",
+              "sha256": "aed9c746c932c6d0cc9dc2a6047bb3808be468b82cbf832b4294891e5df8b90b"
+            }
+          },
+          {
+            "name": "source-download-21",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/TypeFinder.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include/llvm/IR/TypeFinder.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-21.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-21.stderr",
+              "sha256": "4970d5d9c035d0c311838ecca6675ff42be20bda21d9dc84fc898d52b71eaaae"
+            }
+          },
+          {
+            "name": "source-download-22",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/CodeGen/MIRPrinter.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MIRPrinter.cpp"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/source-download-22.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/source-download-22.stderr",
+              "sha256": "95268b810198f096df251dbf8f15bcc6e18f0ccdd939ed840a6eee9447fdd7ec"
+            }
+          },
+          {
+            "name": "private-header-download-0",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86MachineFunctionInfo.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private/X86MachineFunctionInfo.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/private-header-download-0.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/private-header-download-0.stderr",
+              "sha256": "f2da474df9bf1e66e85656c4979ff85396bef1dfc7e56c2864531d45f74ce6f8"
+            }
+          },
+          {
+            "name": "private-header-download-1",
+            "argv": [
+              "curl",
+              "--fail",
+              "--location",
+              "--retry",
+              "3",
+              "--max-time",
+              "120",
+              "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Target/X86/X86AsmPrinter.h",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private/X86AsmPrinter.h"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/private-header-download-1.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/private-header-download-1.stderr",
+              "sha256": "62dab4289179611c4af4e732e3709b3f00a907e37078b3cf0399bcc74be2293d"
+            }
+          },
+          {
+            "name": "apply-patch",
+            "argv": [
+              "patch",
+              "--batch",
+              "--fuzz=0",
+              "-p1",
+              "-i",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native/llvm-function-products.patch"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/apply-patch.stdout",
+              "sha256": "ce07bbaa69930324ee1f7dc72d27edade13b038b4ab56d0eba4ff95db079bf41"
+            },
+            "stderr": {
+              "path": "logs/apply-patch.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "cxxflags",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+              "--cxxflags"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/cxxflags.stdout",
+              "sha256": "0bdd478e6d3138587e11516a6b390c6a3e6f45407c9e2c2582cdfa5282a4fb3f"
+            },
+            "stderr": {
+              "path": "logs/cxxflags.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-0",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/zil-native-private",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-0/MachineFunctionPass.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-0.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-0.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-0",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-0.stdout",
+              "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+            },
+            "stderr": {
+              "path": "logs/original-members-0.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-0",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-0/MachineFunctionPass.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-0.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-0.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-0",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-0.stdout",
+              "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+            },
+            "stderr": {
+              "path": "logs/archive-members-0.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-1",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/PassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-1/PassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-1.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-1.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-1",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-1.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/original-members-1.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-1",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-1/PassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-1.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-1.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-1",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-1.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/archive-members-1.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-2",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/LegacyPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-2/LegacyPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-2.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-2.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-2",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-2.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/original-members-2.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-2",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-2/LegacyPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-2.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-2.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-2",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-2.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/archive-members-2.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-3",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Analysis/CGSCCPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-3/CGSCCPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-3.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-3.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-3",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMAnalysis.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-3.stdout",
+              "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb"
+            },
+            "stderr": {
+              "path": "logs/original-members-3.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-3",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMAnalysis.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-3/CGSCCPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-3.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-3.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-3",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMAnalysis.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-3.stdout",
+              "sha256": "a21f0a85aa9e148bb133cbe91ca9cd7a20cb10c9e225d508f20ece42e5fbabbb"
+            },
+            "stderr": {
+              "path": "logs/archive-members-3.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-4",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-4/LoopPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-4.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-4.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-4",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-4.stdout",
+              "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2"
+            },
+            "stderr": {
+              "path": "logs/original-members-4.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-4",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-4/LoopPassManager.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-4.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-4.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-4",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-4.stdout",
+              "sha256": "e8b406cf4ead249f3425fdb89967762a0edebedee842af4bb4d307070585afc2"
+            },
+            "stderr": {
+              "path": "logs/archive-members-4.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-5",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/IR/AsmWriter.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-5/AsmWriter.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-5.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-5.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-5",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-5.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/original-members-5.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-5",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-5/AsmWriter.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-5.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-5.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-5",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-5.stdout",
+              "sha256": "695c0d3aee9e991eeea00af16ab0346d41620194d7706a042a41ec0676ef90f5"
+            },
+            "stderr": {
+              "path": "logs/archive-members-5.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "compile-extension-6",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-I",
+              "/workspace/zil-push-main/crates/zil-llvm-api/native",
+              "-I",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/include",
+              "-I/workspace/.zil-environment/llvm-23.1.4/include",
+              "-std=c++17",
+              "-D_GNU_SOURCE",
+              "-D_GLIBCXX_USE_CXX11_ABI=1",
+              "-D__STDC_CONSTANT_MACROS",
+              "-D__STDC_FORMAT_MACROS",
+              "-D__STDC_LIMIT_MACROS",
+              "-fno-exceptions",
+              "-fno-rtti",
+              "-O3",
+              "-DNDEBUG",
+              "-fPIC",
+              "-c",
+              "/workspace/.zil-environment/llvm-function-products-v16/source/llvm/lib/CodeGen/MIRPrinter.cpp",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-6/MIRPrinter.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/compile-extension-6.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/compile-extension-6.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "original-members-6",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/original-members-6.stdout",
+              "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+            },
+            "stderr": {
+              "path": "logs/original-members-6.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "replace-object-6",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "r",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/objects-6/MIRPrinter.cpp.o"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/replace-object-6.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/replace-object-6.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "archive-members-6",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-ar",
+              "t",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/archive-members-6.stdout",
+              "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+            },
+            "stderr": {
+              "path": "logs/archive-members-6.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "component-libraries",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+              "--link-static",
+              "--libfiles",
+              "core",
+              "irreader",
+              "passes",
+              "x86",
+              "asmparser",
+              "asmprinter",
+              "target",
+              "mirparser"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/component-libraries.stdout",
+              "sha256": "087c28aad55f741dd1a0e20d25da13c8ba022dde10e40252d28dd5aa10cbdfb5"
+            },
+            "stderr": {
+              "path": "logs/component-libraries.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "link-dso",
+            "argv": [
+              "/workspace/.zil-environment/llvm-23.1.4/bin/clang++",
+              "-shared",
+              "-fuse-ld=lld",
+              "-Wl,-z,defs",
+              "-Wl,-z,text",
+              "-Wl,-Bsymbolic-functions",
+              "-Wl,--build-id=sha1",
+              "-Wl,-soname,libLLVM.so.23.1",
+              "-Wl,--version-script=/workspace/.zil-environment/llvm-function-products-v16/llvm.map",
+              "-Wl,--whole-archive",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMMIRParser.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86TargetMCA.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMMCA.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86Disassembler.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86AsmParser.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86CodeGen.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86Desc.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMX86Info.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMMCDisassembler.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMAsmPrinter.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMPasses.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMIRPrinter.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMHipStdPar.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMCoroutines.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMipo.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMInstrumentation.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMVectorize.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMSandboxIR.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMLinker.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMFrontendOpenMP.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMFrontendDirective.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMFrontendAtomic.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMFrontendOffloading.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMObjectYAML.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMGlobalISel.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMSelectionDAG.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCodeGen.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMTarget.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMScalarOpts.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMInstCombine.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMObjCARCOpts.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMCodeGenTypes.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMCGData.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMBitWriter.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMCFGuard.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMAggressiveInstCombine.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMTransformUtils.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMAnalysis.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMProfileData.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMSymbolize.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoBTF.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoPDB.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoMSF.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoCodeView.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoGSYM.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoDWARF.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMObject.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMTextAPI.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMMCParser.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMMC.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDebugInfoDWARFLowLevel.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMFrontendHLSL.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMIRReader.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMBitReader.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMAsmParser.a",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVMCore.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMRemarks.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMBitstreamReader.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMBinaryFormat.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMTargetParser.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMSupport.a",
+              "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVMDemangle.a",
+              "-Wl,--no-whole-archive",
+              "-lrt",
+              "-ldl",
+              "-lm",
+              "-l:libz.so.1",
+              "-l:libzstd.so.1",
+              "-l:libxml2.so.2",
+              "-o",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/link-dso.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "logs/link-dso.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          {
+            "name": "dependencies",
+            "argv": [
+              "ldd",
+              "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1"
+            ],
+            "exit_code": 0,
+            "stdout": {
+              "path": "logs/dependencies.stdout",
+              "sha256": "cb03e89e5fcbdbfb09537e0a5fbcee1cb992716a2e724570f2af02807ae159ab"
+            },
+            "stderr": {
+              "path": "logs/dependencies.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          }
+        ],
+        "compile_units": [
+          {
+            "source": "llvm/lib/CodeGen/MachineFunctionPass.cpp",
+            "archive": "libLLVMCodeGen.a",
+            "member": "MachineFunctionPass.cpp.o",
+            "include_dirs": [
+              "llvm/include",
+              "zil-native-private"
+            ],
+            "patched_source_sha256": "c8a7ca003269a7f3e3b625a696595d90932279740e2cc933b9d2d51265594702",
+            "object_sha256": "8e8561854623ff7d7643dbd4283507c5b2f95cbade323c5dfd207ce1e4a3b64a"
+          },
+          {
+            "source": "llvm/lib/IR/PassManager.cpp",
+            "archive": "libLLVMCore.a",
+            "member": "PassManager.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "fa1e76fcbb61d82156c6870b861c3f176b6358a218dd54c60e93684ad0904c19",
+            "object_sha256": "342bdcbe9836daa4d9161ba3a387298d95ca8d9e9adb669f4f5b84bf1b236fc2"
+          },
+          {
+            "source": "llvm/lib/IR/LegacyPassManager.cpp",
+            "archive": "libLLVMCore.a",
+            "member": "LegacyPassManager.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "f29b6180e8b14ec0dc899839e308a673f5521ddc81043c7cbf5b0d0b2afbd05d",
+            "object_sha256": "6ba9d52e733a9e1b4a1205f09b9f07ee7532a79240573b037d114113f39e5865"
+          },
+          {
+            "source": "llvm/lib/Analysis/CGSCCPassManager.cpp",
+            "archive": "libLLVMAnalysis.a",
+            "member": "CGSCCPassManager.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "b7d2740a42667399fa947785bc6415b862aff6463cdf1014c03c1d39a8b082f8",
+            "object_sha256": "21d121e2e5656d4a95ca10ffddf94589f40a0206e4c4650fa3930fc76726db15"
+          },
+          {
+            "source": "llvm/lib/Transforms/Scalar/LoopPassManager.cpp",
+            "archive": "libLLVMScalarOpts.a",
+            "member": "LoopPassManager.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "a9bf77850a58f73ed7642b3d41cce36c3597b39ea2d412c5577d664a436531b3",
+            "object_sha256": "f8eb9dabe267169f9cb52d799b4b9727c61beae1422b70af564c7fdec9d63ceb"
+          },
+          {
+            "source": "llvm/lib/IR/AsmWriter.cpp",
+            "archive": "libLLVMCore.a",
+            "member": "AsmWriter.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "794cf1a3789abf7f10f5d7dbeaa3124ee0464d083e9b3cb0afcf51bd847d6d6d",
+            "object_sha256": "9d9ee55e74bceb3070e3e973604e11bc17700ace2a80a49e2171904037ccb497"
+          },
+          {
+            "source": "llvm/lib/CodeGen/MIRPrinter.cpp",
+            "archive": "libLLVMCodeGen.a",
+            "member": "MIRPrinter.cpp.o",
+            "include_dirs": [
+              "llvm/include"
+            ],
+            "patched_source_sha256": "abc258e19ed57d8c8c7360312129240b9b306f94def3c9c7d85db6f3e7d009b7",
+            "object_sha256": "bef0b13ed8dd077ad0b2935841f4a09a09829516aadd1b7647948c40549fe827"
+          }
+        ],
+        "additional_components": {
+          "lib/libLLVMMIRParser.a": "d161e9679c2bd4ae7b1d5e7cf62c4cacc34dddb429f16e98ac7d818ca4c0b80e"
+        },
+        "replacement_archives": {
+          "libLLVMCodeGen.a": "1c11b97f81fd6fb44c33549d97e140a133792386c3d6e9066e624644ce08990e",
+          "libLLVMCore.a": "da567e44c4a0238e2d0dce128334a2c52b64dc0d7ff7f018375a3db00094f5c4",
+          "libLLVMAnalysis.a": "38f0508c810fdebaaf270b3d9283cfb7006db0a44cf68ad274b52360db781483",
+          "libLLVMScalarOpts.a": "61c77e4588726020d279af8d2109cdaad46d251f4f2fd73fa8cef74586cb6354"
+        },
+        "library": {
+          "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+          "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+        },
+        "default_hook": "null: original pipeline selected"
+      }
+    },
+    "native-products-full-tests-28": {
+      "source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "tree": "2997658e92cc0417bdb14ee68a31ded6b9b27db1",
+      "source_after": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "elapsed_ns": 14367541999,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "74bc0e39126c665ce58a22d9a469a68e99277fe3612403ea9f593b6175508b2a"
+    },
+    "native-products-full-tests-29": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 12453116618,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e86709ba742d82db2f543b1248891f3c7b06d2a5c8cf512864ad8c04dc47ec6a"
+    },
+    "push-backend-library-tests-15": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 81810431775,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "4055dfb754712c8f394deb5e4931627899a7bbd85e32142f1d404c0f0410318c"
+    },
+    "push-driver-library-tests-18": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 196268176292,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "7e993f449bda89b597de4f51bdf087be10f1e658e786fc74b62e93dd4aa682c8"
+    },
+    "full-push-native-clippy-18": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 35972534274,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "b4ca64486a14e9bd93cf994671d5f3e11f2e3df69956a2695b56c0106abbb3dd"
+    },
+    "full-push-fmt-16": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 9544617010,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "full-push-release-17": {
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "tree": "12df5d2ee5df728a96a50e729c580dbabf78b893",
+      "source_after": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 137968146146,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "cca76a66ba1954da51b09f632066ab20c849fbc8c2eb75e68f2cd2dd3365f67f",
+      "binary": "/workspace/zil-push-main/out/binaries/e11777565e89523ef25131aeb9687faef456cf2b/zil",
+      "sha256": "3e403e7b98ad7a145135a996e7fa0d3237987e600d6b7b36d8eb9f3578403d0c",
+      "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "llvm_library": {
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+        "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+      }
+    },
+    "push-backend-library-tests-16": {
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 70873745868,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "69f58f3558e100208959be5886f5385d6f48d4718a7a2d6b5a845d09e2d32008"
+    },
+    "push-driver-library-tests-19": {
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 199525153799,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "0675bce4a519b9b3275164b44c78b50ccaa5c3a9ed4032a905b1f837d0b79233"
+    },
+    "full-push-native-clippy-19": {
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 21312933541,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "df1d83208dd278e422e20128c039b3c9ea05dafc4b1ee46b4e4f82c5d076d2da"
+    },
+    "full-push-fmt-17": {
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 8753655056,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "full-push-release-18": {
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+      "source_after": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 116481935241,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "5f5b38bc6ada17f9ed7f8b5ad06d17b339a1f2de0ae2413c8c6e6081e918a50d",
+      "binary": "/workspace/zil-push-main/out/binaries/4b809bbfedb92b23062d5bf151eb75fef4bfcd35/zil",
+      "sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+      "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "llvm_library": {
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+        "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+      }
+    }
+  },
+  "gate_counts": {
+    "native-products-full-tests-28": {
+      "executed": 0,
+      "status": "compile_failure_missing_test_reexport_preserved"
+    },
+    "native-products-full-tests-29": 76,
+    "push-backend-library-tests-15": 244,
+    "push-driver-library-tests-18": 210,
+    "push-backend-library-tests-16": 247,
+    "push-driver-library-tests-19": 210
+  },
+  "qualification": {
+    "schema": "push-profile-qualification-v1",
+    "valid": true,
+    "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+    "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "candidate_binary_sha256": "4774b015885b9de4ecfba375c2c6cd156541bde39ac814e41e960a6dead0c7f4",
+    "baseline_binary_sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+    "counts": {
+      "rows": 34,
+      "measured": 18,
+      "parents": 16,
+      "pairs": 17,
+      "successful_pairs": 15,
+      "safe_error_pairs": 2,
+      "native_outcomes_recomputed": 180,
+      "files": 22,
+      "functions": 425
+    },
+    "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-15",
+    "build_receipt": {
+      "path": "/workspace/zil-push-main/out/runs/full-push-release-18.json",
+      "sha256": "d9f4b8034575f755f299703c1f99927a60d5242a93b232082711d29d31ada39e"
+    },
+    "raw_sha256": {
+      "manifest.json": "8f206d0ccac3ecaa27d1cb0179513dca60fb7a3fd0a4b653010e2104765a8dd4",
+      "rows.jsonl": "377437e7153c17d8c4277ec540e2dcea0bdfac45fc07c3fd25861cbe0a65814e",
+      "summary.json": "bc5fadaaac400cfe9487f7556f43c42e7c88868513b48bfee72e714cc0a5cdea"
+    },
+    "pinned_tools_sha256": {
+      "tools/research/reactive-query-graph/native_measure.py": "ef8549d94b532273caef40ad7fe32b7f920217922f572652c5e88e5f6ecaaa7c",
+      "tools/research/reactive-query-graph/native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+      "tools/research/incremental-demand/push_counters.py": "27da107b2cd127bafc9829c9ae96c993f0b6da8d64dbb7b10d3626730f90d7c9"
+    },
+    "checked_archived_blobs": 37,
+    "runtime_library_paths": {
+      "baseline": "/workspace/.zil-environment/llvm-23.1.4/lib",
+      "candidate": "/workspace/.zil-environment/llvm-function-products-v16/lib"
+    },
+    "runtime_dso_sha256": {
+      "baseline": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+      "candidate": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+    },
+    "controller_exit": 0,
+    "persisted_helper_exit": 0,
+    "controller_agreement": true,
+    "timing_window_verified": true,
+    "historical_validator_incompatibility": {
+      "path": "tools/research/incremental-demand/profile_validate.py",
+      "sha256": "194a7d25394cca29b0e498356ac1d9e64c884610290cbd4e10e09e122232929a",
+      "independently_reexecuted": false,
+      "reason": "Historical validator explicitly requires baseline990 and producer-reuse; it is unchanged. Root observed its baseline assertion fail on this 3ec7/push profile."
+    },
+    "scope": [
+      "Single diagnostic block: candidate profiled, baseline unprofiled; no Rust or earlier candidate timing comparison.",
+      "ELF equality uses all historical recorded full-file SHA256 values; overwritten historical executable bytes were not physically rehashed.",
+      "Every archived LLVM blob was rehashed; only the unique exact second-line hex64 verified-fingerprint value is normalized, all other bytes must agree.",
+      "Original pinned runner removes output before each request; this diagnostic workflow differs from retaining historical output.",
+      "RSS is sampled process-tree RSS sum, may double-count shared pages and miss peaks; CPU is observed process accounting, not an exclusive phase cost.",
+      "Current stage receipts retain missing/unknown values; profile counters describe their recorded scopes, including first-attempt native work versus retry-inclusive wall time."
+    ],
+    "qualifier_sha256": "a0b5a194cab9b4c7908089b4af162429b99c8eab3d8d4c2c961a6a8fee854ba2"
+  },
+  "measured_wall_ms": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "transition_from": null,
+      "wall_ms": 6070.251641,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "transition_from": null,
+      "wall_ms": 7366.302723,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "transition_from": "cold",
+      "wall_ms": 82.406523,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "transition_from": "cold",
+      "wall_ms": 475.188649,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "transition_from": "cold",
+      "wall_ms": 1505.297638,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "transition_from": "cold",
+      "wall_ms": 482.14061,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "transition_from": "cold",
+      "wall_ms": 770.603989,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "transition_from": "cold",
+      "wall_ms": 1680.898315,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "transition_from": "cold",
+      "wall_ms": 5210.057736,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "transition_from": "cold",
+      "wall_ms": 6210.565843,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "transition_from": "cold",
+      "wall_ms": 816.133956,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "transition_from": "cold",
+      "wall_ms": 1500.762936,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "transition_from": "cold",
+      "wall_ms": 341.271875,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "transition_from": "cold",
+      "wall_ms": 49.018862,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "transition_from": "error",
+      "wall_ms": 479.128107,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "transition_from": "error",
+      "wall_ms": 1598.693388,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "transition_from": "private",
+      "wall_ms": 734.177091,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "transition_from": "private",
+      "wall_ms": 219.770692,
+      "status": "Success"
+    }
+  ],
+  "raw_custody": {
+    "status": "profile15_and_SDK16_local_pending_v21",
+    "prior_v20": "ee233ee95142263cf6777f10f381a9a0d64220c8"
+  },
+  "limitations": [
+    "One diagnostic block, candidate profiling enabled; no current Rust measurement or cross-window causal attribution.",
+    "Full recorded ELF SHA equality, not physical rehash of overwritten historical executable bytes.",
+    "MIR text524704B is not all retained state; retained30347680B is a per-request logical receipt sum, not RSS or lifetime cap.",
+    "Whole-project entry, current Verify, global preparation, changed CGU optimization and emission, link binding and final linking remain."
+  ]
+}

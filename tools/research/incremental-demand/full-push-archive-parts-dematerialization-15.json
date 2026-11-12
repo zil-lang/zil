@@ -1,0 +1,18 @@
+{
+  "schema": "archive-parts-dematerialization-summary-v1",
+  "status": "complete",
+  "archive_head": "ee233ee95142263cf6777f10f381a9a0d64220c8",
+  "parts": 37,
+  "bytes": 377814989,
+  "full_receipt": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-15/archive-parts-dematerialization.json",
+  "full_receipt_sha256": "c60559a1fb3c8d766394d921a8310e30b87b36bc6f708894b019bb7d46a5ab3e",
+  "index_backup": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-15/archive-index-before.raw",
+  "index_backup_sha256": "577fff167027f663e89e7b971132b6dba0b952039957faf1c962723c1e689f8b",
+  "git_status_clean": true,
+  "remote_Git_objects_and_all_metadata_preserved": true,
+  "all_preexisting_absent_untouched": true,
+  "free_bytes_before": 828710912,
+  "free_bytes_after": 1206521856,
+  "free_GiB_after": 1.1236610412597656,
+  "restore": "At fixed HEAD, for each recorded path: git update-index --no-skip-worktree -- PATH; git checkout-index --force -- PATH; chmod workfile_mode. Verify bytes/SHA256/Git blob against this table. Clearing only selected skip flags preserves all preexisting absent entries. No Git objects, metadata, sources, SDKs or original raw are removed."
+}

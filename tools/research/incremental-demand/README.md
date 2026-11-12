@@ -1,3 +1,5 @@
+> 最新完整组件：[4b809逻辑、统一门和原425全部场景](full-push-checkpoint-4b809.md) / [精确收据](full-push-checkpoint-4b809.json)。MIR正文重复格式化和下游完整身份表重建已删，当前Verify/O2/预算不变。native76，后续backend247/driver210及strict/fmt/release18通过；profile15严格34rows/180native核验通过。单处482/main1505ms，cold7366/main6070、broad6211/main5210仍负；不混旧Rust时间。源码默认关闭、不合main，raw+SDK16待v21远端保全。
+
 # 增量编译：main 与 Rust 对照
 
 > 最新实验：[be64晚删真实负结果](full-push-late-closed-negative-be64.md)。完整原O2后无可删定义（402候选仍有用途），原425仅4rows/24native即被新质量工具拒绝，原controller1/rows不改。运行门75/244/210及ABI修复后限定/strict/fmt/release过；不把无实际删工当进展。下一整块MIR正文冗余格式化已完成固定源码覆盖证明和独审，尚未新SDK构建/测量。
