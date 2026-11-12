@@ -1968,17 +1968,15 @@ pub(super) fn preflight(
                     "retained result positions",
                 )?;
                 for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom)?;
-                    count(
-                        0,
-                        source.path.len(),
-                        limits.max_call_depth,
-                        "retained return source depth",
-                    )?;
-                    budget.input(
-                        source.path.len().saturating_add(1),
-                        "retained return source path",
-                    )?;
+                    if let zil_ir::StorageSource::Exact(source)=atom {
+                        count(0,source.path.len(),limits.max_call_depth,"retained return source depth")?;
+                        budget.input(source.path.len().saturating_add(1),"retained return source path")?;
+                    } else {
+                        // Structural preflight visits every path and complete
+                        // leaf before identity. Permission is established only
+                        // by the actual result consumer immediately below.
+                        super::dyn_metadata::recipe(atom,budget)?;
+                    }
                 }
             }
             super::stored_flow::dyn_return_header(module, function, budget)?;
