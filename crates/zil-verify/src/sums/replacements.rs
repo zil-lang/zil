@@ -697,7 +697,12 @@ pub(crate) fn at_type<'a>(
             || (package_owners(ty, b)?.is_none() && !enum_endpoint(module, ty, b)? && !inline_store)
         {
             return Err(unsupported(
-                "owning replacement endpoint cleanup/hold bridge is under construction",
+                format!(
+                    "owning replacement endpoint cleanup/hold bridge is under construction: {} in {} at {:?} (local={whole_local}, input={whole_input}, field={store_field})",
+                    ty.name(),
+                    f.name,
+                    target,
+                ),
                 None,
             ));
         }
