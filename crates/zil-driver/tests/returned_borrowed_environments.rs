@@ -280,6 +280,7 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
+        ("external-mutable-callback",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil").to_owned()),
         ("call-before-return", include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil").to_owned()),
         ("forward-qualified", include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil").to_owned()),
         ("forward-lending", include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil").to_owned()),
@@ -572,4 +573,22 @@ fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target(
     }
     let bad=source.replace("a=21;let answer=f()","b=23;let answer=f()");
     assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+}
+
+#[test]
+fn external_mutable_callback_publishes_current_environment_through_helpers() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    for bad in [source.replace("a=21", "b=21"),source.replace("c=31", "d=31"),source.replace("a=21", "c=21")] {
+        assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+    }
+}
+
+#[test]
+fn mutable_callback_slot_updates_compose_with_ordinary_holder_helpers() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil");
+    let source=source.replace("fn make<", "fn rewrite<life a>(holder:&mut Mixed<'a>,other:&'a i32){holder.pointer=other}\nfn make<")
+        .replace("holder.pointer=other;return *old", "rewrite(&mut holder,other);return *old");
+    zil_analyze::analyze(&typed_source(&source),&Limits::default()).unwrap();
 }

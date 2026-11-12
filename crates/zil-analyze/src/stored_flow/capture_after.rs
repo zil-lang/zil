@@ -177,19 +177,6 @@ pub(super) fn summarize(
     Ok(())
 }
 
-fn replace_environment(
-    value: &mut Value,
-    rows: BTreeMap<Path, Permission>,
-    b: &mut Budget,
-) -> CompileResult<()> {
-    value.environment = rows;
-    value.held = Permission::default();
-    for permission in value.environment.values() {
-        union(&mut value.held, permission, b)?;
-    }
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn invoke(
     module: &TypedModule,
@@ -238,27 +225,9 @@ pub(super) fn invoke(
                     "mutable borrowed receiver requires one complete actual environment head",
                 ));
             }
-            let receiver = match head.base {
-                HoldRoot::Local(local) => snapshot(
-                    state
-                        .locals
-                        .get(&local)
-                        .ok_or_else(|| failure("mutable local receiver unavailable"))?,
-                    b,
-                )?,
-                HoldRoot::Capture(index) => snapshot(
-                    state
-                        .captures
-                        .get(&index)
-                        .ok_or_else(|| failure("mutable child receiver unavailable"))?,
-                    b,
-                )?,
-                _ => {
-                    return Err(failure(
-                        "mutable external environment publication is not yet implemented",
-                    ));
-                }
-            };
+            let mut receiver = Value::default();
+            receiver.environment =
+                copy_permission_rows(environment_memory::rows(state, head.base, b)?, b)?;
             (head.base, receiver)
         }
         _ => return Ok(()),
@@ -314,15 +283,7 @@ pub(super) fn invoke(
         rows.insert(path, permission);
         b.stored_exclusive_loans |= mutable;
     }
-    match base {
-        HoldRoot::Local(local) => {
-            replace_environment(state.locals.get_mut(&local).unwrap(), rows, b)?
-        }
-        HoldRoot::Capture(index) => {
-            replace_environment(state.captures.get_mut(&index).unwrap(), rows, b)?
-        }
-        _ => unreachable!(),
-    }
+    environment_memory::publish(state, base, rows, b)?;
     Ok(())
 }
 
