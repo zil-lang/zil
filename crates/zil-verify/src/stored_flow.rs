@@ -1433,6 +1433,7 @@ pub(super) fn qualifications(
                     && !(b.store_descriptions() && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
+                    && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !ordinary_error_borrow(f, i, b)?
@@ -3517,6 +3518,19 @@ fn step(
             out = option_transfer.unwrap();
         }
         _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
+        InstructionKind::BorrowPackageField { local, index, .. }
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+        {
+            b.spend(2)?;
+            out.address.sources.push(Source {
+                retained_port: None,
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: vec![PlaceProjection::Field(*index)],
+                heap_parents: Vec::new(),
+                heap_element: None,
+            });
+        }
         _ if pure_copy::ordinary_package_borrow(f, i, b)? => {}
         _ if pure_copy::ordinary_package_read(f, i, b)? => {}
         _ if task_transfer.is_some() => {
@@ -3668,6 +3682,7 @@ fn step(
                     | InstructionKind::OwnedStoreBorrowMut { .. }
             )
             || ordinary_error_borrow(f, i, b)?
+            || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
     {
@@ -3944,6 +3959,11 @@ fn reverse(
         | InstructionKind::BorrowLocalMut { local } => {
             live.assign(f.values.len() + local.0 as usize, true)?
         }
+        InstructionKind::BorrowPackageField { local, .. }
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+        {
+            live.assign(f.values.len() + local.0 as usize, true)?;
+        }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::DropPackageField { local, .. }
@@ -3989,6 +4009,11 @@ fn reverse_bool(
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
+        }
+        InstructionKind::BorrowPackageField { local, .. }
+            if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+        {
+            live[f.values.len() + local.0 as usize] = true;
         }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakePackageField { local, .. }
@@ -4644,6 +4669,23 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    InstructionKind::BorrowPackageField { local, index, mutable }
+                        if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
+                    {
+                        b.spend(2)?;
+                        let actual = Permission {
+                            sources: vec![Source {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                leaf: Vec::new(),
+                                inline: vec![PlaceProjection::Field(*index)],
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }],
+                            loans: Vec::new(),
+                        };
+                        checks.check(&actual, *mutable, requirements, b)?;
                     }
                     InstructionKind::ReadPackageField { local, index }
                         if pure_copy::ordinary_package_read(f, i, b)? =>

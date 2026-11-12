@@ -116,6 +116,121 @@ pub(super) fn ordinary_owned_union(
     Ok(true)
 }
 
+// A Copy observation still borrows its real owning parent. This classifier
+// admits only complete address-free ordinary trees, never a Copy flag alone.
+pub(super) fn ordinary_copy_field_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::BorrowPackageField {
+        local,
+        index,
+        mutable,
+    } = i.kind
+    else {
+        return Ok(false);
+    };
+    if !b.store_option_results {
+        return Ok(false);
+    }
+    let Some(Type::Package { fields, .. }) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+        return Ok(false);
+    };
+    let field = &fields
+        .get(index as usize)
+        .ok_or_else(|| err("ordinary Copy field borrow selects an absent field"))?
+        .1;
+    // Owning/qualified Package children retain their existing protocols.
+    if !matches!(
+        field,
+        Type::Unit
+            | Type::Bool
+            | Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::Isize
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::Record { .. }
+            | Type::Tuple(_)
+            | Type::Array { .. }
+            | Type::Enum { .. }
+            | Type::ErrorUnion { .. }
+    ) {
+        return Ok(false);
+    }
+    super::type_work(field, &b.limits.clone(), b)?;
+    let mut pending = vec![(field, 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("ordinary Copy field borrow type depth exceeded"));
+        }
+        match ty {
+            Type::Unit
+            | Type::Bool
+            | Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::Isize
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64 => {}
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Array { element, .. } => pending.push((element, depth + 1)),
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            _ => {
+                return Err(unsupported(
+                    "ordinary Copy field borrow hides an address, capability, qualified carrier or owner",
+                    Some(i.span),
+                ));
+            }
+        }
+    }
+    let output = vt(
+        f,
+        i.result
+            .ok_or_else(|| err("ordinary Copy field borrow lacks result"))?,
+    )?;
+    if !matches!(output, Type::Address { mutable: actual, inner } if *actual == mutable && inner.as_ref() == field)
+    {
+        return Err(err(
+            "ordinary Copy field borrow differs from the complete actual field",
+        ));
+    }
+    Ok(true)
+}
+
 pub(super) fn ordinary_package_borrow(
     f: &TypedFunction,
     i: &Instruction,
@@ -655,5 +770,101 @@ mod tests {
         for ty in [inactive, nested, Type::ForeignHandle] {
             assert!(ordinary(&ty, &mut Budget::new(&limits), 0).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod copy_field_borrow_tests {
+    use super::*;
+    mod actual_input {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/nested-store/raw-managers.rs"
+        ));
+    }
+    fn request(field: Type, output: Type) -> (TypedFunction, Instruction) {
+        let (mut module, _) = actual_input::request(actual_input::Scenario::default());
+        let f = &mut module.functions[0];
+        let Type::Package { fields, .. } = &mut f.locals[1].ty else {
+            panic!()
+        };
+        fields.push(("key".into(), field));
+        let id = ValueId(f.values.len() as u32);
+        f.values.push(output);
+        let instruction = Instruction {
+            result: Some(id),
+            kind: InstructionKind::BorrowPackageField {
+                local: LocalId(1),
+                index: 1,
+                mutable: false,
+            },
+            span: f.span,
+        };
+        (module.functions.remove(0), instruction)
+    }
+    fn key(child: Type) -> Type {
+        Type::Record {
+            name: "FieldKey".into(),
+            fields: vec![("id".into(), child)],
+        }
+    }
+    fn address(inner: Type) -> Type {
+        Type::Address {
+            mutable: false,
+            inner: Box::new(inner),
+        }
+    }
+    #[test]
+    fn actual_field_identity_and_complete_address_free_copy_tree_are_required() {
+        let complete = key(Type::Tuple(vec![
+            Type::U32,
+            Type::Array {
+                element: Box::new(Type::I64),
+                length: 2,
+            },
+            Type::Enum {
+                name: "ClosedTag".into(),
+                variants: vec![("Empty".into(), vec![]), ("Value".into(), vec![Type::F64])],
+            },
+        ]));
+        let (f, i) = request(complete.clone(), address(complete));
+        let mut budget = Budget::new(&Limits::default());
+        budget.store_option_results = true;
+        assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).unwrap());
+        for hidden in [
+            address(Type::I32),
+            Type::Desc(Box::new(Type::ByteBuffer)),
+            Type::Managed(Box::new(Type::ByteBuffer)),
+            Type::FunctionPointer {
+                parameters: vec![],
+                result: Box::new(Type::I32),
+            },
+            Type::ForeignCallback {
+                parameters: vec![],
+                result: Box::new(Type::I32),
+            },
+        ] {
+            let field = key(Type::Tuple(vec![Type::Array {
+                element: Box::new(hidden),
+                length: 3,
+            }]));
+            let (f, i) = request(field.clone(), address(field));
+            assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).is_err());
+        }
+        let field = key(Type::U32);
+        let same_layout = Type::Record {
+            name: "OtherKey".into(),
+            fields: vec![("id".into(), Type::U32)],
+        };
+        let (f, i) = request(field.clone(), address(same_layout));
+        assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).is_err());
+        let (f, i) = request(
+            field.clone(),
+            Type::Address {
+                mutable: true,
+                inner: Box::new(field),
+            },
+        );
+        assert!(ordinary_copy_field_borrow(&f, &i, &mut budget).is_err());
     }
 }
