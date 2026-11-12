@@ -2,6 +2,30 @@
 //! domains stay local here; table Context substitutions are a separate proof.
 use super::*;
 
+fn kinds(formals: &[LifeParameterKind], actuals: &[DynGenericActual], b: &mut Budget) -> Check<()> {
+    b.spend(formals.len().saturating_add(actuals.len()))?;
+    if formals.len() != actuals.len() {
+        return Err(bad(
+            "method specialization omits complete original ordered actuals",
+        ));
+    }
+    for (formal, actual) in formals.iter().zip(actuals) {
+        if !matches!(
+            (formal, actual),
+            (
+                LifeParameterKind::Type,
+                DynGenericActual::Type(_) | DynGenericActual::QualifiedType(_)
+            ) | (LifeParameterKind::Lifetime, DynGenericActual::Life(_))
+                | (LifeParameterKind::Const(_), DynGenericActual::Const(_))
+        ) {
+            return Err(bad(
+                "method specialization actual differs from its original formal kind",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     if module.dyn_declarations.len() > b.limits.max_nodes
         || module.functions.len() > b.limits.max_functions
@@ -23,7 +47,7 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
         b.spend(rows.len())?;
         for row in rows {
             dynamic_metadata::recipe(row, b)?;
-            definitions.push(row);
+            definitions.push((declaration, row));
         }
     }
     for function in &module.functions {
@@ -34,13 +58,24 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
     let mut ids = std::collections::BTreeSet::new();
     let mut identities = std::collections::BTreeSet::new();
     let mut targets = std::collections::BTreeSet::new();
-    for definition in &definitions {
+    for (owner, definition) in &definitions {
         b.spend(2)?;
         if !ids.insert(definition.id) || !identities.insert(&definition.identity) {
             return Err(bad("original method definition identity is duplicated"));
         }
+        let Some(DynMemberDeclaration {
+            kind: DynMemberKind::Method(method_formals),
+            ..
+        }) = owner.members.get(definition.member as usize)
+        else {
+            return Err(bad(
+                "method specialization owner has no original method formal scope",
+            ));
+        };
         for instance in &definition.instances {
             b.spend(1)?;
+            kinds(&owner.parameters, &instance.declaration_actuals, b)?;
+            kinds(method_formals, &instance.method_actuals, b)?;
             let DynFunctionTarget::Typed(id) = instance.function else {
                 return Err(bad(
                     "Typed method specialization retains an unresolved Core target",
@@ -245,6 +280,10 @@ mod tests {
             .method_actuals
             .push(DynGenericActual::Const(Constant::I32(1)));
         assert!(run(&raw).is_err());
+        raw.dyn_declarations[0].method_definitions.as_mut().unwrap()[0].instances[0]
+            .method_actuals
+            .push(DynGenericActual::Const(Constant::I32(1)));
+        assert!(run(&raw).unwrap_err().message.contains("ordered actuals"));
     }
     #[test]
     fn typed_specialization_requires_one_complete_local_domain_and_no_core_relocation() {
