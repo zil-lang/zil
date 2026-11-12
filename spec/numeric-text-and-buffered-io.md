@@ -5,7 +5,12 @@ all values through 18446744073709551615, including an optional leading plus.
 An empty slice is Empty; a sign alone, minus, whitespace, NUL, separators and
 nondecimal bytes are InvalidDigit. Multiplication/addition are preceded by cutoff
 checks; a larger value is Overflow, never a trap or truncation. `parse_u8`,
-`parse_u16` and `parse_usize` apply the corresponding range check/conversion.
+`parse_u16`, `parse_u32` and `parse_usize` check the corresponding unsigned range
+before conversion. `parse_i8`, `parse_i16`, `parse_i32` and `parse_isize` apply
+the full signed i64 decimal parser, then check the destination's lower and upper
+bounds before conversion; out-of-range input is Overflow. `usize` and `isize`
+limits come from the selected target's pointer width, including 32-bit CT.
+
 The matching format functions return `Decimal {bytes:[u8;20],len:i64}` with no
 allocation or terminator requirement, including one byte for zero. Borrow
 `&decimal.bytes[..decimal.len]` to parse or write the formatted prefix.
