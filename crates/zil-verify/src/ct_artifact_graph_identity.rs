@@ -30,6 +30,9 @@ impl Identity<'_, '_> {
             };
             self.reserve(edges.saturating_mul(16))?;
             let children: Vec<CtTypeNodeId> = match node {
+                CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                    return Err(pending_scoped_identity());
+                }
                 CtTypeNode::BorrowedStorage { storage, .. } => vec![*storage],
                 CtTypeNode::Nominal { arguments, .. } => arguments
                     .iter()
@@ -84,6 +87,9 @@ impl Identity<'_, '_> {
             }
             let mut key = Vec::new();
             let tag = match node {
+                CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => {
+                    return Err(pending_scoped_identity());
+                }
                 CtTypeNode::BorrowedStorage { .. } => return Err(pending_scoped_identity()),
                 CtTypeNode::Primitive(_) => 0,
                 CtTypeNode::Builtin(_) => 1,
