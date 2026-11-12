@@ -52,6 +52,37 @@ fn scoped_compound_inner(ty: &Type, qualified: bool) -> bool {
     }
 }
 
+// Bounded type preflight pays for this structural pass. This consumes no
+// relation row: an owned value cannot hide an address, descriptor or opaque
+// environment. Ownership transfer and cleanup remain body/resource proofs.
+pub(super) fn closed_owned_parameter(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::Managed(inner)
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. } => pending.push(inner),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, child)| child))
+            }
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::ByteBuffer => {}
+            other if super::stored_callables::scalar(other) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
 fn pure_value_tree(ty: &Type) -> bool {
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
@@ -760,6 +791,8 @@ fn relation_inner(
                     // This exact Direct-query input consumes no relation row.
                     || allow_byte_input && !output && !capture && !pointee
                         && matches!(ty,Type::Desc(payload) if payload.as_ref()==&Type::ByteBuffer)
+                    || captures.is_some() && !output && !capture && !pointee
+                        && closed_owned_parameter(t)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());

@@ -290,9 +290,9 @@ pub(super) fn captured_profile(
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !borrowed_capture_input(ty) {
+        if !(borrowed_capture_input(ty) || super::signature_life::closed_owned_parameter(ty)) {
             return Err(unsupported(
-                "captured Fixed requires shared/scalar parameters",
+                "captured Fixed requires complete borrowed or closed owned parameters",
                 None,
             ));
         }
