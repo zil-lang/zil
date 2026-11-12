@@ -866,3 +866,10 @@ fn verify_authenticates_the_complete_expected_public_return_domain() {
         }
     }
 }
+
+#[test]
+fn consuming_qualified_holder_preserves_the_complete_pointee_class_and_real_slots() {
+    let text=include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-qualified-holder-head-transfer.zil");
+    let module=typed(text);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
