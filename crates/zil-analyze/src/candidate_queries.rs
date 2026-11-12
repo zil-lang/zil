@@ -33,14 +33,14 @@ pub(super) struct Entry {
     output: Fingerprint,
 }
 
-struct InitializationEntry {
-    input: incremental::Input,
-    value: Arc<incremental::Entry>,
+pub(super) struct InitializationEntry {
+    pub(super) input: incremental::Input,
+    pub(super) value: Arc<incremental::Entry>,
 }
 
 pub(super) struct Initialized {
     function: TypedFunction,
-    value: Arc<InitializationEntry>,
+    pub(super) value: Arc<InitializationEntry>,
 }
 
 type FinishedQueries = (
