@@ -71,6 +71,7 @@ fn head(f: &TypedFunction, local: LocalId, state: &Frame, b: &mut Budget) -> Che
                 base: HoldRoot::Local(local),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             }],
             loans: Vec::new(),
@@ -107,6 +108,7 @@ pub(super) fn transfer(
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_parents: Vec::new(),
                 heap_element: None,
             });
         }
@@ -190,6 +192,7 @@ pub(super) fn access(
                     base: HoldRoot::Capture(*index),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_parents: Vec::new(),
                     heap_element: None,
                 }],
                 loans: Vec::new(),

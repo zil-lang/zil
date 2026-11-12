@@ -236,8 +236,14 @@ impl Engine<'_> {
                         error(e.span, "dyn provider lost its actual source application")
                     })?;
                 let table = self.materialize_dyn_provider(&actual, &provider, e.span, depth + 1)?;
+                let actual_symbol = trait_bounds::plain(&actual.physical).ok_or_else(|| {
+                    error(
+                        e.span,
+                        "dyn Context has no actual named physical application",
+                    )
+                })?;
                 let view = self.products.dynamic.context_view_token(
-                    &actual.name,
+                    actual_symbol,
                     table,
                     &mut self.budget,
                     e.span,

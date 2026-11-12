@@ -121,7 +121,7 @@ impl Engine<'_> {
         )?;
         *ty = named(&symbol, ty.span);
         Ok(Some(QualifiedActual {
-            name: symbol,
+            physical: named(&symbol, ty.span),
             ty: lowered,
             classes: actual.classes,
         }))
@@ -335,11 +335,14 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<usize> {
+        self.budget.ty(&owner.physical)?;
+        let owner_symbol = trait_bounds::plain(&owner.physical)
+            .ok_or_else(|| error(span, "dyn owner has no actual named physical application"))?;
         let mut selected_interface = None;
         for (symbol, ordinal, owned) in &self.products.dynamic.context_types {
             self.budget.text(symbol, span)?;
-            self.budget.text(&owner.name, span)?;
-            if *owned && symbol == &owner.name {
+            self.budget.text(owner_symbol, span)?;
+            if *owned && symbol == owner_symbol {
                 selected_interface = Some(*ordinal);
             }
         }
