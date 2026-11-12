@@ -16,6 +16,16 @@ fn scoped_debt(ty: &Type) -> bool {
         _ => false,
     }
 }
+/// An affine pointer bundle has logical loan cleanup but no machine owner.
+/// Derive this only from the complete verified physical fields, not a profile
+/// flag or the absence of a generated resource cell.
+pub(super) fn borrower_tuple(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, .. } = ty else { return false };
+    let Type::Tuple(fields) = storage.as_ref() else { return false };
+    fields.iter().any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
+        && fields.iter().all(|ty| matches!(ty, Type::Address { .. }) || ty.is_copy_value())
+}
+
 pub(super) fn owned_sum(ty: &Type) -> bool {
     if let Type::BorrowedStorage { storage, .. } = ty {
         return matches!(storage.as_ref(), Type::Tuple(_)) && scoped_debt(storage);
