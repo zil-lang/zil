@@ -1087,6 +1087,7 @@ mod native_machine_numbering_tests {
         let (cold, _, prior) = {
             let scope = products::machine_numbering_tests_for_test();
             assert_eq!(scope.bundle_results(), 0);
+            assert_eq!(scope.typed_body_results(), 0);
             assert_eq!(
                 scope.results(),
                 0,
@@ -1106,6 +1107,7 @@ mod native_machine_numbering_tests {
                 "every scratch case must execute and pass"
             );
             assert_eq!(scope.bundle_results(), 7);
+            assert_eq!(scope.typed_body_results(), 255);
             result
         };
         let cold_stats = cold.receipt.native_products.unwrap();
@@ -1123,6 +1125,7 @@ mod native_machine_numbering_tests {
         let warm = {
             let scope = products::machine_numbering_tests_for_test();
             assert_eq!(scope.bundle_results(), 0);
+            assert_eq!(scope.typed_body_results(), 0);
             assert_eq!(
                 scope.results(),
                 0,
@@ -1138,6 +1141,7 @@ mod native_machine_numbering_tests {
             .unwrap();
             assert_eq!(scope.results(), ALL_CHECKS);
             assert_eq!(scope.bundle_results(), 7);
+            assert_eq!(scope.typed_body_results(), 255);
             warm
         };
         let warm_stats = warm.receipt.native_products.unwrap();

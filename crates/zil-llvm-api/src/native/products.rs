@@ -72,6 +72,8 @@ mod enabled {
         fn ZilNativeProductsMachineNumberingTestResults() -> u32;
         #[cfg(test)]
         fn ZilNativeProductsMachineBundleTestResults() -> u32;
+        #[cfg(test)]
+        fn ZilNativeProductsMachineTypedBodyTestResults() -> u32;
         #[cfg(all(test, feature = "text-reference"))]
         fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
         fn ZilNativeProductsSuspend() -> Handle;
@@ -270,6 +272,11 @@ mod enabled {
             // SAFETY: same-thread read of the scratch-only observation mask;
             // no LLVM owner or proof is exposed by this result.
             unsafe { ZilNativeProductsMachineBundleTestResults() }
+        }
+        pub(crate) fn typed_body_results(&self) -> u32 {
+            // SAFETY: same-thread read of explicit scratch checks after LLVM
+            // returned. The mask contains no native owner or reuse authority.
+            unsafe { ZilNativeProductsMachineTypedBodyTestResults() }
         }
     }
     #[cfg(test)]
