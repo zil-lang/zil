@@ -3898,7 +3898,7 @@ fn unify_bounded(
         _ => Err(error(
             span,
             "generic parameter does not match argument type",
-        )),
+        ).note(format!("DEBUG expected={pattern:?}; actual={actual:?}"))),
     }
 }
 
