@@ -1,17 +1,11 @@
 --- a/llvm/lib/CodeGen/MachineFunctionPass.cpp
 +++ b/llvm/lib/CodeGen/MachineFunctionPass.cpp
-@@ -11,6 +11,7 @@
- //===----------------------------------------------------------------------===//
- 
- #include "llvm/CodeGen/MachineFunctionPass.h"
+@@ -13,0 +14,4 @@
 +#include "zil_llvm_work_products_hooks.h"
- #include "llvm/Analysis/BasicAliasAnalysis.h"
- #include "llvm/Analysis/BranchProbabilityInfo.h"
- #include "llvm/Analysis/DominanceFrontier.h"
-@@ -37,6 +38,18 @@
- using namespace llvm;
- using namespace ore;
- 
++#include "X86MachineFunctionInfo.h"
++#include "llvm/IR/IntrinsicInst.h"
++#include "llvm/Target/TargetMachine.h"
+@@ -39,0 +44,12 @@
 +static thread_local const ZilLLVMFunctionProductHooks *ZilFunctionHooks = nullptr;
 +extern "C" LLVM_ABI const ZilLLVMFunctionProductHooks *
 +ZilLLVMSetFunctionProductHooks(const ZilLLVMFunctionProductHooks *Hooks) {
@@ -24,35 +18,81 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMMachineProductCapability() { return 1; }
 +
 +
- static cl::opt<bool> DroppedVarStatsMIR(
-     "dropped-variable-stats-mir", cl::Hidden,
-     cl::desc("Dump dropped debug variables stats for MIR passes"),
-@@ -54,6 +67,11 @@
-     return false;
- 
-   MachineModuleInfo &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
+@@ -56,0 +73,5 @@
 +  if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
 +      Hooks && Hooks->abi_version == 1 && Hooks->before_machine_pass &&
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-   MachineFunction &MF = MMI.getOrCreateMachineFunction(F);
- 
-   MachineFunctionProperties &MFProps = MF.getProperties();
+@@ -160,0 +182,63 @@
++
++// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
++// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
++// X86ISelLoweringCall.cpp. This closed input predicate excludes that entire
++// path (and preallocated intrinsics), rather than trusting hasPreallocatedCall.
++static bool zilNoPreallocatedOwnerInputs(const llvm::Function &F) {
++  if (F.getCallingConv() != llvm::CallingConv::C || F.isVarArg())
++    return false;
++  for (const llvm::Argument &A : F.args())
++    if (!A.getType()->isIntegerTy())
++      return false;
++  for (const llvm::BasicBlock &BB : F)
++    for (const llvm::Instruction &I : BB) {
++      auto *CB = llvm::dyn_cast<llvm::CallBase>(&I);
++      if (!CB)
++        continue;
++      auto *Callee = CB->getCalledFunction();
++      if (!Callee || CB->getNumOperandBundles())
++        return false;
++      switch (Callee->getIntrinsicID()) {
++      case llvm::Intrinsic::sadd_with_overflow:
++      case llvm::Intrinsic::uadd_with_overflow:
++      case llvm::Intrinsic::ssub_with_overflow:
++      case llvm::Intrinsic::usub_with_overflow:
++      case llvm::Intrinsic::smul_with_overflow:
++      case llvm::Intrinsic::umul_with_overflow:
++      case llvm::Intrinsic::trap:
++        break;
++      default:
++        return false;
++      }
++      for (const llvm::Use &A : CB->args())
++        if (!A->getType()->isIntegerTy())
++          return false;
++    }
++  return true;
++}
++extern "C" LLVM_ABI void *ZilLLVMCloneX86ProductInfo(void *RawMF) {
++  auto &MF = *static_cast<llvm::MachineFunction *>(RawMF);
++  const auto &Triple = MF.getTarget().getTargetTriple();
++  if (Triple.getArch() != llvm::Triple::x86_64 || !Triple.isOSLinux() ||
++      !zilNoPreallocatedOwnerInputs(MF.getFunction()))
++    return nullptr;
++  const auto *Info = MF.getInfo<llvm::X86MachineFunctionInfo>();
++  if (Info->getStackPtrSaveMI() || Info->hasPreallocatedCall())
++    return nullptr;
++  return new llvm::X86MachineFunctionInfo(*Info);
++}
++extern "C" LLVM_ABI int ZilLLVMRestoreX86ProductInfo(void *RawMF,
++                                                  const void *Snapshot) {
++  if (!Snapshot)
++    return 0;
++  auto &MF = *static_cast<llvm::MachineFunction *>(RawMF);
++  const auto &Triple = MF.getTarget().getTargetTriple();
++  if (Triple.getArch() != llvm::Triple::x86_64 || !Triple.isOSLinux())
++    return 0;
++  *MF.getInfo<llvm::X86MachineFunctionInfo>() =
++      *static_cast<const llvm::X86MachineFunctionInfo *>(Snapshot);
++  return 1;
++}
++extern "C" LLVM_ABI void ZilLLVMDisposeX86ProductInfo(void *Snapshot) {
++  delete static_cast<llvm::X86MachineFunctionInfo *>(Snapshot);
++}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
-@@ -16,6 +16,7 @@
- #define LLVM_IR_PASSMANAGERIMPL_H
- 
- #include "llvm/IR/Function.h"
+@@ -18,0 +19 @@
 +#include "zil_llvm_work_products_hooks.h"
- #include "llvm/IR/PassInstrumentation.h"
- #include "llvm/IR/PassManager.h"
- #include "llvm/Support/CommandLine.h"
-@@ -63,8 +64,21 @@
-       detail::getAnalysisResult<PassInstrumentationAnalysis>(
-           AM, IR, std::tuple<ExtraArgTs...>(ExtraArgs...));
- 
+@@ -65,0 +67,11 @@
 +  const auto *ZilHooks = ZilLLVMGetFunctionProductHooks();
 +  void *ZilStageToken = nullptr;
 +  if constexpr (std::is_same_v<IRUnitT, Function>) {
@@ -64,104 +104,72 @@
 +      return ZilReplayPA;
 +  }
 +
-   StackTraceEntry Entry(PI, IR);
+@@ -66,0 +79 @@
 +  unsigned ZilPassIndex = 0;
-   for (auto &Pass : Passes) {
+@@ -67,0 +81 @@
 +    const unsigned ZilCurrentIndex = ZilPassIndex++;
-     Entry.setPass(&*Pass);
- 
-     // Check the PassInstrumentation's BeforePass callbacks before running the
-@@ -73,7 +87,13 @@
-     if (!PI.runBeforePass<IRUnitT>(*Pass, IR))
-       continue;
- 
+@@ -75,0 +90,4 @@
 +    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
 +      ZilHooks->enter_pass(ZilHooks->context,
 +                          std::is_same_v<IRUnitT, Module> ? 0 : 1,
 +                          ZilCurrentIndex);
-     PreservedAnalyses PassPA = Pass->run(IR, AM, ExtraArgs...);
+@@ -76,0 +95,2 @@
 +    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
 +      ZilHooks->leave_pass(ZilHooks->context);
- 
-     // Update the analysis manager as each pass runs and potentially
-     // invalidates analyses.
-@@ -93,6 +113,11 @@
-   // AnalysisManager are preserved. We mark this with a set so that we don't
-   // need to inspect each one individually.
-   PA.preserveSet<AllAnalysesOn<IRUnitT>>();
+@@ -95,0 +116,5 @@
 +  if constexpr (std::is_same_v<IRUnitT, Function>) {
 +    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->after_function_stage)
 +      ZilHooks->after_function_stage(ZilHooks->context, this, &IR, &AM, &PA,
 +                                      ZilStageToken);
 +  }
- 
-   return PA;
- }
 --- a/llvm/lib/IR/PassManager.cpp
 +++ b/llvm/lib/IR/PassManager.cpp
-@@ -13,6 +13,7 @@
- #include <optional>
- 
- using namespace llvm;
+@@ -15,0 +16 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
- 
- namespace llvm {
- // Explicit template instantiations and specialization defininitions for core
+@@ -165,0 +167,21 @@
++
++extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
++    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
++  static_cast<llvm::FunctionAnalysisManager *>(Manager)->zilVisitCachedAnalysisIDs(
++      *static_cast<llvm::Function *>(IR), Visit, Context);
++}
++extern "C" LLVM_ABI int ZilLLVMHasFunctionAnalysisKey(void *Manager,
++                                                    const void *Key) {
++  return static_cast<llvm::FunctionAnalysisManager *>(Manager)
++      ->zilHasRegisteredAnalysisID(Key);
++}
++extern "C" LLVM_ABI void ZilLLVMClearFunctionAnalyses(void *Manager, void *IR) {
++  static_cast<llvm::FunctionAnalysisManager *>(Manager)->invalidate(
++      *static_cast<llvm::Function *>(IR), llvm::PreservedAnalyses::none());
++}
++extern "C" LLVM_ABI void ZilLLVMRequireFunctionAnalysisKey(void *Manager,
++                                                        void *IR,
++                                                        const void *Key) {
++  static_cast<llvm::FunctionAnalysisManager *>(Manager)->zilRequireAnalysisID(
++      Key, *static_cast<llvm::Function *>(IR));
++}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
-@@ -7,6 +7,7 @@
- //===----------------------------------------------------------------------===//
- 
- #include "llvm/Analysis/CGSCCPassManager.h"
+@@ -9,0 +10 @@
 +#include "zil_llvm_work_products_hooks.h"
- #include "llvm/ADT/ArrayRef.h"
- #include "llvm/ADT/PriorityWorklist.h"
- #include "llvm/ADT/STLExtras.h"
-@@ -83,7 +84,10 @@
-   FunctionAnalysisManager &FAM =
-       AM.getCachedResult<FunctionAnalysisManagerCGSCCProxy>(*C)->getManager();
- 
+@@ -85,0 +87,2 @@
 +  const auto *ZilHooks = ZilLLVMGetFunctionProductHooks();
 +  unsigned ZilPassIndex = 0;
-   for (auto &Pass : Passes) {
+@@ -86,0 +90 @@
 +    const unsigned ZilCurrentIndex = ZilPassIndex++;
-     // Check the PassInstrumentation's BeforePass callbacks before running the
-     // pass, skip its execution completely if asked to (callback returns false).
-     if (!PI.runBeforePass(*Pass, *C))
-@@ -91,7 +95,11 @@
- 
-     LargestCGSCC.updateMax(C->size());
- 
+@@ -93,0 +98,2 @@
 +    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->enter_pass)
 +      ZilHooks->enter_pass(ZilHooks->context, 2, ZilCurrentIndex);
-     PreservedAnalyses PassPA = Pass->run(*C, AM, G, UR);
+@@ -94,0 +101,2 @@
 +    if (ZilHooks && ZilHooks->abi_version == 1 && ZilHooks->leave_pass)
 +      ZilHooks->leave_pass(ZilHooks->context);
- 
-     // Update the SCC if necessary.
-     C = UR.UpdatedC ? UR.UpdatedC : C;
 --- a/llvm/lib/IR/LegacyPassManager.cpp
 +++ b/llvm/lib/IR/LegacyPassManager.cpp
-@@ -11,6 +11,7 @@
- //===----------------------------------------------------------------------===//
- 
- #include "llvm/IR/LegacyPassManager.h"
+@@ -13,0 +14 @@
 +#include "zil_llvm_work_products_hooks.h"
- #include "llvm/ADT/MapVector.h"
- #include "llvm/ADT/SmallString.h"
- #include "llvm/IR/DiagnosticInfo.h"
-@@ -32,6 +33,7 @@
- #include "llvm/Support/raw_ostream.h"
- 
- using namespace llvm;
+@@ -34,0 +36 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMLegacyLifecycleCapability() { return 1; }
- 
- // See PassManagers.h for Pass Manager infrastructure overview.
- 
-@@ -1447,6 +1449,16 @@
-       reportChangedIR(BeforeStr, AfterStr, FP->getPassName(), PassID, Name,
-                       IsInteresting, ShouldPrintChanged);
- 
+@@ -1449,0 +1452,10 @@
 +    if (const auto *Hooks = ZilLLVMGetFunctionProductHooks();
 +        Hooks && Hooks->abi_version == 1 && Hooks->legacy_pass_was_skipped &&
 +        Hooks->legacy_pass_was_skipped(Hooks->context, FP, &F)) {
@@ -172,6 +180,27 @@
 +      continue;
 +    }
 +
-     Changed |= LocalChanged;
-     if (LocalChanged)
-       dumpPassInfo(FP, MODIFICATION_MSG, ON_FUNCTION_MSG, Name);
+--- a/llvm/include/llvm/IR/PassManager.h
++++ b/llvm/include/llvm/IR/PassManager.h
+@@ -467,0 +468,21 @@
++  // Fixed-adapter introspection: IDs refer only to registered static analysis
++  // keys, never an IR owner. Rebuild always runs factories on CURRENT IR/AM.
++  void zilVisitCachedAnalysisIDs(IRUnitT &IR,
++                                void (*Visit)(void *, const void *),
++                                void *Context) const {
++    auto It = AnalysisResultLists.find(&IR);
++    if (It == AnalysisResultLists.end())
++      return;
++    for (const auto &Entry : It->second)
++      Visit(Context, Entry.first);
++  }
++  bool zilHasRegisteredAnalysisID(const void *ID) const {
++    return AnalysisPasses.count(const_cast<AnalysisKey *>(
++        static_cast<const AnalysisKey *>(ID)));
++  }
++  void zilRequireAnalysisID(const void *ID, IRUnitT &IR,
++                           ExtraArgTs... ExtraArgs) {
++    (void)getResultImpl(const_cast<AnalysisKey *>(
++        static_cast<const AnalysisKey *>(ID)), IR, ExtraArgs...);
++  }
++

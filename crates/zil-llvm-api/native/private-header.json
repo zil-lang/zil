@@ -1,0 +1,7 @@
+{
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "source": "llvm/lib/Target/X86/X86MachineFunctionInfo.h",
+  "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc",
+  "license": "Apache-2.0 WITH LLVM-exception",
+  "purpose": "Compiled only inside matching LLVM DSO helper; adapter receives no C++ target object."
+}
