@@ -2218,7 +2218,9 @@ fn apart(
     b: &mut Budget,
 ) -> Check<()> {
     if overlap(a, z, b)? {
-        return Err(err("actual target intersects a live incompatible loan"));
+        return Err(err(&format!(
+            "actual target intersects a live incompatible loan: {a:?} against {z:?}"
+        )));
     }
     if matches!(
         (a.base, z.base),
@@ -6475,7 +6477,8 @@ fn solve_check(
                     &mut summary.head_accesses,
                     &mut summary.dyn_accesses,
                     b,
-                )?;
+                )
+                .map_err(|error| error.with_note(format!("actual stored function {}", f.name)))?;
             }
             summary_work(&summary, b)?;
             summary_work(&summaries[index], b)?;

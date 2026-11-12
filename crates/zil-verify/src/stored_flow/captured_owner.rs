@@ -409,9 +409,9 @@ pub(super) fn apply(
                     || root.retained_port.is_some()
                     || root.heap_element.is_some()
                 {
-                    return Err(err(
-                        "borrowed capture update crosses an unauthenticated target boundary",
-                    ));
+                    return Err(err(&format!(
+                        "borrowed capture update crosses an unauthenticated target boundary: {root:?}",
+                    )));
                 }
                 b.spend(
                     root.inline

@@ -22,7 +22,17 @@ fn accepted(name: &str, text: &str) {
     .core;
     let module = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let verified = zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits);
+    if verified.is_err() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../out/runs/receiver");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join(format!("{name}-typed.txt")),
+            format!("{module:#?}"),
+        )
+        .unwrap();
+    }
+    verified.unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
