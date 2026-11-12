@@ -4,6 +4,7 @@
 #include "work_products.h"
 #include "zil_llvm_work_products_hooks.h"
 #include "machine_products.h"
+#include "machine_emission_products.h"
 #include "analysis_facts.h"
 #include "packed_stage.h"
 #include "llvm/ADT/SmallVector.h"
@@ -1354,7 +1355,9 @@ extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *P
       R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed);
   if (!R->Machine) return nullptr;
   R->Hooks = {2, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback, requestFailedCallback};
-  R->Previous = symbols().set(&R->Hooks); return R.release();
+  R->Previous = symbols().set(&R->Hooks);
+  installMachineEmission(*R->Machine,&R->Hooks);
+  return R.release();
 }
 extern "C" int ZilNativeProductsStageAlwaysForTests(int Enabled) {
   bool Previous = zil::StageAlwaysForTests;
@@ -2121,4 +2124,13 @@ extern "C" int ZilNativeStageEconomicsCounterexample() {
         Parent.Economics.at("publication").Mode == EconomyMode::Probe;
   };
   return Publish(true, false) && Publish(false, true) && Publish(false, false) && !verifyModule(M, nullptr);
+}
+
+// Independent V1 observer, never appended to ABI2 or the public Stats layout.
+// Caller queries a LIVE request before Finish/Abort consumes it.
+extern "C" int ZilNativeProductsReadMachineEmissionStatsV1(const void *P,void *Out,size_t Bytes) {
+  if(!P || !Out || Bytes!=sizeof(zil::emission::Stats))return 0;
+  const auto &R=*static_cast<const zil::Request *>(P);
+  if(!R.Machine)return 0;
+  zil::readMachineEmissionStats(*R.Machine,Out,Bytes);return 1;
 }

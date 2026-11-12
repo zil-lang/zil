@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "machine_products.h"
 #include "machine_frame_products.h"
+#include "machine_emission_products.h"
+#include "zil_llvm_machine_emission_hooks.h"
 #include "X86MachineFunctionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -304,6 +306,7 @@ struct Snapshot {
   // header. The latter uses the independently complete typed body as oracle.
   bool headerOnly = false;
   BodyState body;
+  emission::Product emission;
   frame::State frame;
   std::shared_ptr<const void> targetInfo;
   llvm::MachineFunctionProperties properties;
@@ -380,6 +383,7 @@ size_t integerPayload(const llvm::APInt &I) {
   return sizeof(llvm::APInt) + (I.getBitWidth() > 64 ? I.getNumWords() * sizeof(uint64_t) : 0);
 }
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
+  const size_t EmissionBytes = emission::payloadBytes(S.emission);
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
   for (const auto *Text : {&S.input, &S.world, &S.mir, &S.mirHeader}) N = boundedAdd(N, Text->size());
   for (const auto &BB : S.body.blocks) {
@@ -415,7 +419,7 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   }
   N = boundedAdd(N, S.sequence.size() * sizeof(PassOccurrence));
   for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
-  return N;
+  return boundedAdd(N, EmissionBytes);
 }
 size_t pipelinePayload(const std::shared_ptr<const PassPipeline> &P) {
   return P ? boundedAdd(sizeof(PassPipeline), stepsPayload(*P)) : 0;
@@ -1645,6 +1649,10 @@ struct MachineRequest {
     bool emitted = false;
     size_t reservation = 0;
     size_t replayPosition = 0;
+    llvm::MachineFunction *emissionMF = nullptr;
+    std::unique_ptr<emission::Capture> emissionCapture;
+    bool emissionAllowed = false;
+    size_t emissionBaseReservation = 0;
     size_t position() const { return replay ? replayPosition : sequence.size(); }
   };
   llvm::Module &module;
@@ -1658,6 +1666,17 @@ struct MachineRequest {
   size_t reservedBytes = 0;
   size_t reservedSlots = 0;
   std::weak_ptr<const PassPipeline> pipelineCandidate;
+  emission::Stats emissionStats;
+  ZilLLVMMachineEmissionHooksV1 emissionHooks{};
+  const ZilLLVMMachineEmissionHooksV1 *previousEmissionHooks = nullptr;
+  Current *activeEmission = nullptr;
+  llvm::MachineFunction *activeMF = nullptr;
+  const llvm::MachineBasicBlock *activeBlock = nullptr;
+  void *activeAP = nullptr, *activeStreamer = nullptr;
+  const void *activeSTI = nullptr;
+  bool emissionReplaying = false;
+  uint32_t emissionBlocks = 0;
+  ~MachineRequest();
 
   bool reserve(Current &C, size_t Bytes) {
     const size_t Other = reservedBytes - C.reservation;
@@ -1670,6 +1689,7 @@ struct MachineRequest {
     return true;
   }
   void discardRecording(Current &C) {
+    C.emissionCapture.reset();
     C.recording.reset();
     std::vector<PassOccurrence>().swap(C.sequence);
     reservedBytes -= C.reservation;
@@ -1681,6 +1701,103 @@ struct MachineRequest {
     failed = true;
   }
 };
+
+namespace {
+struct EmissionAPI {
+  const ZilLLVMMachineEmissionHooksV1 *(*set)(const ZilLLVMMachineEmissionHooksV1 *);
+  emission::PeekSymbol peek;
+  bool available() const { return set && peek; }
+};
+const EmissionAPI &emissionAPI() {
+  static const EmissionAPI A{
+    reinterpret_cast<decltype(EmissionAPI::set)>(dlsym(RTLD_DEFAULT,"ZilLLVMSetMachineEmissionHooksV1")),
+    reinterpret_cast<emission::PeekSymbol>(dlsym(RTLD_DEFAULT,"ZilLLVMPeekMachineBlockSymbolV1"))};
+  return A;
+}
+struct EmissionBudget { MachineRequest *request; MachineRequest::Current *current; size_t base; };
+// Budget lives only during begin(): the entire allocation is reserved before
+// it is made. The blob then belongs to this successful machine candidate.
+bool reserveEmission(void *P, size_t Bytes) {
+  auto &B=*static_cast<EmissionBudget *>(P);
+  return B.request->reserve(*B.current,boundedAdd(B.base,Bytes));
+}
+int beginEmission(void *P, void *AP, void *MF, void *Streamer, const void *STI) {
+  auto &R=*static_cast<MachineRequest *>(P);auto &M=*static_cast<llvm::MachineFunction *>(MF);
+  if(R.failed || M.getFunction().getParent()!=&R.module || R.activeEmission) return 0;
+  auto It=R.current.find(&M.getFunction());
+  if(It==R.current.end())return 0;auto &C=It->second;
+  if(!C.emissionAllowed || C.emissionMF!=&M)return 0;
+  bool Replay=C.replay && C.replay->emission && emission::preflight(C.replay->emission,M,R.emissionStats);
+  if(!Replay && C.recording) {
+    C.emissionBaseReservation=C.reservation;
+    EmissionBudget Budget{&R,&C,C.reservation};
+    C.emissionCapture=emission::Capture::begin(M,reserveEmission,&Budget,emissionAPI().peek,R.emissionStats);
+    if(!C.emissionCapture)R.reserve(C,C.emissionBaseReservation);
+  }
+  if(!Replay && !C.emissionCapture)return 0;
+  R.activeEmission=&C;R.activeMF=&M;R.activeAP=AP;R.activeStreamer=Streamer;R.activeSTI=STI;
+  R.emissionReplaying=Replay;R.emissionBlocks=0;return 1;
+}
+int replayEmissionBlock(void *P,void *AP,void *BB,ZilLLVMMachineEmissionSummaryV1 *Out,
+                        int(*MC)(void *,void *),int(*CFI)(void *,const void *)) {
+  auto &R=*static_cast<MachineRequest *>(P);auto *B=static_cast<llvm::MachineBasicBlock *>(BB);
+  if(!R.activeEmission || AP!=R.activeAP || !B || B->getParent()!=R.activeMF)return 0;
+  R.activeBlock=B;
+  if(!R.emissionReplaying) {R.activeEmission->emissionCapture->beginBlock(*B);return 0;}
+  // C-compatible callback signatures differ only in opaque borrowed handles.
+  struct Callbacks { void *AP; decltype(MC) mc; decltype(CFI) cfi; } Calls{AP,MC,CFI};
+  auto Emit=[](void *P,llvm::MCInst &I){auto &C=*static_cast<Callbacks *>(P);return C.mc(C.AP,&I)!=0;};
+  auto EmitCFI=[](void *P,const llvm::MachineInstr &I){auto &C=*static_cast<Callbacks *>(P);return C.cfi(C.AP,&I)!=0;};
+  emission::Summary S;
+  if(!emission::replay(R.activeEmission->replay->emission,*B,&Calls,Emit,EmitCFI,S,R.emissionStats)) {
+    ++R.emissionStats.failed_replays;R.fail();return -1;
+  }
+  Out->instructions=S.instructions;Out->real_code=S.realCode;++R.emissionBlocks;R.activeBlock=nullptr;return 1;
+}
+void beforeEmissionInstruction(void *P,const void *MI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock)
+    R.activeEmission->emissionCapture->beginInstruction(*static_cast<const llvm::MachineInstr *>(MI));
+}
+void emissionCFI(void *P,const void *MI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock)
+    R.activeEmission->emissionCapture->recordCFI(*static_cast<const llvm::MachineInstr *>(MI));
+}
+void endEmissionBlock(void *P,const void *BB,ZilLLVMMachineEmissionSummaryV1 S) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock==BB)
+    R.activeEmission->emissionCapture->endBlock(*static_cast<const llvm::MachineBasicBlock *>(BB),{S.instructions,S.real_code!=0});
+  R.activeBlock=nullptr;
+}
+void endEmissionFunction(void *P,void *AP) {
+  auto &R=*static_cast<MachineRequest *>(P);if(AP!=R.activeAP)return;
+  if(R.emissionReplaying && R.activeMF && R.emissionBlocks==R.activeMF->size())++R.emissionStats.replayed_functions;
+  if(R.activeEmission && R.activeEmission->emissionCapture && !R.activeEmission->emissionCapture->active()) {
+    R.activeEmission->emissionCapture.reset();R.reserve(*R.activeEmission,R.activeEmission->emissionBaseReservation);
+  }
+  R.activeEmission=nullptr;R.activeMF=nullptr;R.activeBlock=nullptr;R.activeAP=nullptr;
+  R.activeStreamer=nullptr;R.activeSTI=nullptr;R.emissionReplaying=false;
+}
+void observeEmissionMC(void *P,const void *Streamer,const void *MI,const void *STI) {
+  auto &R=*static_cast<MachineRequest *>(P);
+  if(R.activeEmission && !R.emissionReplaying && R.activeBlock && Streamer==R.activeStreamer && STI==R.activeSTI)
+    R.activeEmission->emissionCapture->recordInstruction(*static_cast<const llvm::MCInst *>(MI),*static_cast<const llvm::MCSubtargetInfo *>(STI));
+}
+} // namespace
+MachineRequest::~MachineRequest() {
+  if(emissionHooks.abi && emissionAPI().set)emissionAPI().set(previousEmissionHooks);
+}
+void installMachineEmission(MachineRequest &R,const void *Owner) {
+  if(!emissionAPI().available())return;
+  R.emissionStats.available=1;
+  R.emissionHooks={1,static_cast<const ZilLLVMFunctionProductHooks *>(Owner),&R,beginEmission,replayEmissionBlock,
+    beforeEmissionInstruction,emissionCFI,endEmissionBlock,endEmissionFunction,observeEmissionMC};
+  R.previousEmissionHooks=emissionAPI().set(&R.emissionHooks);
+}
+void readMachineEmissionStats(const MachineRequest &R,void *Out,size_t Bytes) {
+  if(Out && Bytes==sizeof(emission::Stats))std::memcpy(Out,&R.emissionStats,Bytes);
+}
 
 std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     llvm::Module &M, llvm::TargetMachine &TM, const std::string &Config,
@@ -1873,6 +1990,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         if (!MF->getFrameInfo().getCalleeSavedInfo().empty()) MachineFrameObservationBits |= 8;
       }
     ++R.stats.asm_printer_runs;
+    C.emissionMF = MMI.getMachineFunction(F);
     C.emitted = true;
     if (!C.replay && C.recording) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
@@ -1926,6 +2044,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         }
       }
     }
+    C.emissionAllowed = C.emissionMF && (C.replay || C.recording);
     return 0; // The actual target AsmPrinter/streamer always emits this object.
   }
   if (C.replay && !C.replay->emissionProviders.count(P.getPassID())) {
@@ -1967,6 +2086,8 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
       // is publication only; an incomplete observed tail discards the product.
       if (C.emitted && C.replayPosition == C.replay->sequence.size()) S = C.replay;
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
+      if (C.emissionCapture) C.recording->emission = C.emissionCapture->finish();
+      C.emissionCapture.reset();
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
       if (completeSequence(*C.recording) && providers(*C.recording)) S = std::move(C.recording);
