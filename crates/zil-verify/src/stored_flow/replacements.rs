@@ -17,6 +17,10 @@ pub(super) struct Prepared {
     pub(super) id: ReservationId,
     pub(super) permission: Permission,
 }
+// Work gate only; actual descriptors/targets are reconstructed below.
+pub(super) fn heads(b: &Budget) -> bool {
+    b.store_descriptions() || b.replacements
+}
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(
         kind,
@@ -255,6 +259,7 @@ fn publish(
                         .saturating_add(1),
                 )?;
             }
+            b.spend(source.inline.len())?;
             let prefix: Vec<_> = source
                 .inline
                 .iter()
@@ -385,8 +390,8 @@ pub(super) fn check(
     let prepared = held(state, reservation, b)?
         .ok_or_else(|| err("replacement consumes no actual prepared permission"))?;
     if let InstructionKind::CommitPlaceReplace { value, .. } = i.kind {
-        let mut all = active.to_vec();
         b.spend(active.len())?;
+        let mut all = active.to_vec();
         let rhs = &values[value.0 as usize];
         add_loans(&mut all, &rhs.address.loans, b)?;
         for (_, p) in &rhs.leaves {
@@ -466,6 +471,12 @@ pub(super) fn entry(f: &TypedFunction, block: usize, state: &Frame, b: &mut Budg
             .saturating_add(state.prepared.len())
             .saturating_add(1),
     )?;
+    b.spend(
+        state
+            .prepared
+            .len()
+            .saturating_mul(expected.len().checked_ilog2().map_or(1, |n| n as usize + 1)),
+    )?;
     if expected.len() != state.prepared.len()
         || state.prepared.iter().any(|p| !expected.contains(&p.id))
     {
@@ -475,3 +486,6 @@ pub(super) fn entry(f: &TypedFunction, block: usize, state: &Frame, b: &mut Budg
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

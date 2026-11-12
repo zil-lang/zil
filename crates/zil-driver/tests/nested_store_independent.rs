@@ -413,3 +413,29 @@ fn identical_catalog_inputs_do_not_substitute_actual_manager_roots_raw_wire() {
         );
     }
 }
+
+#[test]
+fn actual_owner_replacement_preserves_unrelated_fields_and_borrowed_environment() {
+    pipeline(
+        include_str!("../../../tests/fixtures/nested-store/replacement-borrowed-environment.zil"),
+        "replacement-borrowed-environment",
+        b"AB",
+    );
+}
+
+#[test]
+fn whole_package_replacement_keeps_real_cleanup_and_current_fields() {
+    let source =
+        include_str!("../../../tests/fixtures/nested-store/replacement-borrowed-environment.zil")
+            .replace(
+                "return packet.n+read()-84",
+                "packet=Packet{owner:Token{code:67},n:43}\n return packet.n+read()-85",
+            );
+    pipeline(&source, "replacement-whole-package", b"ABC");
+}
+
+#[test]
+fn owning_error_union_replacement_keeps_both_actual_arm_responsibilities() {
+    let source = "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage Packet{manages owner:Token;n:i32}\nfn make(value:&i32)->impl Fn()->i32{return move()=>*value}\nfn build(code:i32)->Packet!i32{return Packet{owner:Token{code:code},n:42}}\nfn main()->i32{let expected=42;let read=make(&expected);var result=build(65);result=build(66);match result{.err(packet)=>{return packet.n+read()-84},.ok(_)=>{return 1}}}";
+    pipeline(source, "replacement-owned-union", b"AB");
+}
