@@ -62,7 +62,8 @@ fn module() -> TypedModule {
                 terminator: Terminator::Return(Some(ValueId(0))),
             }]
             .into(),
-        }],
+        }]
+        .into(),
     }
 }
 fn stored_module() -> TypedModule {

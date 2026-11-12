@@ -4308,10 +4308,12 @@ pub(super) fn check_module_with_reuse(
                 });
         }
         for function in &module.functions {
+            let product_before = budget.remaining();
             budget.spend(
                 function.locals.len().saturating_add(function.values.len()),
                 "owning array presence",
             )?;
+            budget.record_product(Some(function.id.0 as usize), 4, product_before);
             owning_entry |= budget
                 .sum_functions
                 .get(function.id.0 as usize)

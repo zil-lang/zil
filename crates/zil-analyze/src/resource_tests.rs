@@ -258,7 +258,8 @@ fn scoped_fixture(mode: u8) -> TypedModule {
                 vec![Type::ForeignHandle],
                 Type::Unit,
             ),
-        ],
+        ]
+        .into(),
     }
 }
 
@@ -1428,7 +1429,7 @@ fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![main.finish(result), entry.finish(result_entry)],
+        functions: vec![main.finish(result), entry.finish(result_entry)].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             lending_captures: Vec::new(),
@@ -1583,7 +1584,7 @@ fn owned_callback_fixture(kind: CallableKind, count: usize) -> TypedModule {
         kind: CleanupExitKind::Return,
     });
     let mut m = fixture(kind, false, 0);
-    m.functions = vec![main.finish(zero), entry.finish(result)];
+    m.functions = vec![main.finish(zero), entry.finish(result)].into();
     m.closures[0].parameters = vec![event.clone()];
     m.closures[0].result = event;
     m

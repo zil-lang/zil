@@ -53,7 +53,7 @@ fn program() -> Arc<TypedProgram> {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
-            functions: vec![function(0, 4), caller, function(2, 7)],
+            functions: vec![function(0, 4), caller, function(2, 7)].into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],

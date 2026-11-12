@@ -787,7 +787,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
 /// grounding; Verify rebuilds both facts independently.
 pub(super) fn check_roots(
     module: &TypedModule,
-    plans: &[FunctionPlan],
+    plans: &PersistentVec<FunctionPlan>,
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if budget.dyn_interfaces.is_empty() {
@@ -1074,7 +1074,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::host_llvm(),
-            functions: vec![entry, caller],
+            functions: vec![entry, caller].into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],

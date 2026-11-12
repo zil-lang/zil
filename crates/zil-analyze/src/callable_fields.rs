@@ -69,6 +69,7 @@ pub(super) fn self_contained(
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     for function in &module.functions {
+        let product_before = budget.remaining();
         for ty in function
             .locals
             .iter()
@@ -86,6 +87,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
             }
         }
+        budget.record_product(Some(function.id.0 as usize), 4, product_before);
     }
     Ok(())
 }

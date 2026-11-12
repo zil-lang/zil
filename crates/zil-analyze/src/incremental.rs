@@ -20,6 +20,12 @@ pub struct AnalysisStats {
     pub dependency_signatures_checked: usize,
     pub resource_transfers_executed: usize,
     pub resource_transfers_reused: usize,
+    pub product_admission_functions_checked: usize,
+    pub product_function_queries_executed: usize,
+    pub product_function_queries_reused: usize,
+    pub product_global_obligations_executed: usize,
+    pub product_global_obligations_reused: usize,
+    pub product_plan_rows_replaced: usize,
 }
 
 #[derive(Clone)]
@@ -38,9 +44,12 @@ pub struct AnalysisSession {
     candidate_entries: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Entry>>>,
     resource_entries: resources::incremental::State,
     initialization_items: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>>,
-    function_results: Arc<Vec<AnalysisFunctionResult>>,
+    pub(super) function_results: Arc<Vec<AnalysisFunctionResult>>,
     shared: Option<Arc<SharedEntry>>,
-    stats: AnalysisStats,
+    pub(super) stats: AnalysisStats,
+    pub(super) product: Option<crate::product::Epoch>,
+    pub(super) product_capture: Option<crate::product::Recording>,
+    pub(super) product_changes: Vec<AnalysisFunctionResult>,
 }
 
 impl AnalysisSession {
@@ -88,7 +97,7 @@ impl AnalysisSession {
             return Ok(shared.candidate.clone());
         }
         let candidate =
-            Arc::new(self.analyze_input(&program.module, Some(program), limits, true)?);
+            Arc::new(self.analyze_input(&program.module, Some(program), limits, true, false)?);
         self.shared = Some(Arc::new(SharedEntry {
             program: program.clone(),
             limits: limits.clone(),
@@ -102,7 +111,7 @@ impl AnalysisSession {
         module: &TypedModule,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
-        self.analyze_input(module, None, limits, false)
+        self.analyze_input(module, None, limits, false, false)
     }
 
     pub fn analyze_program(
@@ -110,15 +119,16 @@ impl AnalysisSession {
         program: &TypedProgram,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
-        self.analyze_input(&program.module, Some(program), limits, false)
+        self.analyze_input(&program.module, Some(program), limits, false, false)
     }
 
-    fn analyze_input(
+    pub(super) fn analyze_input(
         &mut self,
         module: &TypedModule,
         program: Option<&TypedProgram>,
         limits: &Limits,
         function_queries: bool,
+        structural: bool,
     ) -> CompileResult<CandidatePlan> {
         let mut next = BTreeMap::new();
         let mut stats = AnalysisStats::default();
@@ -136,6 +146,7 @@ impl AnalysisSession {
             candidates: function_queries.then_some(&mut candidates),
         };
         let mut budget = Budget::new(limits);
+        budget.product_mode = structural;
         let result =
             analyze_budgeted(module, limits, &mut budget, Some(&mut reuse)).and_then(|plan| {
                 if let Some(program) = program {
@@ -146,6 +157,10 @@ impl AnalysisSession {
         // A later resource/effect error must not publish partially computed
         // initialization queries. The previous complete epoch remains intact.
         if let Ok(plan) = &result {
+            self.product_capture = structural.then(|| crate::product::Recording {
+                costs: std::mem::take(&mut budget.product_costs),
+                cost: limits.max_analysis_steps - budget.remaining(),
+            });
             self.entries = Arc::new(next);
             if function_queries {
                 (
