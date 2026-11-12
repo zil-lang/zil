@@ -325,8 +325,12 @@ type NativeUnits = std::collections::BTreeMap<NativeUnitOwner, Arc<NativeUnitPro
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct NativeProductHistory {
     epochs: std::collections::VecDeque<Arc<NativeEpoch>>,
+    // Oldest actual native consumption/generation first. This vector belongs
+    // to this history clone, never to a shared epoch. It contains only products
+    // still referenced by this history's at most 4 * 64 unit entries.
+    recency: Vec<zil_llvm_api::NativeWorkProducts>,
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct NativeEpoch {
     units: NativeUnits,
 }
@@ -390,28 +394,53 @@ impl NativeProductHistory {
         }
         bytes
     }
-    pub(crate) fn commit(&mut self, enabled: bool, next: NativeUnits) {
-        self.commit_with_cap(enabled, next, NATIVE_HISTORY_PAYLOAD_BYTES);
+    pub(crate) fn commit(
+        &mut self,
+        enabled: bool,
+        next: NativeUnits,
+        native_activity: Vec<zil_llvm_api::NativeWorkProducts>,
+    ) {
+        self.commit_with_activity(enabled, next, native_activity, NATIVE_HISTORY_PAYLOAD_BYTES);
     }
-    fn commit_with_cap(&mut self, enabled: bool, mut next: NativeUnits, cap: u64) {
+    #[cfg(test)]
+    fn commit_with_cap(&mut self, enabled: bool, next: NativeUnits, cap: u64) {
+        // These tests model new native generations; production supplies actual
+        // successful worker events, not every object-cache hit in the next map.
+        let activity = next.values().map(|p| p.products.clone()).collect();
+        self.commit_with_activity(enabled, next, activity, cap);
+    }
+    fn prune_recency(&mut self) {
+        let epochs = &self.epochs;
+        self.recency.retain(|product| {
+            epochs
+                .iter()
+                .any(|epoch| epoch.units.values().any(|entry| entry.products == *product))
+        });
+    }
+    fn remove_allocation(&mut self, product: &zil_llvm_api::NativeWorkProducts) {
+        for epoch in &mut self.epochs {
+            if epoch.units.values().any(|entry| entry.products == *product) {
+                // A staging history may share the immutable epoch with the last
+                // successful checkpoint. Copy its map of Arc entries before edit.
+                Arc::make_mut(epoch)
+                    .units
+                    .retain(|_, entry| entry.products != *product);
+            }
+        }
+        self.prune_recency();
+    }
+    fn commit_with_activity(
+        &mut self,
+        enabled: bool,
+        next: NativeUnits,
+        native_activity: Vec<zil_llvm_api::NativeWorkProducts>,
+        cap: u64,
+    ) {
         if !enabled {
             self.epochs.clear();
+            self.recency.clear();
             return;
         }
-        // Bound even a single new epoch. Oversize optional products are dropped
-        // in deterministic owner order; compilation/verification are unaffected.
-        let mut payload_bytes = 0_u64;
-        let mut seen = Vec::new();
-        next.retain(|_, product| {
-            admit_native_payload(
-                &mut seen,
-                &mut payload_bytes,
-                product.products.clone(),
-                product.products.retained_payload_bytes(),
-                cap,
-            )
-        });
-        drop(seen); // Release temporary Arc clones before installing the epoch.
         // Dedup uses existing opaque product identity only, never a content
         // digest or checker authority. A product is paired with another raw unit
         // only after complete current triple/items equality on an object hit.
@@ -429,11 +458,54 @@ impl NativeProductHistory {
             .and_then(|index| self.epochs.remove(index))
             .unwrap_or_else(|| Arc::new(NativeEpoch { units: next }));
         self.epochs.push_front(current);
-        // Recompute the union after every eviction. Dropping one epoch must
-        // not subtract a product still referenced by another retained epoch.
-        while self.epochs.len() > NATIVE_HISTORY_EPOCHS || self.payload_bytes() > cap {
+        while self.epochs.len() > NATIVE_HISTORY_EPOCHS {
             self.epochs.pop_back();
         }
+        self.prune_recency();
+        // Install the full new map before capacity eviction. Otherwise owner
+        // order could discard the hottest newly generated product in advance.
+        // Unseen candidates start cold; only the actual activity below heats them.
+        let mut unseen = Vec::new();
+        for product in self.epochs.iter().flat_map(|epoch| epoch.units.values()) {
+            if !self.recency.contains(&product.products) && !unseen.contains(&product.products) {
+                unseen.push(product.products.clone());
+            }
+        }
+        unseen.append(&mut self.recency);
+        self.recency = unseen;
+        for product in native_activity {
+            if let Some(index) = self.recency.iter().position(|old| *old == product) {
+                let current = self.recency.remove(index);
+                self.recency.push(current);
+            }
+        }
+        // A single product that cannot fit must not evict every useful smaller
+        // product before it is inevitably discarded itself.
+        let oversized: Vec<_> = self
+            .recency
+            .iter()
+            .filter(|product| product.retained_payload_bytes() > cap)
+            .cloned()
+            .collect();
+        for product in oversized {
+            self.remove_allocation(&product);
+        }
+        // Evict one allocation from every epoch, not an entire prior version.
+        // The union is recomputed after each removal; opaque internal sharing
+        // remains conservatively charged and the 128 MiB cap is unchanged.
+        while self.payload_bytes() > cap {
+            let Some(oldest) = self.recency.first().cloned() else {
+                debug_assert_eq!(self.payload_bytes(), 0);
+                break;
+            };
+            self.remove_allocation(&oldest);
+        }
+        let mut current = true;
+        self.epochs.retain(|epoch| {
+            let keep = current || !epoch.units.is_empty();
+            current = false;
+            keep
+        });
     }
 }
 
@@ -572,12 +644,14 @@ pub(crate) mod native_history_tests {
         assert_eq!(history.payload_bytes(), cap);
         let checkpoint = history.clone();
         history.epochs.pop_back();
+        history.prune_recency();
         assert_eq!(
             history.payload_bytes(),
             cap,
             "middle epoch still owns first"
         );
         history.epochs.pop_back();
+        history.prune_recency();
         assert_eq!(
             history.payload_bytes(),
             second_bytes,
@@ -622,15 +696,15 @@ pub(crate) mod native_history_tests {
         let values: Vec<_> = (0..5).map(product).collect();
         let mut history = NativeProductHistory::default();
         for value in &values[..4] {
-            history.commit(true, units(value));
+            history.commit(true, units(value), vec![value.products.clone()]);
         }
         assert_eq!(history.retained_epochs(), 4);
         let checkpoint = history.clone();
         let oldest = history.epochs.back().unwrap().clone();
-        history.commit(true, units(&values[0]));
+        history.commit(true, units(&values[0]), vec![values[0].products.clone()]);
         assert_eq!(history.retained_epochs(), 4);
         assert!(Arc::ptr_eq(history.epochs.front().unwrap(), &oldest));
-        history.commit(true, units(&values[4]));
+        history.commit(true, units(&values[4]), vec![values[4].products.clone()]);
         let (active, previous) = history.candidates(&owner(0));
         assert_eq!(active.unwrap().products, values[4].products);
         assert_eq!(
@@ -646,32 +720,143 @@ pub(crate) mod native_history_tests {
             values[3].products
         );
         assert_eq!(checkpoint.retained_epochs(), 4);
+        assert_eq!(history.recency.len(), 4);
         // A failed caller discards its cloned staging history. A successful
         // disabled build releases all retained epochs, including historical ones.
-        history.commit(false, NativeUnits::new());
+        history.commit(false, NativeUnits::new(), Vec::new());
         assert_eq!(history.retained_epochs(), 0);
         assert_eq!(history.payload_bytes(), 0);
+        assert!(history.recency.is_empty());
         assert_eq!(checkpoint.retained_epochs(), 4);
+    }
+
+    #[test]
+    fn native_history_evicts_allocations_by_real_consumption_not_object_hits() {
+        let first = product(42);
+        let sibling = product(42);
+        let edited = product(42);
+        let later = product(42);
+        let bytes = first.products.retained_payload_bytes();
+        assert!(
+            [&sibling, &edited, &later]
+                .iter()
+                .all(|product| product.products.retained_payload_bytes() == bytes)
+        );
+        let mut history = NativeProductHistory::default();
+        history.commit_with_activity(
+            true,
+            [(owner(0), first.clone()), (owner(1), sibling.clone())].into(),
+            vec![first.products.clone(), sibling.products.clone()],
+            bytes * 2,
+        );
+        let checkpoint = history.clone();
+        let prior_epoch = checkpoint.epochs.front().unwrap().clone();
+        let initial_recency = history.recency.clone();
+        // Restoring an object/current owner does not execute native code and
+        // must not heat its product, even when it becomes the current epoch.
+        history.commit_with_activity(true, units(&first), Vec::new(), bytes * 2);
+        assert_eq!(history.recency, initial_recency);
+        // The edited unit actually consumes first, then generates edited.
+        // Its sibling is merely an object-cache hit: discard only sibling's
+        // cold allocation, from every epoch that references it.
+        history.commit_with_activity(
+            true,
+            [(owner(0), edited.clone()), (owner(1), sibling.clone())].into(),
+            vec![first.products.clone(), edited.products.clone()],
+            bytes * 2,
+        );
+        assert_eq!(history.payload_bytes(), bytes * 2);
+        assert_eq!(
+            history.recency,
+            vec![first.products.clone(), edited.products.clone()]
+        );
+        assert_eq!(
+            history.candidates(&owner(0)).0.unwrap().products,
+            edited.products
+        );
+        assert!(
+            history
+                .candidates(&owner(0))
+                .1
+                .iter()
+                .any(|old| old.products == first.products)
+        );
+        assert!(history.candidates(&owner(1)).0.is_none());
+        assert!(history.candidates(&owner(1)).1.is_empty());
+        assert_eq!(
+            prior_epoch.units.len(),
+            2,
+            "shared checkpoint map was not edited"
+        );
+        assert_eq!(
+            checkpoint.recency, initial_recency,
+            "ages belong to the staging clone"
+        );
+
+        let before_hit = history.recency.clone();
+        history.commit_with_activity(true, units(&first), Vec::new(), bytes * 2);
+        assert_eq!(history.recency, before_hit);
+        history.commit_with_activity(
+            true,
+            [(owner(1), later.clone())].into(),
+            vec![later.products.clone()],
+            bytes * 2,
+        );
+        assert_eq!(history.payload_bytes(), bytes * 2);
+        assert_eq!(
+            history.recency,
+            vec![edited.products.clone(), later.products.clone()]
+        );
+        assert!(history.epochs.iter().all(|epoch| {
+            epoch
+                .units
+                .values()
+                .all(|entry| entry.products != first.products)
+        }));
+
+        // Single-epoch admission follows the explicit generation order, not
+        // owner order. The hot lower ordinal must not be discarded in advance.
+        let mut single = NativeProductHistory::default();
+        single.commit_with_activity(
+            true,
+            [(owner(0), first.clone()), (owner(1), sibling.clone())].into(),
+            vec![sibling.products.clone(), first.products.clone()],
+            bytes,
+        );
+        assert_eq!(
+            single.candidates(&owner(0)).0.unwrap().products,
+            first.products
+        );
+        assert!(single.candidates(&owner(1)).0.is_none());
+        assert_eq!(single.recency, vec![first.products.clone()]);
+        assert_eq!(single.payload_bytes(), bytes);
     }
 
     #[test]
     fn native_history_payload_cap_drops_only_optional_candidates() {
         let first = product(42);
         let second = product(43);
-        let cap = first.products.retained_payload_bytes();
+        let cap = first
+            .products
+            .retained_payload_bytes()
+            .max(second.products.retained_payload_bytes());
         assert!(cap > 0 && second.products.retained_payload_bytes() > 0);
         let mut history = NativeProductHistory::default();
         history.commit_with_cap(
             true,
-            [(owner(0), first.clone()), (owner(1), second)].into(),
+            [(owner(0), first.clone()), (owner(1), second.clone())].into(),
             cap,
         );
-        assert_eq!(history.payload_bytes(), cap);
         assert_eq!(
-            history.candidates(&owner(0)).0.unwrap().products,
-            first.products
+            history.payload_bytes(),
+            second.products.retained_payload_bytes()
         );
-        assert!(history.candidates(&owner(1)).0.is_none());
+        assert_eq!(
+            history.candidates(&owner(1)).0.unwrap().products,
+            second.products
+        );
+        assert!(history.candidates(&owner(0)).0.is_none());
+        history.commit_with_cap(true, units(&first), cap);
         history.commit_with_cap(true, units(&first), cap);
         assert_eq!(
             history.retained_epochs(),
