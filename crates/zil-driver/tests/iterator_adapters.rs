@@ -920,3 +920,11 @@ fn anonymous_compound_inference_and_default_helpers_keep_distinct_header_emissio
   assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
  }
 }
+
+#[test]
+fn anonymous_owned_and_exclusive_values_preserve_full_debt_and_loans(){
+ for text in [include_str!("../../../tests/fixtures/qualified-values/owning-anonymous.zil"),include_str!("../../../tests/fixtures/qualified-values/exclusive-anonymous.zil")]{
+  let report=compile_project(&project(text),&CompileOptions{stop_after:Stage::Analyze,..CompileOptions::default()});
+  assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+ }
+}
