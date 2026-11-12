@@ -40,7 +40,7 @@ pub(super) fn slot_life(slot: &DynSlot) -> StorageLifeContract {
     life
 }
 
-fn closed_owner_shape(
+pub(super) fn closed_owner_shape(
     ty: &Type,
     left: &mut usize,
     depth: usize,
@@ -600,6 +600,15 @@ fn inventory_in_modules(
         }
         let self_type =
             canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        crate::dyn_context::provider(
+            &self_type,
+            &table.self_classes,
+            &table.ports,
+            interface,
+            modules,
+            limits,
+            &mut left,
+        )?;
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
             crate::dyn_cleanup::prove(
                 &self_type,

@@ -1061,6 +1061,97 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
+                InstructionKind::MakeDynOwned { vtable, source, .. }
+                | InstructionKind::MakeDynBorrow { vtable, source, .. }
+                    if b.dyn_contexts =>
+                {
+                    let output =
+                        out.ok_or_else(|| bad("dyn constructor lacks actual class result"))?;
+                    b.spend(
+                        module.dyn_vtables.len(),
+                        "dyn actual class witness selection",
+                    )?;
+                    let table = module
+                        .dyn_vtables
+                        .iter()
+                        .find(|table| table.id == *vtable)
+                        .ok_or_else(|| bad("dyn constructor class witness is absent"))?;
+                    let input = &values[source.0 as usize];
+                    if let (Some(a), Some(z)) = (input.outer, output.outer) {
+                        e.equal(a, z, b)?;
+                    }
+                    b.spend(
+                        table.self_classes.len().saturating_add(input.keys.len()),
+                        "dyn complete actual Self class map",
+                    )?;
+                    if table.self_classes.len() != input.classes.len() {
+                        return Err(bad("dyn class witness omits complete actual Self classes"));
+                    }
+                    for (index, target) in table.self_classes.iter().enumerate() {
+                        let StorageBinder::Fixed(class) = target else {
+                            return Err(bad(
+                                "dyn Self class witness is not a persistent Context class",
+                            ));
+                        };
+                        let wanted = if matches!(i.kind, InstructionKind::MakeDynOwned { .. }) {
+                            vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+                        } else {
+                            vec![LifeTypeProjection::Pointee]
+                        };
+                        b.spend(
+                            output
+                                .keys
+                                .len()
+                                .saturating_mul(wanted.len().saturating_add(1)),
+                            "dyn actual Context class selection",
+                        )?;
+                        let target = output
+                            .keys
+                            .iter()
+                            .position(|(path, local)| *path == wanted && local == class)
+                            .ok_or_else(|| {
+                                bad("dyn class witness points outside actual Context result")
+                            })?;
+                        e.equal(input.classes[index], output.classes[target], b)?;
+                    }
+                }
+                InstructionKind::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                } if b.dyn_contexts => {
+                    b.spend(
+                        module.dyn_interfaces.len(),
+                        "dyn actual slot class selection",
+                    )?;
+                    let slot = module
+                        .dyn_interfaces
+                        .iter()
+                        .find(|item| item.id == *interface)
+                        .and_then(|item| item.slots.get(*slot as usize))
+                        .ok_or_else(|| bad("dyn actual slot class signature is absent"))?;
+                    let life = slot
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| bad("dyn slot omits complete actual life relation"))?;
+                    b.spend(
+                        arguments.len().saturating_add(1),
+                        "dyn actual slot operands",
+                    )?;
+                    let mut actual = Vec::with_capacity(arguments.len().saturating_add(1));
+                    actual.push(*callee);
+                    actual.extend_from_slice(arguments);
+                    call_with_outer(
+                        life,
+                        &actual,
+                        i.result,
+                        &values,
+                        None,
+                        (&mut e, outer.as_ref()),
+                        b,
+                    )?;
+                }
                 InstructionKind::TaskCreate {
                     arguments,
                     port_bindings,
