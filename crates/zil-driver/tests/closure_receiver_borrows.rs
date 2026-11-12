@@ -1182,3 +1182,114 @@ fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
         );
     }
 }
+
+#[test]
+fn constant_capture_cycles_require_a_real_literal_constructor() {
+    use zil_ir::{FunctionId, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    let limits = Limits::default();
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
+    ));
+    let simple = typed("fn make(){} fn main()->i32{return 0}");
+    let simple_plan = zil_analyze::analyze(&simple, &limits).unwrap();
+    let mut good = original.clone();
+    let mut candidate = zil_analyze::analyze(&original, &limits).unwrap();
+    assert!(candidate.origins.is_empty());
+    let replace =
+        |module: &mut zil_ir::TypedModule, plan: &mut zil_ir::CandidatePlan, name: &str| {
+            let old = module
+                .functions
+                .iter()
+                .position(|f| f.name == name)
+                .unwrap();
+            let source = simple.functions.iter().find(|f| f.name == name).unwrap();
+            let mut function = source.clone();
+            let id = FunctionId(old as u32);
+            function.id = id;
+            module.functions[old] = function;
+            let mut claim = simple_plan
+                .functions
+                .iter()
+                .find(|p| p.function == source.id)
+                .unwrap()
+                .clone();
+            claim.function = id;
+            *plan
+                .functions
+                .iter_mut()
+                .find(|p| p.function == id)
+                .unwrap() = claim;
+            plan.responsibilities.retain(|r| r.function != id);
+        };
+    // No invocation from main can serve as an implicit seed of the invariant.
+    replace(&mut good, &mut candidate, "main");
+    let closure = good.closures[0].id;
+    let entry = good.closures[0].function;
+    let function = &mut good.functions[entry.0 as usize];
+    let (block, at, capture) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(bi, block)| {
+            block
+                .instructions
+                .iter()
+                .enumerate()
+                .find_map(|(at, instruction)| {
+                    matches!(instruction.kind, InstructionKind::ReadCapture { index: 0 })
+                        .then_some((bi, at, instruction.result.unwrap()))
+                })
+        })
+        .unwrap();
+    let value = ValueId(function.values.len() as u32);
+    function.values.push(Type::Closure(closure));
+    let span = function.blocks[block].instructions[at].span;
+    function.blocks[block].instructions.insert(
+        at + 1,
+        Instruction {
+            result: Some(value),
+            kind: InstructionKind::MakeClosure {
+                closure,
+                captures: vec![capture],
+            },
+            span,
+        },
+    );
+    let claim = candidate
+        .functions
+        .iter_mut()
+        .find(|p| p.function == entry)
+        .unwrap();
+    let roots = claim
+        .holds
+        .iter()
+        .find(|h| h.value == capture)
+        .unwrap()
+        .roots
+        .clone();
+    claim.holds.push(ValueHold { value, roots });
+    candidate.module_fingerprint = good.fingerprint();
+    zil_verify::verify_module(good.clone(), candidate.clone(), &good.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&good, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &good.target, &limits).unwrap();
+    let mut bad = good;
+    // Remove the only literal constructor, preserving the genuine self-copy
+    // constructor and its actual typed entry. No candidate has become a root.
+    replace(&mut bad, &mut candidate, "make");
+    candidate.module_fingerprint = bad.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(bad, candidate, &original.target, &limits).map(|_| ()),
+        zil_verify::verify_module_bytes(&bytes, &original.target, &limits).map(|_| ()),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-VERIFY-STORED"
+                && error.category == ResultCategory::SafeReject
+                && error
+                    .message
+                    .contains("dependency cycle has no actual program-static root")),
+            "{errors:?}"
+        );
+    }
+}
