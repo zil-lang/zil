@@ -141,3 +141,9 @@ pub fn clear<K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:&mut Ow
     while at<store_len(map.buckets) {let place=store_at_mut(map.buckets,at);*place=0;at+=1}
     return count
 }
+
+// Consume the map and transfer its dense owning rows. The bucket allocation
+// is released once; no key or value is copied or destroyed by this transfer.
+pub fn into_entries<K:StoreElement+owning_map.KeyEq+KeyHash,V:StoreElement>(map:OwningHashMap<K,V>)->Store<owning_entries.Entry<K,V>> contract {result(give)} {
+    return give map.entries
+}
