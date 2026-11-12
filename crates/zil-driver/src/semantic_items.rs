@@ -2,9 +2,13 @@
 //! Rebinding precedes every semantic fingerprint check and current Verify.
 use super::*;
 use std::sync::Arc;
-use zil_ir::wire::{FunctionEncodingStats, RawFunctionEncoding, WireSegment};
+use zil_ir::wire::{
+    FunctionEncodingStats, FunctionPlanEncodingStats, RawFunctionEncoding, RawFunctionPlanEncoding,
+    WireSegment,
+};
 
-const MANIFEST_MAGIC: &[u8; 8] = b"ZILSMS06";
+const LEGACY_MANIFEST_MAGIC: &[u8; 8] = b"ZILSMS06";
+const MANIFEST_MAGIC: &[u8; 8] = b"ZILSMS07";
 const MANIFEST_HEADER: usize = 24;
 const BINDING_ROW: usize = 25;
 const MANIFEST_ROW: usize = 40;
@@ -13,6 +17,10 @@ const MANIFEST_ROW: usize = 40;
 pub struct SemanticPublicationStats {
     pub serialized_functions: usize,
     pub reused_functions: usize,
+    pub serialized_function_plans: usize,
+    pub reused_function_plans: usize,
+    pub serialized_function_plan_bytes: usize,
+    pub reused_function_plan_bytes: usize,
     pub written_segments: usize,
     pub existing_segments: usize,
     pub written_bytes: usize,
@@ -38,6 +46,8 @@ pub(crate) struct SemanticPublicationSession {
     canonical: Vec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
     products: BTreeMap<FunctionId, zil_types::FunctionProduct>,
     bindings: Vec<FunctionBinding>,
+    plan_slots: Vec<Option<Arc<RawFunctionPlanEncoding>>>,
+    plan_stats: FunctionPlanEncodingStats,
     semantic_packs: packed::Epoch,
     function_packs: packed::Epoch,
 }
@@ -148,12 +158,18 @@ impl SemanticPublicationSession {
             })
             .collect();
         let mut stats = FunctionEncodingStats::default();
-        let wire = zil_ir::wire::encode_module_candidate_segments(
+        let mut plan_slots: Vec<_> = (0..candidate.functions.len())
+            .map(|index| self.plan_slots.get(index).cloned().flatten())
+            .collect();
+        let mut plan_stats = FunctionPlanEncodingStats::default();
+        let wire = zil_ir::wire::encode_module_candidate_plan_segments(
             &typed.module,
             candidate,
             &functions,
+            &mut plan_slots,
             limits,
             &mut stats,
+            &mut plan_stats,
         )
         .ok()?;
         let wire_length = wire.iter().try_fold(0usize, |length, segment| {
@@ -181,8 +197,14 @@ impl SemanticPublicationSession {
         self.slots = slots;
         self.canonical = canonical;
         self.bindings = bindings;
+        self.plan_slots = plan_slots;
+        self.plan_stats = plan_stats;
         Some((segments, stats))
     }
+}
+
+pub(super) fn maximum_segments(limits: &Limits) -> Option<usize> {
+    limits.max_functions.checked_mul(2)?.checked_add(6)
 }
 
 fn manifest(
@@ -190,7 +212,7 @@ fn manifest(
     bindings: &[FunctionBinding],
     limits: &Limits,
 ) -> Option<Vec<u8>> {
-    let maximum_segments = limits.max_functions.checked_add(4)?;
+    let maximum_segments = maximum_segments(limits)?;
     if segments.is_empty() || segments.len() > maximum_segments {
         return None;
     }
@@ -232,16 +254,21 @@ fn manifest(
 }
 
 fn layout(manifest: &[u8], limits: &Limits) -> Option<(usize, usize, usize)> {
-    if manifest.len() > limits.max_source_bytes || manifest.get(..8)? != MANIFEST_MAGIC {
+    if manifest.len() > limits.max_source_bytes {
         return None;
     }
+    let maximum = match manifest.get(..8)? {
+        magic if magic == MANIFEST_MAGIC => maximum_segments(limits)?,
+        magic if magic == LEGACY_MANIFEST_MAGIC => limits.max_functions.checked_add(4)?,
+        _ => return None,
+    };
     let total = usize::try_from(u64::from_le_bytes(manifest.get(8..16)?.try_into().ok()?)).ok()?;
     let count = u32::from_le_bytes(manifest.get(16..20)?.try_into().ok()?) as usize;
     let functions = u32::from_le_bytes(manifest.get(20..24)?.try_into().ok()?) as usize;
     let start = MANIFEST_HEADER.checked_add(count.checked_mul(MANIFEST_ROW)?)?;
     if total > limits.max_source_bytes
         || count == 0
-        || count > limits.max_functions.checked_add(4)?
+        || count > maximum
         || functions > limits.max_functions.min(limits.max_nodes)
         || start.checked_add(functions.checked_mul(BINDING_ROW)?)? != manifest.len()
     {
@@ -375,7 +402,7 @@ impl Store {
         options: &CompileOptions,
         publication: &mut SemanticPublicationSession,
     ) {
-        let Some(max_items) = options.limits.max_functions.checked_add(4) else {
+        let Some(max_items) = maximum_segments(&options.limits) else {
             return;
         };
         let bounds = packed::Bounds {
@@ -400,7 +427,7 @@ impl Store {
         if packed::is_packed(manifest) {
             let bounds = packed::Bounds {
                 maximum: self.maximum,
-                max_items: options.limits.max_functions.checked_add(4)?,
+                max_items: maximum_segments(&options.limits)?,
             };
             let mut reader = packed::Reader::new(
                 &self.root.join("packs-v1"),
@@ -475,13 +502,17 @@ impl Store {
                 .collect(),
             packed::Bounds {
                 maximum: self.maximum,
-                max_items: options.limits.max_functions.checked_add(4)?,
+                max_items: maximum_segments(&options.limits)?,
             },
             &mut publication.semantic_packs,
         )?;
         let stats = SemanticPublicationStats {
             serialized_functions: encoding.serialized_functions,
             reused_functions: encoding.reused_functions,
+            serialized_function_plans: publication.plan_stats.serialized_function_plans,
+            reused_function_plans: publication.plan_stats.reused_function_plans,
+            serialized_function_plan_bytes: publication.plan_stats.serialized_function_plan_bytes,
+            reused_function_plan_bytes: publication.plan_stats.reused_function_plan_bytes,
             canonical_functions: publication
                 .bindings
                 .iter()
@@ -537,6 +568,35 @@ mod tests {
             .flat_map(|segment| segment.bytes.iter().copied())
             .collect()
     }
+    fn legacy_segments(
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        limits: &Limits,
+    ) -> (Vec<WireSegment>, Vec<FunctionBinding>) {
+        let mut publication = SemanticPublicationSession::default();
+        let (current, _) = publication.encode(typed, candidate, limits).unwrap();
+        let slots: Vec<_> = typed
+            .module
+            .functions
+            .iter()
+            .map(|_| OnceLock::new())
+            .collect();
+        let functions: Vec<_> = typed.module.functions.iter().zip(&slots).collect();
+        let mut segments = vec![current[0].clone()];
+        segments.extend(
+            zil_ir::wire::encode_module_candidate_segments(
+                &typed.module,
+                candidate,
+                &functions,
+                limits,
+                &mut FunctionEncodingStats::default(),
+            )
+            .unwrap(),
+        );
+        segments.push(current.last().unwrap().clone());
+        assert_eq!(flatten(&segments), flatten(&current));
+        (segments, publication.bindings)
+    }
     #[test]
     fn segmented_semantics_preserves_legacy_bytes_and_shares_unchanged_functions() {
         let directory = directory();
@@ -546,19 +606,28 @@ mod tests {
         let mut publication = SemanticPublicationSession::default();
         let (cold, stats) = publication.encode(&typed, &candidate, &limits).unwrap();
         assert_eq!(stats.serialized_functions, 2);
+        assert_eq!(publication.plan_stats.serialized_function_plans, 2);
         assert_eq!(flatten(&cold), encode(&typed, &candidate, &limits).unwrap());
         let (warm, stats) = publication.encode(&typed, &candidate, &limits).unwrap();
         assert_eq!((stats.serialized_functions, stats.reused_functions), (0, 2));
+        assert_eq!(
+            (
+                publication.plan_stats.serialized_function_plans,
+                publication.plan_stats.reused_function_plans
+            ),
+            (0, 2)
+        );
         let shared = warm
             .iter()
             .filter(|item| cold.iter().any(|old| Arc::ptr_eq(&item.bytes, &old.bytes)))
             .count();
-        assert_eq!(shared, 2);
+        assert_eq!(shared, 4);
         let (changed, next_candidate) = fixture(&path, &SOURCE.replace("x+1", "x+2"));
         let (edited, stats) = publication
             .encode(&changed, &next_candidate, &limits)
             .unwrap();
         assert_eq!((stats.serialized_functions, stats.reused_functions), (1, 1));
+        assert_eq!(publication.plan_stats.reused_function_plans, 2);
         assert_eq!(
             flatten(&edited),
             encode(&changed, &next_candidate, &limits).unwrap()
@@ -567,7 +636,7 @@ mod tests {
             .iter()
             .filter(|item| warm.iter().any(|old| Arc::ptr_eq(&item.bytes, &old.bytes)))
             .count();
-        assert_eq!(shared, 1);
+        assert_eq!(shared, 3);
         fs::remove_dir_all(directory).unwrap();
     }
     #[test]
@@ -613,6 +682,21 @@ mod tests {
             .is_none()
         );
         assert_eq!(reads, 0);
+        let exact_functions = Limits {
+            max_functions: typed.module.functions.len(),
+            ..limits.clone()
+        };
+        assert!(layout(&bytes, &exact_functions).is_some());
+        let mut wrong_version = bytes.clone();
+        wrong_version[..8].copy_from_slice(LEGACY_MANIFEST_MAGIC);
+        assert!(layout(&wrong_version, &exact_functions).is_none());
+        assert!(
+            maximum_segments(&Limits {
+                max_functions: usize::MAX,
+                ..limits.clone()
+            })
+            .is_none()
+        );
         assert!(
             assemble(&bytes, &limits, &mut |key| {
                 let mut data = segments
@@ -660,9 +744,9 @@ mod tests {
         };
         // The transport version is independent of the original logical format.
         // Old loose-item manifests remain readable before one-time migration.
-        let mut legacy = SemanticPublicationSession::default();
-        let (segments, _) = legacy.encode(&typed, &candidate, &options.limits).unwrap();
-        let logical = manifest(&segments, &legacy.bindings, &options.limits).unwrap();
+        let (segments, bindings) = legacy_segments(&typed, &candidate, &options.limits);
+        let mut logical = manifest(&segments, &bindings, &options.limits).unwrap();
+        logical[..8].copy_from_slice(LEGACY_MANIFEST_MAGIC);
         let loose_root = store.root.join("items");
         assert!(private_directory(&loose_root, true));
         let loose = ArtifactCache::with_limit(&loose_root, store.maximum);
@@ -678,11 +762,51 @@ mod tests {
             store.load(&options).unwrap(),
             ((*typed).clone(), candidate.clone())
         );
+        // A historical packed envelope also carries the original v6 logical
+        // manifest independently of current process hints and new segmentation.
+        let old_store = Store {
+            root: store.root.clone(),
+            key: Fingerprint::of(b"historical packed request"),
+            maximum: store.maximum,
+            segmented: true,
+        };
+        let mut guarded = plan.clone();
+        let pack_root = guarded
+            .cache_directory("old-packs", &store.root.join("packs-v1"))
+            .unwrap();
+        assert!(private_directory(&pack_root, true));
+        let namespace = guarded.pin_cache_directory(&pack_root).unwrap();
+        packed::publish(
+            packed::PublishContext {
+                packs: &namespace,
+                manifest_root: &store.root,
+                namespace_key: &pack_root,
+                manifest_key: old_store.key,
+                cancellation: &options.cancellation,
+                profile: true,
+            },
+            &logical,
+            segments
+                .iter()
+                .map(|segment| (segment.fingerprint, segment.bytes.clone()))
+                .collect(),
+            packed::Bounds {
+                maximum: store.maximum,
+                max_items: options.limits.max_functions + 4,
+            },
+            &mut packed::Epoch::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            old_store.load(&options).unwrap(),
+            ((*typed).clone(), candidate.clone())
+        );
         let mut publication = SemanticPublicationSession::default();
         let cold = store
             .save(&typed, &candidate, &options, &plan, &mut publication)
             .unwrap();
         assert_eq!(cold.serialized_functions, 2);
+        assert_eq!(cold.serialized_function_plans, 2);
         assert!(cold.written_segments > 0);
         assert_eq!((cold.physical_pack_writes, cold.manifest_writes), (1, 1));
         assert!(
@@ -707,6 +831,14 @@ mod tests {
             (0, 2, 0)
         );
         assert_eq!((warm.physical_pack_writes, warm.manifest_writes), (0, 1));
+        assert_eq!(
+            (warm.serialized_function_plans, warm.reused_function_plans),
+            (0, 2)
+        );
+        assert_eq!(
+            old_store.load(&options).unwrap(),
+            ((*typed).clone(), candidate.clone())
+        );
         let mut restored_publication = SemanticPublicationSession::default();
         store.remember_packed_epoch(&options, &mut restored_publication);
         let restored = store
@@ -722,7 +854,10 @@ mod tests {
             (restored.physical_pack_writes, restored.written_segments),
             (0, 0)
         );
-        assert_eq!(restored.existing_segments, cold.written_segments);
+        assert_eq!(
+            restored.existing_segments,
+            cold.written_segments + cold.existing_segments
+        );
         assert!(publication.checkpoint_for(&typed).is_some());
         assert!(
             publication
@@ -803,6 +938,158 @@ mod tests {
         )
     }
     const CANONICAL_SOURCE: &str = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}} pub fn main()->i32{let a=f(2);let b=g(a);let c=f(b);return c;}";
+
+    #[test]
+    fn equal_plan_rows_reach_packed_storage_without_reencoding_or_dirty_bytes() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let options = CompileOptions {
+            producer_reuse: true,
+            profile_compilation: true,
+            ..Default::default()
+        };
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.display().to_string(),
+            CANONICAL_SOURCE,
+        );
+        let artifacts = artifacts::ArtifactPlan::new(&source, &options).unwrap();
+        let mut session = CompilationSession::default();
+        let mut publication = SemanticPublicationSession::default();
+        let (cold_typed, cold_candidate, products) =
+            canonical_fixture(&mut session, &path, CANONICAL_SOURCE);
+        publication.bind_products(&products);
+        let cold_store = Store {
+            root: directory.join("semantic-v6"),
+            key: Fingerprint::of(b"cold"),
+            maximum: options.limits.max_source_bytes,
+            segmented: true,
+        };
+        let cold = cold_store
+            .save(
+                &cold_typed,
+                &cold_candidate,
+                &options,
+                &artifacts,
+                &mut publication,
+            )
+            .unwrap();
+        assert_eq!(
+            (cold.serialized_function_plans, cold.reused_function_plans),
+            (3, 0)
+        );
+        let old_plans = publication.plan_slots.clone();
+        let (old_segments, _) = publication
+            .encode(&cold_typed, &cold_candidate, &options.limits)
+            .unwrap();
+        let old_keys: std::collections::BTreeSet<_> =
+            old_segments.iter().map(|s| s.fingerprint).collect();
+
+        let text = CANONICAL_SOURCE.replace("x+1", "x+17");
+        let (typed, candidate, products) = canonical_fixture(&mut session, &path, &text);
+        assert_ne!(
+            cold_candidate.module_fingerprint,
+            candidate.module_fingerprint
+        );
+        assert_eq!(cold_candidate.functions, candidate.functions);
+        publication.bind_products(&products);
+        let private_store = Store {
+            key: Fingerprint::of(b"private"),
+            root: cold_store.root.clone(),
+            maximum: cold_store.maximum,
+            segmented: true,
+        };
+        let private = private_store
+            .save(&typed, &candidate, &options, &artifacts, &mut publication)
+            .unwrap();
+        assert_eq!(
+            (private.serialized_functions, private.reused_functions),
+            (1, 2)
+        );
+        assert_eq!(
+            (
+                private.serialized_function_plans,
+                private.reused_function_plans
+            ),
+            (0, 3)
+        );
+        assert_eq!(private.serialized_function_plan_bytes, 0);
+        assert_eq!(
+            private.reused_function_plan_bytes,
+            cold.serialized_function_plan_bytes
+        );
+        assert_eq!(
+            (private.physical_pack_writes, private.manifest_writes),
+            (1, 1)
+        );
+        for (old, current) in old_plans.iter().zip(&publication.plan_slots) {
+            assert!(Arc::ptr_eq(
+                old.as_ref().unwrap(),
+                current.as_ref().unwrap()
+            ));
+        }
+        let (segments, _) = publication
+            .encode(&typed, &candidate, &options.limits)
+            .unwrap();
+        let dirty: BTreeMap<_, _> = segments
+            .iter()
+            .filter(|segment| !old_keys.contains(&segment.fingerprint))
+            .map(|segment| (segment.fingerprint, segment.bytes.len()))
+            .collect();
+        assert_eq!(private.written_segments, dirty.len());
+        assert_eq!(private.written_bytes, dirty.values().sum::<usize>());
+        assert_eq!(private.physical_pack_bytes, private.written_bytes + 100);
+        // Header/body/metadata change, while every FunctionPlan row stays in an
+        // older bounded pack. History remains self-contained after publication.
+        assert_eq!(private.written_segments, 4);
+        assert_eq!(
+            cold_store.load(&options).unwrap(),
+            ((*cold_typed).clone(), (*cold_candidate).clone())
+        );
+        assert_eq!(
+            private_store.load(&options).unwrap(),
+            ((*typed).clone(), (*candidate).clone())
+        );
+
+        let checkpoint = publication.checkpoint_for(&typed).unwrap();
+        let mut short = options.limits.clone();
+        short.max_source_bytes = flatten(&segments).len() - 1;
+        assert!(publication.encode(&typed, &candidate, &short).is_none());
+        for (old, current) in checkpoint.plan_slots.iter().zip(&publication.plan_slots) {
+            assert!(Arc::ptr_eq(
+                old.as_ref().unwrap(),
+                current.as_ref().unwrap()
+            ));
+        }
+        assert!(
+            publication
+                .encode(&typed, &candidate, &options.limits)
+                .is_some()
+        );
+        assert_eq!(publication.plan_stats.reused_function_plans, 3);
+
+        // Exact row binding prevents old facts from hiding a forged new row;
+        // serialization and disk integrity still do not confer Verify authority.
+        let mut forged = (*candidate).clone();
+        forged.functions[0].function = FunctionId(u32::MAX);
+        let (raw, _) = publication
+            .encode(&typed, &forged, &options.limits)
+            .unwrap();
+        assert_eq!(publication.plan_stats.serialized_function_plans, 1);
+        let logical = manifest(&raw, &publication.bindings, &options.limits).unwrap();
+        let restored = decode_bound(&flatten(&raw), &logical, &options.limits).unwrap();
+        assert!(
+            zil_verify::verify_module(
+                restored.0.module,
+                restored.1,
+                &typed.module.target,
+                &options.limits
+            )
+            .is_err()
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn variable_width_edit_serializes_one_canonical_function_and_rebinds_every_position() {

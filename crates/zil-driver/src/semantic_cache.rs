@@ -83,7 +83,7 @@ impl Store {
         let maximum = if self.segmented {
             packed::Bounds {
                 maximum: self.maximum,
-                max_items: options.limits.max_functions.checked_add(4)?,
+                max_items: items::maximum_segments(&options.limits)?,
             }
             .manifest_maximum()?
         } else {
