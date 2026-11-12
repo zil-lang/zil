@@ -1,0 +1,3400 @@
+{
+  "schema": "zil-full-pipeline-matched-140-summary-v1",
+  "scope": "Historical frozen 140997 only. Later packed-publication and epoch-restoration source changes are excluded.",
+  "raw_archive": {
+    "status": "local raw evidence; pending v2 archive",
+    "external_url": null,
+    "retention": "All 540 original rows, source snapshots, complete current and historical object inventories, symbols, native oracle outputs and blobs remain in the hash-addressed raw runs; deliberately not duplicated in this summary."
+  },
+  "limitations": [
+    "Six sequential blocks in one host window per mode, balanced rotated arm permutations; check and O2 measured separately, OS caches not flushed. This is one fixed synthetic workload, not general language/workload coverage or a significance test.",
+    "Zil wall is resident request send-to-response, excluding process startup. Rust wall includes a fresh Cargo process and any rustc subprocess startup. Source writes, inventory/symbol extraction and native execution are outside request wall.",
+    "Resident own CPU and resident+waited-child CPU are /proc deltas with kernel tick resolution; they are not per-phase counters. Rust CPU is wait4 user+system for the Cargo invocation and waited children; scopes differ.",
+    "Resident RSS is the Zil root process at response; resident peak is a cumulative process high water mark across earlier parent requests. Cargo sampled peak is only the Cargo root; wait4 maxrss is a largest-process statistic, not simultaneous process-tree sum. No cross-language memory advantage follows.",
+    "Rust 1.99.1 commit 58cf8f9c35b355199727627d07ae34a4e2846d67 embeds LLVM 23.1.1; Zil uses LLVM API/clang 23.1.4. Same requested CGU16/O2/jobs1 does not make partition membership, optimizer, frontend work or verification equivalent.",
+    "Actual current Rust incremental session objects are selected by unique completed-session delta or retained previous current session; historical sessions are excluded. Matching inode/device/mtime/content is a physical carry-forward observation, not rustc query-red-green or proof of skipped codegen. Zil hit states are current compiler cache receipts, not the same metric.",
+    "Defined nm symbols document emitted object contents, which can omit optimized/inlined source functions; they are not complete source dependency sets. Equal hashes alone do not prove that work was skipped.",
+    "Current independent Zil Verify is invoked on every successful request; cached process-private receipts can discharge current obligations. Rust and Zil safety/diagnostic contracts are different.",
+    "No claim of globally minimal work, whole-pipeline completion, Rust equivalence or universal speedup. Cold/broad overhead and error/recovery gaps remain visible."
+  ],
+  "observed_negative_results": {
+    "check": [
+      "cold candidate median 1534.846 ms exceeds main 978.868 and Rust 1144.397",
+      "broad candidate 1255.842 exceeds main 799.554 and Rust 1225.254",
+      "restore candidate 119.557 exceeds main 112.081",
+      "error candidate 435.643 exceeds Rust 306.717",
+      "recovery candidate 412.536 exceeds Rust 311.469"
+    ],
+    "o2": [
+      "cold candidate 6994.978 exceeds main 6078.976 and Rust 5973.306",
+      "broad candidate 6696.254 exceeds main 5472.805 and Rust 5677.931",
+      "unchanged candidate 111.653 exceeds Rust 28.045",
+      "private candidate 888.462 exceeds Rust 514.506",
+      "error candidate 325.002 exceeds Rust 300.337",
+      "recovery candidate 1202.009 exceeds Rust 569.202"
+    ],
+    "work": [
+      "Candidate private edit still executes 5/425 Types CFGs and 21 BodyKeys, although it lowers 1 machine function and independently checks 1 function proof. It is not end-to-end one-function work.",
+      "Candidate measured error is a Types rejection, preserving existing executable; in recovery it executes 404/425 Types CFGs and 421 BodyKeys, despite native lower/proof counts 1 and object misses 1. Parent-history accelerator restoration is a real remaining defect in this frozen source."
+    ]
+  },
+  "identities": {
+    "sources": {
+      "baseline": {
+        "commit": "99035931d358add0eaed6d4535035c38413701dd",
+        "tree": "1c16744d838064cb1c687ba56ef3a0d17ed3130c",
+        "worktree": "/workspace/zil",
+        "status": "",
+        "source_tree_inventory": {
+          "sha256": "26c66974d2e203944b1ff7af0232aa58f9a34014925a7c2c0b59c1f8b45f61a9",
+          "bytes": 473628,
+          "archive": "blobs/26c66974d2e203944b1ff7af0232aa58f9a34014925a7c2c0b59c1f8b45f61a9.git-ls-tree"
+        },
+        "worktree_diff": {
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+        }
+      },
+      "candidate": {
+        "commit": "140997e032df26c31d94fe029ac86c7b42560182",
+        "tree": "832ab8bf0e10f5e3038b9872499e35be21e16bef",
+        "worktree": "/workspace/zil-demand-frozen-140997",
+        "status": "",
+        "source_tree_inventory": {
+          "sha256": "d321f88f24d852e165ce7d3e9669bca5686f0faee856d339c365f2e3cefcb794",
+          "bytes": 480329,
+          "archive": "blobs/d321f88f24d852e165ce7d3e9669bca5686f0faee856d339c365f2e3cefcb794.git-ls-tree"
+        },
+        "worktree_diff": {
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+        }
+      }
+    },
+    "binaries": {
+      "baseline": {
+        "path": "/workspace/zil/target/release/zil",
+        "sha256": "e5fb6fdfdd9bd1a2a7d064519defaf860e0207d939924ab0fab6fe59044454c7",
+        "bytes": 22996136,
+        "archive": "blobs/e5fb6fdfdd9bd1a2a7d064519defaf860e0207d939924ab0fab6fe59044454c7.compiler",
+        "build_receipt": {
+          "sha256": "028d4624d462c934710d2d67ac8a527dfd273a96fff9a6d48c31e869c23d2db4",
+          "bytes": 704,
+          "archive": "blobs/028d4624d462c934710d2d67ac8a527dfd273a96fff9a6d48c31e869c23d2db4.build-receipt"
+        }
+      },
+      "candidate": {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-canonical-build/candidate-zil",
+        "sha256": "2769bd9bd5d8ccbb83ba0aa8fea464a42429be5415ba128b36c4bb74f7af05c5",
+        "bytes": 24467128,
+        "archive": "blobs/2769bd9bd5d8ccbb83ba0aa8fea464a42429be5415ba128b36c4bb74f7af05c5.compiler",
+        "build_receipt": {
+          "sha256": "1ef024c8ace76a8700940d73289df08c71094a77d3617a5b593de05e08bb356d",
+          "bytes": 605,
+          "archive": "blobs/1ef024c8ace76a8700940d73289df08c71094a77d3617a5b593de05e08bb356d.build-receipt"
+        }
+      }
+    },
+    "tools": {
+      "cargo": {
+        "requested": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "launcher_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "launcher_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+        "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "actual_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+      },
+      "rustc": {
+        "requested": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "launcher_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "launcher_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+        "actual_path": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "actual_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+      },
+      "nm": {
+        "actual_path": "/usr/bin/x86_64-linux-gnu-nm",
+        "actual_sha256": "ddb55c0685721bf494aa2d090056b8b32a40614ad4464b305896f527d882c3c1"
+      }
+    },
+    "implementation": {
+      "matched_measure.py": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd",
+      "rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+      "native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+      "native_measure.py": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d",
+      "matched_validate.py": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+    },
+    "tools_after_sha256": {
+      "cargo": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "rustc": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "nm": "ddb55c0685721bf494aa2d090056b8b32a40614ad4464b305896f527d882c3c1"
+    },
+    "binary_after_sha256": {
+      "baseline": "e5fb6fdfdd9bd1a2a7d064519defaf860e0207d939924ab0fab6fe59044454c7",
+      "candidate": "2769bd9bd5d8ccbb83ba0aa8fea464a42429be5415ba128b36c4bb74f7af05c5"
+    },
+    "implementation_after_sha256": {
+      "matched_measure.py": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd",
+      "rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+      "native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+      "native_measure.py": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d",
+      "matched_validate.py": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+    }
+  },
+  "runs": {
+    "check": {
+      "evidence": {
+        "manifest": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1/manifest.json",
+          "sha256": "477b81a5638669ff33853fd061797bf808bf0f4ed6c16bc625224fbacc4cb5b8",
+          "bytes": 10649
+        },
+        "rows": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1/rows.jsonl",
+          "sha256": "821428a02908375217846224b2d6d57f4d9ddd93715f18a27e21cc710ac7552e",
+          "bytes": 3822976
+        },
+        "validation": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1-validation.json",
+          "sha256": "cc3499627b3b5454b07bff967f7404f7edd8a94948f377f490ca5e48773978e0",
+          "bytes": 4556
+        },
+        "completion": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1/completion.json",
+          "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+          "bytes": 77
+        },
+        "rustc_version": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1/rustc-version/stdout.bin",
+          "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+          "bytes": 196
+        },
+        "cargo_version": {
+          "path": "out/runs/full-pipeline-matched-check-140-r1/cargo-version/stdout.bin",
+          "sha256": "c8d779e105538d1d2db3c4799b42feb659c6f87b2b2182e963e54cb0537c5be1",
+          "bytes": 336
+        }
+      },
+      "validation": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 0,
+        "verified_blobs": 7
+      },
+      "protocol": {
+        "fixed": {
+          "blocks": 6,
+          "requests": [
+            "cold",
+            "unchanged",
+            "private",
+            "multi",
+            "broad",
+            "restore",
+            "error",
+            "recovery"
+          ],
+          "modules": 20,
+          "functions": 20,
+          "steps": 16,
+          "codegen_units_requested": 16,
+          "codegen_jobs": 1,
+          "native_opt": "O2",
+          "cache": "all",
+          "capacity": 256
+        },
+        "timing_policy": "Sequential three-arm requests, six balanced arm permutations rotated per block/request. Zil resident send-to-response excludes startup; Rust full Cargo process includes startup. Source writes, object inventory and native execution occur outside request wall timing. No profiling. OS cache not flushed.",
+        "parent_policy": "Every non-cold request is immediately preceded for all three arms by its validated named parent: recovery<-error, restore<-private, all others<-cold. Preparations retained and validated, no cache reset within block.",
+        "inventory_policy": "Archive actual object bytes and defined symbol tables, Rust incremental metadata and inode/content/mtime observations; Zil current per-unit action-key/cache-state receipts. Hash equality is not proof of skipped work. No partition equivalence implied by requested CGU16.",
+        "memory_policy": "Root-only RSS; resident Zil root vs Cargo root are different scopes. wait4 maxrss is largest process, not tree sum; no cross-language memory advantage.",
+        "fixture_identity": {
+          "cold": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "unchanged": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "private": {
+            "zil": "f35aa8552c372641afba687f7c3cd629a874bc965add983ceb7f68f7cb4250ba",
+            "rust": "d1092e00058be8079bf2250b9e98cb7e485082315496c6d7e251e74b4251a311"
+          },
+          "multi": {
+            "zil": "8c5bd2990e94ee090bf682e0dfef5864053c5f96fcf0a135668aab18b4087b2b",
+            "rust": "02270c48ff74b2c1989c8a8d8fc1ed2fc70d1eed51016f9506353005f1fff21c"
+          },
+          "broad": {
+            "zil": "d57ef31ab1480528d1e4b1454d401f453679fb21a54712bfa58246d97d78b133",
+            "rust": "51d9de8b31863477b28edec89d7b6e6b09844293524144239e3dc97bc300a381"
+          },
+          "restore": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "error": {
+            "zil": "32258c2a9dda728ffa550cf2e4705460f847f1f1b511c9a1c4131df4c7e28e6e",
+            "rust": "6235e0d883d57c09b2f36d189d7a6fe93be8f191e664225053c0640470aa148b"
+          },
+          "recovery": {
+            "zil": "f066f5320f600f8c6409c0e37a6ed2adfb4a0fedb2debab3e1ea7cb813149989",
+            "rust": "e05d3cfbae82eeb61738ac9c66f2bc1768fb9b9064b872505f1a310670dcfbc2"
+          }
+        },
+        "explicit_environment": {
+          "CARGO_HOME": "/workspace/zil-demand/out/runs/full-pipeline-matched-check-140-r1/cargo-home",
+          "RUSTC": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+          "CARGO_INCREMENTAL": "1",
+          "CARGO_BUILD_JOBS": "1",
+          "CARGO_TERM_COLOR": "never"
+        },
+        "runtime_environment": {
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null,
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "CARGO_TARGET_DIR": "/workspace/zil-demand/target",
+          "RUSTUP_TOOLCHAIN": null
+        },
+        "host": {
+          "affinity": [0, 1, 2, 3, 4],
+          "load_average": [1.16455078125, 2.25390625, 1.82666015625],
+          "uname": [
+            "Linux",
+            "812a1e369871",
+            "6.18.57",
+            "#1 SMP Tue Oct 20 21:56:04 UTC 2026",
+            "x86_64"
+          ]
+        },
+        "started_utc": "2026-11-12T05:00:51Z",
+        "completed_utc": "2026-11-12T05:02:38Z"
+      },
+      "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "cargo_version": "cargo 1.99.1 (5f94df478 2026-08-27)\nrelease: 1.99.1\ncommit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e\ncommit-date: 2026-08-27\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Debian 13.0.0 (trixie) [64-bit]\n",
+      "cells": {
+        "cold": {
+          "baseline": {
+            "wall_ms": [1930.143688, 1335.883549, 814.116262, 630.259187, 1109.240383, 848.496349],
+            "median_ms": 978.868366,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [1.92, 1.32, 0.8099999999999999, 0.62, 1.09, 0.82],
+              "resident_and_waited_cpu_seconds": [1.92, 1.32, 0.8099999999999999, 0.62, 1.09, 0.82],
+              "resident_rss_kib": [232448, 232112, 232096, 231984, 232348, 232048],
+              "resident_peak_kib": [272540, 272220, 272156, 272156, 272492, 272272]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:executed": 22,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [1656.549157, 1891.888047, 1529.570804, 1540.121309, 1258.606968, 1236.893238],
+            "median_ms": 1534.8460565,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [1.32, 1.51, 1.21, 1.21, 0.97, 0.95],
+              "resident_and_waited_cpu_seconds": [1.32, 1.51, 1.21, 1.21, 0.97, 0.95],
+              "resident_rss_kib": [307196, 307036, 307064, 306920, 307212, 307100],
+              "resident_peak_kib": [307196, 307036, 307064, 306920, 307212, 307100]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 423,
+                    "function_proofs_reused": 0,
+                    "instruction_proofs_reused": 0
+                  },
+                  "query_events": {
+                    "parse:executed": 22,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 425,
+                    "reused_functions": 0,
+                    "body_key_executions": 421,
+                    "body_key_reuses": 0,
+                    "cfg_same_span_reuses": 0,
+                    "cfg_relocated_functions": 0
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 425,
+                    "candidate_reused_functions": 0,
+                    "initialization_inputs_built": 423,
+                    "candidate_inputs_built": 421,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 22,
+                    "lower_modules": 22,
+                    "reused_lower_modules": 0,
+                    "function_input_hashes": 425,
+                    "function_input_reuses": 0,
+                    "normalized_item_deep_clones": 425,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 22,
+                    "reused_modules": 0,
+                    "cloned_modules": 22
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [1107.873391, 1208.604767, 1235.919, 904.89722, 1180.921358, 1047.683588],
+            "median_ms": 1144.3973745,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [1.0980679999999998, 1.205028, 1.209579, 0.8964799999999999, 1.153074, 1.0389279999999999],
+              "tree_user_seconds_wait4": [0.9417979999999999, 1.105362, 0.983903, 0.826799, 0.888103, 0.8579829999999999],
+              "tree_system_seconds_wait4": [0.15627, 0.09966599999999999, 0.225676, 0.06968099999999999, 0.264971, 0.180945],
+              "wait4_maxrss_kib": [226764, 226716, 226672, 226952, 226880, 226768],
+              "cargo_peak_sampled_rss_kib": [18088.0, 17840.0, 17992.0, 17488.0, 17172.0, 17916.0],
+              "memory_sample_count": [212, 223, 225, 174, 226, 203]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 1.567980036756035,
+          "candidate_to_rust_median_ratio": 1.3411827837953503
+        },
+        "unchanged": {
+          "baseline": {
+            "wall_ms": [90.654501, 84.617651, 92.118366, 246.844174, 86.450706, 83.499009],
+            "median_ms": 88.5526035,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.0900000000000003, 0.08000000000000007, 0.09999999999999998, 0.24, 0.08999999999999986, 0.08999999999999997],
+              "resident_and_waited_cpu_seconds": [0.0900000000000003, 0.08000000000000007, 0.09999999999999998, 0.24, 0.08999999999999986, 0.08999999999999997],
+              "resident_rss_kib": [241008, 240672, 240592, 240480, 240908, 240544],
+              "resident_peak_kib": [274608, 274288, 274092, 274092, 274560, 274156]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [3.513099, 2.784926, 4.352247, 40.960632, 2.898628, 2.463834],
+            "median_ms": 3.2058635,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.0, 0.0, 0.0, 0.040000000000000036, 0.0, 0.0],
+              "resident_and_waited_cpu_seconds": [0.0, 0.0, 0.0, 0.040000000000000036, 0.0, 0.0],
+              "resident_rss_kib": [307196, 307036, 307064, 306920, 307212, 307100],
+              "resident_peak_kib": [307196, 307036, 307064, 306920, 307212, 307100]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "resident",
+                  "verification_work": {
+                    "full_receipts_reused": 1,
+                    "function_proofs_checked": 0,
+                    "function_proofs_reused": 0,
+                    "instruction_proofs_reused": 0
+                  },
+                  "query_events": {
+                    "parse:reused": 22,
+                    "expand:reused": 1,
+                    "ct:reused": 1,
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [13.221038, 13.827794, 13.567737, 70.634655, 12.178866, 12.660839],
+            "median_ms": 13.3943875,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.01265, 0.013145, 0.012706, 0.069355, 0.01115, 0.012178999999999999],
+              "tree_user_seconds_wait4": [0.003202, 0.0029059999999999997, 0.012706, 0.048504, 0.00358, 0.012178999999999999],
+              "tree_system_seconds_wait4": [0.009448, 0.010239, 0.0, 0.020850999999999998, 0.0075699999999999995, 0.0],
+              "wait4_maxrss_kib": [59460, 59460, 59460, 59460, 59460, 59460],
+              "cargo_peak_sampled_rss_kib": [12024.0, 15640.0, 14740.0, 16968.0, 17320.0, 15752.0],
+              "memory_sample_count": [3, 3, 3, 14, 3, 3]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.03620292767563858,
+          "candidate_to_rust_median_ratio": 0.239343792315998
+        },
+        "private": {
+          "baseline": {
+            "wall_ms": [811.944791, 896.169452, 721.084767, 694.939859, 694.174621, 628.757508],
+            "median_ms": 708.012313,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.81, 0.8900000000000001, 0.71, 0.7000000000000002, 0.7, 0.6299999999999999],
+              "resident_and_waited_cpu_seconds": [0.81, 0.8900000000000001, 0.71, 0.7000000000000002, 0.7, 0.6299999999999999],
+              "resident_rss_kib": [373064, 372728, 372648, 372536, 372964, 372600],
+              "resident_peak_kib": [373064, 372728, 372648, 372536, 372964, 372600]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [275.227748, 320.180203, 274.022409, 252.95312, 221.988774, 405.323139],
+            "median_ms": 274.6250785,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.27, 0.32000000000000006, 0.27, 0.25, 0.21999999999999997, 0.40000000000000013],
+              "resident_and_waited_cpu_seconds": [0.27, 0.32000000000000006, 0.27, 0.25, 0.21999999999999997, 0.40000000000000013],
+              "resident_rss_kib": [330008, 329920, 329876, 329732, 330172, 329996],
+              "resident_peak_kib": [330008, 329920, 329876, 329732, 330172, 329996]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 5,
+                    "reused_functions": 420,
+                    "body_key_executions": 21,
+                    "body_key_reuses": 400,
+                    "cfg_same_span_reuses": 400,
+                    "cfg_relocated_functions": 20
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 5,
+                    "candidate_reused_functions": 420,
+                    "initialization_inputs_built": 1,
+                    "candidate_inputs_built": 1,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 1,
+                    "lower_modules": 1,
+                    "reused_lower_modules": 21,
+                    "function_input_hashes": 21,
+                    "function_input_reuses": 404,
+                    "normalized_item_deep_clones": 21,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 1,
+                    "reused_modules": 21,
+                    "cloned_modules": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [319.914139, 404.98344, 349.274919, 232.038694, 278.620939, 188.478563],
+            "median_ms": 299.267539,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.314723, 0.399601, 0.345257, 0.229026, 0.276327, 0.184343],
+              "tree_user_seconds_wait4": [0.17268899999999998, 0.293483, 0.202373, 0.173117, 0.184501, 0.149176],
+              "tree_system_seconds_wait4": [0.142034, 0.10611799999999999, 0.14288399999999998, 0.055909, 0.09182599999999999, 0.035167],
+              "wait4_maxrss_kib": [133252, 133292, 133300, 133048, 133080, 133184],
+              "cargo_peak_sampled_rss_kib": [17560.0, 18008.0, 18160.0, 17748.0, 17760.0, 17652.0],
+              "memory_sample_count": [62, 76, 68, 45, 54, 37]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.3878817832084793,
+          "candidate_to_rust_median_ratio": 0.9176574225779962
+        },
+        "multi": {
+          "baseline": {
+            "wall_ms": [489.819817, 651.092013, 647.283191, 929.402433, 708.421329, 830.655037],
+            "median_ms": 679.756671,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.48999999999999977, 0.6600000000000001, 0.6399999999999999, 0.9199999999999999, 0.6999999999999997, 0.8199999999999998],
+              "resident_and_waited_cpu_seconds": [0.48999999999999977, 0.6600000000000001, 0.6399999999999999, 0.9199999999999999, 0.6999999999999997, 0.8199999999999998],
+              "resident_rss_kib": [466800, 466464, 466384, 466272, 466700, 466336],
+              "resident_peak_kib": [466800, 466464, 466384, 466272, 466700, 466336]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 20,
+                    "parse:executed": 2,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [252.194263, 204.597197, 208.727242, 214.601612, 298.449563, 263.973148],
+            "median_ms": 233.3979375,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.24, 0.19999999999999973, 0.19999999999999996, 0.20999999999999996, 0.2799999999999998, 0.26],
+              "resident_and_waited_cpu_seconds": [0.24, 0.19999999999999973, 0.19999999999999996, 0.20999999999999996, 0.2799999999999998, 0.26],
+              "resident_rss_kib": [363916, 363828, 363776, 363640, 364072, 363896],
+              "resident_peak_kib": [369008, 368764, 368772, 368668, 369056, 368840]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 3,
+                    "function_proofs_reused": 420,
+                    "instruction_proofs_reused": 132539
+                  },
+                  "query_events": {
+                    "parse:reused": 20,
+                    "parse:executed": 2,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 6,
+                    "reused_functions": 419,
+                    "body_key_executions": 42,
+                    "body_key_reuses": 379,
+                    "cfg_same_span_reuses": 379,
+                    "cfg_relocated_functions": 40
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 6,
+                    "candidate_reused_functions": 419,
+                    "initialization_inputs_built": 2,
+                    "candidate_inputs_built": 2,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 3,
+                    "lower_modules": 3,
+                    "reused_lower_modules": 19,
+                    "function_input_hashes": 63,
+                    "function_input_reuses": 362,
+                    "normalized_item_deep_clones": 63,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 3,
+                    "reused_modules": 19,
+                    "cloned_modules": 3
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [192.739966, 326.389241, 312.363862, 400.402512, 306.274918, 183.417022],
+            "median_ms": 309.31939,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.18739399999999998, 0.320812, 0.30888699999999997, 0.397561, 0.300243, 0.18064999999999998],
+              "tree_user_seconds_wait4": [0.15925799999999998, 0.212168, 0.22767199999999999, 0.23165, 0.208424, 0.14075],
+              "tree_system_seconds_wait4": [0.028135999999999998, 0.10864399999999999, 0.081215, 0.165911, 0.091819, 0.0399],
+              "wait4_maxrss_kib": [133672, 133796, 133900, 133808, 133884, 133716],
+              "cargo_peak_sampled_rss_kib": [17556.0, 17776.0, 17748.0, 17772.0, 18020.0, 18084.0],
+              "memory_sample_count": [38, 63, 61, 77, 53, 36]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.3433551261168866,
+          "candidate_to_rust_median_ratio": 0.7545532063153235
+        },
+        "broad": {
+          "baseline": {
+            "wall_ms": [566.414209, 811.886722, 768.740729, 1128.504604, 787.220354, 915.989308],
+            "median_ms": 799.553538,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.5599999999999996, 0.7999999999999998, 0.77, 1.12, 0.77, 0.8999999999999999],
+              "resident_and_waited_cpu_seconds": [0.5599999999999996, 0.7999999999999998, 0.77, 1.12, 0.77, 0.8999999999999999],
+              "resident_rss_kib": [622476, 622108, 622108, 621948, 622372, 622060],
+              "resident_peak_kib": [662596, 662244, 662028, 661992, 662424, 661952]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 2,
+                    "parse:executed": 20,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [1064.853562, 1249.363495, 2069.865062, 1248.845017, 1661.490164, 1262.321168],
+            "median_ms": 1255.8423315,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.81, 0.9899999999999998, 1.7400000000000002, 0.9100000000000001, 1.3800000000000001, 0.99],
+              "resident_and_waited_cpu_seconds": [0.81, 0.9899999999999998, 1.7400000000000002, 0.9100000000000001, 1.3800000000000001, 0.99],
+              "resident_rss_kib": [611700, 611796, 611496, 611380, 612208, 611768],
+              "resident_peak_kib": [611700, 611796, 611496, 611380, 612208, 611768]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 400,
+                    "function_proofs_reused": 23,
+                    "instruction_proofs_reused": 2323
+                  },
+                  "query_events": {
+                    "parse:reused": 2,
+                    "parse:executed": 20,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 401,
+                    "reused_functions": 24,
+                    "body_key_executions": 417,
+                    "body_key_reuses": 4,
+                    "cfg_same_span_reuses": 4,
+                    "cfg_relocated_functions": 20
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 401,
+                    "candidate_reused_functions": 24,
+                    "initialization_inputs_built": 397,
+                    "candidate_inputs_built": 397,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 20,
+                    "lower_modules": 20,
+                    "reused_lower_modules": 2,
+                    "function_input_hashes": 420,
+                    "function_input_reuses": 5,
+                    "normalized_item_deep_clones": 420,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 20,
+                    "reused_modules": 2,
+                    "cloned_modules": 20
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [830.559724, 1223.46161, 1362.308396, 1199.353399, 1227.047082, 1248.127149],
+            "median_ms": 1225.2543460000002,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.827182, 1.220751, 1.36372, 1.1957209999999998, 1.2126489999999999, 1.242084],
+              "tree_user_seconds_wait4": [0.759281, 0.969626, 1.029069, 0.9802519999999999, 0.990169, 0.915084],
+              "tree_system_seconds_wait4": [0.067901, 0.251125, 0.334651, 0.215469, 0.22247999999999998, 0.327],
+              "wait4_maxrss_kib": [226684, 226676, 226820, 226508, 226644, 226820],
+              "cargo_peak_sampled_rss_kib": [17604.0, 18024.0, 17764.0, 17768.0, 18172.0, 18396.0],
+              "memory_sample_count": [161, 227, 252, 218, 227, 233]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 1.5706794752498487,
+          "candidate_to_rust_median_ratio": 1.0249646006968742
+        },
+        "restore": {
+          "baseline": {
+            "wall_ms": [83.186961, 144.372434, 107.58726, 116.574985, 230.217694, 81.825748],
+            "median_ms": 112.08112249999999,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.09000000000000075, 0.14000000000000057, 0.10999999999999988, 0.10999999999999943, 0.23000000000000043, 0.07999999999999963],
+              "resident_and_waited_cpu_seconds": [0.09000000000000075, 0.14000000000000057, 0.10999999999999988, 0.10999999999999943, 0.23000000000000043, 0.07999999999999963],
+              "resident_rss_kib": [635516, 635144, 635152, 634988, 635408, 635104],
+              "resident_peak_kib": [662596, 662244, 662028, 661992, 662424, 661952]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [84.572589, 189.691131, 209.346682, 128.379059, 110.734898, 91.286527],
+            "median_ms": 119.55697850000001,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.07999999999999963, 0.17999999999999972, 0.20999999999999996, 0.1299999999999999, 0.11999999999999966, 0.10000000000000009],
+              "resident_and_waited_cpu_seconds": [0.07999999999999963, 0.17999999999999972, 0.20999999999999996, 0.1299999999999999, 0.11999999999999966, 0.10000000000000009],
+              "resident_rss_kib": [628228, 628336, 628044, 627920, 628740, 628320],
+              "resident_peak_kib": [628228, 628336, 628044, 627920, 628740, 628320]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [165.461174, 392.41998, 240.640194, 236.795557, 325.232891, 186.076388],
+            "median_ms": 238.7178755,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.16150399999999998, 0.388943, 0.234664, 0.23608099999999999, 0.314203, 0.17657099999999998],
+              "tree_user_seconds_wait4": [0.13442199999999999, 0.330821, 0.198633, 0.19368, 0.262158, 0.138419],
+              "tree_system_seconds_wait4": [0.027082, 0.058122, 0.036031, 0.042401, 0.052045, 0.038152],
+              "wait4_maxrss_kib": [133296, 133228, 133364, 133100, 133276, 133256],
+              "cargo_peak_sampled_rss_kib": [17828.0, 17832.0, 17892.0, 17796.0, 17612.0, 17924.0],
+              "memory_sample_count": [32, 73, 47, 46, 61, 36]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 1.066700402648091,
+          "candidate_to_rust_median_ratio": 0.5008296016776508
+        },
+        "error": {
+          "baseline": {
+            "wall_ms": [312.88189, 707.678408, 382.290678, 436.407488, 678.070378, 445.330885],
+            "median_ms": 440.8691865,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.3100000000000005, 0.7000000000000002, 0.38000000000000034, 0.4299999999999997, 0.6599999999999993, 0.4400000000000004],
+              "resident_and_waited_cpu_seconds": [0.3100000000000005, 0.7000000000000002, 0.38000000000000034, 0.4299999999999997, 0.6599999999999993, 0.4400000000000004],
+              "resident_rss_kib": [724076, 723824, 723792, 723548, 724064, 723744],
+              "resident_peak_kib": [724076, 723824, 723792, 723548, 724064, 723744]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "SafeReject",
+                  "phase": "types",
+                  "verification_runs": 0,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1
+                  },
+                  "diagnostics": [
+                    {
+                      "phase": "types",
+                      "category": "SafeReject",
+                      "code": "E-UNKNOWN-NAME",
+                      "message": "unknown function absent_name",
+                      "span": {
+                        "file": 2,
+                        "start": 1196,
+                        "end": 1207
+                      },
+                      "notes": []
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [303.630285, 593.013202, 334.02504, 630.084105, 537.260429, 333.614498],
+            "median_ms": 435.6427345,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.31000000000000005, 0.5900000000000003, 0.33000000000000007, 0.6099999999999999, 0.5300000000000002, 0.33000000000000007],
+              "resident_and_waited_cpu_seconds": [0.31000000000000005, 0.5900000000000003, 0.33000000000000007, 0.6099999999999999, 0.5300000000000002, 0.33000000000000007],
+              "resident_rss_kib": [699056, 699140, 698840, 698704, 699508, 699124],
+              "resident_peak_kib": [699056, 699140, 698840, 698704, 699508, 699124]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "SafeReject",
+                  "phase": "types",
+                  "verification_runs": 0,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 4,
+                    "reused_functions": 1,
+                    "body_key_executions": 420,
+                    "body_key_reuses": 1,
+                    "cfg_same_span_reuses": 1,
+                    "cfg_relocated_functions": 0
+                  },
+                  "producer": {
+                    "classified_modules": 20,
+                    "lower_modules": 20,
+                    "reused_lower_modules": 2,
+                    "function_input_hashes": 420,
+                    "function_input_reuses": 5,
+                    "normalized_item_deep_clones": 420,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 20,
+                    "reused_modules": 2,
+                    "cloned_modules": 20
+                  },
+                  "diagnostics": [
+                    {
+                      "phase": "types",
+                      "category": "SafeReject",
+                      "code": "E-UNKNOWN-NAME",
+                      "message": "unknown function absent_name",
+                      "span": {
+                        "file": 2,
+                        "start": 1196,
+                        "end": 1207
+                      },
+                      "notes": []
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [175.322113, 204.454367, 355.320778, 299.541337, 396.529035, 313.892291],
+            "median_ms": 306.716814,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [101, 101, 101, 101, 101, 101],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.17224599999999998, 0.19899, 0.343938, 0.300041, 0.39286599999999994, 0.30466699999999997],
+              "tree_user_seconds_wait4": [0.131455, 0.161416, 0.252587, 0.24858, 0.286193, 0.16472699999999998],
+              "tree_system_seconds_wait4": [0.040791, 0.037573999999999996, 0.091351, 0.051461, 0.10667299999999999, 0.13993999999999998],
+              "wait4_maxrss_kib": [146124, 146188, 146004, 146360, 146100, 146368],
+              "cargo_peak_sampled_rss_kib": [18332.0, 18272.0, 18388.0, 18420.0, 18204.0, 18796.0],
+              "memory_sample_count": [34, 40, 65, 55, 74, 60]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [
+                    {
+                      "rendered": "error[E0425]: cannot find value `absent_name` in this scope\n  --> src/m0.rs:19:12\n   |\n19 |     return absent_name;\n   |            ^^^^^^^^^^^ not found in this scope\n\n",
+                      "$message_type": "diagnostic",
+                      "children": [],
+                      "level": "error",
+                      "message": "cannot find value `absent_name` in this scope",
+                      "spans": [
+                        {
+                          "byte_end": 1244,
+                          "byte_start": 1233,
+                          "column_end": 23,
+                          "column_start": 12,
+                          "expansion": null,
+                          "file_name": "src/m0.rs",
+                          "is_primary": true,
+                          "label": "not found in this scope",
+                          "line_end": 19,
+                          "line_start": 19,
+                          "suggested_replacement": null,
+                          "suggestion_applicability": null,
+                          "text": [
+                            {
+                              "highlight_end": 23,
+                              "highlight_start": 12,
+                              "text": "    return absent_name;"
+                            }
+                          ]
+                        }
+                      ],
+                      "code": {
+                        "code": "E0425",
+                        "explanation": "An unresolved name was used.\n\nErroneous code examples:\n\n```compile_fail,E0425\nsomething_that_doesnt_exist::foo;\n// error: unresolved name `something_that_doesnt_exist::foo`\n\n// or:\n\ntrait Foo {\n    fn bar() {\n        Self; // error: unresolved name `Self`\n    }\n}\n\n// or:\n\nlet x = unknown_variable;  // error: unresolved name `unknown_variable`\n```\n\nPlease verify that the name wasn't misspelled and ensure that the\nidentifier being referred to is valid for the given situation. Example:\n\n```\nenum something_that_does_exist {\n    Foo,\n}\n```\n\nOr:\n\n```\nmod something_that_does_exist {\n    pub static foo : i32 = 0i32;\n}\n\nsomething_that_does_exist::foo; // ok!\n```\n\nOr:\n\n```\nlet unknown_variable = 12u32;\nlet x = unknown_variable; // ok!\n```\n\nIf the item is not defined in the current module, it must be imported using a\n`use` statement, like so:\n\n```\n# mod foo { pub fn bar() {} }\n# fn main() {\nuse foo::bar;\nbar();\n# }\n```\n\nIf the item you are importing is not defined in some super-module of the\ncurrent module, then it must also be declared as public (e.g., `pub fn`).\n"
+                      }
+                    },
+                    {
+                      "rendered": "For more information about this error, try `rustc --explain E0425`.\n",
+                      "$message_type": "diagnostic",
+                      "children": [],
+                      "level": "failure-note",
+                      "message": "For more information about this error, try `rustc --explain E0425`.",
+                      "spans": [],
+                      "code": null
+                    }
+                  ],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.9881451184159816,
+          "candidate_to_rust_median_ratio": 1.4203418743779728
+        },
+        "recovery": {
+          "baseline": {
+            "wall_ms": [541.316129, 642.089069, 543.366198, 1335.326583, 786.376919, 775.893663],
+            "median_ms": 708.991366,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.54, 0.6400000000000006, 0.54, 1.3199999999999994, 0.79, 0.7700000000000005],
+              "resident_and_waited_cpu_seconds": [0.54, 0.6400000000000006, 0.54, 1.3199999999999994, 0.79, 0.7700000000000005],
+              "resident_rss_kib": [781464, 781136, 781084, 780932, 781360, 781036],
+              "resident_peak_kib": [821648, 821228, 821132, 821104, 821608, 821092]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [338.267122, 516.433877, 394.563058, 430.50987, 492.277687, 360.385766],
+            "median_ms": 412.536464,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.33000000000000007, 0.5099999999999998, 0.39000000000000057, 0.41999999999999993, 0.4900000000000002, 0.34999999999999964],
+              "resident_and_waited_cpu_seconds": [0.33000000000000007, 0.5099999999999998, 0.39000000000000057, 0.41999999999999993, 0.4900000000000002, 0.34999999999999964],
+              "resident_rss_kib": [726852, 726928, 726632, 726504, 727312, 726920],
+              "resident_peak_kib": [726852, 726928, 726632, 726504, 727312, 726920]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "verify",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 404,
+                    "reused_functions": 21,
+                    "body_key_executions": 421,
+                    "body_key_reuses": 0,
+                    "cfg_same_span_reuses": 20,
+                    "cfg_relocated_functions": 1
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 404,
+                    "candidate_reused_functions": 21,
+                    "initialization_inputs_built": 400,
+                    "candidate_inputs_built": 400,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 1,
+                    "lower_modules": 1,
+                    "reused_lower_modules": 21,
+                    "function_input_hashes": 21,
+                    "function_input_reuses": 404,
+                    "normalized_item_deep_clones": 21,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 1,
+                    "reused_modules": 21,
+                    "cloned_modules": 1
+                  },
+                  "diagnostics": []
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [157.296258, 289.295117, 182.325265, 394.931041, 333.64271, 336.239613],
+            "median_ms": 311.4689135,
+            "actual_current_object_counts": [0, 0, 0, 0, 0, 0],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.152247, 0.279812, 0.178471, 0.394719, 0.33254799999999995, 0.331001],
+              "tree_user_seconds_wait4": [0.12379499999999999, 0.24278, 0.15733, 0.208092, 0.175171, 0.15667],
+              "tree_system_seconds_wait4": [0.028451999999999998, 0.037031999999999995, 0.021141, 0.186627, 0.157377, 0.17433099999999999],
+              "wait4_maxrss_kib": [133544, 133404, 133448, 133408, 133404, 133432],
+              "cargo_peak_sampled_rss_kib": [17760.0, 17716.0, 18192.0, 18204.0, 18384.0, 17724.0],
+              "memory_sample_count": [31, 55, 36, 72, 65, 65]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 0,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.5818638756173514,
+          "candidate_to_rust_median_ratio": 1.3244867982627744
+        }
+      }
+    },
+    "o2": {
+      "evidence": {
+        "manifest": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1/manifest.json",
+          "sha256": "725a3d8456eb93833d1a5084ed446335bb83cb444a5708125d72ba6f49fd4e30",
+          "bytes": 10641
+        },
+        "rows": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1/rows.jsonl",
+          "sha256": "b9bed00a798dfbf419206673387cb64a77291e359fbf706e59f8f1b77d97d33e",
+          "bytes": 14559988
+        },
+        "validation": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1-validation.json",
+          "sha256": "e2d9b493f2d52f6397a9e31df53cd846559bdcddc5071f3ff939b68923a5ae33",
+          "bytes": 4509
+        },
+        "completion": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1/completion.json",
+          "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+          "bytes": 77
+        },
+        "rustc_version": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1/rustc-version/stdout.bin",
+          "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+          "bytes": 196
+        },
+        "cargo_version": {
+          "path": "out/runs/full-pipeline-matched-o2-140-r1/cargo-version/stdout.bin",
+          "sha256": "c8d779e105538d1d2db3c4799b42feb659c6f87b2b2182e963e54cb0537c5be1",
+          "bytes": 336
+        }
+      },
+      "validation": {
+        "valid": true,
+        "rows": 270,
+        "measured_requests": 144,
+        "preparation_requests": 126,
+        "native_executions": 2808,
+        "verified_blobs": 351
+      },
+      "protocol": {
+        "fixed": {
+          "blocks": 6,
+          "requests": [
+            "cold",
+            "unchanged",
+            "private",
+            "multi",
+            "broad",
+            "restore",
+            "error",
+            "recovery"
+          ],
+          "modules": 20,
+          "functions": 20,
+          "steps": 16,
+          "codegen_units_requested": 16,
+          "codegen_jobs": 1,
+          "native_opt": "O2",
+          "cache": "all",
+          "capacity": 256
+        },
+        "timing_policy": "Sequential three-arm requests, six balanced arm permutations rotated per block/request. Zil resident send-to-response excludes startup; Rust full Cargo process includes startup. Source writes, object inventory and native execution occur outside request wall timing. No profiling. OS cache not flushed.",
+        "parent_policy": "Every non-cold request is immediately preceded for all three arms by its validated named parent: recovery<-error, restore<-private, all others<-cold. Preparations retained and validated, no cache reset within block.",
+        "inventory_policy": "Archive actual object bytes and defined symbol tables, Rust incremental metadata and inode/content/mtime observations; Zil current per-unit action-key/cache-state receipts. Hash equality is not proof of skipped work. No partition equivalence implied by requested CGU16.",
+        "memory_policy": "Root-only RSS; resident Zil root vs Cargo root are different scopes. wait4 maxrss is largest process, not tree sum; no cross-language memory advantage.",
+        "fixture_identity": {
+          "cold": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "unchanged": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "private": {
+            "zil": "f35aa8552c372641afba687f7c3cd629a874bc965add983ceb7f68f7cb4250ba",
+            "rust": "d1092e00058be8079bf2250b9e98cb7e485082315496c6d7e251e74b4251a311"
+          },
+          "multi": {
+            "zil": "8c5bd2990e94ee090bf682e0dfef5864053c5f96fcf0a135668aab18b4087b2b",
+            "rust": "02270c48ff74b2c1989c8a8d8fc1ed2fc70d1eed51016f9506353005f1fff21c"
+          },
+          "broad": {
+            "zil": "d57ef31ab1480528d1e4b1454d401f453679fb21a54712bfa58246d97d78b133",
+            "rust": "51d9de8b31863477b28edec89d7b6e6b09844293524144239e3dc97bc300a381"
+          },
+          "restore": {
+            "zil": "247d005e944d86795a81dbc84db5775282ceb4455f13c52f9176a56d09b950ef",
+            "rust": "d7ac137e7657828f3e35a99b5d4872aeb478129c6fb6737be42a48134c080665"
+          },
+          "error": {
+            "zil": "32258c2a9dda728ffa550cf2e4705460f847f1f1b511c9a1c4131df4c7e28e6e",
+            "rust": "6235e0d883d57c09b2f36d189d7a6fe93be8f191e664225053c0640470aa148b"
+          },
+          "recovery": {
+            "zil": "f066f5320f600f8c6409c0e37a6ed2adfb4a0fedb2debab3e1ea7cb813149989",
+            "rust": "e05d3cfbae82eeb61738ac9c66f2bc1768fb9b9064b872505f1a310670dcfbc2"
+          }
+        },
+        "explicit_environment": {
+          "CARGO_HOME": "/workspace/zil-demand/out/runs/full-pipeline-matched-o2-140-r1/cargo-home",
+          "RUSTC": "/workspace/.zil-environment/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+          "CARGO_INCREMENTAL": "1",
+          "CARGO_BUILD_JOBS": "1",
+          "CARGO_TERM_COLOR": "never"
+        },
+        "runtime_environment": {
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null,
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "CARGO_TARGET_DIR": "/workspace/zil-demand/target",
+          "RUSTUP_TOOLCHAIN": null
+        },
+        "host": {
+          "affinity": [0, 1, 2, 3, 4],
+          "load_average": [0.73193359375, 1.69677734375, 1.681640625],
+          "uname": [
+            "Linux",
+            "812a1e369871",
+            "6.18.57",
+            "#1 SMP Tue Oct 20 21:56:04 UTC 2026",
+            "x86_64"
+          ]
+        },
+        "started_utc": "2026-11-12T05:03:20Z",
+        "completed_utc": "2026-11-12T05:10:18Z"
+      },
+      "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "cargo_version": "cargo 1.99.1 (5f94df478 2026-08-27)\nrelease: 1.99.1\ncommit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e\ncommit-date: 2026-08-27\nhost: x86_64-unknown-linux-gnu\nlibgit2: 1.9.6 (sys:0.21.0 vendored)\nlibcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)\nssl: OpenSSL 3.6.3 9 Jun 2026\nos: Debian 13.0.0 (trixie) [64-bit]\n",
+      "zil_code_generation_equality": {
+        "successful_request_pairs": 78,
+        "executable_sha256_equal": true,
+        "llvm_text_sha256_equal": true,
+        "scope": "same block/request baseline and candidate, including named parent preparations; no Rust byte/code-quality equivalence implied"
+      },
+      "cells": {
+        "cold": {
+          "baseline": {
+            "wall_ms": [6144.004418, 6013.948519, 5834.938728, 5799.816493, 7883.650413, 6376.35037],
+            "median_ms": 6078.9764685,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [6.06, 5.9, 5.71, 5.69, 7.06, 6.27],
+              "resident_and_waited_cpu_seconds": [6.1, 5.96, 5.78, 5.73, 7.82, 6.32],
+              "resident_rss_kib": [444428, 445064, 444984, 444428, 443900, 444732],
+              "resident_peak_kib": [457268, 458096, 458072, 457472, 456824, 457596]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:executed": 22,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "miss": 16
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [6935.57595, 7054.380062, 6845.964939, 6831.567097, 7789.750411, 8157.445884],
+            "median_ms": 6994.978006,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [6.36, 6.45, 6.38, 6.35, 7.24, 7.5600000000000005],
+              "resident_and_waited_cpu_seconds": [6.48, 6.58, 6.51, 6.46, 7.41, 7.7],
+              "resident_rss_kib": [550328, 550844, 550340, 550964, 550572, 550504],
+              "resident_peak_kib": [550328, 550844, 550340, 550964, 550572, 550504]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 423,
+                    "function_proofs_reused": 0,
+                    "instruction_proofs_reused": 0
+                  },
+                  "backend_work": {
+                    "lowered_functions": 425,
+                    "reused_functions": 0,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 0,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 429,
+                    "reused_diagnostic_items": 0
+                  },
+                  "query_events": {
+                    "parse:executed": 22,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 425,
+                    "reused_functions": 0,
+                    "body_key_executions": 421,
+                    "body_key_reuses": 0,
+                    "cfg_same_span_reuses": 0,
+                    "cfg_relocated_functions": 0
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 425,
+                    "candidate_reused_functions": 0,
+                    "initialization_inputs_built": 423,
+                    "candidate_inputs_built": 421,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 22,
+                    "lower_modules": 22,
+                    "reused_lower_modules": 0,
+                    "function_input_hashes": 425,
+                    "function_input_reuses": 0,
+                    "normalized_item_deep_clones": 425,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 22,
+                    "reused_modules": 0,
+                    "cloned_modules": 22
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "miss": 16
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [5687.973396, 6184.521201, 5917.312081, 5936.614942, 6771.482974, 6009.997373],
+            "median_ms": 5973.3061575,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [5.6920459999999995, 6.161754, 5.912847999999999, 5.985982, 6.788635, 5.988464],
+              "tree_user_seconds_wait4": [4.9173089999999995, 5.656968, 5.448243, 5.429841, 6.33502, 5.201521],
+              "tree_system_seconds_wait4": [0.774737, 0.504786, 0.464605, 0.556141, 0.453615, 0.786943],
+              "wait4_maxrss_kib": [231480, 231296, 231460, 233404, 231520, 231424],
+              "cargo_peak_sampled_rss_kib": [18228.0, 18216.0, 17776.0, 17640.0, 17684.0, 17512.0],
+              "memory_sample_count": [1100, 1160, 1123, 1133, 1169, 1137]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 1.150683514280164,
+          "candidate_to_rust_median_ratio": 1.1710395920720058
+        },
+        "unchanged": {
+          "baseline": {
+            "wall_ms": [770.14381, 504.595768, 465.973976, 493.20975, 532.6334, 758.182064],
+            "median_ms": 518.614584,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.6899999999999995, 0.47000000000000064, 0.4500000000000002, 0.47999999999999954, 0.4899999999999993, 0.6799999999999997],
+              "resident_and_waited_cpu_seconds": [0.7600000000000007, 0.47999999999999954, 0.47000000000000064, 0.5, 0.5400000000000009, 0.75],
+              "resident_rss_kib": [462504, 463148, 463060, 462504, 461912, 462808],
+              "resident_peak_kib": [462504, 463148, 463060, 462504, 461912, 462808]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 16
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [62.690771, 364.591567, 261.43338, 61.57712, 106.888078, 116.417726],
+            "median_ms": 111.652902,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.05000000000000071, 0.2699999999999996, 0.20999999999999996, 0.03000000000000025, 0.08000000000000007, 0.10000000000000053],
+              "resident_and_waited_cpu_seconds": [0.0600000000000005, 0.35999999999999943, 0.2599999999999998, 0.05999999999999961, 0.10999999999999943, 0.1200000000000001],
+              "resident_rss_kib": [556348, 556860, 556360, 556988, 556596, 556528],
+              "resident_peak_kib": [556348, 556860, 556360, 556988, 556596, 556528]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "resident",
+                  "verification_work": {
+                    "full_receipts_reused": 1,
+                    "function_proofs_checked": 0,
+                    "function_proofs_reused": 0,
+                    "instruction_proofs_reused": 0
+                  },
+                  "backend_work": {
+                    "lowered_functions": 0,
+                    "reused_functions": 425,
+                    "reused_machine_transforms": true,
+                    "reused_partition": true,
+                    "reused_object_keys": 16,
+                    "reused_link": true,
+                    "rendered_diagnostic_items": 0,
+                    "reused_diagnostic_items": 0
+                  },
+                  "query_events": {
+                    "parse:reused": 22,
+                    "expand:reused": 1,
+                    "ct:reused": 1,
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 16
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [12.789271, 42.623935, 66.641567, 29.635752, 12.05026, 26.454206],
+            "median_ms": 28.044978999999998,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.012253, 0.041498, 0.065719, 0.029424, 0.011342, 0.025706],
+              "tree_user_seconds_wait4": [0.007052, 0.025904, 0.050247, 0.018342999999999998, 0.007414, 0.017231],
+              "tree_system_seconds_wait4": [0.005201, 0.015593999999999998, 0.015472, 0.011080999999999999, 0.003928, 0.008475],
+              "wait4_maxrss_kib": [59532, 59532, 59532, 59532, 60056, 64792],
+              "cargo_peak_sampled_rss_kib": [16664.0, 14836.0, 16852.0, 16796.0, 17200.0, 13048.0],
+              "memory_sample_count": [3, 9, 13, 6, 3, 6]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 16,
+                  "same_bytes_objects": 16,
+                  "historical_objects_excluded": 0
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.21529070998898092,
+          "candidate_to_rust_median_ratio": 3.9812082583481345
+        },
+        "private": {
+          "baseline": {
+            "wall_ms": [1265.392377, 1657.88018, 1332.815801, 1754.572856, 2094.531836, 1929.489708],
+            "median_ms": 1706.226518,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [1.2300000000000004, 1.5899999999999999, 1.299999999999999, 1.7000000000000002, 1.9600000000000009, 1.8599999999999994],
+              "resident_and_waited_cpu_seconds": [1.2600000000000007, 1.6499999999999995, 1.3199999999999994, 1.7499999999999991, 2.0600000000000005, 1.9000000000000004],
+              "resident_rss_kib": [548160, 548792, 548724, 548276, 547580, 548464],
+              "resident_peak_kib": [548160, 548792, 548724, 548276, 547580, 548464]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 15,
+                    "miss": 1
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [809.609605, 1245.249501, 780.174133, 818.075675, 958.847767, 1313.740265],
+            "median_ms": 888.461721,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.7299999999999995, 1.12, 0.7000000000000002, 0.75, 0.8700000000000001, 1.2100000000000009],
+              "resident_and_waited_cpu_seconds": [0.8099999999999996, 1.2399999999999993, 0.7800000000000002, 0.8100000000000005, 0.9600000000000009, 1.29],
+              "resident_rss_kib": [576408, 576980, 576544, 577044, 576644, 576572],
+              "resident_peak_kib": [589660, 589984, 589900, 590300, 589596, 589548]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "backend_work": {
+                    "lowered_functions": 1,
+                    "reused_functions": 424,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 15,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 1,
+                    "reused_diagnostic_items": 428
+                  },
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 5,
+                    "reused_functions": 420,
+                    "body_key_executions": 21,
+                    "body_key_reuses": 400,
+                    "cfg_same_span_reuses": 400,
+                    "cfg_relocated_functions": 20
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 5,
+                    "candidate_reused_functions": 420,
+                    "initialization_inputs_built": 1,
+                    "candidate_inputs_built": 1,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 1,
+                    "lower_modules": 1,
+                    "reused_lower_modules": 21,
+                    "function_input_hashes": 21,
+                    "function_input_reuses": 404,
+                    "normalized_item_deep_clones": 21,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 1,
+                    "reused_modules": 21,
+                    "cloned_modules": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 15,
+                    "miss": 1
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [435.362217, 517.190507, 588.448086, 764.722503, 507.363004, 511.821994],
+            "median_ms": 514.5062505000001,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.462827, 0.551611, 0.646368, 0.822565, 0.5403439999999999, 0.5699409999999999],
+              "tree_user_seconds_wait4": [0.393169, 0.44581699999999996, 0.361128, 0.476219, 0.435448, 0.46632199999999996],
+              "tree_system_seconds_wait4": [0.069658, 0.105794, 0.28524, 0.346346, 0.10489599999999999, 0.10361899999999999],
+              "wait4_maxrss_kib": [171792, 171828, 174156, 173628, 171804, 171940],
+              "cargo_peak_sampled_rss_kib": [17936.0, 17680.0, 17916.0, 18248.0, 17756.0, 17744.0],
+              "memory_sample_count": [84, 101, 115, 145, 97, 99]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 15,
+                  "same_bytes_objects": 15,
+                  "historical_objects_excluded": 16
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.5207173324450699,
+          "candidate_to_rust_median_ratio": 1.726823960129907
+        },
+        "multi": {
+          "baseline": {
+            "wall_ms": [1590.277696, 1817.291647, 1374.016623, 2406.519382, 2082.718416, 1690.403126],
+            "median_ms": 1753.8473865,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [1.5300000000000011, 1.75, 1.3399999999999999, 2.33, 2.0, 1.6600000000000001],
+              "resident_and_waited_cpu_seconds": [1.5700000000000003, 1.8099999999999987, 1.3699999999999992, 2.4000000000000004, 2.0600000000000005, 1.6899999999999995],
+              "resident_rss_kib": [643480, 644132, 644036, 643532, 642840, 643784],
+              "resident_peak_kib": [643480, 644132, 644036, 643532, 642840, 643784]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 20,
+                    "parse:executed": 2,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 14,
+                    "miss": 2
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [945.18949, 1112.926468, 967.360604, 1025.40156, 1411.020207, 1118.431467],
+            "median_ms": 1069.164014,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.8699999999999992, 1.0299999999999994, 0.8899999999999988, 0.9600000000000009, 1.2599999999999998, 1.0399999999999991],
+              "resident_and_waited_cpu_seconds": [0.9300000000000006, 1.1099999999999994, 0.9600000000000009, 1.0200000000000005, 1.4100000000000001, 1.0999999999999996],
+              "resident_rss_kib": [625272, 625844, 625376, 625904, 625508, 625496],
+              "resident_peak_kib": [625272, 625844, 625376, 625904, 625508, 625496]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 3,
+                    "function_proofs_reused": 420,
+                    "instruction_proofs_reused": 132539
+                  },
+                  "backend_work": {
+                    "lowered_functions": 3,
+                    "reused_functions": 422,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 13,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 3,
+                    "reused_diagnostic_items": 426
+                  },
+                  "query_events": {
+                    "parse:reused": 20,
+                    "parse:executed": 2,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 6,
+                    "reused_functions": 419,
+                    "body_key_executions": 42,
+                    "body_key_reuses": 379,
+                    "cfg_same_span_reuses": 379,
+                    "cfg_relocated_functions": 40
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 6,
+                    "candidate_reused_functions": 419,
+                    "initialization_inputs_built": 2,
+                    "candidate_inputs_built": 2,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 3,
+                    "lower_modules": 3,
+                    "reused_lower_modules": 19,
+                    "function_input_hashes": 63,
+                    "function_input_reuses": 362,
+                    "normalized_item_deep_clones": 63,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 3,
+                    "reused_modules": 19,
+                    "cloned_modules": 3
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 14,
+                    "miss": 2
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [928.044025, 941.706923, 1275.052949, 979.760744, 1235.602762, 1275.173622],
+            "median_ms": 1107.681753,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.9649909999999999, 0.979517, 1.3362559999999999, 1.014392, 1.2902479999999998, 1.3255649999999999],
+              "tree_user_seconds_wait4": [0.757813, 0.822773, 0.96054, 0.844047, 0.9405469999999999, 0.9316639999999999],
+              "tree_system_seconds_wait4": [0.207178, 0.156744, 0.375716, 0.170345, 0.349701, 0.393901],
+              "wait4_maxrss_kib": [174296, 172836, 174752, 173740, 173860, 174032],
+              "cargo_peak_sampled_rss_kib": [17856.0, 17784.0, 17772.0, 17732.0, 17840.0, 17836.0],
+              "memory_sample_count": [179, 180, 238, 187, 228, 230]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 13,
+                  "same_bytes_objects": 13,
+                  "historical_objects_excluded": 16
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.6096106321620361,
+          "candidate_to_rust_median_ratio": 0.9652267098418112
+        },
+        "broad": {
+          "baseline": {
+            "wall_ms": [5426.692416, 5154.888789, 5264.679082, 5693.768639, 5683.556391, 5518.917024],
+            "median_ms": 5472.80472,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [5.330000000000002, 5.0699999999999985, 5.190000000000001, 5.619999999999999, 5.5699999999999985, 5.459999999999999],
+              "resident_and_waited_cpu_seconds": [5.399999999999999, 5.09, 5.250000000000002, 5.67, 5.66, 5.5],
+              "resident_rss_kib": [852628, 853076, 853004, 852708, 852144, 853116],
+              "resident_peak_kib": [852628, 853076, 853004, 852708, 852144, 853116]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 2,
+                    "parse:executed": 20,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "miss": 16
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [6756.491614, 6636.015882, 6181.81605, 7023.699595, 7723.295854, 6360.315109],
+            "median_ms": 6696.253747999999,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [5.93, 6.08, 5.809999999999999, 6.48, 7.029999999999999, 5.929999999999998],
+              "resident_and_waited_cpu_seconds": [6.1899999999999995, 6.199999999999999, 5.880000000000001, 6.649999999999999, 7.27, 6.029999999999998],
+              "resident_rss_kib": [1036644, 1037364, 1036876, 1037172, 1036516, 1036900],
+              "resident_peak_kib": [1036644, 1037364, 1036876, 1037172, 1036516, 1036900]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 400,
+                    "function_proofs_reused": 23,
+                    "instruction_proofs_reused": 2323
+                  },
+                  "backend_work": {
+                    "lowered_functions": 400,
+                    "reused_functions": 25,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 0,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 400,
+                    "reused_diagnostic_items": 29
+                  },
+                  "query_events": {
+                    "parse:reused": 2,
+                    "parse:executed": 20,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 401,
+                    "reused_functions": 24,
+                    "body_key_executions": 417,
+                    "body_key_reuses": 4,
+                    "cfg_same_span_reuses": 4,
+                    "cfg_relocated_functions": 20
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 401,
+                    "candidate_reused_functions": 24,
+                    "initialization_inputs_built": 397,
+                    "candidate_inputs_built": 397,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 20,
+                    "lower_modules": 20,
+                    "reused_lower_modules": 2,
+                    "function_input_hashes": 420,
+                    "function_input_reuses": 5,
+                    "normalized_item_deep_clones": 420,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 20,
+                    "reused_modules": 2,
+                    "cloned_modules": 20
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "miss": 16
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [5382.488304, 5700.301389, 5655.561596, 6361.841326, 6134.637137, 5451.952448],
+            "median_ms": 5677.9314925,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [5.389372999999999, 5.720622, 5.644961, 6.436845999999999, 6.146834, 5.458635999999999],
+              "tree_user_seconds_wait4": [5.031679, 5.083639, 4.989521, 5.779684, 5.317741, 4.914501],
+              "tree_system_seconds_wait4": [0.35769399999999996, 0.636983, 0.65544, 0.657162, 0.829093, 0.5441349999999999],
+              "wait4_maxrss_kib": [231876, 233484, 231812, 234004, 232216, 232244],
+              "cargo_peak_sampled_rss_kib": [17608.0, 17764.0, 17784.0, 18132.0, 18452.0, 17828.0],
+              "memory_sample_count": [1038, 1096, 1089, 1200, 1172, 1054]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 0,
+                  "same_bytes_objects": 0,
+                  "historical_objects_excluded": 16
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 1.2235506455271437,
+          "candidate_to_rust_median_ratio": 1.1793474008703881
+        },
+        "restore": {
+          "baseline": {
+            "wall_ms": [647.785575, 582.145942, 477.962628, 666.819879, 573.34581, 665.095712],
+            "median_ms": 614.9657585,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.620000000000001, 0.5199999999999996, 0.4499999999999993, 0.610000000000003, 0.5399999999999991, 0.6099999999999994],
+              "resident_and_waited_cpu_seconds": [0.6400000000000006, 0.5700000000000003, 0.4800000000000004, 0.6600000000000001, 0.5599999999999987, 0.6499999999999986],
+              "resident_rss_kib": [852952, 853408, 853352, 853024, 852484, 853472],
+              "resident_peak_kib": [852952, 853408, 853352, 853024, 852484, 853472]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 16
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [411.059117, 812.634458, 377.895143, 696.091136, 944.872666, 356.323514],
+            "median_ms": 553.5751265,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.27999999999999936, 0.7099999999999973, 0.3100000000000005, 0.3899999999999988, 0.7300000000000004, 0.28999999999999915],
+              "resident_and_waited_cpu_seconds": [0.40999999999999837, 0.8200000000000003, 0.36999999999999744, 0.6900000000000013, 0.9299999999999997, 0.34999999999999787],
+              "resident_rss_kib": [1045640, 1046368, 1045872, 1046168, 1045512, 1045912],
+              "resident_peak_kib": [1045640, 1046368, 1045872, 1046168, 1045512, 1045912]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "hit",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "backend_work": {
+                    "lowered_functions": 1,
+                    "reused_functions": 424,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 15,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 1,
+                    "reused_diagnostic_items": 428
+                  },
+                  "query_events": {
+                    "types:reused": 1,
+                    "analyze:reused": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 16
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [489.141522, 485.774264, 549.24836, 581.228512, 713.232268, 583.917146],
+            "median_ms": 565.2384360000001,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.529811, 0.523341, 0.581495, 0.610815, 0.766277, 0.626302],
+              "tree_user_seconds_wait4": [0.409532, 0.41695299999999996, 0.43651599999999996, 0.484656, 0.536258, 0.454758],
+              "tree_system_seconds_wait4": [0.120279, 0.106388, 0.144979, 0.126159, 0.230019, 0.171544],
+              "wait4_maxrss_kib": [171920, 172172, 171744, 171688, 171832, 170684],
+              "cargo_peak_sampled_rss_kib": [17988.0, 17872.0, 17556.0, 17740.0, 18020.0, 17908.0],
+              "memory_sample_count": [93, 94, 107, 111, 136, 110]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 15,
+                  "same_bytes_objects": 15,
+                  "historical_objects_excluded": 16
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.9001722760146166,
+          "candidate_to_rust_median_ratio": 0.9793656822375043
+        },
+        "error": {
+          "baseline": {
+            "wall_ms": [367.322896, 347.457094, 437.39934, 353.861952, 445.677844, 377.557181],
+            "median_ms": 372.4400385,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.370000000000001, 0.3500000000000014, 0.4399999999999977, 0.34999999999999787, 0.4399999999999977, 0.370000000000001],
+              "resident_and_waited_cpu_seconds": [0.370000000000001, 0.3500000000000014, 0.4400000000000013, 0.34999999999999787, 0.4400000000000013, 0.370000000000001],
+              "resident_rss_kib": [852952, 853408, 853352, 853024, 852484, 853472],
+              "resident_peak_kib": [852952, 853408, 853352, 853024, 852484, 853472]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "SafeReject",
+                  "phase": "types",
+                  "verification_runs": 0,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1
+                  },
+                  "diagnostics": [
+                    {
+                      "phase": "types",
+                      "category": "SafeReject",
+                      "code": "E-UNKNOWN-NAME",
+                      "message": "unknown function absent_name",
+                      "span": {
+                        "file": 2,
+                        "start": 1196,
+                        "end": 1207
+                      },
+                      "notes": []
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [299.171465, 403.054135, 301.387831, 312.059946, 337.943766, 384.643219],
+            "median_ms": 325.001856,
+            "actual_current_object_counts": [null, null, null, null, null, null],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.3000000000000007, 0.40000000000000213, 0.3000000000000007, 0.3099999999999987, 0.34999999999999787, 0.39000000000000057],
+              "resident_and_waited_cpu_seconds": [0.3000000000000007, 0.3999999999999986, 0.3000000000000007, 0.3100000000000023, 0.3500000000000014, 0.39000000000000057],
+              "resident_rss_kib": [1047016, 1047836, 1047316, 1046344, 1045668, 1047368],
+              "resident_peak_kib": [1047016, 1047836, 1047316, 1046344, 1045668, 1047368]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "SafeReject",
+                  "phase": "types",
+                  "verification_runs": 0,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 4,
+                    "reused_functions": 1,
+                    "body_key_executions": 420,
+                    "body_key_reuses": 1,
+                    "cfg_same_span_reuses": 1,
+                    "cfg_relocated_functions": 0
+                  },
+                  "producer": {
+                    "classified_modules": 20,
+                    "lower_modules": 20,
+                    "reused_lower_modules": 2,
+                    "function_input_hashes": 420,
+                    "function_input_reuses": 5,
+                    "normalized_item_deep_clones": 420,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 20,
+                    "reused_modules": 2,
+                    "cloned_modules": 20
+                  },
+                  "diagnostics": [
+                    {
+                      "phase": "types",
+                      "category": "SafeReject",
+                      "code": "E-UNKNOWN-NAME",
+                      "message": "unknown function absent_name",
+                      "span": {
+                        "file": 2,
+                        "start": 1196,
+                        "end": 1207
+                      },
+                      "notes": []
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [179.895388, 366.663573, 428.791751, 211.387931, 647.368501, 234.010552],
+            "median_ms": 300.3370625,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [101, 101, 101, 101, 101, 101],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.176958, 0.3609, 0.430421, 0.205455, 0.6457200000000001, 0.23069499999999998],
+              "tree_user_seconds_wait4": [0.128654, 0.276835, 0.32815, 0.163636, 0.368898, 0.134498],
+              "tree_system_seconds_wait4": [0.048304, 0.084065, 0.102271, 0.041818999999999995, 0.276822, 0.09619699999999999],
+              "wait4_maxrss_kib": [147452, 147608, 147720, 147560, 147508, 147400],
+              "cargo_peak_sampled_rss_kib": [18140.0, 18532.0, 18612.0, 18312.0, 18756.0, 18612.0],
+              "memory_sample_count": [35, 61, 77, 41, 107, 46]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [
+                    {
+                      "rendered": "error[E0425]: cannot find value `absent_name` in this scope\n  --> src/m0.rs:19:12\n   |\n19 |     return absent_name;\n   |            ^^^^^^^^^^^ not found in this scope\n\n",
+                      "$message_type": "diagnostic",
+                      "children": [],
+                      "level": "error",
+                      "message": "cannot find value `absent_name` in this scope",
+                      "spans": [
+                        {
+                          "byte_end": 1244,
+                          "byte_start": 1233,
+                          "column_end": 23,
+                          "column_start": 12,
+                          "expansion": null,
+                          "file_name": "src/m0.rs",
+                          "is_primary": true,
+                          "label": "not found in this scope",
+                          "line_end": 19,
+                          "line_start": 19,
+                          "suggested_replacement": null,
+                          "suggestion_applicability": null,
+                          "text": [
+                            {
+                              "highlight_end": 23,
+                              "highlight_start": 12,
+                              "text": "    return absent_name;"
+                            }
+                          ]
+                        }
+                      ],
+                      "code": {
+                        "code": "E0425",
+                        "explanation": "An unresolved name was used.\n\nErroneous code examples:\n\n```compile_fail,E0425\nsomething_that_doesnt_exist::foo;\n// error: unresolved name `something_that_doesnt_exist::foo`\n\n// or:\n\ntrait Foo {\n    fn bar() {\n        Self; // error: unresolved name `Self`\n    }\n}\n\n// or:\n\nlet x = unknown_variable;  // error: unresolved name `unknown_variable`\n```\n\nPlease verify that the name wasn't misspelled and ensure that the\nidentifier being referred to is valid for the given situation. Example:\n\n```\nenum something_that_does_exist {\n    Foo,\n}\n```\n\nOr:\n\n```\nmod something_that_does_exist {\n    pub static foo : i32 = 0i32;\n}\n\nsomething_that_does_exist::foo; // ok!\n```\n\nOr:\n\n```\nlet unknown_variable = 12u32;\nlet x = unknown_variable; // ok!\n```\n\nIf the item is not defined in the current module, it must be imported using a\n`use` statement, like so:\n\n```\n# mod foo { pub fn bar() {} }\n# fn main() {\nuse foo::bar;\nbar();\n# }\n```\n\nIf the item you are importing is not defined in some super-module of the\ncurrent module, then it must also be declared as public (e.g., `pub fn`).\n"
+                      }
+                    },
+                    {
+                      "rendered": "For more information about this error, try `rustc --explain E0425`.\n",
+                      "$message_type": "diagnostic",
+                      "children": [],
+                      "level": "failure-note",
+                      "message": "For more information about this error, try `rustc --explain E0425`.",
+                      "spans": [],
+                      "code": null
+                    }
+                  ],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 16,
+                  "same_bytes_objects": 16,
+                  "historical_objects_excluded": 16
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.8726286714740525,
+          "candidate_to_rust_median_ratio": 1.0821237089245352
+        },
+        "recovery": {
+          "baseline": {
+            "wall_ms": [1521.505627, 1750.00297, 1553.27073, 2180.327088, 1894.334239, 1865.354171],
+            "median_ms": 1807.6785705,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [1.4899999999999984, 1.6599999999999966, 1.5, 2.120000000000001, 1.7800000000000011, 1.8000000000000007],
+              "resident_and_waited_cpu_seconds": [1.5199999999999996, 1.7199999999999989, 1.5300000000000011, 2.1799999999999997, 1.8499999999999979, 1.8399999999999999],
+              "resident_rss_kib": [1014528, 1015016, 1014988, 1014600, 1014092, 1015012],
+              "resident_peak_kib": [1014528, 1015016, 1014988, 1014600, 1014092, 1015012]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 15,
+                    "miss": 1
+                  }
+                }
+              }
+            ]
+          },
+          "candidate": {
+            "wall_ms": [990.516922, 1344.826322, 1015.574689, 1066.621537, 1445.191254, 1337.397032],
+            "median_ms": 1202.0092845,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "resident_cpu_seconds": [0.9000000000000004, 1.1999999999999993, 0.9399999999999977, 0.9699999999999989, 1.3200000000000003, 1.2100000000000009],
+              "resident_and_waited_cpu_seconds": [0.9700000000000024, 1.3399999999999999, 1.0199999999999996, 1.0600000000000023, 1.4200000000000017, 1.3200000000000003],
+              "resident_rss_kib": [1047076, 1047908, 1047388, 1047712, 1046880, 1047424],
+              "resident_peak_kib": [1047076, 1047908, 1047388, 1047712, 1046880, 1047424]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "status": "Success",
+                  "phase": "link",
+                  "verification_runs": 1,
+                  "disk_cache": "missing",
+                  "verification_work": {
+                    "full_receipts_reused": 0,
+                    "function_proofs_checked": 1,
+                    "function_proofs_reused": 422,
+                    "instruction_proofs_reused": 133195
+                  },
+                  "backend_work": {
+                    "lowered_functions": 1,
+                    "reused_functions": 424,
+                    "reused_machine_transforms": false,
+                    "reused_partition": false,
+                    "reused_object_keys": 15,
+                    "reused_link": false,
+                    "rendered_diagnostic_items": 1,
+                    "reused_diagnostic_items": 428
+                  },
+                  "query_events": {
+                    "parse:reused": 21,
+                    "parse:executed": 1,
+                    "expand:executed": 1,
+                    "ct:executed": 1,
+                    "types:executed": 1,
+                    "analyze:executed": 1,
+                    "verify:executed": 1,
+                    "lower:executed": 1,
+                    "link:executed": 1
+                  },
+                  "function_types": {
+                    "executed_functions": 404,
+                    "reused_functions": 21,
+                    "body_key_executions": 421,
+                    "body_key_reuses": 0,
+                    "cfg_same_span_reuses": 20,
+                    "cfg_relocated_functions": 1
+                  },
+                  "initialization": {
+                    "candidate_executed_functions": 404,
+                    "candidate_reused_functions": 21,
+                    "initialization_inputs_built": 400,
+                    "candidate_inputs_built": 400,
+                    "dependency_signatures_checked": 422
+                  },
+                  "producer": {
+                    "classified_modules": 1,
+                    "lower_modules": 1,
+                    "reused_lower_modules": 21,
+                    "function_input_hashes": 21,
+                    "function_input_reuses": 404,
+                    "normalized_item_deep_clones": 21,
+                    "environment_imports_changed": 0
+                  },
+                  "materialization": {
+                    "executed_modules": 1,
+                    "reused_modules": 21,
+                    "cloned_modules": 1
+                  },
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "object_cache_states": {
+                    "hit": 15,
+                    "miss": 1
+                  }
+                }
+              }
+            ]
+          },
+          "rust": {
+            "wall_ms": [563.856355, 478.452954, 574.546923, 625.215741, 1128.382265, 546.3064],
+            "median_ms": 569.201639,
+            "actual_current_object_counts": [16, 16, 16, 16, 16, 16],
+            "cpu_rss_and_sampling_by_block": {
+              "returncode": [0, 0, 0, 0, 0, 0],
+              "timed_out": [false, false, false, false, false, false],
+              "tree_cpu_seconds_wait4": [0.5995079999999999, 0.516713, 0.6425799999999999, 0.776423, 1.3002479999999998, 0.6059],
+              "tree_user_seconds_wait4": [0.45216599999999996, 0.42308399999999996, 0.409877, 0.547284, 0.866483, 0.413667],
+              "tree_system_seconds_wait4": [0.147342, 0.09362899999999999, 0.232703, 0.22913899999999998, 0.43376499999999996, 0.192233],
+              "wait4_maxrss_kib": [172176, 172172, 174268, 174412, 174264, 174060],
+              "cargo_peak_sampled_rss_kib": [17972.0, 17448.0, 17396.0, 17232.0, 17860.0, 17476.0],
+              "memory_sample_count": [109, 93, 112, 118, 203, 104]
+            },
+            "reuse_observations": [
+              {
+                "blocks": [0, 1, 2, 3, 4, 5],
+                "observations": {
+                  "diagnostics": [],
+                  "actual_current_objects": 16,
+                  "physical_carry_forward_objects": 15,
+                  "same_bytes_objects": 15,
+                  "historical_objects_excluded": 48
+                }
+              }
+            ]
+          },
+          "candidate_to_baseline_median_ratio": 0.6649463594446035,
+          "candidate_to_rust_median_ratio": 2.111746000260551
+        }
+      }
+    }
+  },
+  "actual_unit_content_evidence": {
+    "membership_examples": {
+      "baseline": {
+        "raw_row_directory": "block-00/requests/00-cold-measured/baseline",
+        "scope": "block 0 cold current session only; nm definitions after optimization, not full source dependencies",
+        "namespace_or_session": "4eec7312d1e6f59f681148dfe8af17eeb76013fb57123ddb4a3b06bd54974db1",
+        "units": [
+          {
+            "unit": 0,
+            "object_sha256": "839dcb2d4d9a2e56bb2c7219cd0dd4a0461899a31f2979ee4008104bf4b67bda",
+            "object_bytes": 29552,
+            "defined_symbol_count": 23,
+            "symbols_sha256": "077022607e5a2977e789b5be4d27a614fc1a1def1cc5378924036fecf05bfa15",
+            "zil_fn_id_ranges": "0,299-319",
+            "other_defined_symbols": [
+              "main"
+            ]
+          },
+          {
+            "unit": 1,
+            "object_sha256": "d77bc6d92e2504b36c24350290c21b047869dd87f259bfce97a67f017db6d6f2",
+            "object_bytes": 26864,
+            "defined_symbol_count": 23,
+            "symbols_sha256": "4699bc872a17eb665abe8f8538eaf9e8ce57afcba444b668328c53017c3e7eb8",
+            "zil_fn_id_ranges": "3-4,320-340"
+          },
+          {
+            "unit": 2,
+            "object_sha256": "7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65",
+            "object_bytes": 52776,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "1db3f26b0758be676c1d8e531325c1ddd9aa7f213c0aa3872d09449c6a26d42e",
+            "zil_fn_id_ranges": "5-25,341-361"
+          },
+          {
+            "unit": 3,
+            "object_sha256": "3726eec835e7259c7153b2e982b6ff242c72fdca5183311e0ca228f08d0bf769",
+            "object_bytes": 52808,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "8f13c6424729137a9ff77486365bf76f4ff193aeac2aeab514012f5ea433b183",
+            "zil_fn_id_ranges": "26-46,362-382"
+          },
+          {
+            "unit": 4,
+            "object_sha256": "0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef",
+            "object_bytes": 52760,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "4798995561413240e3aeb835772ef8dd75d976360b6dcf05feb68cd8f719a731",
+            "zil_fn_id_ranges": "47-67,383-403"
+          },
+          {
+            "unit": 5,
+            "object_sha256": "39b8411e293969621eaeafe18331e42f149bdc3599032047b8181bd8b1e0a588",
+            "object_bytes": 52776,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "c71ba0903ef8c088a3d00c71678fa2ecaddadd4d0838336ad2898353e337149f",
+            "zil_fn_id_ranges": "68-88,404-424"
+          },
+          {
+            "unit": 6,
+            "object_sha256": "5345c4e92a48a2b39e81f9a560702ca1795ff01275448d998028f06e297608d9",
+            "object_bytes": 26680,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "e9604afe50e8e4fe288c75f44f5483544799b43a2b7c355d148a41f74e47f56c",
+            "zil_fn_id_ranges": "89-109"
+          },
+          {
+            "unit": 7,
+            "object_sha256": "825d7544d55da5a2bfe7bb0d7792f01d37918522b4b34ce3499552a67decdef9",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "412e40841a9031ce6d312406d0332808d299b21a1db83b32022baf9bb5bfec62",
+            "zil_fn_id_ranges": "110-130"
+          },
+          {
+            "unit": 8,
+            "object_sha256": "9c5b9f71219efdfaeafb1abd99d9201f3c9c0326fcb3211fc38b2af55e52bcd8",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "cf4bc6e9b3d442d69fd1efbaaf063d1eb9b6c9bd718d77bb367a5cbf4583e890",
+            "zil_fn_id_ranges": "131-151"
+          },
+          {
+            "unit": 9,
+            "object_sha256": "638117f013be0485bcdfbc36984a7209af7696313f792b69ad2757ffbf5b8ac2",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "f46c33fe22ecad53567e1cb4b65bce38177e24c7bfab1214d00d09631665ad24",
+            "zil_fn_id_ranges": "152-172"
+          },
+          {
+            "unit": 10,
+            "object_sha256": "b9217ee476beacc082e5e2232d244f531687afb467ff09e2f65d505523f40917",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "ea53e95c3e93a2d1930cae5df06731aa480b798704e2c0207a1a5f8094041ff5",
+            "zil_fn_id_ranges": "173-193"
+          },
+          {
+            "unit": 11,
+            "object_sha256": "b54a79e3ee8a50a99d2ad15d425e67904bd1e2299711dfecc75aef790516d2d7",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "9f9b64b682b13bf13a38fd9dccb324bd23615a3e2674501f84499cb2aafb32c2",
+            "zil_fn_id_ranges": "194-214"
+          },
+          {
+            "unit": 12,
+            "object_sha256": "2ae3d875e71b06dd5aa9fe352f35c0c00849ebba80d53f3487eed552bf17bd7a",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "be8a603f8546d9484912c75c6afd0e26b537224ec9bd3f79589fd411adc686a9",
+            "zil_fn_id_ranges": "215-235"
+          },
+          {
+            "unit": 13,
+            "object_sha256": "f162744407e09aa6be764368ca525aab3ef2bea2c2ac39a17b5845459abc7015",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "a8b2883804f52b663c1adb8c245f069b138b2681f41dcf90d5d1c391c73dac7e",
+            "zil_fn_id_ranges": "236-256"
+          },
+          {
+            "unit": 14,
+            "object_sha256": "bdd8c4a90adcdc8a89d0e6299cf48e67e3612a93e871eb7395f78d00285744bd",
+            "object_bytes": 26688,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "bf1380c910ca75749801c303e73f6766d79d76a74b7ce8466bf2975f96095780",
+            "zil_fn_id_ranges": "257-277"
+          },
+          {
+            "unit": 15,
+            "object_sha256": "78a19ef1a25af4ebbb39351b9b72ed630e3cd88e05c45f702f71fca07bf65023",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "12932eadff79f6b1918adb99cea8a75c787884d7fa3bdab038d7575b033bf750",
+            "zil_fn_id_ranges": "278-298"
+          }
+        ]
+      },
+      "candidate": {
+        "raw_row_directory": "block-00/requests/00-cold-measured/candidate",
+        "scope": "block 0 cold current session only; nm definitions after optimization, not full source dependencies",
+        "namespace_or_session": "a499a81a4febf694a8fdc217242fbb9ba3b3dedf52241660de8fc04c74337c8f",
+        "units": [
+          {
+            "unit": 0,
+            "object_sha256": "839dcb2d4d9a2e56bb2c7219cd0dd4a0461899a31f2979ee4008104bf4b67bda",
+            "object_bytes": 29552,
+            "defined_symbol_count": 23,
+            "symbols_sha256": "077022607e5a2977e789b5be4d27a614fc1a1def1cc5378924036fecf05bfa15",
+            "zil_fn_id_ranges": "0,299-319",
+            "other_defined_symbols": [
+              "main"
+            ]
+          },
+          {
+            "unit": 1,
+            "object_sha256": "d77bc6d92e2504b36c24350290c21b047869dd87f259bfce97a67f017db6d6f2",
+            "object_bytes": 26864,
+            "defined_symbol_count": 23,
+            "symbols_sha256": "4699bc872a17eb665abe8f8538eaf9e8ce57afcba444b668328c53017c3e7eb8",
+            "zil_fn_id_ranges": "3-4,320-340"
+          },
+          {
+            "unit": 2,
+            "object_sha256": "7ef2d5574216583f5b690c2bf83cd373ef231499bffd1ae81c7dce0d4d46ae65",
+            "object_bytes": 52776,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "1db3f26b0758be676c1d8e531325c1ddd9aa7f213c0aa3872d09449c6a26d42e",
+            "zil_fn_id_ranges": "5-25,341-361"
+          },
+          {
+            "unit": 3,
+            "object_sha256": "3726eec835e7259c7153b2e982b6ff242c72fdca5183311e0ca228f08d0bf769",
+            "object_bytes": 52808,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "8f13c6424729137a9ff77486365bf76f4ff193aeac2aeab514012f5ea433b183",
+            "zil_fn_id_ranges": "26-46,362-382"
+          },
+          {
+            "unit": 4,
+            "object_sha256": "0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef",
+            "object_bytes": 52760,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "4798995561413240e3aeb835772ef8dd75d976360b6dcf05feb68cd8f719a731",
+            "zil_fn_id_ranges": "47-67,383-403"
+          },
+          {
+            "unit": 5,
+            "object_sha256": "39b8411e293969621eaeafe18331e42f149bdc3599032047b8181bd8b1e0a588",
+            "object_bytes": 52776,
+            "defined_symbol_count": 42,
+            "symbols_sha256": "c71ba0903ef8c088a3d00c71678fa2ecaddadd4d0838336ad2898353e337149f",
+            "zil_fn_id_ranges": "68-88,404-424"
+          },
+          {
+            "unit": 6,
+            "object_sha256": "5345c4e92a48a2b39e81f9a560702ca1795ff01275448d998028f06e297608d9",
+            "object_bytes": 26680,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "e9604afe50e8e4fe288c75f44f5483544799b43a2b7c355d148a41f74e47f56c",
+            "zil_fn_id_ranges": "89-109"
+          },
+          {
+            "unit": 7,
+            "object_sha256": "825d7544d55da5a2bfe7bb0d7792f01d37918522b4b34ce3499552a67decdef9",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "412e40841a9031ce6d312406d0332808d299b21a1db83b32022baf9bb5bfec62",
+            "zil_fn_id_ranges": "110-130"
+          },
+          {
+            "unit": 8,
+            "object_sha256": "9c5b9f71219efdfaeafb1abd99d9201f3c9c0326fcb3211fc38b2af55e52bcd8",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "cf4bc6e9b3d442d69fd1efbaaf063d1eb9b6c9bd718d77bb367a5cbf4583e890",
+            "zil_fn_id_ranges": "131-151"
+          },
+          {
+            "unit": 9,
+            "object_sha256": "638117f013be0485bcdfbc36984a7209af7696313f792b69ad2757ffbf5b8ac2",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "f46c33fe22ecad53567e1cb4b65bce38177e24c7bfab1214d00d09631665ad24",
+            "zil_fn_id_ranges": "152-172"
+          },
+          {
+            "unit": 10,
+            "object_sha256": "b9217ee476beacc082e5e2232d244f531687afb467ff09e2f65d505523f40917",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "ea53e95c3e93a2d1930cae5df06731aa480b798704e2c0207a1a5f8094041ff5",
+            "zil_fn_id_ranges": "173-193"
+          },
+          {
+            "unit": 11,
+            "object_sha256": "b54a79e3ee8a50a99d2ad15d425e67904bd1e2299711dfecc75aef790516d2d7",
+            "object_bytes": 26656,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "9f9b64b682b13bf13a38fd9dccb324bd23615a3e2674501f84499cb2aafb32c2",
+            "zil_fn_id_ranges": "194-214"
+          },
+          {
+            "unit": 12,
+            "object_sha256": "2ae3d875e71b06dd5aa9fe352f35c0c00849ebba80d53f3487eed552bf17bd7a",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "be8a603f8546d9484912c75c6afd0e26b537224ec9bd3f79589fd411adc686a9",
+            "zil_fn_id_ranges": "215-235"
+          },
+          {
+            "unit": 13,
+            "object_sha256": "f162744407e09aa6be764368ca525aab3ef2bea2c2ac39a17b5845459abc7015",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "a8b2883804f52b663c1adb8c245f069b138b2681f41dcf90d5d1c391c73dac7e",
+            "zil_fn_id_ranges": "236-256"
+          },
+          {
+            "unit": 14,
+            "object_sha256": "bdd8c4a90adcdc8a89d0e6299cf48e67e3612a93e871eb7395f78d00285744bd",
+            "object_bytes": 26688,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "bf1380c910ca75749801c303e73f6766d79d76a74b7ce8466bf2975f96095780",
+            "zil_fn_id_ranges": "257-277"
+          },
+          {
+            "unit": 15,
+            "object_sha256": "78a19ef1a25af4ebbb39351b9b72ed630e3cd88e05c45f702f71fca07bf65023",
+            "object_bytes": 26672,
+            "defined_symbol_count": 21,
+            "symbols_sha256": "12932eadff79f6b1918adb99cea8a75c787884d7fa3bdab038d7575b033bf750",
+            "zil_fn_id_ranges": "278-298"
+          }
+        ]
+      },
+      "rust": {
+        "raw_row_directory": "block-00/requests/00-cold-measured/rust",
+        "scope": "block 0 cold current session only; nm definitions after optimization, not full source dependencies",
+        "namespace_or_session": "zil_scalar_equivalent-3py56w1o40hfj/s-ho2zgi775a-1jlctz7-an27wbem1kqfokgxnanuxlwvw",
+        "units": [
+          {
+            "unit": "0amgixxo3zjri61o5jqupig65.o",
+            "object_sha256": "b3a31e7404ac8bfc7b0fec608b26758f5dbc6429ff45d6b380c9cd3029709995",
+            "object_bytes": 25224,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "79dc37f012bbdf41b525625a9f1e97c44443a85b7ebc2eb1630cd701a0488e20",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m115value"
+            ]
+          },
+          {
+            "unit": "0fil3txf3ftmtfh3x0uhuvpi0.o",
+            "object_sha256": "072b4489b8aef83d5e558db68bc1e3d91a0f5394bffb03fdcc21c40206e16e00",
+            "object_bytes": 25256,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "a02d260e1ec3aa54e1512fc1dae53ab31a646792ccc466d1c293b35143b03097",
+            "other_defined_symbols": [
+              "_RINvNtNtCs8ZKwes1zzDd_3std3sys9backtrace28___rust_begin_short_backtraceFENtNtB6_7process8ExitCodeB19_ECsl0nYYrsK7hj_21zil_scalar_equivalent",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m165value"
+            ]
+          },
+          {
+            "unit": "0sbi3ehd88wuqoycmfhv8ajyi.o",
+            "object_sha256": "9da350d7e471d54464c2df5dc8bda213103c381ee474928fee88596ccb795002",
+            "object_bytes": 49704,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "2fb179b479169e8e6701b6bb962d0db8de5385d8433fa68ab71fac19a5e6d768",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m35value",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m45value"
+            ]
+          },
+          {
+            "unit": "19ps1wtnzk15siu0t3vriigvr.o",
+            "object_sha256": "43dd60ef2e56114091ea90284a3460aa830e1a8f95354a49a3f3f7cb18080913",
+            "object_bytes": 25136,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "204280628fa827ccc598e1599943cd0629d392d6dc86a313cf67a97d1e096fa6",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m195value"
+            ]
+          },
+          {
+            "unit": "1e84turqevz1r7it49t0vvmq0.o",
+            "object_sha256": "85b659c70d5a3d7716b284e8372b48070c1bea5ca5eb215376b54c13d7c063ae",
+            "object_bytes": 25000,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "87636219754b4e636c6d059110807c6064d80567e3f87dcca924fce6b7ccb750",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m55value"
+            ]
+          },
+          {
+            "unit": "1f8ogey0pq8n59rndnoq226ko.o",
+            "object_sha256": "8ad8d739db8d87605463d8c731e4dae702d032b7076cd827d249881293e3c6a6",
+            "object_bytes": 25264,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "fff30373c44d71fb9585b39f710e5b398af728f9982ade37eb7e151366240b40",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m05value"
+            ]
+          },
+          {
+            "unit": "1xu3yex6uh0sl0qicfwh8h0bl.o",
+            "object_sha256": "18cd6679824f8e0c639d8cfc8918fcead88dbaff7817317a0306eda853cd311e",
+            "object_bytes": 25312,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "29d5ebe67f1179538e10d17e4572f0028d418285891f35de8b3055d2ff3e63f1",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m105value"
+            ]
+          },
+          {
+            "unit": "281dgf6mw31rerz81x3vllake.o",
+            "object_sha256": "340555f0dd05e2d3a04cfce67ffb8ebd36931e08fed66b2c49cf6e40f8b41496",
+            "object_bytes": 25000,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "beac385c98794cc5d8242bce4a2446fba2053880594d37b8e3b68f10cc123369",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m185value"
+            ]
+          },
+          {
+            "unit": "38c6hhfu61frd4pjwh2cagbt8.o",
+            "object_sha256": "788f63675d20add8e909aedefbef413336ad12c0e13e9878a6888bdc3d99cc98",
+            "object_bytes": 25136,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "7dde76b4b022a73a65f56904e20d4ee792862a74f5a92c299027c619eb27aa95",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m65value"
+            ]
+          },
+          {
+            "unit": "3lfcx36beyirltswqzcszguc9.o",
+            "object_sha256": "a1d9dd26c93ca93f5aacf693002de1a014f32880e73bb93e30b58663a3a9f1ef",
+            "object_bytes": 25624,
+            "defined_symbol_count": 3,
+            "symbols_sha256": "922f1f12a7a1f122f31ac89a0bc15c36e1230d9182411634c4c50124a11640e4",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2io4emit",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2io4read",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m15value"
+            ]
+          },
+          {
+            "unit": "3oeoq23tjmyrytqqean52mpnu.o",
+            "object_sha256": "84ada6febf377b1c2ecb9980475613a6d1441d7cbb77c98660d87c10ba0be120",
+            "object_bytes": 25416,
+            "defined_symbol_count": 1,
+            "symbols_sha256": "dc18ffd9902636d617d73b2c0d15c3ca44d3f008ae821c9165832083e605f47b",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m125value"
+            ]
+          },
+          {
+            "unit": "3omh27bakctpz2iob1dozub0h.o",
+            "object_sha256": "a5d7b987d406738982881f9abcf53c673713e6b87480afeb6b46c89e41b0c65c",
+            "object_bytes": 49736,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "1bafa6bbcbed677ec5b4722637b8ff60aa6c2acfbb834611710aa679c14d4ff6",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m75value",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m175value"
+            ]
+          },
+          {
+            "unit": "68juqgpmd92s1qfy9jt3pkwdy.o",
+            "object_sha256": "42e49b2f79f3d2d760de519fe3f2941daa495091d5e81cf2f2801f3b1de4ca57",
+            "object_bytes": 23632,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "0b127c73bc9a2d594753f35c9a3c98fa62777e1dc4dd8e9fc8858cf7d9911b6e",
+            "other_defined_symbols": [
+              "_RNvCsl0nYYrsK7hj_21zil_scalar_equivalent4main",
+              "main"
+            ]
+          },
+          {
+            "unit": "8pe6vroe7ggnwp2n7zikyomlv.o",
+            "object_sha256": "12337600cfd9900c650b5b1286b54ac8bcea195ad3989e830c6e42686352961c",
+            "object_bytes": 49392,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "acfa63fdb2c2fa77852b8488c478969980450c449b204f683da9cc8078ffeb47",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m85value",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m145value"
+            ]
+          },
+          {
+            "unit": "ej2p2bps0oz8p3q9cxfvzisn1.o",
+            "object_sha256": "ba19bfec55b869c0a827a25b297a619d87ddb558165bc4745fef989043e24cc6",
+            "object_bytes": 26984,
+            "defined_symbol_count": 5,
+            "symbols_sha256": "8b7b1714b1b5b3995c9c2049582639fe62f0f59a2c26f18ed2bb354b746c3f5b",
+            "other_defined_symbols": [
+              "_RINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB4_7process8ExitCodeECsl0nYYrsK7hj_21zil_scalar_equivalent",
+              "_RNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtB6_7process8ExitCodeE0Csl0nYYrsK7hj_21zil_scalar_equivalent.llvm.4909581817379558237",
+              "_RNSNvYNCINvNtCs8ZKwes1zzDd_3std2rt10lang_startNtNtBb_7process8ExitCodeE0INtNtNtCskADBYZwJmSU_4core3ops8function6FnOnceuE9call_once6vtableCsl0nYYrsK7hj_21zil_scalar_equivalent.llvm.4909581817379558237",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent2m95value",
+              "anon.6d1985085cc4c3a3201d75dbeb049f57.0.llvm.4909581817379558237"
+            ]
+          },
+          {
+            "unit": "euc3jxfeouuj61sscoxq24yxm.o",
+            "object_sha256": "c92d4f5899c80d9ef1aef2d1d44a82b3a256e256f85f21bb0f8e31b9bb5ac4a6",
+            "object_bytes": 49888,
+            "defined_symbol_count": 2,
+            "symbols_sha256": "c861b484cd5f8f1fa21bb466bde1a3fea9d69dd7bccdfc405083cebf8ecca219",
+            "other_defined_symbols": [
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m135value",
+              "_RNvNtCsl0nYYrsK7hj_21zil_scalar_equivalent3m155value"
+            ]
+          }
+        ]
+      }
+    },
+    "changes_by_scenario": {
+      "baseline": {
+        "cold": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [],
+              "cache_miss_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "unchanged": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "private": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [2],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "multi": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15],
+              "cache_miss_unit_indexes": [5, 12],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "broad": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [],
+              "cache_miss_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "restore": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "error": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {}
+          }
+        ],
+        "recovery": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [2],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ]
+      },
+      "candidate": {
+        "cold": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [],
+              "cache_miss_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "unchanged": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "private": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [2],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "multi": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15],
+              "cache_miss_unit_indexes": [5, 12],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "broad": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [],
+              "cache_miss_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "restore": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ],
+        "error": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {}
+          }
+        ],
+        "recovery": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "cache_hit_unit_indexes": [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+              "cache_miss_unit_indexes": [2],
+              "defined_symbol_membership_equals_block0_cold": true
+            }
+          }
+        ]
+      },
+      "rust": {
+        "cold": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 0,
+              "same_bytes": 0,
+              "changed_or_new_object_names": [
+                "0amgixxo3zjri61o5jqupig65.o",
+                "0fil3txf3ftmtfh3x0uhuvpi0.o",
+                "0sbi3ehd88wuqoycmfhv8ajyi.o",
+                "19ps1wtnzk15siu0t3vriigvr.o",
+                "1e84turqevz1r7it49t0vvmq0.o",
+                "1f8ogey0pq8n59rndnoq226ko.o",
+                "1xu3yex6uh0sl0qicfwh8h0bl.o",
+                "281dgf6mw31rerz81x3vllake.o",
+                "38c6hhfu61frd4pjwh2cagbt8.o",
+                "3lfcx36beyirltswqzcszguc9.o",
+                "3oeoq23tjmyrytqqean52mpnu.o",
+                "3omh27bakctpz2iob1dozub0h.o",
+                "68juqgpmd92s1qfy9jt3pkwdy.o",
+                "8pe6vroe7ggnwp2n7zikyomlv.o",
+                "ej2p2bps0oz8p3q9cxfvzisn1.o",
+                "euc3jxfeouuj61sscoxq24yxm.o"
+              ],
+              "historical_objects_excluded": 0
+            }
+          }
+        ],
+        "unchanged": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 16,
+              "same_bytes": 16,
+              "changed_or_new_object_names": [],
+              "historical_objects_excluded": 0
+            }
+          }
+        ],
+        "private": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 15,
+              "same_bytes": 15,
+              "changed_or_new_object_names": [
+                "1f8ogey0pq8n59rndnoq226ko.o"
+              ],
+              "historical_objects_excluded": 16
+            }
+          }
+        ],
+        "multi": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 13,
+              "same_bytes": 13,
+              "changed_or_new_object_names": [
+                "19ps1wtnzk15siu0t3vriigvr.o",
+                "1f8ogey0pq8n59rndnoq226ko.o",
+                "1xu3yex6uh0sl0qicfwh8h0bl.o"
+              ],
+              "historical_objects_excluded": 16
+            }
+          }
+        ],
+        "broad": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 0,
+              "same_bytes": 0,
+              "changed_or_new_object_names": [
+                "0amgixxo3zjri61o5jqupig65.o",
+                "0fil3txf3ftmtfh3x0uhuvpi0.o",
+                "0sbi3ehd88wuqoycmfhv8ajyi.o",
+                "19ps1wtnzk15siu0t3vriigvr.o",
+                "1e84turqevz1r7it49t0vvmq0.o",
+                "1f8ogey0pq8n59rndnoq226ko.o",
+                "1xu3yex6uh0sl0qicfwh8h0bl.o",
+                "281dgf6mw31rerz81x3vllake.o",
+                "38c6hhfu61frd4pjwh2cagbt8.o",
+                "3lfcx36beyirltswqzcszguc9.o",
+                "3oeoq23tjmyrytqqean52mpnu.o",
+                "3omh27bakctpz2iob1dozub0h.o",
+                "68juqgpmd92s1qfy9jt3pkwdy.o",
+                "8pe6vroe7ggnwp2n7zikyomlv.o",
+                "ej2p2bps0oz8p3q9cxfvzisn1.o",
+                "euc3jxfeouuj61sscoxq24yxm.o"
+              ],
+              "historical_objects_excluded": 16
+            }
+          }
+        ],
+        "restore": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 15,
+              "same_bytes": 15,
+              "changed_or_new_object_names": [
+                "1f8ogey0pq8n59rndnoq226ko.o"
+              ],
+              "historical_objects_excluded": 16
+            }
+          }
+        ],
+        "error": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 16,
+              "same_bytes": 16,
+              "changed_or_new_object_names": [],
+              "historical_objects_excluded": 16
+            }
+          }
+        ],
+        "recovery": [
+          {
+            "blocks": [0, 1, 2, 3, 4, 5],
+            "observations": {
+              "actual_current_objects": 16,
+              "same_inode_device_mtime_and_bytes": 15,
+              "same_bytes": 15,
+              "changed_or_new_object_names": [
+                "1f8ogey0pq8n59rndnoq226ko.o"
+              ],
+              "historical_objects_excluded": 48
+            }
+          }
+        ]
+      }
+    },
+    "interpretation": "Zil hit/miss indexes are current action-key receipts relative to accumulated block cache; Rust physical change flags compare the immediately preceding named-parent request. These are intentionally distinct observations. See raw row inventories for every unit hash, full symbol text and previous-session metadata."
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "schema": "full-pipeline-packed-independent-source-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a",
+  "candidate_tree": "2e2cf8129fa1e95da9f78e0dfac6fea512f6efb9",
+  "review_delta_base": "140997e032df26c31d94fe029ac86c7b42560182",
+  "verdict": "ACCEPT bounded research source at e1ad7470b86c15f4bdcf3ddfd5b1f3aea66ecd0a in the reviewed scope. No new blocking correctness, dependency or proof-authority issue was established. This is not full task acceptance, a performance claim, default enablement or approval to merge main.",
+  "identity_and_review_method": {
+    "head_tree_and_clean_worktree_checked_at_start": true,
+    "changed_crate_files_sha256": {
+      "crates/zil-backend-llvm/src/build.rs": "2e6ac758f11d3284c58df3dd0115346347116e8ab868e505823c215d304a006e",
+      "crates/zil-backend-llvm/src/incremental.rs": "c83f0aec4b6130aa1a7f4bef3da809e08e1891262c675833e88a394c629c335c",
+      "crates/zil-backend-llvm/src/machine_cgu.rs": "28524b7c46fef63d10b004c3fe3d51a6feb1f9f50ea937c454d6d7c96c0cc42a",
+      "crates/zil-backend-llvm/src/machine_cgu/recipe.rs": "5f9892acc079686e482e295f6145cc3caa06fa38040c90857426d2f322241653",
+      "crates/zil-backend-llvm/src/tests.rs": "2a7d53dff764ce0b4694b8907efc5325d405df7710b3ffb5626e63c85fb66577",
+      "crates/zil-driver/src/lib.rs": "23f03a729747132ce9c2c68b5ee558b2e4451efa5980e16b08eec7ab4849e7ad",
+      "crates/zil-driver/src/packed_items.rs": "17c3e247264fafd7d5325c5451b3dabb5d90cac33690260e2b6b79b8228516c9",
+      "crates/zil-driver/src/packed_items_tests.rs": "5a432461bb58237abfae28f0850e3133d437436d662b885a53013a1ce3b76059",
+      "crates/zil-driver/src/project.rs": "aeecd0d923b009c65a4a30bd62bcacc41789d04869b0e798b580511e54c66ff1",
+      "crates/zil-driver/src/semantic_cache.rs": "e479d70cbae85c73420e74c396d052abf231c5a3a52d28e50093aacb5291c0f4",
+      "crates/zil-driver/src/semantic_items.rs": "97627f3fa1ad2a149474ea3b35bcea4d0e1881bb74348c42a7fc61a4ec8bc8bc",
+      "crates/zil-driver/src/session.rs": "486631d0dc6f68b5092bff9fdfdb47ce9f58c50b0e51bfdee5e9d3a0d23b86a3",
+      "crates/zil-types/src/incremental.rs": "c4bcb850e6c489f29842ce54187eb99a9365715162278db695890c776191f5f9"
+    },
+    "unchanged_context_read_sha256": {
+      "crates/zil-db/src/cache.rs": "ff79c1b73e4e7f563e64b65ad3c7fe8f2a5bc51c8afa89fcca1a164a9511c7e2",
+      "crates/zil-driver/src/artifacts.rs": "55e9eac2fd3615151f67cc9d36ca75bf8c2322bc2405390d51bdf65ce31a1953",
+      "crates/zil-driver/src/artifacts/cache_namespace.rs": "e380ed778a14cb1392852e2ab35880d3c494472fdda72fe06338c4e1478d455e",
+      "crates/zil-driver/src/ct_artifact/scalar_materialization.rs": "b8e3baa1b0235381e3139aaaf983b2f9d94300156dd226f7b3eb530b7f7b9f17",
+      "crates/zil-syntax/src/parsed_source.rs": "304b77f032e5a74ae807ae9b2d150d03c3b6304666a43603c1e6970513b98400",
+      "crates/zil-backend-llvm/src/machine_cgu/layout.rs": "aaae0ac64f15591a272bf2432016cc363952e950fa90627ef3a836504b3f14f4",
+      "crates/zil-backend-llvm/src/emit/incremental.rs": "f4f6b3d0a62f55ba9c6308cd94cdfba69732c84dfc931197b86283eba440df22",
+      "crates/zil-backend-llvm/src/link_cache.rs": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79",
+      "crates/zil-llvm-api/src/model.rs": "9dd883f945239a695c19e2689905194bbd55c8e93713f5f519ced3bcc03549dc"
+    },
+    "scope": "Independently read the actual live delta and its consumers during construction, then checked exact final commit/tree/file hashes and the final disk-hint hook, visibility, collapsed condition and Box-content assignment. Prior unchanged boundaries carry forward from the exact 140997 source receipt. This does not claim an independent reread of every unchanged source file.",
+    "prior_receipt": {
+      "path": "tools/research/incremental-demand/full-pipeline-canonical-review.json",
+      "sha256": "997a0e55b8e6cc35202e3079041d70aacabac2a93d90e22dc7b0700a57a28f75"
+    },
+    "reviewer_execution": "Source/git/hash/raw-log processing only. No Cargo build, tests, compiler invocation, benchmark or native program execution by reviewer; no production/helper modification or commit. Only this JSON written.",
+    "non_source_reports": "The audit/profile documents in this commit are not compiler authority. Their inclusion does not turn this source review into independent performance acceptance."
+  },
+  "boundary_assessments": [
+    {
+      "area": "ProducerEpoch association and current ingress",
+      "assessment": "An ExpandedProject raw owner retains a private checkpoint of its actual ProducedProgram/ExpandSession, sealed ParsedSource inputs and scalar materializer. Retrieval occurs only in a closed successful Types->Ct->Expand DB trace. Expanded core, ProducedProgram output and epoch core must share the same strong allocation; target fingerprint, complete Limits and every current SourceUnit byte/ID/path must match. Current aliases/options remain bound by the enclosing full query key. Activation occurs after current phase observer/cancellation replay; subsequent producer/parser/materializer operations still enforce their original actual-input and budget envelopes."
+    },
+    {
+      "area": "TypesEpoch and publication ownership",
+      "assessment": "ProjectTypedOwner privately owns the Arc<TypedProgram> and optional TypesEpoch. A produced epoch binds the complete QueryKey and Weak exact Program identity, raw FunctionSession epoch checkpoint and OnceLock publication hint. Disk-restored owners have no epoch; test fault mutation clears it before COW. Whole-frontend and ordinary Types hits activate only after the current closed DB receipt/query is validated. No Verify receipt enters the epoch; current Verify/LIR/native checks remain required."
+    },
+    {
+      "area": "Raw epoch lifetime and rollback",
+      "assessment": "Producer/Types epochs belong to existing raw owners and are dropped through the existing LRU/prepare/clear lifecycle, without a new independent history map. ParsedSource and entry bodies/memos share immutable owners. FunctionSession epoch_checkpoint additionally keeps immutable ProducerMemo Arc; original transaction checkpoint still clears producer memo/reactive projections. Publication can strongly retain Program, but Program contains no owner/epoch back-reference, so no ownership cycle was introduced. Existing raw capacity bounds owner count, not a zero-cost or strict total byte limit."
+    },
+    {
+      "area": "Publication checkpoint binding",
+      "assessment": "checkpoint_for requires the exact previous Program Arc and aligned slots/canonical/binding counts and ordered IDs before it may be attached to that matching Types owner. It contains raw encodings/pack locators and file stamps, no directory FD or verification capability. Alignment does not imply every OnceLock has been filled: quota-limited empty slots can legally serialize fresh next time. Public FunctionProduct digests/Arcs still cannot mint a canonical handle."
+    },
+    {
+      "area": "Streaming diagnostic bytes",
+      "assessment": "The renderer retains a header plus ordered shared Arc<String> fragments produced from exact current item equality. The same ordinary item renderer and header slicing define each fragment. BufWriter streams the full current header/fingerprint and every fragment in order, flushes errors, and avoids the new whole-module aggregate String. Complete sidecar bytes are still written; this is not skipped output I/O. Finite cold/current/local-edit sidecar tests compare actual file bytes to the complete renderer."
+    },
+    {
+      "area": "Actual CGU layout recipe",
+      "assessment": "Recipe replay is limited to already admitted scalar ordinary O2 LLVM API, no incremental_o2 imports, no closed executable, no resources/closures/post-partition transformations. same_recipe_environment binds all normalized BuildOptions/names/collected/closure fields and the lowering context strong identity, whose complete target/Limits/entry/ABI and ordered source-file headers must remain unchanged. Recipe compares every machine item in order: global/type/declaration changes fall back; changed definitions require exact name/linkage/signature/attrs plus full references, direct-call set and cost equality. The retained actual layout has no imports; changed definitions replace only their owning unit positions, while other current unit items remain shared. Every changed definition must have exactly one canonical consumer. Current full unit preflight and object binding still run."
+    },
+    {
+      "area": "Equal object result stops before final link",
+      "assessment": "The final-link key already includes actual ordered object bytes and complete current external discovery. Removing the extra all-object-hit condition allows a freshly compiled object with identical bytes to stop at this actual equal result. It retains object-cache-enabled admission and all key/dependency checks, cancellation and guarded final publication. The native x versus x+0 fixture checks an action-key miss, real O2 emission, same object bytes and reused final ELF; passing it is finite result-equality evidence, not a general optimization parity claim."
+    },
+    {
+      "area": "Packed manifest admission and read amplification",
+      "assessment": "The opaque wrapper bounds logical bytes and unique item totals and sorted tables, verifies all sizes/offset ranges/counts and the sum of unique referenced pack payloads before opening any pack. Referenced packs must all be used. Each pack is read at its declared bounded length, checked for pack magic/header, whole-payload hash and length; selected slice hash is checked independently. No per-pack fresh source-byte allowance is granted. The original logical function/v6 manifests and aggregate raw decoder/node/source budgets still execute as consumers."
+    },
+    {
+      "area": "Pack publication and compaction",
+      "assessment": "Only current item locators and their referenced pack records are retained. A historical manifest carries its own locations. Before old pack reads, old unique pack payload plus missing current item bytes is bounded; excess compacts current shared Arc bytes into one new pack without reencoding CFGs. Dirty items use one immutable pack, preserving original ArtifactCache create_new temp, complete writes, sync_all and atomic rename. Final full namespace/plan validation and cancellation precede manifest-last atomic publication. Epoch replacement happens only after final manifest success. Canceled/failed publication may leave an orphan pack, never a partial authorized epoch."
+    },
+    {
+      "area": "Integrity stamps, corrupt data and disk hint",
+      "assessment": "A remembered successful complete pack stamp can skip rereading unchanged immutable bytes; first or changed metadata requires whole-pack/slice integrity checking. A hint from a manifest always has stamp=None and cannot authorize skipping that check. The final pub(crate) remember_packed_epoch call is after restored current source_fingerprint/module_id/target equality, and before imported raw candidate handling; it creates only this bounded untrusted locator hint. Concurrent manifest replacement cannot grant Verify authority: current item keys must still match and the pack is rechecked; rejected candidate fallback clears session state. Original independent current Verify remains after decode/rebase."
+    },
+    {
+      "area": "Store compatibility and filesystem protection",
+      "assessment": "Both function-v2 and semantic-v6 stores recognize the wrapper and otherwise accept their prior logical manifests/items. New pack roots are explicitly planned cache directories with source/output canonical prefix/inode conflict checks, held directory FD on Linux and original guards elsewhere. All child names are fixed digest basenames and atomic replacement avoids truncating source aliases. Manifest root/key remains the guarded existing destination. Unsupported/missing/corrupt packed input is an optional miss or repair; no raw pack authorizes semantic/native verification."
+    }
+  ],
+  "test_evidence": {
+    "logs_independently_read": [
+      {
+        "path": "out/runs/full-pipeline-packed-epoch-01.log",
+        "sha256": "4ce3187069b677044d4203b3035bb00ab4bd2ca3c8a69f0002abaf386f99f8f9",
+        "bytes": 1309,
+        "suite_results": []
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-epoch-02.log",
+        "sha256": "59d838d075b6c5ecb2cf272ec444a2bc7ab712f018fe8eb15841bdf72853be0a",
+        "bytes": 45827,
+        "suite_results": [
+          {
+            "status": "ok",
+            "passed": 221,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "status": "FAILED",
+            "passed": 194,
+            "failed": 1,
+            "ignored": 0
+          }
+        ]
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-epoch-03.log",
+        "sha256": "fbc2bd0491ef3ea7dfcc3a62c77df4a9365ad1d1a5fda68ea7a9b3816a04f240",
+        "bytes": 30634,
+        "suite_results": [
+          {
+            "status": "ok",
+            "passed": 195,
+            "failed": 0,
+            "ignored": 0
+          },
+          {
+            "status": "ok",
+            "passed": 78,
+            "failed": 0,
+            "ignored": 0
+          }
+        ]
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-driver-04.log",
+        "sha256": "0ae63f72998f7c6a0577cedd227f9e2d2336182fe4f53549a5f7655c37afd8a1",
+        "bytes": 22661,
+        "suite_results": [
+          {
+            "status": "ok",
+            "passed": 195,
+            "failed": 0,
+            "ignored": 0
+          }
+        ]
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-clippy-01.log",
+        "sha256": "f622edf1526d88d36262b2dee82c55860cac495190f0661608b1395422326e1b",
+        "bytes": 1067,
+        "suite_results": []
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-clippy-02.log",
+        "sha256": "273157811a1feb234f55ea34b7ccdc62c3207de5373866e8c38aa52bd5915695",
+        "bytes": 1811,
+        "suite_results": []
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-clippy-03.log",
+        "sha256": "3d127b80e1ac76db40c346929a4de41bd1b810e983a39ae10072b987bb228fe8",
+        "bytes": 268,
+        "suite_results": []
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-fmt-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "suite_results": []
+      },
+      {
+        "path": "out/runs/full-pipeline-packed-fmt-02.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "suite_results": []
+      }
+    ],
+    "passing_scope": "Backend 221 in packed-epoch-02. Driver 195 plus Types 78 in packed-epoch-03. After the final disk-hint hook, Driver 195 passed again in packed-driver-04. These overlapping driver suites are not additive. Strict workspace/all-targets Clippy03 and fmt02 passed as reported by root.",
+    "preserved_failures": [
+      "packed-epoch-01 failed compilation in tests: private recency access and wrong ExpandedProject program accessor. No tests completed in that log. Final fixtures use existing clear/raw ownership APIs and the actual owner accessors.",
+      "packed-epoch-02 is an overall failed combined run: Backend 221 passed; Driver 194 passed/1 failed because the old corruption fixture tried to remove items after storage moved to packs-v1. Final fixture removes the actual packs-v1 directory and retains current Resident/no-decode/current-import assertions.",
+      "packed-clippy-01 failed because final remember_packed_epoch was initially too private for project.rs; final method is pub(crate). packed-clippy-02 failed only collapsible-if and replace-box lints; final logic uses the equivalent condition and replaces Box contents. Both failures remain preserved."
+    ],
+    "substantive_cases": "Actual epoch tests cover cold->broad->resident cold->positions and private edit CFG/body-key/serialization work, current E-UNKNOWN-NAME error span and materializer/module reuse, Weak lifetime after raw-owner eviction/clear. Eight pack cases cover historical locators, actual write counts, bounded stale-byte compaction, exact/N-1 quota, malformed tables before reads, whole-pack and selected-slice integrity, cancellation/old-manifest retention and namespace replacement after pack sync. Native recipe tests compare full planner units and reject topology/ABI/global/order/context changes.",
+    "execution_attribution": "Root owned all compiler/native/test/lint/fmt windows. Reviewer independently read logs and hashes; source-window, precise command and exit status attribution supplied by root because raw logs do not embed commit IDs. Empty fmt output is root-reported exit 0, not standalone exit-code proof.",
+    "not_claimed": "No full-workspace test run on e1ad7470 is claimed. Historical 140997 full-workspace and matched check/O2 matrices are separate frozen-source scopes and are not measurements of this delta."
+  },
+  "remaining_findings_and_limits": [
+    "F2 remains open for explicit incremental_o2 whole-transform/stable-name COW paths; this ordinary-O2 recipe and diagnostic streaming do not close it.",
+    "Task remains under construction. No full matched main/candidate/Rust timing, allocation/peak-memory, restart/crash-injection or product acceptance for this new source is established by this receipt.",
+    "Packed load still reads and hashes whole referenced packs, copies selected slices and assembles/decodes/rebases full semantic bytes before current Verify. Payload bounds exclude bounded pack/envelope/header overhead and are not a single-buffer peak-memory bound.",
+    "Physical pack writes and manifest writes are separate actual counters. Existing/written logical item counts are not fsync or syscall counts. Compaction may rewrite unchanged current raw bytes; disk history/orphan packs have no global garbage-collection quota claim.",
+    "Additional accelerator metadata can be retained per existing raw owner. LRU owner count and per-format quotas do not prove a strict all-history/shared-slot total memory bound.",
+    "Whole-project source keys/global validation and aggregation, conservative fallbacks, native preflight/object integrity, external link discovery and full sidecar/final publication I/O remain. Ingress/ReadBatch counters remain scoped rather than full-request cost measurements.",
+    "No arbitrary hostile filesystem/toolchain, non-Linux platform or broad concurrency matrix was independently executed. Existing trusted-local cache and installed-tool assumptions and fail-closed external-format fallback remain.",
+    "New producer acceleration stays opt-in/default-off. Raw source/pack/serialization/partition metadata cannot replace the independently bound Verify capability, its original budgets or current native checks."
+  ]
+}
