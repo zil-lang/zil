@@ -1283,6 +1283,54 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
     Ok(true)
 }
 
+/// Finite shared Tuples keep independently scoped child instances and all
+/// physical targets. This never establishes a generic Copy capability.
+pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
+    b.type_work(ty,true,"shared compound actual type")?;
+    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+        fee(b,1)?;
+        match ty {
+            Type::Tuple(fields)=>{for field in fields{if !walk(module,field,b)?{return Ok(false)}}Ok(true)},
+            Type::BorrowedStorage{storage,life}=>{
+                if !matches!(storage.as_ref(),Type::Record{..}|Type::Enum{..}){return Ok(false)}
+                physical(ty,b)?;
+                fee(b,life.slots.len())?;
+                if life.slots.iter().any(|slot|slot.mode!=StoredBorrowMode::SharedAddress){return Ok(false)}
+                let mut count=0;
+                for actual in &module.life_instances{
+                    b.type_work(&actual.ty,false,"shared compound nominal candidate")?;
+                    b.type_work(ty,false,"shared compound nominal actual")?;
+                    count+=usize::from(actual.ty==*ty);
+                }
+                if count!=1{return Err(failure("shared compound child lacks unique complete nominal instance"))}
+                Ok(true)
+            },
+            other=>Ok(other.is_copy_value()),
+        }
+    }
+    walk(module,ty,b)
+}
+fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::ExtractField{aggregate,index}=i.kind else{return Ok(false)};
+    let parent=value_type(f,aggregate)?;
+    if !shared_compound(module,parent,b)?{return Ok(false)}
+    let Type::Tuple(fields)=parent else{unreachable!()};
+    let child=fields.get(index as usize).ok_or_else(||failure("compound extraction field absent"))?;
+    let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
+    if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+    Ok(true)
+}
+fn compound_slot_rows(ty:&Type,prefix:&mut Path,out:&mut Vec<StorageLifeSlot>,b:&mut Budget)->CompileResult<()> {
+    fee(b,1)?;
+    match ty {
+        Type::Tuple(fields)=>{for (i,field) in fields.iter().enumerate(){prefix.push(PlaceProjection::Field(u32::try_from(i).map_err(|_|failure("compound field overflow"))?));compound_slot_rows(field,prefix,out,b)?;prefix.pop();}},
+        Type::BorrowedStorage{life,..}=>{for slot in &life.slots{fee(b,prefix.len().saturating_add(slot.path.len()).saturating_add(1))?;let mut path=prefix.clone();path.extend_from_slice(&slot.path);out.push(StorageLifeSlot{path,binder:slot.binder,mode:slot.mode});}},
+        _=>{},
+    }
+    Ok(())
+}
+
 /// Pure inline products have no runtime targets. Every qualified descendant
 /// still needs one complete, independently checked nominal instance.
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
@@ -1542,21 +1590,23 @@ fn binding(
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
-    if b.stored_enum_addresses {
-        while let Type::ErrorUnion { error, result } = boundary {
-            fee(b, 1)?;
-            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
-                return Err(failure(
-                    "stored sum relation omits its actual ErrorArm boundary",
-                ));
-            };
-            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-            boundary = if *arm {
-                error.as_ref()
-            } else {
-                result.as_ref()
-            };
-            leaf_path = &leaf_path[1..];
+    loop {
+        match boundary {
+            Type::Tuple(fields)=>{
+                fee(b,1)?;
+                let Some(PlaceProjection::Field(index))=leaf_path.first() else{return Err(failure("compound relation omits its actual field boundary"))};
+                boundary=fields.get(*index as usize).ok_or_else(||failure("compound relation selects absent actual field"))?;
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                leaf_path=&leaf_path[1..];
+            },
+            Type::ErrorUnion{error,result} if b.stored_enum_addresses=>{
+                fee(b,1)?;
+                let Some(PlaceProjection::ErrorArm(arm))=leaf_path.first() else{return Err(failure("stored sum relation omits its actual ErrorArm boundary"))};
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+                boundary=if *arm{error.as_ref()}else{result.as_ref()};
+                leaf_path=&leaf_path[1..];
+            },
+            _=>break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -1643,21 +1693,23 @@ fn binding_by_scan(
     let mut boundary = ty;
     let mut leaf_path = path;
     let mut class_path = Vec::new();
-    if b.stored_enum_addresses {
-        while let Type::ErrorUnion { error, result } = boundary {
-            fee(b, 1)?;
-            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
-                return Err(failure(
-                    "stored sum relation omits its actual ErrorArm boundary",
-                ));
-            };
-            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-            boundary = if *arm {
-                error.as_ref()
-            } else {
-                result.as_ref()
-            };
-            leaf_path = &leaf_path[1..];
+    loop {
+        match boundary {
+            Type::Tuple(fields)=>{
+                fee(b,1)?;
+                let Some(PlaceProjection::Field(index))=leaf_path.first() else{return Err(failure("compound relation omits its actual field boundary"))};
+                boundary=fields.get(*index as usize).ok_or_else(||failure("compound relation selects absent actual field"))?;
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                leaf_path=&leaf_path[1..];
+            },
+            Type::ErrorUnion{error,result} if b.stored_enum_addresses=>{
+                fee(b,1)?;
+                let Some(PlaceProjection::ErrorArm(arm))=leaf_path.first() else{return Err(failure("stored sum relation omits its actual ErrorArm boundary"))};
+                class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+                boundary=if *arm{error.as_ref()}else{result.as_ref()};
+                leaf_path=&leaf_path[1..];
+            },
+            _=>break,
         }
     }
     let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
@@ -2583,9 +2635,12 @@ fn seed_value(
         }
     }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
-    if let Some((_, life)) = qualified {
+    let mut compound_slots=Vec::new();
+    if matches!(ty,Type::Tuple(_)) {compound_slot_rows(ty,&mut Vec::new(),&mut compound_slots,b)?;}
+    if qualified.is_some() || !compound_slots.is_empty() {
+        let declarations=qualified.map_or(compound_slots.as_slice(),|(_,life)|life.slots.as_slice());
         let mut slots = BTreeMap::new();
-        for decl in &life.slots {
+        for decl in declarations {
             fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
             let target = Target {
                 retained_port: None,
@@ -3527,6 +3582,18 @@ fn transfer(
                 }
                 return Ok(out);
             }
+            if matches!(ty,Type::Tuple(_)) && shared_compound(module,ty,b)? {
+                for (index,field) in fields.iter().enumerate(){
+                    let source=get(*field)?;
+                    union(&mut out.held,&source.held,b)?;
+                    for (tail,permission) in &source.slots{
+                        fee(b,tail.len().saturating_add(1))?;
+                        let mut path=vec![PlaceProjection::Field(u32::try_from(index).map_err(|_|failure("compound field overflow"))?)];path.extend_from_slice(tail);
+                        union(out.slots.entry(path).or_default(),permission,b)?;
+                    }
+                }
+                return Ok(out);
+            }
             let Some((storage, life)) = carrier(ty) else {
                 return Ok(out);
             };
@@ -4122,6 +4189,23 @@ fn transfer(
         InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
             out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
         }
+        InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
+            let parent=value_type(f,*aggregate)?;
+            if shared_compound(module,parent,b)? {
+                let Type::Tuple(fields)=parent else{unreachable!()};
+                let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
+                let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
+                if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+                let source=get(*aggregate)?;
+                for (path,permission) in &source.slots{
+                    fee(b,path.len().saturating_add(1))?;
+                    if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
+                        union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                    }
+                }
+                union(&mut out.held,&source.held,b)?;
+            }
+        }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
                 pure_copy::types(f, i, b)?;
@@ -4190,7 +4274,6 @@ fn transfer(
         | InstructionKind::OwnedStoreLen { .. }
         | InstructionKind::DropErrorUnion { .. }
         | InstructionKind::DescribePackageField { .. }
-        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
@@ -6437,6 +6520,7 @@ pub(super) fn infer(
                 || b.stored_enum_addresses
                     && enum_address::signature(ty)
                     && enum_address::ordinary(module, ty, b)?
+                || shared_compound(module,ty,b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -6957,6 +7041,7 @@ fn actual_instructions(
                 }
             }
             if pure_copy::operation(&i.kind)
+                && !compound_extract(module,f,i,b)?
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
