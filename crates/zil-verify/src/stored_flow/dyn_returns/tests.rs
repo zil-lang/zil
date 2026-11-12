@@ -651,3 +651,160 @@ fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StorageP
         _ => panic!("fixture requires an exact source"),
     }
 }
+
+#[test]
+fn output_only_dyn_class_stays_pending_until_actual_static_or_known_no_target() {
+    let (module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 1;
+    life.invocation_binder_count = 0;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Fixed(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    let limits = Limits::default();
+    let mut b = Budget::new(&limits);
+    b.dyn_contexts = true;
+    let pending = pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(
+        pending,
+        [f.storage_life.as_ref().unwrap().classes[0].position.clone()]
+    );
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+    let contract = f.storage_life.as_ref().unwrap();
+    assert!(
+        signature_life::function_relation(&module, &[], &f.return_type, contract, None, false)
+            .is_err(),
+        "generic structural caller has no concrete actual-CFG obligation ledger"
+    );
+    signature_life::function_relation_pending(
+        &module,
+        &[],
+        &f.return_type,
+        contract,
+        None,
+        false,
+        false,
+        &pending,
+    )
+    .unwrap();
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    assert_eq!(
+        f.storage_life.as_ref().unwrap().classes[0].binder,
+        StorageBinder::Fixed(0)
+    );
+    assert!(f.storage_life.as_ref().unwrap().static_bindings.is_empty());
+    // A subsequent actual summary must be rechecked, even if an earlier solve
+    // iteration proved the same occurrence. A declaration never fills facts.
+    let mut wrong = actual.clone();
+    wrong.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(pending::discharge(&f, &wrong, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+    let mut unknown = actual.clone();
+    unknown.0[0].1.known = false;
+    assert!(pending::discharge(&f, &unknown, &mut b).is_err());
+    assert!(pending::discharge(&f, &dyn_ports::Rows::default(), &mut b).is_err());
+    // Complete known-empty is a no-target proof, never static evidence.
+    actual.0[0].1.permission.sources.clear();
+    f.retained_return_sources = Some(vec![]);
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::NoTarget
+    );
+}
+
+#[test]
+fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent() {
+    let (mut module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 1;
+    life.invocation_binder_count = 0;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Fixed(0);
+    let port = module.dyn_interfaces[0].retained_life.ports[0].clone();
+    module.dyn_interfaces[0].retained_life.ports.push(port);
+    let mut other = actual.0[0].clone();
+    other.0 = vec![ContractProjection::RetainedPort(1)];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    // Same leaf, mode and class, different actual port occurrence.
+    actual.0.push(other);
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].ports.len(), 2);
+    assert!(pending::discharge(&f, &actual, &mut b).is_err());
+    actual.0[1].1.permission.sources[0].base = HoldRoot::Static;
+    pending::discharge(&f, &actual, &mut b).unwrap();
+    actual.0[1].1.parent_sources.push(Source {
+        base: HoldRoot::Local(LocalId(0)),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: vec![],
+    });
+    assert!(pending::discharge(&f, &actual, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+}
+
+#[test]
+fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
+    let (module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 0;
+    life.invocation_binder_count = 1;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Invocation(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let keys = pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(keys.len(), 1);
+    let c = f.storage_life.as_ref().unwrap();
+    assert!(
+        signature_life::function_relation(&module, &[], &f.return_type, c, None, false).is_err()
+    );
+    signature_life::function_relation_pending(
+        &module,
+        &[],
+        &f.return_type,
+        c,
+        None,
+        false,
+        false,
+        &keys,
+    )
+    .unwrap();
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].binder, StorageBinder::Invocation(0));
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    assert_eq!(module.dyn_interfaces[0].retained_life.binder_count, 1);
+    let mut forged = actual.clone();
+    forged.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(pending::discharge(&f, &forged, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+}
