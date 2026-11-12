@@ -54,13 +54,17 @@ fn fixture(formals: Vec<u32>, classes: Vec<u32>, actuals: Vec<u32>) -> TypedModu
             declaration: nominal,
             arguments: formals
                 .into_iter()
-                .map(DynPatternActual::LifeParameter)
+                .map(|ordinal| {
+                    DynPatternActual::Life(DynLifePattern::DeclarationParameter(ordinal))
+                })
                 .collect(),
         }))),
         implemented_trait: Some(DynSelfPattern {
             declaration: trait_id,
             arguments: (0..actuals.len() as u32)
-                .map(DynPatternActual::LifeParameter)
+                .map(|ordinal| {
+                    DynPatternActual::Life(DynLifePattern::DeclarationParameter(ordinal))
+                })
                 .collect(),
         }),
         id: implementation,

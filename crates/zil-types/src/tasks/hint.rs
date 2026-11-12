@@ -303,7 +303,6 @@ mod hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
-            dyn_instance: None,
             retained_return_sources: None,
             result_mode: PassingMode::Infer,
             storage_life: None,

@@ -52,3 +52,6 @@ for name,(kind,values) in items.items():
  out+='\nOk(())\n}\n}\n'
 (root/'dynamic_recipes_visit.rs').write_text(out)
 p=root/'lib.rs';s=p.read_text();s=s if 'mod dynamic_recipes_visit;' in s else s.replace('mod dynamic_recipes_fingerprint;', 'mod dynamic_recipes_fingerprint;\nmod dynamic_recipes_visit;\npub use dynamic_recipes_visit::*;');p.write_text(s)
+
+from generate_dyn_recipe_walk import generate as generate_walk
+generate_walk(items,root,header)

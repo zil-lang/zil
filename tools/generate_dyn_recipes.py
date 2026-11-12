@@ -118,7 +118,50 @@ for mode in ['w','r']:
   w+=f'pub(super) fn {snake(name)}({params}) -> WireResult<{"()" if mode=="w" else name}> {{\nself.dyn_recipe_node(depth)?;\n'+body(name,kind,values,mode)+ ('\nOk(())' if mode=='w' else '')+'\n}\n'
  w+='}\n'
 open(root+'dynamic_recipes_wire.rs','w').write(w)
-f='//! Complete raw dynamic recipe identity. This does not certify recipes.\nuse super::*;\n'
-for name,(kind,values) in items.items():f+=f'pub(super) fn encode_{snake(name)}(b: &mut impl FingerprintSink, value: &{name}) {{\n'+body(name,kind,values,'f')+'\n}\n'
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from generate_dyn_recipe_codec import generate as generate_codec
+generate_codec(items,existing,gen,snake,root)
+# Recursive recipes are encoded with an explicit heap stack. The raw identity
+# helper has no quota result; callers prepay, while malformed deep data must
+# still reach the bounded Wire/prehash diagnostics without native recursion.
+def push(t,e):
+ t=t.strip()
+ if t.startswith('Box<'):return push(t[4:-1],e)
+ if t.startswith('Vec<'):
+  return 'for item in ('+e+').iter().rev() {\n'+push(t[4:-1],'item')+'\n}\npending.push(Work::Length(('+e+').len()));'
+ if t.startswith('Option<'):
+  return 'if let Some(item) = '+e+' {\n'+push(t[7:-1],'item')+'\n}\npending.push(Work::Byte(u8::from(('+e+').is_some())));'
+ if t=='u32':return 'pending.push(Work::Word(*'+e+'));'
+ if t=='bool':return 'pending.push(Work::Byte(u8::from(*'+e+')));'
+ if t in ('ModuleId','NodeId','FunctionId'):return 'pending.push(Work::Word(('+e+').0));'
+ if t in ('UnaryOp','BinaryOp'):return 'pending.push(Work::Byte(*'+e+' as u8));'
+ if t=='CallableKind':return 'pending.push(Work::Byte(match '+e+' { CallableKind::FunctionPointer => 0, CallableKind::Fn => 1, CallableKind::FnMut => 2, CallableKind::FnOnce => 3 }));'
+ return 'pending.push(Work::'+t+'('+e+'));'
+base={t:fp for t,(method,fp) in existing.items() if t not in items}
+f='//! Complete raw recipe identity with an explicit traversal stack.\nuse super::*;\n'
+f+="enum Work<'a> { Byte(u8), Word(u32), Length(usize),\n"
+for name in items:f+=name+"(&'a "+name+'),\n'
+for name in base:f+=name+"(&'a "+name+'),\n'
+f+='}\nfn encode_recipe(b: &mut impl FingerprintSink, first: Work<\'_>) {\nlet mut pending = vec![first];\nwhile let Some(next) = pending.pop() {\nmatch next {\nWork::Byte(value) => b.push(value), Work::Word(value) => encode_u32(b, value), Work::Length(value) => encode_len(b, value),\n'
+for name,fp in base.items():f+='Work::'+name+'(value) => '+fp+'(b,value),\n'
+for name,(kind,values) in items.items():
+ f+='Work::'+name+'(value) => {\n'
+ if kind=='struct':f+='\n'.join(push(t,'&value.'+n) for n,t in reversed(values))
+ else:
+  f+='match value {\n'
+  for tag,(n,k,fs) in enumerate(values):
+   pattern=name+'::'+n+(' { '+', '.join(n for n,t in fs)+' }' if k=='struct' else '('+', '.join(n for n,t in fs)+')' if k=='tuple' else '')
+   f+=pattern+' => {\n'+'\n'.join(push(t,n) for n,t in reversed(fs))+'\nb.push('+str(tag)+');\n},\n'
+  f+='}\n'
+ f+='\n},\n'
+f+='}\n}\n}\n'
+# Only externally referenced entry functions are emitted; all internal recursion
+# is represented by Work, rather than a family of unused recursive wrappers.
+others='\n'.join(p.read_text() for p in Path(root).glob('*.rs') if p.name!='dynamic_recipes_fingerprint.rs')
+for name in items:
+ method='encode_'+snake(name)
+ if re.search(r'\b'+method+r'\s*\(',others):
+  f+=f'pub(super) fn {method}(b: &mut impl FingerprintSink, value: &{name}) {{ encode_recipe(b,Work::{name}(value)); }}\n'
 open(root+'dynamic_recipes_fingerprint.rs','w').write(f)
 print('generated',len(items),'types')
