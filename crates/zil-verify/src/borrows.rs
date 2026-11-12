@@ -719,9 +719,14 @@ fn reconstruct(
     let mut inputs = vec![State::new(); n];
     let mut outputs = vec![State::new(); n];
     let mut product_captures = false;
+    let capture_directory = if budget.owning_address_captures || budget.returned_environment_sources {
+        budget.spend(f.values.len().saturating_add(f.locals.len()))?;
+        f.values.iter().chain(f.locals.iter().map(|local|&local.ty))
+            .any(|ty|helpers::parameter_type(ty).is_some())
+    } else {false};
     loop {
         let mut changed = false;
-        let capture_facts = if budget.owning_address_captures {
+        let capture_facts = if capture_directory {
             Some(captures::reconstruct_roots(
                 module, f, graph, &values, budget,
             )?)
@@ -1078,7 +1083,8 @@ fn reconstruct(
                             } => {
                                 if matches!(f.values[result.0 as usize], Type::Closure(_)) {
                                     row = returned::roots(
-                                        module, f, *function, arguments, &values, budget,
+                                        module, f, *function, arguments, &values,
+                                        capture_facts.as_ref().map(|facts|facts.values.as_slice()), budget,
                                     )?;
                                 }
                                 for root in &summaries[function.0 as usize] {
