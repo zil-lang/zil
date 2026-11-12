@@ -7,6 +7,8 @@ mod array_snapshot;
 #[cfg(test)]
 mod borrowed_owned_entry_tests;
 mod byte_queries;
+#[path = "stored_flow/captured_owner.rs"]
+mod captured_owner;
 mod leaf_rows;
 mod live_words;
 pub(super) mod owned_byte_views;
@@ -14,8 +16,6 @@ mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
 mod returned_environment;
-#[path = "stored_flow/captured_owner.rs"]
-mod captured_owner;
 #[cfg(test)]
 mod set_bits_tests;
 mod ssa_loan_groups;
@@ -870,7 +870,8 @@ fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) 
         }
         | InstructionKind::TaskCreate {
             arguments: fields, ..
-        } | InstructionKind::TaskCreateOwned {
+        }
+        | InstructionKind::TaskCreateOwned {
             arguments: fields, ..
         } => (None, fields),
         _ => (None, &[]),
@@ -1972,21 +1973,27 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         super::signature_life::function_relation
     };
-    // Callable output leaves use the separately body-proven Capture source
-    // relation; this signature relation authenticates every actual input class.
-    let result =
-        if matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some() {
-            &Type::Unit
-        } else {
-            &f.return_type
-        };
+    // Actual Capture sources prove targets separately. If a factory publishes
+    // output class rows, authenticate its complete Fixed class relation as well:
+    // the result can only refer to classes already supplied by actual inputs.
+    let factory = matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some();
+    b.spend(c.classes.len())?;
+    let output_classes = c
+        .classes
+        .iter()
+        .any(|row| row.position.base == StorageBase::Result);
+    let result = if factory && !output_classes {
+        &Type::Unit
+    } else {
+        &f.return_type
+    };
     check(
         module,
         &parameters,
         result,
         c,
         Some(f.span),
-        f.callable_contract.is_some(),
+        f.callable_contract.is_some() || factory,
     )?;
     Ok(())
 }
@@ -2607,14 +2614,15 @@ fn write_sites(
         for i in &block.instructions {
             let site = i as *const Instruction as usize;
             let capture_paths = captured_owner::write_paths(module, f, &i.kind, b)?;
-            let mut add = |parameter: u32, path: &Path, exclusive: bool, b: &mut Budget| -> Check<()> {
-                b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
-                let id = loans.len();
-                loans.push(Loan::default());
-                b.stored_exclusive_loans |= exclusive;
-                sites.push((site, parameter, path.clone(), id, exclusive));
-                Ok(())
-            };
+            let mut add =
+                |parameter: u32, path: &Path, exclusive: bool, b: &mut Budget| -> Check<()> {
+                    b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
+                    let id = loans.len();
+                    loans.push(Loan::default());
+                    b.stored_exclusive_loans |= exclusive;
+                    sites.push((site, parameter, path.clone(), id, exclusive));
+                    Ok(())
+                };
             match &i.kind {
                 InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
                     if let Some((_, shape)) = qualified(vt(
@@ -2655,11 +2663,22 @@ fn write_sites(
                                 )?;
                             }
                         }
-                        if let Type::Address { mutable: true, inner } = &callee.locals[local.0 as usize].ty
+                        if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
                             && let Type::Closure(id) = inner.as_ref()
                         {
                             for (path, ty) in returned_environment::leaves(module, *id, b)? {
-                                add(position as u32, &path, matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)), b)?;
+                                add(
+                                    position as u32,
+                                    &path,
+                                    matches!(
+                                        ty,
+                                        Type::Address { mutable: true, .. } | Type::Desc(_)
+                                    ),
+                                    b,
+                                )?;
                             }
                         }
                     }
@@ -4862,19 +4881,40 @@ fn windows(
                                 all.push((permission, false));
                             }
                         }
-                        if matches!(i.kind, InstructionKind::CallClosureShared { .. }
-                            | InstructionKind::CallClosureMut { .. }
-                            | InstructionKind::CallClosureBorrowed { .. })
-                            && let Some((definition, actuals)) = stored_callables::called(module, f, &i.kind)
+                        if matches!(
+                            i.kind,
+                            InstructionKind::CallClosureShared { .. }
+                                | InstructionKind::CallClosureMut { .. }
+                                | InstructionKind::CallClosureBorrowed { .. }
+                        ) && let Some((definition, actuals)) =
+                            stored_callables::called(module, f, &i.kind)
                         {
                             let obligations = &summaries[definition.function.0 as usize].apart;
                             if !obligations.is_empty() {
                                 let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
                                 for (left, right) in obligations {
-                                    let left = captured_owner::substitute(left, &definition.captures, &receiver, actuals, &solution.values, &state, b)?;
-                                    let right = captured_owner::substitute(right, &definition.captures, &receiver, actuals, &solution.values, &state, b)?;
+                                    let left = captured_owner::substitute(
+                                        left,
+                                        &definition.captures,
+                                        &receiver,
+                                        actuals,
+                                        &solution.values,
+                                        &state,
+                                        b,
+                                    )?;
+                                    let right = captured_owner::substitute(
+                                        right,
+                                        &definition.captures,
+                                        &receiver,
+                                        actuals,
+                                        &solution.values,
+                                        &state,
+                                        b,
+                                    )?;
                                     for a in &left.sources {
-                                        for z in &right.sources { apart(a, z, requirements, b)?; }
+                                        for z in &right.sources {
+                                            apart(a, z, requirements, b)?;
+                                        }
                                     }
                                 }
                             }
@@ -5247,10 +5287,18 @@ fn summarize(
                         }
                         b.spend(path.len())?;
                         if let HoldRoot::Parameter(_) = source.base
-                            && captured_owner::class(module, f, &Source {
-                                base: HoldRoot::Parameter(position as u32), leaf: path.clone(),
-                                inline: Vec::new(), retained_port: None, heap_element: None,
-                            }, b)? != captured_owner::class(module, f, source, b)?
+                            && captured_owner::class(
+                                module,
+                                f,
+                                &Source {
+                                    base: HoldRoot::Parameter(position as u32),
+                                    leaf: path.clone(),
+                                    inline: Vec::new(),
+                                    retained_port: None,
+                                    heap_element: None,
+                                },
+                                b,
+                            )? != captured_owner::class(module, f, source, b)?
                         {
                             return Err(err(
                                 "external slot update exceeds its declared lifetime relation",
@@ -5971,9 +6019,14 @@ fn solve_check(
                 // executable Bind checked by capture_views, never its type.
                 let base = match root.base {
                     HoldRoot::Local(local)
-                        if matches!(f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. }) =>
+                        if matches!(
+                            f.locals[local.0 as usize].ty,
+                            Type::BorrowedStorage { .. }
+                        ) =>
                     {
-                        graphs[index].package_views.capture(local)
+                        graphs[index]
+                            .package_views
+                            .capture(local)
                             .map_or(root.base, HoldRoot::Capture)
                     }
                     _ => root.base,

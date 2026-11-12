@@ -535,7 +535,7 @@ fn relation_inner(
                     )?;
                 }
             }
-            Type::Closure(id) if allow_callback && !output => {
+            Type::Closure(id) if allow_callback => {
                 let count = module
                     .and_then(|m| m.closures.get(id.0 as usize))
                     .and_then(|d| d.storage_life.as_ref())
@@ -553,7 +553,9 @@ fn relation_inner(
                         return Err(invalid());
                     }
                     class += 1;
-                    visit(row.binder, true)?;
+                    // Returned Fixed classes must already be grounded by an
+                    // input. A result row does not introduce retained storage.
+                    visit(row.binder, !output)?;
                 }
             }
             t if pointee => {
