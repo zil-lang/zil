@@ -24,3 +24,9 @@ pub fn take<K:StoreElement+owning_map.KeyEq+owning_hash_map.KeyHash>(set:&mut Ow
     return entry.key
 }
 pub fn clear<K:StoreElement+owning_map.KeyEq+owning_hash_map.KeyHash>(set:&mut OwningHashSet<K>)->i64 {return owning_hash_map.clear::<K,bool>(&mut set.state)}
+
+// Transfer dense Entry<K,bool> rows for ordinary owning iteration. The key
+// remains the actual owned K; extracting entry.key consumes it exactly once.
+pub fn into_entries<K:StoreElement+owning_map.KeyEq+owning_hash_map.KeyHash>(set:OwningHashSet<K>)->Store<owning_entries.Entry<K,bool>> contract {result(give)} {
+    return owning_hash_map.into_entries::<K,bool>(set.state)
+}

@@ -54,6 +54,9 @@ fn main()->i32 {
 }
 "#;
 fn run(source: &str, name: &str) {
+    run_output(source, name, b"")
+}
+fn run_output(source: &str, name: &str, expected: &[u8]) {
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
             continue;
@@ -95,6 +98,11 @@ fn run(source: &str, name: &str) {
                 Some(0),
                 "{backend:?}/{optimization:?}: {output:?}"
             );
+            assert_eq!(
+                output.stdout, expected,
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(output.stderr.is_empty(), "{output:?}");
             fs::remove_dir_all(dir).unwrap();
         }
     }
@@ -815,14 +823,12 @@ fn owning_hash_raw_and_wire_require_actual_store_definitions_and_selected_copy_a
                 path,
                 mutable: false,
             } = &mut instruction.kind
+                && matches!(path.as_slice(), [PlaceProjection::ErrorArm(false)])
+                && matches!(&function.locals[local.0 as usize].ty,Type::ErrorUnion{error,result} if matches!(error.as_ref(),Type::Package{..}) && result.is_copy_value())
             {
-                if matches!(path.as_slice(), [PlaceProjection::ErrorArm(false)])
-                    && matches!(&function.locals[local.0 as usize].ty,Type::ErrorUnion{error,result} if matches!(error.as_ref(),Type::Package{..}) && result.is_copy_value())
-                {
-                    path[0] = PlaceProjection::ErrorArm(true);
-                    changed = true;
-                    break;
-                }
+                path[0] = PlaceProjection::ErrorArm(true);
+                changed = true;
+                break;
             }
         }
         if changed {
@@ -925,12 +931,11 @@ fn main()->i32{return 0}
             function: callee,
             arguments,
         } = &mut instruction.kind
+            && *callee == getter
         {
-            if *callee == getter {
-                arguments[0] = wrong_value;
-                changed = true;
-                break;
-            }
+            arguments[0] = wrong_value;
+            changed = true;
+            break;
         }
     }
     assert!(changed);
@@ -1000,4 +1005,39 @@ fn owning_hash_reserve_and_recovery_keep_raw_canonical_store_cleanup_checks() {
             "{label}"
         );
     }
+}
+
+#[test]
+fn consuming_hash_collections_transfers_real_entries_and_releases_each_owner_once() {
+    run_output(
+        r#"
+import std.owning_hash_map
+import std.owning_hash_set
+import std.owning_entries
+import std.owning_map
+extern "C" fn putchar(value:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Key{manages token:Ticket;id:i64}
+impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}
+impl owning_hash_map.KeyHash for Key{fn hash(self:&Self)->i64{return self.id}}
+fn main()->i32 {
+    var map=owning_hash_map.new::<Key,Managed<Ticket>>()
+    let first=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{token:Ticket{code:65},id:1},value:Ticket{code:66}}
+    match owning_hash_map.insert::<Key,Managed<Ticket>>(&mut map,first){.err(_)=>{return 1},.ok(_)=>{}}
+    let second=owning_entries.Entry::<Key,Managed<Ticket>>{key:Key{token:Ticket{code:67},id:2},value:Ticket{code:68}}
+    match owning_hash_map.insert::<Key,Managed<Ticket>>(&mut map,second){.err(_)=>{return 2},.ok(_)=>{}}
+    let entries=owning_hash_map.into_entries::<Key,Managed<Ticket>>(map)
+    if store_len(entries)!=2 {return 3}
+    match store_pop(entries){.err(_)=>{return 4},.ok(old)=>{if old.key.id!=2 || old.value.code!=68{return 5}}}
+    var set=owning_hash_set.new::<Key>()
+    match owning_hash_set.insert::<Key>(&mut set,Key{token:Ticket{code:69},id:3}){.err(_)=>{return 6},.ok(_)=>{}}
+    let keys=owning_hash_set.into_entries::<Key>(set)
+    match store_pop(keys){.err(_)=>{return 7},.ok(old)=>{if old.key.id!=3{return 8}}}
+    return 0
+}
+"#,
+        "into-entries",
+        b"CDEAB",
+    );
 }
