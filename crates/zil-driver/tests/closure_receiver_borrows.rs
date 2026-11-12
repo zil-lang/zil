@@ -1111,9 +1111,29 @@ fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
         classes: vec![],
         static_bindings: vec![],
     });
+    let mut retired = Vec::new();
     for block in &mut other.blocks {
         if matches!(block.terminator, Terminator::Return(_)) {
             block.terminator = Terminator::Return(None);
+        }
+        if let Some(at) = block.instructions.iter().position(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::ScopeExit {
+                    scope: zil_ir::ScopeId(0),
+                    ..
+                }
+            )
+        }) {
+            block.instructions.insert(
+                at,
+                zil_ir::Instruction {
+                    result: None,
+                    kind: InstructionKind::StorageDead(local),
+                    span,
+                },
+            );
+            retired.push(block.id);
         }
     }
     let mut other_plan = candidate
@@ -1125,7 +1145,9 @@ fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
     other_plan.function = other.id;
     for block in &mut other_plan.blocks {
         block.initialized_in.push(local);
-        block.initialized_out.push(local);
+        if !retired.contains(&block.block) {
+            block.initialized_out.push(local);
+        }
     }
     let other_id = other.id;
     good.functions.push(other);
