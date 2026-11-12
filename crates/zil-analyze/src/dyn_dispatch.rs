@@ -290,6 +290,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dyn_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        crate::dyn_metadata::pattern(declaration.implemented_trait.as_ref(), budget)?;
+        if declaration.kind == DynDeclarationKind::Trait && declaration.implemented_trait.is_some()
+        {
+            return Err(bad(
+                "trait declaration cannot claim an implemented-trait recipe",
+            ));
+        }
         if declaration.self_pattern.is_some() {
             return Err(bad(
                 "dyn Self recipe requires complete implementation substitution proof",
@@ -393,6 +400,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             return Err(bad("dyn interface is outside the finite shared profile"));
         }
         for slot in &interface.slots {
+            crate::dyn_metadata::guarantees(slot.contract.guarantees.as_deref(), budget)?;
             for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
                 if !ty.is_b0_scalar() {
                     plain_metadata(ty, budget, 0)?;
@@ -799,6 +807,27 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .iter()
             .find(|i| i.id == table.interface)
             .ok_or_else(|| bad("dyn vtable interface is absent"))?;
+        budget.spend(
+            module.dyn_declarations.len(),
+            "actual dyn implemented trait application",
+        )?;
+        let implementation = module
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == table.implementation)
+            .ok_or_else(|| bad("dyn provider implementation declaration is absent"))?;
+        if implementation
+            .implemented_trait
+            .as_ref()
+            .is_none_or(|recipe| {
+                recipe.declaration != interface.application.declaration
+                    || !recipe.arguments.is_empty()
+            })
+        {
+            return Err(bad(
+                "dyn provider lacks its complete implemented-trait application",
+            ));
+        }
         let (name, fields, owning_package) = match &table.self_type {
             Type::Record { name, fields } => (name, fields, false),
             Type::Package { name, fields } => (name, fields, true),
@@ -1224,6 +1253,7 @@ mod tests {
             dyn_declarations: vec![
                 DynDeclaration {
                     self_pattern: None,
+                    implemented_trait: None,
                     id: trait_id,
                     identity: identity("Read"),
                     kind: DynDeclarationKind::Trait,
@@ -1235,6 +1265,10 @@ mod tests {
                 },
                 DynDeclaration {
                     self_pattern: None,
+                    implemented_trait: Some(DynSelfPattern {
+                        declaration: trait_id,
+                        arguments: vec![],
+                    }),
                     id: impl_id,
                     identity: identity("impl_Read_A"),
                     kind: DynDeclarationKind::Impl,
@@ -1543,5 +1577,28 @@ mod tests {
             }
             assert!(validate(&invalid).is_err(), "mutation {mutation}");
         }
+    }
+    #[test]
+    fn provider_trait_membership_requires_the_declared_application() {
+        let mut unknown = fixture();
+        unknown.dyn_declarations[1].implemented_trait = None;
+        assert!(admitted(&unknown).is_err());
+        let mut wrong = fixture();
+        let mut other = wrong.dyn_declarations[0].clone();
+        other.id.declaration = NodeId(50);
+        other.identity.declaration_path = vec!["OtherRead".into()];
+        let mut interface = wrong.dyn_interfaces[0].clone();
+        interface.id.index = 1;
+        interface.application.declaration = other.id;
+        for slot in &mut interface.slots {
+            slot.member.application = interface.application.clone();
+        }
+        wrong.dyn_vtables[0].interface = interface.id;
+        wrong.dyn_declarations.push(other);
+        wrong.dyn_interfaces.push(interface);
+        // Keep only the actual provider; no construction-site mismatch can
+        // accidentally make this unused-table membership attack reject.
+        wrong.functions.truncate(1);
+        assert!(admitted(&wrong).is_err());
     }
 }

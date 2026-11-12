@@ -20,6 +20,9 @@ pub struct DynDeclaration {
     /// Impl Self recipe in original formal order. None is unknown for a
     /// generic borrowing impl; it never means an empty lifetime relation.
     pub self_pattern: Option<DynSelfPattern>,
+    /// Complete implemented trait application in this impl's original formal
+    /// scope. Every used provider must prove it; None remains unknown.
+    pub implemented_trait: Option<DynSelfPattern>,
     pub id: LifeDeclarationId,
     pub identity: LifeDeclarationIdentity,
     pub kind: DynDeclarationKind,
@@ -221,6 +224,10 @@ pub enum DynRequirement {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynGuarantee {
+    /// Post-call retained source upper, not an exact assignment. Parameter(0)
+    /// sources select the call-before snapshot. Complete rows preserve all
+    /// parents; conservative old+argument uppers may prolong the old borrow.
+    StorageSources(StorageSourceBinding),
     ManageResult,
     State {
         position: StoragePosition,

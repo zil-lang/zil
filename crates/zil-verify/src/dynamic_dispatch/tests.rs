@@ -8,6 +8,14 @@ fn span() -> Span {
 fn declaration(id: u32, name: &str, kind: DynDeclarationKind) -> DynDeclaration {
     DynDeclaration {
         self_pattern: None,
+        implemented_trait: (kind == DynDeclarationKind::Impl).then_some(DynSelfPattern {
+            declaration: LifeDeclarationId {
+                module: ModuleId(0),
+                declaration: NodeId(1),
+                compiler: false,
+            },
+            arguments: vec![],
+        }),
         id: LifeDeclarationId {
             module: ModuleId(0),
             declaration: NodeId(id),

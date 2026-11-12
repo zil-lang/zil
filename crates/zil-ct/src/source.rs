@@ -3430,6 +3430,7 @@ mod tests {
         };
         core.dyn_declarations.push(DynDeclaration {
             self_pattern: None,
+            implemented_trait: None,
             id: declaration,
             identity: LifeDeclarationIdentity {
                 package: "transport".into(),

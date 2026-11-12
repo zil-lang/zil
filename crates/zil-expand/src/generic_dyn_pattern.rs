@@ -56,6 +56,14 @@ impl Recipe<'_, '_, '_> {
         )?))
     }
     fn nominal(&mut self, ty: &TypeRef, depth: usize) -> R<DynSelfPattern> {
+        self.application(ty, self.nominal, depth)
+    }
+    fn application(
+        &mut self,
+        ty: &TypeRef,
+        roots: &Nominals<'_>,
+        depth: usize,
+    ) -> R<DynSelfPattern> {
         self.budget.node(ty.span, depth)?;
         let TypeKind::Named { path, args } = &grouped(ty).kind else {
             return Err(unsupported(
@@ -70,7 +78,7 @@ impl Recipe<'_, '_, '_> {
             ));
         };
         self.budget.text(name, ty.span)?;
-        let (declaration, parameters) = self.nominal.get(name).copied().ok_or_else(|| {
+        let (declaration, parameters) = roots.get(name).copied().ok_or_else(|| {
             error(
                 ty.span,
                 "dyn impl Self recipe has no actual nominal declaration origin",
@@ -113,6 +121,10 @@ impl Recipe<'_, '_, '_> {
         match &grouped(ty).kind {
             TypeKind::Named { path, args } if path.len() == 1 => {
                 let name = &path[0];
+                self.budget.identity_work(
+                    self.nominal.len().saturating_add(self.formals.len()),
+                    ty.span,
+                )?;
                 if args.is_empty()
                     && self
                         .formals
@@ -196,10 +208,23 @@ pub(super) fn collect(
     module: &Module,
     origins: &origins::Origins,
     budget: &mut Budget<'_>,
-) -> R<BTreeMap<origins::DeclId, DynSelfPattern>> {
+) -> R<BTreeMap<origins::DeclId, (Option<DynSelfPattern>, DynSelfPattern)>> {
     let mut nominals = Nominals::new();
+    let mut traits = Nominals::new();
     for (ordinal, item) in module.items.iter().enumerate() {
         budget.node(item.span, 0)?;
+        if let ItemKind::Trait(declaration) = &item.kind {
+            budget.text(&declaration.name, item.span)?;
+            let origin = origins.get(ordinal, item.span)?.declaration;
+            traits.insert(
+                declaration.name.clone(),
+                (
+                    declaration_id(origin, origins, budget, item.span)?,
+                    declaration.generics.as_slice(),
+                ),
+            );
+            continue;
+        }
         let (name, parameters) = match &item.kind {
             ItemKind::Aggregate(a) => (&a.name, a.generics.as_slice()),
             ItemKind::Enum(e) => (&e.name, e.generics.as_slice()),
@@ -216,17 +241,22 @@ pub(super) fn collect(
         let ItemKind::Impl(implementation) = &item.kind else {
             continue;
         };
-        if implementation.trait_type.is_none() || implementation.generics.is_empty() {
+        let Some(application) = &implementation.trait_type else {
             continue;
-        }
+        };
         let origin = origins.get(ordinal, item.span)?.declaration;
-        let pattern = Recipe {
+        let mut recipe = Recipe {
             nominal: &nominals,
             formals: &implementation.generics,
             budget,
-        }
-        .nominal(&implementation.target, 0)?;
-        result.insert(origin, pattern);
+        };
+        let self_pattern = if implementation.generics.is_empty() {
+            None
+        } else {
+            Some(recipe.nominal(&implementation.target, 0)?)
+        };
+        let implemented_trait = recipe.application(application, &traits, 0)?;
+        result.insert(origin, (self_pattern, implemented_trait));
     }
     Ok(result)
 }

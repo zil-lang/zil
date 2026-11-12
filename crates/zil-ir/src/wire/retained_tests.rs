@@ -294,6 +294,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     };
     let dyn_declaration = DynDeclaration {
         self_pattern: None,
+        implemented_trait: None,
         id: trait_id,
         identity: LifeDeclarationIdentity {
             package: "probe".into(),

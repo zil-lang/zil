@@ -12,6 +12,7 @@ mod pattern;
 
 pub(super) struct Declaration {
     self_pattern: Option<zil_ir::DynSelfPattern>,
+    implemented_trait: Option<zil_ir::DynSelfPattern>,
     origin: origins::DeclId,
     symbol: Option<String>,
     kind: DynDeclarationKind,
@@ -731,8 +732,14 @@ pub(super) fn declarations(
                 kind,
             });
         }
+        let (self_pattern, implemented_trait) = recipes
+            .remove(&origins.get(ordinal, item.span)?.declaration)
+            .map_or((None, None), |(self_pattern, implemented_trait)| {
+                (self_pattern, Some(implemented_trait))
+            });
         result.push(Declaration {
-            self_pattern: recipes.remove(&origins.get(ordinal, item.span)?.declaration),
+            self_pattern,
+            implemented_trait,
             origin: origins.get(ordinal, item.span)?.declaration,
             symbol: symbol
                 .map(|symbol| {
@@ -1409,6 +1416,17 @@ impl Catalog {
                         base: zil_ir::StorageBase::Parameter(0),
                         path: vec![zil_ir::ContractProjection::RetainedPort(index as u32)],
                     };
+                    budget.identity_work(4, span)?;
+                    contract
+                        .guarantees
+                        .as_mut()
+                        .expect("complete declaration")
+                        .push(zil_ir::DynGuarantee::StorageSources(
+                            zil_ir::StorageSourceBinding {
+                                position: position.clone(),
+                                sources: vec![position.clone()],
+                            },
+                        ));
                     contract
                         .requires
                         .as_mut()
@@ -1565,8 +1583,12 @@ impl Catalog {
             if let Some(recipe) = &declaration.self_pattern {
                 pattern::pay(recipe, budget, span, 0)?;
             }
+            if let Some(recipe) = &declaration.implemented_trait {
+                pattern::pay(recipe, budget, span, 0)?;
+            }
             result.push(DynDeclaration {
                 self_pattern: declaration.self_pattern.clone(),
+                implemented_trait: declaration.implemented_trait.clone(),
                 id: declaration_id(declaration.origin, origins, budget, span)?,
                 identity: identity.clone(),
                 kind: declaration.kind,

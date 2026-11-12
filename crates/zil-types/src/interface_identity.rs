@@ -377,6 +377,8 @@ fn dyn_type(
         .ok_or_else(|| invalid("exported dyn declaration is absent"))?;
     if interface.context.is_some()
         || declaration.kind != DynDeclarationKind::Trait
+        || declaration.self_pattern.is_some()
+        || declaration.implemented_trait.is_some()
         || !declaration.parameters.is_empty()
         || !interface.application.actuals.is_empty()
         || !interface.inherited.is_empty()
@@ -658,6 +660,7 @@ mod tests {
             };
             let original = DynDeclaration {
                 self_pattern: None,
+                implemented_trait: None,
                 id: declaration,
                 identity,
                 kind: DynDeclarationKind::Trait,

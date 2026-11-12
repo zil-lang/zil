@@ -16,6 +16,10 @@ pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDe
     if let Some(pattern) = &value.self_pattern {
         encode_dyn_self_pattern(b, pattern);
     }
+    b.push(u8::from(value.implemented_trait.is_some()));
+    if let Some(pattern) = &value.implemented_trait {
+        encode_dyn_self_pattern(b, pattern);
+    }
     encode_len(b, value.parameters.len());
     for value in &value.parameters {
         encode_parameter_kind(b, value);
@@ -316,6 +320,14 @@ pub(super) fn encode_dyn_requirement(b: &mut impl FingerprintSink, value: &DynRe
 }
 pub(super) fn encode_dyn_guarantee(b: &mut impl FingerprintSink, value: &DynGuarantee) {
     match value {
+        DynGuarantee::StorageSources(binding) => {
+            b.push(2);
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_position(b, source);
+            }
+        }
         DynGuarantee::ManageResult => {
             b.push(0);
         }
