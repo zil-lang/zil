@@ -199,6 +199,7 @@ pub(super) fn seed(
                 targets: Targets::from([target.clone()]),
                 parents: Loans::new(),
                 mutable,
+                receiver_head: false,
             });
             b.stored_exclusive_loans |= mutable;
             value.dyn_ports.insert(

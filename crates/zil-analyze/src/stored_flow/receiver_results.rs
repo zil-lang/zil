@@ -38,6 +38,7 @@ pub(super) fn invoke(
                     stored: Vec::new(),
                     place: Vec::new(),
                     heap_element: None,
+                    heap_parents: Vec::new(),
                     retained_port: None,
                 }]),
                 loans: Loans::new(),

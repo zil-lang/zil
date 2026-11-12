@@ -6,11 +6,11 @@ mod array_index;
 mod array_snapshot;
 mod byte_queries;
 mod capture_after;
-mod receiver_results;
 mod environment_memory;
 mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
+mod receiver_results;
 mod returned_upper;
 #[cfg(test)]
 mod set_bits_tests;
@@ -937,8 +937,12 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         value.work(b)?;
     }
     f.returned_variants.work(b)?;
-    if f.receiver_return {fee(b,1)?;}
-    if !f.returned_head_inputs.is_empty() {fee(b,f.returned_head_inputs.len())?;}
+    if f.receiver_return {
+        fee(b, 1)?;
+    }
+    if !f.returned_head_inputs.is_empty() {
+        fee(b, f.returned_head_inputs.len())?;
+    }
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -2340,26 +2344,49 @@ fn returns(
     {
         if receiver_results::applies(d) {
             if super::stored_callables::result_is_receiver(d) && !facts.receiver_return {
-                return Err(failure("receiver-bounded result lacks actual invocation-head ancestry on every return"));
+                return Err(failure(
+                    "receiver-bounded result lacks actual invocation-head ancestry on every return",
+                ));
             }
-            let leaves=capture_after::leaves(module,d,b)?;
-            let mut actual=BTreeSet::new();
-            for (path,sources) in &facts.returned {
-                if !path.is_empty() || sources.is_empty() {return Err(failure("returned external view has no actual complete source"));}
+            let leaves = capture_after::leaves(module, d, b)?;
+            let mut actual = BTreeSet::new();
+            for (path, sources) in &facts.returned {
+                if !path.is_empty() || sources.is_empty() {
+                    return Err(failure(
+                        "returned external view has no actual complete source",
+                    ));
+                }
                 for source in sources {
-                    let HoldRoot::Capture(index)=source.base else{return Err(failure("returned environment view has no actual capture source"));};
-                    let ty=d.captures.get(index as usize).ok_or_else(||failure("returned environment source capture absent"))?;
+                    let HoldRoot::Capture(index) = source.base else {
+                        return Err(failure(
+                            "returned environment view has no actual capture source",
+                        ));
+                    };
+                    let ty = d
+                        .captures
+                        .get(index as usize)
+                        .ok_or_else(|| failure("returned environment source capture absent"))?;
                     if !super::stored_callables::scalar(ty) {
-                        let key=environment_path(index as usize,&source.stored,b)?;
-                        fee(b,leaves.len().saturating_mul(key.len().saturating_add(1)))?;
-                        if !leaves.iter().any(|(path,_)|*path==key) {return Err(failure("returned environment source is not an authenticated leaf"));}
+                        let key = environment_path(index as usize, &source.stored, b)?;
+                        fee(b, leaves.len().saturating_mul(key.len().saturating_add(1)))?;
+                        if !leaves.iter().any(|(path, _)| *path == key) {
+                            return Err(failure(
+                                "returned environment source is not an authenticated leaf",
+                            ));
+                        }
                     } else if !super::stored_callables::result_is_receiver(d) {
-                        return Err(failure("inline environment storage cannot supply a Fixed external result"));
+                        return Err(failure(
+                            "inline environment storage cannot supply a Fixed external result",
+                        ));
                     }
                     actual.insert(index);
                 }
             }
-            if actual.into_iter().collect::<Vec<_>>()!=d.lending_captures {return Err(failure("returned environment view differs from its actual capture upper"));}
+            if actual.into_iter().collect::<Vec<_>>() != d.lending_captures {
+                return Err(failure(
+                    "returned environment view differs from its actual capture upper",
+                ));
+            }
             return Ok(());
         }
         fee(b, d.lending_captures.len().saturating_add(1))?;
@@ -2443,18 +2470,23 @@ fn returns(
             if (if source.retained_port.is_some() {
                 task_address::source_binding(f, source, b)?
             } else {
-                environment_memory::binding(module,f,index,&source.stored,b)?
+                environment_memory::binding(module, f, index, &source.stored, b)?
             }) != upper
             {
-                let bounded_head=matches!(upper,StorageBinder::Invocation(_)) && facts.returned_head_inputs.iter().any(|position| {
-                    f.parameters.get(*position as usize).is_some_and(|local|
-                        matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable,inner}
+                let bounded_head = matches!(upper, StorageBinder::Invocation(_))
+                    && facts.returned_head_inputs.iter().any(|position| {
+                        f.parameters.get(*position as usize).is_some_and(|local| {
+                            matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable,inner}
                             if matches!(inner.as_ref(),Type::Closure(_))
-                            && (!matches!(f.return_type,Type::Address{mutable:true,..})||*mutable)))
-                        && f.storage_life.as_ref().and_then(|life|super::signature_life::outer(life,StorageBase::Parameter(*position)))==Some(upper)
-                });
+                            && (!matches!(f.return_type,Type::Address{mutable:true,..})||*mutable))
+                        }) && f.storage_life.as_ref().and_then(|life| {
+                            super::signature_life::outer(life, StorageBase::Parameter(*position))
+                        }) == Some(upper)
+                    });
                 if !bounded_head {
-                    return Err(failure("actual returned target exceeds its declared stored/fresh relation"));
+                    return Err(failure(
+                        "actual returned target exceeds its declared stored/fresh relation",
+                    ));
                 }
             }
         }
@@ -2847,6 +2879,7 @@ fn seed_environment(
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
                 mutable,
+                receiver_head: false,
             });
             b.stored_exclusive_loans |= mutable;
             let permission = Permission {
@@ -3150,7 +3183,9 @@ fn seed(
         && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
     {
         if super::stored_callables::lending(d)
-            || d.captures.iter().any(super::stored_callables::exclusive_capture)
+            || d.captures
+                .iter()
+                .any(super::stored_callables::exclusive_capture)
         {
             fee(b, 1)?;
             state.receiver_loan = Some(loans.len());
@@ -3526,9 +3561,10 @@ fn slot_loan_ids(
     for block in &f.blocks {
         for instruction in &block.instructions {
             let site = instruction as *const Instruction as usize;
-            let receiver_result=super::stored_callables::called(module,f,&instruction.kind)
-                .is_some_and(|(d,_)|super::stored_callables::result_is_receiver(d));
-            let mutable_leaves=if let Some((d,_))=super::stored_callables::called(module,f,&instruction.kind)
+            let receiver_result = super::stored_callables::called(module, f, &instruction.kind)
+                .is_some_and(|(d, _)| super::stored_callables::result_is_receiver(d));
+            let mutable_leaves = if let Some((d, _)) =
+                super::stored_callables::called(module, f, &instruction.kind)
                 && (d.storage_life.is_some() || b.returned_borrowed_environments.contains(&d.id))
                 && capture_after::required(module, d, b)?
             {
@@ -3552,8 +3588,19 @@ fn slot_loan_ids(
                     Ok(())
                 };
             if receiver_result {
-                add(u32::MAX-2,&Vec::new(),matches!(instruction.kind,
-                    InstructionKind::CallClosureMut{..} | InstructionKind::CallClosureBorrowed{kind:CallableKind::FnMut,..}),b)?;
+                add(
+                    u32::MAX - 2,
+                    &Vec::new(),
+                    matches!(
+                        instruction.kind,
+                        InstructionKind::CallClosureMut { .. }
+                            | InstructionKind::CallClosureBorrowed {
+                                kind: CallableKind::FnMut,
+                                ..
+                            }
+                    ),
+                    b,
+                )?;
             }
             match &instruction.kind {
                 InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
@@ -6600,9 +6647,15 @@ fn derive_cfg(
                 byte_covered: false,
                 external_after: BTreeMap::new(),
                 capture_after: BTreeMap::new(),
-                receiver_return: f.environment.is_some() && f.storage_life.as_ref().is_some_and(|life|
-                    super::signature_life::outer(life,StorageBase::Receiver).is_some_and(|receiver|
-                        super::signature_life::outer(life,StorageBase::Result)==Some(receiver))),
+                receiver_return: f.environment.is_some()
+                    && f.storage_life.as_ref().is_some_and(|life| {
+                        super::signature_life::outer(life, StorageBase::Receiver).is_some_and(
+                            |receiver| {
+                                super::signature_life::outer(life, StorageBase::Result)
+                                    == Some(receiver)
+                            },
+                        )
+                    }),
                 returned_head_inputs: BTreeSet::new(),
                 apart: BTreeSet::new(),
                 head_accesses: BTreeMap::new(),
@@ -6645,15 +6698,17 @@ fn derive_cfg(
                 }
                 let mut root = roots(value, b)?;
                 if b.receiver_borrows {
-                    let mut dependencies=Loans::new();
-                    active_loans_union(&mut dependencies,&value.pointer,b)?;
-                    active_loans_union(&mut dependencies,&value.held,b)?;
-                    for permission in value.slots.values() {active_loans_union(&mut dependencies,permission,b)?;}
-                    for id in ancestry(&dependencies,&loans,b)? {
+                    let mut dependencies = Loans::new();
+                    active_loans_union(&mut dependencies, &value.pointer, b)?;
+                    active_loans_union(&mut dependencies, &value.held, b)?;
+                    for permission in value.slots.values() {
+                        active_loans_union(&mut dependencies, permission, b)?;
+                    }
+                    for id in ancestry(&dependencies, &loans, b)? {
                         if loans[id].receiver_head {
                             for target in &loans[id].targets {
-                                ordered(b,root.len(),target_width(target))?;
-                                fee(b,target_width(target))?;
+                                ordered(b, root.len(), target_width(target))?;
+                                fee(b, target_width(target))?;
                                 root.insert(target.clone());
                             }
                         }
@@ -6733,18 +6788,29 @@ fn derive_cfg(
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
                     if actual.receiver_return {
-                        let marker=entry.receiver_loan.ok_or_else(||failure("receiver-bounded result has no actual entry head"))?;
-                        let parents=ancestry(&value.pointer.loans,&loans,b)?;
+                        let marker = entry.receiver_loan.ok_or_else(|| {
+                            failure("receiver-bounded result has no actual entry head")
+                        })?;
+                        let parents = ancestry(&value.pointer.loans, &loans, b)?;
                         actual.receiver_return &= parents.contains(&marker);
                     }
-                    if b.receiver_borrows && matches!(f.return_type,Type::Address{..}) {
-                        let parents=ancestry(&value.pointer.loans,&loans,b)?;
-                        for (position,local) in f.parameters.iter().enumerate() {
-                            if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Closure(_))) {
-                                let head=&entry.locals.get(local).ok_or_else(||failure("returned callable dependency has no actual input head"))?.pointer;
-                                fee(b,head.loans.len())?;
-                                if head.loans.iter().any(|loan|parents.contains(loan)) {
-                                    ordered(b,actual.returned_head_inputs.len(),0)?;
+                    if b.receiver_borrows && matches!(f.return_type, Type::Address { .. }) {
+                        let parents = ancestry(&value.pointer.loans, &loans, b)?;
+                        for (position, local) in f.parameters.iter().enumerate() {
+                            if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Closure(_)))
+                            {
+                                let head = &entry
+                                    .locals
+                                    .get(local)
+                                    .ok_or_else(|| {
+                                        failure(
+                                            "returned callable dependency has no actual input head",
+                                        )
+                                    })?
+                                    .pointer;
+                                fee(b, head.loans.len())?;
+                                if head.loans.iter().any(|loan| parents.contains(loan)) {
+                                    ordered(b, actual.returned_head_inputs.len(), 0)?;
                                     actual.returned_head_inputs.insert(position as u32);
                                 }
                             }

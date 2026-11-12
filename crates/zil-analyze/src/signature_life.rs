@@ -292,7 +292,10 @@ fn relation_inner(
     interfaces: &[DynInterface],
     receiver_kind: Option<CallableKind>,
 ) -> CompileResult<()> {
-    if c.classes.iter().any(|row|row.position.base==StorageBase::Receiver) {
+    if c.classes
+        .iter()
+        .any(|row| row.position.base == StorageBase::Receiver)
+    {
         return Err(bad("receiver head has no persistent class directory"));
     }
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
@@ -771,20 +774,27 @@ fn relation_inner(
             cursor.ty(capture, StorageBase::Capture(i))?;
         }
     }
-    if let Some(row)=c.bindings.get(cursor.borrow)
-        && row.position.base==StorageBase::Receiver {
-        if !matches!(receiver_kind,Some(CallableKind::Fn|CallableKind::FnMut))
+    if let Some(row) = c.bindings.get(cursor.borrow)
+        && row.position.base == StorageBase::Receiver
+    {
+        if !matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
             || !row.position.path.is_empty()
-            || !matches!(row.binder,StorageBinder::Invocation(_)) {
-            return Err(bad("Receiver requires an actual non-consuming borrowed closure head"));
+            || !matches!(row.binder, StorageBinder::Invocation(_))
+        {
+            return Err(bad(
+                "Receiver requires an actual non-consuming borrowed closure head",
+            ));
         }
-        if receiver_kind==Some(CallableKind::Fn)
-            && matches!(result,Type::Address{mutable:true,..})
-            && c.bindings.iter().any(|r|r.position.base==StorageBase::Result && r.binder==row.binder) {
+        if receiver_kind == Some(CallableKind::Fn)
+            && matches!(result, Type::Address { mutable: true, .. })
+            && c.bindings
+                .iter()
+                .any(|r| r.position.base == StorageBase::Result && r.binder == row.binder)
+        {
             return Err(bad("shared receiver cannot grant an exclusive result view"));
         }
-        cursor.borrow+=1;
-        cursor.binder(row.binder,false)?;
+        cursor.borrow += 1;
+        cursor.binder(row.binder, false)?;
     }
     cursor.inputs = Some((cursor.fixed, cursor.invocation));
     cursor.ty(result, StorageBase::Result)?;
@@ -816,9 +826,9 @@ fn relation_inner(
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
-        }) && !(matches!(receiver_kind,Some(CallableKind::Fn|CallableKind::FnMut))
-            && (!mutable || receiver_kind==Some(CallableKind::FnMut))
-            && outer(c,StorageBase::Receiver).is_some_and(|receiver|Some(receiver)==out))
+        }) && !(matches!(receiver_kind, Some(CallableKind::Fn | CallableKind::FnMut))
+            && (!mutable || receiver_kind == Some(CallableKind::FnMut))
+            && outer(c, StorageBase::Receiver).is_some_and(|receiver| Some(receiver) == out))
             && !cursor.array_result_input
         {
             return Err(bad(
@@ -955,7 +965,15 @@ mod tests {
             }],
         };
         assert!(
-            closure_relation(&[], CallableKind::Fn, &[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+            closure_relation(
+                &[],
+                CallableKind::Fn,
+                &[],
+                std::slice::from_ref(&child),
+                &Type::Unit,
+                &contract
+            )
+            .is_err()
         );
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;

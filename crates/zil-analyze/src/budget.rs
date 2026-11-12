@@ -1536,7 +1536,10 @@ pub(super) fn preflight(
     for closure in &module.closures {
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
-            budget.receiver_borrows |= life.bindings.iter().any(|row|row.position.base==zil_ir::StorageBase::Receiver);
+            budget.receiver_borrows |= life
+                .bindings
+                .iter()
+                .any(|row| row.position.base == zil_ir::StorageBase::Receiver);
             budget.stored_borrows = true;
             budget.capture_relations = true;
         }
