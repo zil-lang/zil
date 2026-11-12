@@ -1,0 +1,64 @@
+{
+  "schema": "zil-raw-evidence-archive-v1",
+  "archive": "raw.tar.zst",
+  "archive_sha256": "010611ec3db9ee55a4b30acc1525e10a54482e3890ee73aaf47cd7d492509e25",
+  "archive_bytes": 222791765,
+  "parts": [
+    {
+      "name": "raw.tar.zst.part.000",
+      "bytes": 25165824,
+      "sha256": "b9b0662c6489c485f339dbd2135576902f3d35c977b82ef36105cc69258a8d4c"
+    },
+    {
+      "name": "raw.tar.zst.part.001",
+      "bytes": 25165824,
+      "sha256": "ef817dd21744b2e217ca6e78fb1527a439f98bfedfe31697a1038637d54c879e"
+    },
+    {
+      "name": "raw.tar.zst.part.002",
+      "bytes": 25165824,
+      "sha256": "414cc9e5d8a4643269e71c37b04d4a9815e675665348f1b1609ec6b30b49befa"
+    },
+    {
+      "name": "raw.tar.zst.part.003",
+      "bytes": 25165824,
+      "sha256": "4dae34b6bc6470836197d1521ecade33f9c850c12e604ce66c37101d8766e9c9"
+    },
+    {
+      "name": "raw.tar.zst.part.004",
+      "bytes": 25165824,
+      "sha256": "2d927fc9b740063ea9f2b6772ef3eb8cfe0367f29622fdada60e1e9d47f9339d"
+    },
+    {
+      "name": "raw.tar.zst.part.005",
+      "bytes": 25165824,
+      "sha256": "12299858b819ccbb28302c604487f83e33ddcd961827d228de3957b4b83f0940"
+    },
+    {
+      "name": "raw.tar.zst.part.006",
+      "bytes": 25165824,
+      "sha256": "77c0a00e14ebcdc58858f0afa979ec271abee7399eef68a6cec19bef2f93dfce"
+    },
+    {
+      "name": "raw.tar.zst.part.007",
+      "bytes": 25165824,
+      "sha256": "7a70c03554a365d81f6adf97fec0718dc1a8ed226ccdb3d8c18392a24b201712"
+    },
+    {
+      "name": "raw.tar.zst.part.008",
+      "bytes": 21465173,
+      "sha256": "b7abc38731a39b278696b8de2ec9add5cb69364570a2d01c865b978dac121de5"
+    }
+  ],
+  "compiler_source": "e91d16480d5e31c620d2b776245973c24329840f",
+  "source_branch": "research/incremental-demand-continuation",
+  "main": "99035931d358add0eaed6d4535035c38413701dd",
+  "runs": [
+    "out/runs/onboarding-continuation",
+    "out/runs/continuation-profile-r1",
+    "out/runs/continuation-matched-check-r1",
+    "out/runs/continuation-matched-o2-r1",
+    "out/runs/continuation-matched-o2-r2"
+  ],
+  "scope": "Complete new raw runs, first failure, binaries/objects/symbols/source snapshots, build logs/toolchain and non-author reviews. Not restoration of unavailable prior-environment raw."
+}
