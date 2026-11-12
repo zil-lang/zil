@@ -732,6 +732,9 @@ impl<'a> Writer<'a> {
                 Type::Unit => self.u8(0)?,
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
+                Type::I8 => self.u8(42)?,
+                Type::I16 => self.u8(43)?,
+                Type::Isize => self.u8(44)?,
                 Type::I64 => self.u8(3)?,
                 Type::U64 => self.u8(26)?,
                 Type::Usize => self.u8(27)?,
@@ -739,6 +742,7 @@ impl<'a> Writer<'a> {
                 Type::F64 => self.u8(29)?,
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
+                Type::U32 => self.u8(41)?,
                 Type::ByteBuffer => self.u8(24)?,
                 Type::Registration { environment } => {
                     self.u8(32)?;
@@ -869,6 +873,10 @@ impl<'a> Writer<'a> {
                 self.u8(5)?;
                 self.u16(*value)
             }
+            Constant::U32(value) => {
+                self.u8(13)?;
+                self.u32(*value)
+            }
             Constant::NullHandle => self.u8(6),
             Constant::NullWideString => self.u8(7),
             Constant::WideString(units) => {
@@ -889,6 +897,18 @@ impl<'a> Writer<'a> {
             }
             Constant::I32(value) => {
                 self.u8(2)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::I8(value) => {
+                self.u8(14)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::I16(value) => {
+                self.u8(15)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::Isize(value) => {
+                self.u8(16)?;
                 self.bytes(&value.to_le_bytes())
             }
             Constant::I64(value) => {
@@ -3068,6 +3088,11 @@ impl<'a> Reader<'a> {
                 29 => Type::F64,
                 18 => Type::U8,
                 19 => Type::U16,
+                41 => Type::U32,
+                42 => Type::I8,
+                43 => Type::I16,
+                44 => Type::Isize,
+
                 33 => Type::TaskI32,
                 34 => {
                     let retained_life = self.retained_shape(depth)?;
@@ -3197,6 +3222,19 @@ impl<'a> Reader<'a> {
             1 => Constant::Bool(self.boolean()?),
             4 => Constant::U8(self.u8()?),
             5 => Constant::U16(self.u16()?),
+            13 => Constant::U32(u32::from_le_bytes(
+                self.take(4)?.try_into().expect("checked length"),
+            )),
+            14 => Constant::I8(i8::from_le_bytes(
+                self.take(1)?.try_into().expect("checked length"),
+            )),
+            15 => Constant::I16(i16::from_le_bytes(
+                self.take(2)?.try_into().expect("checked length"),
+            )),
+            16 => Constant::Isize(i64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+
             6 => Constant::NullHandle,
             7 => Constant::NullWideString,
             8 => {

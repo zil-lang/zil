@@ -449,6 +449,10 @@ pub enum Type {
     F64,
     U8,
     U16,
+    U32,
+    I8,
+    I16,
+    Isize,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
     /// exact resource definition. Not a Copy value or a forgeable raw pointer.
     ByteBuffer,
@@ -574,6 +578,9 @@ impl Type {
             Self::Unit
                 | Self::Bool
                 | Self::I32
+                | Self::I8
+                | Self::I16
+                | Self::Isize
                 | Self::I64
                 | Self::U64
                 | Self::Usize
@@ -581,6 +588,7 @@ impl Type {
                 | Self::F64
                 | Self::U8
                 | Self::U16
+                | Self::U32
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
@@ -644,6 +652,9 @@ impl Type {
             Self::Unit
             | Self::Bool
             | Self::I32
+            | Self::I8
+            | Self::I16
+            | Self::Isize
             | Self::I64
             | Self::U64
             | Self::Usize
@@ -651,6 +662,7 @@ impl Type {
             | Self::F64
             | Self::U8
             | Self::U16
+            | Self::U32
             | Self::ForeignHandle
             | Self::CWideString
             | Self::ForeignCallback { .. } => true,
@@ -681,7 +693,16 @@ impl Type {
     pub fn is_integer(&self) -> bool {
         matches!(
             self,
-            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+            Self::I32
+                | Self::I8
+                | Self::I16
+                | Self::Isize
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::U8
+                | Self::U16
+                | Self::U32
         )
     }
     pub fn is_float(&self) -> bool {
@@ -695,6 +716,9 @@ impl Type {
             Self::Unit => "()".into(),
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
+            Self::I8 => "i8".into(),
+            Self::I16 => "i16".into(),
+            Self::Isize => "isize".into(),
             Self::I64 => "i64".into(),
             Self::U64 => "u64".into(),
             Self::Usize => "usize".into(),
@@ -702,6 +726,7 @@ impl Type {
             Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
+            Self::U32 => "u32".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::Registration { environment } => format!("Registration<{}>", environment.name()),
             Self::AsyncRegistration { environment } => {
@@ -772,6 +797,10 @@ pub enum Constant {
     F64(u64),
     U8(u8),
     U16(u16),
+    U32(u32),
+    I8(i8),
+    I16(i16),
+    Isize(i64),
     NullHandle,
     NullWideString,
     /// Includes exactly one trailing NUL. Untrusted until independently checked.
@@ -783,6 +812,9 @@ impl Constant {
             Self::Unit => Type::Unit,
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
+            Self::I8(_) => Type::I8,
+            Self::I16(_) => Type::I16,
+            Self::Isize(_) => Type::Isize,
             Self::I64(_) => Type::I64,
             Self::U64(_) => Type::U64,
             Self::Usize(_) => Type::Usize,
@@ -790,6 +822,7 @@ impl Constant {
             Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
+            Self::U32(_) => Type::U32,
             Self::NullHandle => Type::ForeignHandle,
             Self::NullWideString | Self::WideString(_) => Type::CWideString,
         }
@@ -3141,6 +3174,9 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Unit => b.push(0),
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
+        Type::I8 => b.push(42),
+        Type::I16 => b.push(43),
+        Type::Isize => b.push(44),
         Type::I64 => b.push(3),
         Type::U64 => b.push(26),
         Type::Usize => b.push(27),
@@ -3148,6 +3184,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
+        Type::U32 => b.push(41),
         Type::ByteBuffer => b.push(24),
         Type::OwnedStore { element } => {
             b.push(25);
@@ -3422,6 +3459,10 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(5);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U32(v) => {
+            b.push(13);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
         Constant::NullHandle => b.push(6),
         Constant::NullWideString => b.push(7),
         Constant::WideString(units) => {
@@ -3433,6 +3474,18 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
         }
         Constant::I32(v) => {
             b.push(2);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::I8(v) => {
+            b.push(14);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::I16(v) => {
+            b.push(15);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Isize(v) => {
+            b.push(16);
             b.extend_from_slice(&v.to_le_bytes());
         }
         Constant::I64(v) => {
