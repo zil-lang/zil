@@ -1010,6 +1010,10 @@ fn expand_inner_project(
     }
     for (ordinal, item) in module.items.iter().enumerate() {
         e.source_item_ordinal = ordinal;
+        e.source_signature_function=match &item.kind {
+            s::ItemKind::Function(function)=>Some((ordinal,std::ptr::from_ref(function))),
+            _=>None,
+        };
         e.item(item, None, None, None);
     }
     if !e.diagnostics.is_empty() {
@@ -1088,6 +1092,7 @@ struct Expander<'a> {
     static_trait_impls: BTreeSet<usize>,
     private_trait_aliases: BTreeSet<(usize, usize)>,
     source_item_ordinal: usize,
+    source_signature_function: Option<(usize, *const s::Function)>,
     current_function: Option<NodeId>,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
@@ -1145,6 +1150,7 @@ impl<'a> Expander<'a> {
             static_trait_impls: BTreeSet::new(),
             private_trait_aliases: BTreeSet::new(),
             source_item_ordinal: 0,
+            source_signature_function: None,
             current_function: None,
             source_map: SourceMap::new(module_id),
             node_maps: BTreeMap::new(),
