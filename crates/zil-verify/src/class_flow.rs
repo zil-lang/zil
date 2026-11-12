@@ -1641,24 +1641,35 @@ fn check_with(
                         path,
                         value,
                     } => {
-                        let actual = shape(&f.values[storage.0 as usize]).ok_or_else(|| {
-                            bad("stored write lacks its complete actual class shape")
-                        })?;
-                        b.spend(
-                            actual
+                        let parent = &values[storage.0 as usize];
+                        let expected = if !parent.array_elements.is_empty() {
+                            let [PlaceProjection::Field(index)] = path.as_slice() else {
+                                return Err(bad("array write lacks an actual constant ordinal"));
+                            };
+                            *parent
+                                .array_elements
+                                .get(*index as usize)
+                                .ok_or_else(|| bad("array write ordinal is absent"))?
+                        } else {
+                            let actual = shape(&f.values[storage.0 as usize]).ok_or_else(|| {
+                                bad("stored write lacks its complete actual class shape")
+                            })?;
+                            b.spend(
+                                actual
+                                    .slots
+                                    .len()
+                                    .saturating_mul(path.len().saturating_add(1)),
+                            )?;
+                            let slot = actual
                                 .slots
-                                .len()
-                                .saturating_mul(path.len().saturating_add(1)),
-                        )?;
-                        let slot = actual
-                            .slots
-                            .iter()
-                            .find(|slot| slot.path == *path)
-                            .ok_or_else(|| bad("stored write selects no actual class slot"))?;
-                        let expected = *values[storage.0 as usize]
-                            .classes
-                            .get(slot.binder as usize)
-                            .ok_or_else(|| bad("stored write class variable is absent"))?;
+                                .iter()
+                                .find(|slot| slot.path == *path)
+                                .ok_or_else(|| bad("stored write selects no actual class slot"))?;
+                            *parent
+                                .classes
+                                .get(slot.binder as usize)
+                                .ok_or_else(|| bad("stored write class variable is absent"))?
+                        };
                         let source = values[value.0 as usize].outer.ok_or_else(|| {
                             bad("stored write replacement lacks an actual address class")
                         })?;

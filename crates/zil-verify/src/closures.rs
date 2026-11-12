@@ -80,7 +80,14 @@ fn captured_domain(
                 b.spend(child.captures.len())?;
                 pending.extend(child.captures.iter().map(|ty| (ty, depth + 1)));
             }
-            Type::Task { retained_life, .. } if retained_life.binder_count != 0 => return Ok(true),
+            Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. }
+                if retained_life.binder_count != 0 =>
+            {
+                return Ok(true);
+            }
+            Type::BorrowedFunctionPointer { life, .. } if life.fixed_binder_count != 0 => {
+                return Ok(true);
+            }
             Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 b.spend(module.dyn_interfaces.len())?;
                 let actual = module
@@ -99,6 +106,12 @@ fn captured_domain(
             | Type::Managed(child)
             | Type::Desc(child)
             | Type::Array { element: child, .. }
+            | Type::Slice { element: child }
+            | Type::Registration { environment: child }
+            | Type::AsyncRegistration { environment: child }
+            | Type::Mutex { payload: child }
+            | Type::MutexGuard { payload: child, .. }
+            | Type::Task { result: child, .. }
             | Type::OwnedStore { element: child }
             | Type::Opaque { hidden: child, .. } => pending.push((child, depth + 1)),
             Type::Tuple(children) => {

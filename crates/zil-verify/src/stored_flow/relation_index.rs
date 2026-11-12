@@ -2,6 +2,57 @@
 //! Shapes are actual borrowed type nodes; no relation/permission conclusion is cached.
 use super::*;
 
+pub(super) fn boundary<'t, 'p>(
+    ty: &'t Type,
+    path: &'p [PlaceProjection],
+    b: &mut Budget,
+) -> Check<(
+    &'t StorageLifeShape,
+    &'p [PlaceProjection],
+    Vec<LifeTypeProjection>,
+)> {
+    let mut current = ty;
+    let mut rest = path;
+    let mut classes = Vec::new();
+    loop {
+        b.spend(1)?;
+        if classes.len() > b.limits.max_call_depth {
+            return Err(limit("stored relation boundary depth exceeded"));
+        }
+        match current {
+            Type::BorrowedStorage { life, .. } => return Ok((life, rest, classes)),
+            Type::Address { inner, .. } => {
+                b.spend(1)?;
+                classes.push(LifeTypeProjection::Pointee);
+                current = inner;
+            }
+            Type::Tuple(children) => {
+                let Some((PlaceProjection::Field(index), tail)) = rest.split_first() else {
+                    return Err(err("compound relation omits its actual child ordinal"));
+                };
+                current = children
+                    .get(*index as usize)
+                    .ok_or_else(|| err("compound relation child is absent"))?;
+                b.spend(1)?;
+                classes.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                rest = tail;
+            }
+            Type::ErrorUnion { error, result } if b.stored_enum_addresses => {
+                let Some((PlaceProjection::ErrorArm(arm), tail)) = rest.split_first() else {
+                    return Err(err(
+                        "stored sum relation omits its actual ErrorArm boundary",
+                    ));
+                };
+                current = if *arm { error } else { result };
+                b.spend(1)?;
+                classes.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+                rest = tail;
+            }
+            _ => return Err(err("physical leaf has no actual qualified boundary")),
+        }
+    }
+}
+
 struct ShapeIndex {
     rows: Vec<(Path, u32, bool)>,
 }
@@ -146,53 +197,14 @@ impl<'f> Relations<'f> {
             && matches!(row.position.path.as_slice(), [ContractProjection::Place(step)] if *step == path[0]))
             .map(|row| row.binder).ok_or_else(|| err("array element lacks its actual signature binding"));
         }
-        let mut boundary = ty;
-        let mut leaf_path = path;
-        let mut class_path = Vec::new();
-        if b.stored_enum_addresses {
-            while let Type::ErrorUnion { error, result } = boundary {
-                b.spend(1)?;
-                let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
-                    return Err(err(
-                        "stored sum relation omits its actual ErrorArm boundary",
-                    ));
-                };
-                class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
-                boundary = if *arm {
-                    error.as_ref()
-                } else {
-                    result.as_ref()
-                };
-                leaf_path = &leaf_path[1..];
-            }
-        }
-        let ((_, shape), pointee) = if let Some(q) = qualified(boundary) {
-            (q, false)
-        } else {
-            (
-                addressed(boundary)
-                    .ok_or_else(|| err("physical leaf has no actual qualified boundary"))?,
-                true,
-            )
-        };
+        let (shape, leaf_path, class_path) = boundary(ty, path, b)?;
         let local = self.local(shape, leaf_path, b)?;
-        if pointee && !class_path.is_empty() {
-            class_path.insert(0, LifeTypeProjection::Pointee);
-        }
         b.spend(c.classes.len())?;
         for row in &c.classes {
             b.spend(row.position.path.len().saturating_add(1))?;
             if row.position.base == base
                 && row.position.class == local
-                && if class_path.is_empty() {
-                    if pointee {
-                        row.position.path.as_slice() == [LifeTypeProjection::Pointee]
-                    } else {
-                        row.position.path.is_empty()
-                    }
-                } else {
-                    row.position.path == class_path
-                }
+                && row.position.path == class_path
             {
                 return Ok(row.binder);
             }
