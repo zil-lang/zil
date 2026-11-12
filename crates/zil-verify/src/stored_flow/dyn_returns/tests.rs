@@ -1193,16 +1193,20 @@ fn reborrow_slice_preserves_the_full_leaf_and_does_not_hide_element_classes() {
     else {
         unreachable!()
     };
-    **inner = Type::Slice(Box::new(Type::U8));
+    **inner = Type::Slice {
+        element: Box::new(Type::U8),
+    };
     assert!(checked(&module, &f, &actual));
     let Type::Address { inner, .. } = &mut module.dyn_interfaces[0].retained_life.ports[0].leaf
     else {
         unreachable!()
     };
-    **inner = Type::Slice(Box::new(Type::Address {
-        mutable: false,
-        inner: Box::new(Type::I32),
-    }));
+    **inner = Type::Slice {
+        element: Box::new(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }),
+    };
     assert!(
         !checked(&module, &f, &actual),
         "borrowed elements need their actual class occurrence maps"

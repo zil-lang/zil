@@ -66,7 +66,7 @@ pub(super) fn resolve(
     // still needs a complete class-free Type; this does not turn an unsized
     // slice into an inline OwnedView directory or cross an element borrow.
     let data_plain = match pointee.as_ref() {
-        Type::Slice(element) => owned::plain(element, 0, b)?,
+        Type::Slice { element } => owned::plain(element, 0, b)?,
         pointee => owned::plain(pointee, 0, b)?,
     };
     if !data_plain {
