@@ -833,7 +833,7 @@ pub struct CoreModule {
     pub schema_version: u32,
     pub module_id: ModuleId,
     pub source_fingerprint: Fingerprint,
-    pub functions: Vec<CoreFunction>,
+    pub functions: PersistentVec<CoreFunction>,
     pub aggregates: Vec<CoreAggregate>,
     /// Untrusted finite Product recipes; empty on pre-237 source paths.
     pub aggregate_templates: Vec<CoreAggregateTemplate>,
@@ -2709,6 +2709,48 @@ pub enum CtInstructionKind {
     Forbidden(String),
 }
 
+impl PersistentItem for FunctionPlan {
+    fn persistent_fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-FUNCTION-PLAN-STRUCTURAL-V1\0");
+        encode_u32(&mut bytes, self.function.0);
+        encode_len(&mut bytes, self.blocks.len());
+        for block in &self.blocks {
+            encode_u32(&mut bytes, block.block.0);
+            encode_len(&mut bytes, block.initialized_in.len());
+            for local in &block.initialized_in {
+                encode_u32(&mut bytes, local.0);
+            }
+            encode_len(&mut bytes, block.initialized_out.len());
+            for local in &block.initialized_out {
+                encode_u32(&mut bytes, local.0);
+            }
+        }
+        encode_len(&mut bytes, self.holds.len());
+        for hold in &self.holds {
+            encode_u32(&mut bytes, hold.value.0);
+            encode_len(&mut bytes, hold.roots.len());
+            for root in &hold.roots {
+                match root {
+                    HoldRoot::Local(local) => {
+                        bytes.push(0);
+                        encode_u32(&mut bytes, local.0);
+                    }
+                    HoldRoot::Capture(index) => {
+                        bytes.push(1);
+                        encode_u32(&mut bytes, *index);
+                    }
+                    HoldRoot::Parameter(index) => {
+                        bytes.push(2);
+                        encode_u32(&mut bytes, *index);
+                    }
+                    HoldRoot::Static => bytes.push(3),
+                }
+            }
+        }
+        bytes.finish()
+    }
+}
 impl PersistentItem for TypedFunction {
     fn persistent_fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
