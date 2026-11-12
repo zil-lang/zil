@@ -21,6 +21,7 @@ mod returned_environment;
 mod set_bits_tests;
 mod ssa_loan_groups;
 mod store_paths;
+pub(super) mod replacements;
 use live_words::WordRow;
 #[cfg(test)]
 mod ancestry_tests;
@@ -471,6 +472,7 @@ struct Frame {
     captures: Vec<Payload>,
     /// Union of paths left vacant by any incoming branch.
     vacant: Vec<Source>,
+    prepared: Vec<replacements::Prepared>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
@@ -601,6 +603,7 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
 }
 fn frame_work(f: &Frame, b: &mut Budget) -> Check<()> {
     source_work(&f.vacant, b)?;
+    replacements::frame_work(&f.prepared, b)?;
     b.spend(
         f.locals
             .len()
@@ -792,6 +795,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
     add_sources(&mut to.vacant, &from.vacant, b)?;
+    replacements::join(&mut to.prepared, &from.prepared, b)?;
     b.spend(
         to.locals
             .len()
@@ -876,6 +880,7 @@ fn transfers_address(kind: &InstructionKind) -> bool {
             | InstructionKind::StorePackageField { .. }
             | InstructionKind::StoreOwnedArrayElement { .. }
             | InstructionKind::StoreStoredBorrow { .. }
+            | InstructionKind::CommitPlaceReplace { .. }
     )
 }
 fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) {
@@ -884,6 +889,7 @@ fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) 
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::StoreStoredBorrow { value, .. }
+        | InstructionKind::CommitPlaceReplace { value, .. }
         | InstructionKind::MakeErrorUnion { value, .. }
         | InstructionKind::ExtractField {
             aggregate: value, ..
@@ -1468,6 +1474,7 @@ pub(super) fn qualifications(
                         ))
                     && !(b.store_descriptions()
                         && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
+                    && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
@@ -2471,6 +2478,7 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
         locals: vec![Payload::default(); f.locals.len()],
         external: vec![Payload::default(); f.parameters.len()],
         vacant: Vec::new(),
+        prepared: Vec::new(),
     })
 }
 fn seed(
@@ -2698,7 +2706,7 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
-    if !b.stored_slot_updates && !b.stored_constructor_sites && !b.nested_callable_sources {
+    if !b.stored_slot_updates && !b.stored_constructor_sites && !b.nested_callable_sources && !b.replacements {
         return Ok(sites);
     }
     b.spend(f.blocks.len())?;
@@ -2725,6 +2733,15 @@ fn write_sites(
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
                                 add(u32::MAX, &slot.path, true, b)?;
+                            }
+                        }
+                    }
+                }
+                InstructionKind::CommitPlaceReplace { value, .. } => {
+                    if let Some((_, shape)) = qualified(vt(f, *value)?) {
+                        for slot in &shape.slots {
+                            if slot.mode == StoredBorrowMode::ExclusiveAddress {
+                                add(u32::MAX, &slot.path, true)?;
                             }
                         }
                     }
@@ -2864,6 +2881,9 @@ fn step(
                 unreachable!()
             };
             task_failure::take_view(state, &val(*storage)?.address, life, &mut out, b)?;
+        }
+        _ if replacements::operation(&i.kind) => {
+            replacements::step(f, i, state, values, sites, loans, b)?;
         }
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
@@ -3953,6 +3973,7 @@ fn solve(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Solution> {
+    replacements::prepare(module, f, g, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
     // Its paid seed/site/step writes record every possible exclusive loan,
     // including constructor sites that are not currently active.
@@ -4134,6 +4155,7 @@ fn reverse(
         }
         _ => {}
     }
+    replacements::pin(f, i, live, b)?;
     for v in instruction_operands(&i.kind) {
         b.spend(1)?;
         live.assign(v.0 as usize, true)?;
@@ -4187,6 +4209,7 @@ fn reverse_bool(
         }
         _ => {}
     }
+    replacements::pin_bool(f, i, live, b)?;
     for v in instruction_operands(&i.kind) {
         b.spend(1)?;
         live[v.0 as usize] = true;
@@ -4335,6 +4358,9 @@ fn live_loans(
         ids.len().saturating_add(live.len() - solution.values.len())
     }))?;
     let mut loans = live_loan_ids::SortedLoanIds::default();
+    for prepared in &state.prepared {
+        loans.add(&prepared.permission.loans, b)?;
+    }
     let mut collect = |id: usize, b: &mut Budget| -> Check<()> {
         if !live.is_live(id)? || definition.is_some_and(|value| value.0 as usize == id) {
             return Ok(());
@@ -4402,6 +4428,9 @@ fn live_loans_main_fullscan(
 ) -> Check<Vec<usize>> {
     b.spend(live.len())?;
     let mut loans = Vec::new();
+    for prepared in &state.prepared {
+        add_loans_by_scan(&mut loans, &prepared.permission.loans, b)?;
+    }
     for (id, yes) in live.iter().enumerate() {
         if !*yes {
             continue;
@@ -4643,6 +4672,7 @@ fn windows(
                 join_frame(&mut state, &solution.outputs[*pred], b)?;
             }
         }
+        replacements::entry(f, bi, &state, b)?;
         let after = instruction_rows(module, f, bi, &output_live[bi], b)?;
         let mut byte_point = byte_flow
             .as_ref()
@@ -4739,6 +4769,10 @@ fn windows(
                     &mut checks,
                     requirements,
                     b,
+                )?;
+                replacements::check(
+                    f, i, &state, &solution.values, &active, &solution.loans,
+                    requirements, head_accesses, b,
                 )?;
                 match &i.kind {
                     InstructionKind::MakeAggregate { fields }
@@ -5664,7 +5698,7 @@ fn summarize(
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
         }
-        if b.stored_slot_updates && *reachable && matches!(block.terminator, Terminator::Return(_))
+        if (b.stored_slot_updates || b.replacements) && *reachable && matches!(block.terminator, Terminator::Return(_))
         {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
                 let local = *f

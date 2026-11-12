@@ -358,6 +358,9 @@ struct Budget {
     protocol_contracts: bool,
     protocol_checked: bool,
     replacements: bool,
+    // Immutable replacement declarations/schedules only; no source permission.
+    stored_replacement_functions: BTreeSet<FunctionId>,
+    stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -451,6 +454,8 @@ impl Budget {
             protocol_contracts: false,
             protocol_checked: false,
             replacements: false,
+            stored_replacement_functions: BTreeSet::new(),
+            stored_replacements: Vec::new(),
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
@@ -1019,6 +1024,8 @@ fn check_module(
                                 | InstructionKind::ReservePlaceAddress { .. }
                         ) {
                             budget.replacements = true;
+                            budget.spend(module.functions.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                            budget.stored_replacement_functions.insert(function.id);
                         }
                     }
                     InstructionKind::BorrowVariantLocal { path, .. }
@@ -1052,6 +1059,8 @@ fn check_module(
                     InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
                         budget.replacements = true;
+                        budget.spend(module.functions.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+                        budget.stored_replacement_functions.insert(function.id);
                     }
                     InstructionKind::StaticUtf8 { bytes } => {
                         budget.static_utf8 = true;
