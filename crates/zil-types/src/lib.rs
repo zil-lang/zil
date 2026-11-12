@@ -3960,7 +3960,8 @@ mod tests {
                 },
                 receiver: None,
                 span: span(),
-            }],
+            }]
+            .into(),
             aggregates: vec![],
             enums: vec![],
             unsupported: vec![],
