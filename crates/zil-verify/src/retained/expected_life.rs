@@ -34,6 +34,32 @@ pub(super) fn check(
             "expected callable life omits or invents an actual class domain",
         ));
     }
+    let mut constants = expected.static_bindings.iter();
+    budget.spend(actual.static_bindings.len())?;
+    for position in &actual.static_bindings {
+        if matches!(position.base, StorageBase::Capture(_)) {
+            continue;
+        }
+        let expected_position = constants
+            .next()
+            .ok_or_else(|| bad(f, "expected callable life omits an actual constant borrow"))?;
+        budget.spend(
+            position
+                .path
+                .len()
+                .saturating_add(expected_position.path.len())
+                .saturating_add(2),
+        )?;
+        if position != expected_position {
+            return Err(bad(
+                f,
+                "expected callable life changes an actual constant borrow",
+            ));
+        }
+    }
+    if constants.next().is_some() {
+        return Err(bad(f, "expected callable life invents a constant borrow"));
+    }
     let count = expected.invocation_binder_count as usize;
     budget.spend(count.saturating_mul(2).saturating_add(2))?;
     let mut required = vec![None; count];

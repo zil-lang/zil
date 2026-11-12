@@ -90,6 +90,14 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && d.kind != CallableKind::FnOnce
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
+pub(super) fn constant_result(d: &ClosureDefinition) -> bool {
+    matches!(&d.result,Type::Address{mutable:false,inner}if inner.is_address_pointee())
+        && d.storage_life.as_ref().is_some_and(|life|life.static_bindings.iter().any(|p|p.base==StorageBase::Result && p.path.is_empty()))
+}
+pub(super) fn constant_entry(module: &TypedModule, f: &TypedFunction) -> bool {
+    f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|
+        d.function==f.id && f.return_type==d.result && constant_result(d))
+}
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
@@ -118,10 +126,11 @@ pub(super) fn fixed_result(d: &ClosureDefinition) -> bool {
         )
     })
 }
-
 pub(super) fn transferred(d: &ClosureDefinition) -> bool {
     d.kind == CallableKind::FnOnce
-        && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
+        && matches!(&d.result,Type::Address{inner,..}if inner.is_address_pointee()
+            || matches!(inner.as_ref(), Type::BorrowedStorage{storage,life}
+                if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)) && life.retained.is_empty()))
         && fixed_result(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
@@ -233,6 +242,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
             || transferred(d)
+            || constant_result(d)
             || borrowed_owned_candidate(d)
     })
 }
@@ -242,7 +252,7 @@ pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
     } else {
         t
     };
-    matches!(t, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+    matches!(t, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
 }
 pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -255,7 +265,8 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
 pub(super) fn capture(t: &Type) -> bool {
     scalar(t)
         || matches!(t, Type::Address { mutable: false, inner }
-        if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+        if scalar(inner) || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
+            || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
 }
 /// Reborrow the head on every read, preserving its nominal pointee classes.
@@ -267,7 +278,8 @@ pub(super) fn mutable_context_capture(t: &Type) -> bool {
 }
 pub(super) fn exclusive_capture(t: &Type) -> bool {
     mutable_context_capture(t)
-        || matches!(t, Type::Address { mutable: true, inner } if scalar(inner))
+        || matches!(t, Type::Address { mutable: true, inner } if scalar(inner)
+            || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
 }
 pub(super) fn resource_payload(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Type::Record { fields, .. } = t else {
@@ -637,8 +649,16 @@ pub(super) fn types(
                 b.type_work(t, true, "actual captured field type comparison")?;
             }
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
+                let constant_slot = d.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(*index) && position.path.is_empty()
+                    })
+                }) && matches!(t, Type::Address { mutable: false, .. });
+                // Replacing an immutable pointer slot needs exclusive receiver
+                // access. Its constant contents are independently checked at
+                // every module constructor and write before planning.
                 if d.kind == zil_ir::CallableKind::Fn
-                    || !scalar(t)
+                    || !(scalar(t) || constant_slot)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
                 {

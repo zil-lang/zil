@@ -164,6 +164,7 @@ fn permission(
     let initial = match place.origin {
         Origin::Local(local) => Permission {
             sources: vec![Source {
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(local),
                 leaf: Vec::new(),

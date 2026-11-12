@@ -100,14 +100,19 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             continue;
         };
         spend(left, claim.roles.len(), f.span)?;
-        let late = claim.roles.iter().any(|role| {
-            role.life.is_none()
-                && module
-                    .closures
-                    .get(role.closure.0 as usize)
-                    .and_then(|d| d.storage_life.as_ref())
-                    .is_some_and(|life| life.fixed_binder_count > 0)
-        });
+        let mut late = false;
+        for role in &claim.roles {
+            let Some(d) = module.closures.get(role.closure.0 as usize) else {
+                continue;
+            };
+            let empty_result = super::local_scopes::closed(
+                &d.result, module, left, f.span, 0, limits.max_call_depth,
+            )?;
+            late |= (role.life.is_none()
+                || role.life.as_ref().is_some_and(|life| {
+                    life.fixed_binder_count == 0 && life.classes.is_empty()
+                }) && empty_result) && d.storage_life.is_some();
+        }
         if !late {
             continue;
         }
@@ -147,7 +152,16 @@ pub(super) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             let Some(life) = &d.storage_life else {
                 continue;
             };
-            if life.fixed_binder_count == 0 || role.life.is_some() {
+            let empty_result = super::local_scopes::closed(
+                &d.result, module, left, f.span, 0, limits.max_call_depth,
+            )?;
+            if role.life.as_ref() == Some(life)
+                || role.life.as_ref().is_some_and(|old| {
+                    old.fixed_binder_count > 0
+                        || !old.classes.is_empty()
+                        || !empty_result
+                })
+            {
                 continue;
             }
             spend(

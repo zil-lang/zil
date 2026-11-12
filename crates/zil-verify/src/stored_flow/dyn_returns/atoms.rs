@@ -112,6 +112,7 @@ pub(super) fn resolve(
                 },
                 Some(binder),
                 Selection::One(Source {
+                    static_dependency: None,
                     base: HoldRoot::Parameter(index),
                     retained_port: None,
                     leaf: Vec::new(),
@@ -132,6 +133,7 @@ pub(super) fn resolve(
                 leaf.clone(),
                 None,
                 Selection::One(Source {
+                    static_dependency: None,
                     base: HoldRoot::Static,
                     retained_port: None,
                     leaf: Vec::new(),

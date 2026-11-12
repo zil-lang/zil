@@ -77,6 +77,7 @@ pub(super) fn seed(
     for (path, ty) in leaves(module, id, b)? {
         b.spend(path.len().saturating_mul(3).saturating_add(6))?;
         let source = Source {
+            static_dependency: None,
             base,
             leaf: path.clone(),
             retained_port: None,
@@ -84,11 +85,14 @@ pub(super) fn seed(
             heap_parents: Vec::new(),
             heap_element: None,
         };
+        let sources =
+            static_borrows::environment_source(&module.closures[id.0 as usize], &path, b)?
+                .unwrap_or_else(|| vec![source]);
         let loan = loans.len();
         let exclusive = writes(ty);
         loans.push(Loan {
             receiver_head: false,
-            sources: vec![source.clone()],
+            sources: sources.clone(),
             parents: Vec::new(),
             exclusive,
         });
@@ -97,7 +101,7 @@ pub(super) fn seed(
             out,
             &path,
             &Permission {
-                sources: vec![source],
+                sources,
                 loans: vec![loan],
             },
             b,
@@ -409,13 +413,20 @@ fn static_parents(
                 .loans
                 .get(id)
                 .ok_or_else(|| err("static capture parent lies outside actual loan arena"))?;
-            b.spend(loan.sources.len().saturating_add(1))?;
+            b.spend(
+                loan.sources
+                    .len()
+                    .saturating_mul(actual.sources.len().saturating_add(1))
+                    .saturating_add(1),
+            )?;
             if loan.receiver_head
                 || loan.sources.is_empty()
-                || loan
-                    .sources
-                    .iter()
-                    .any(|source| source.base != HoldRoot::Static)
+                || loan.sources.iter().any(|source| {
+                    // An ordinary Fixed capture may conservatively contain
+                    // both Static and its real input. Keep each genuine input
+                    // parent; a Static-only result cannot acquire one.
+                    source.base != HoldRoot::Static && !actual.sources.contains(source)
+                })
             {
                 return Err(err(
                     "static capture retains a nonstatic or ungrounded parent",

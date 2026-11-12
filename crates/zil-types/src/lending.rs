@@ -10,7 +10,10 @@ pub(super) fn supported_result(ty: &Type) -> bool {
 }
 pub(super) fn transferred_result(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
-        || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value()))
+        || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())
+        || matches!(inner.as_ref(),Type::BorrowedStorage{storage,life}
+            if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_))
+                && life.retained.is_empty()))
 }
 
 pub(super) fn qualified_result(closure: &ClosureDefinition) -> bool {
@@ -343,8 +346,13 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             continue;
         }
         work.spend(closure.parameters.len(), f.span)?;
+        let actual_parameters = !summaries[closure.function.0 as usize].is_empty()
+            && summaries[closure.function.0 as usize].iter().all(|source|matches!(source,Source::Parameter(_)));
+        let declared_invocation = closure.storage_life.as_ref().is_some_and(|life|
+            life.bindings.iter().any(|row|row.position.base==StorageBase::Result && matches!(row.binder,StorageBinder::Invocation(_))));
         if borrowed_fp::invocation(&closure.parameters, &closure.result)
             && !qualified_result(closure)
+            && (actual_parameters || declared_invocation)
         {
             let mutable = matches!(closure.result, Type::Address { mutable: true, .. });
             let roots = &summaries[closure.function.0 as usize];
@@ -380,7 +388,9 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             .captures
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. }))
-            && closure.parameters.iter().all(Type::is_copy_value);
+            && closure.parameters.iter().all(|ty|ty.is_copy_value()
+                || matches!(ty,Type::Address{inner,..} if inner.is_copy_value()
+                    || matches!(inner.as_ref(),Type::Slice{element}if element.is_copy_value())));
         if closure.captures.iter().any(|ty| {
             matches!(ty, Type::Desc(_))
                 || matches!(ty, Type::Address { .. })

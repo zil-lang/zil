@@ -360,7 +360,9 @@ struct Budget {
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
     closure_receiver_borrows: bool,
+    qualified_head_returns: bool,
     nested_callable_sources: bool,
+    static_borrow_occurrences: bool,
     addressed_copy_sums: BTreeMap<usize, bool>,
     large_tag_layout: bool,
     addressed_tag_layout: BTreeMap<usize, u8>,
@@ -470,7 +472,9 @@ impl Budget {
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
             closure_receiver_borrows: false,
+            qualified_head_returns: false,
             nested_callable_sources: false,
+            static_borrow_occurrences: false,
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
             addressed_tag_layout: BTreeMap::new(),
@@ -3810,7 +3814,9 @@ fn check_instruction(
             let owned_sum = budget.inline_store_root(field)?
                 && dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
-                || !(field.is_copy_value() || (definition.kind == CallableKind::FnMut && owned_sum))
+                || !(field.is_copy_value()
+                    || stored_callables::constant_capture_slot(definition, *index, budget)?
+                    || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
             {
                 return Err(reject(

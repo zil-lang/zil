@@ -3729,7 +3729,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             if lends && inline_copy {
                 builder.stored_copy_captures.insert(local, index as u32);
             }
-            if capture.written && !capture.borrowed && capture.ty.is_copy_value() {
+            // A moved reference owns the environment's capability slot. Its
+            // activation-local reassignment must publish to that actual slot;
+            // borrowing an outer variable still uses its pointee transport.
+            if capture.written
+                && !capture.borrowed
+                && (capture.ty.is_copy_value()
+                    || capture.moved && matches!(capture.ty, Type::Address { .. }))
+            {
                 builder.written_captures.insert(local, index as u32);
                 if capture.address_written && !lends {
                     builder.address_written_captures.insert(local, index as u32);

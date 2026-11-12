@@ -20,7 +20,16 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
             continue;
         };
         let d = &module.closures[returned.closure.0 as usize];
-        if f.storage_life.is_some() || !candidate(d) {
+        let unique_input = f.parameters.iter().filter(|local|
+            matches!(f.locals[local.0 as usize].ty,Type::Address{..})).count()==1;
+        let data_capture = d.captures.iter().any(|ty|matches!(ty,Type::Address{..}));
+        if f.storage_life.is_some() || !(candidate(d) || unique_input && data_capture) {
+            continue;
+        }
+        // No creator input can ground a data class here. Only the later
+        // actual StaticUtf8/capture proof may publish a constant result.
+        if !f.parameters.iter().any(|local|matches!(f.locals[local.0 as usize].ty,Type::Address{..}))
+            && matches!(&d.result,Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) {
             continue;
         }
         spend(left, f.parameters.len(), f.span)?;
@@ -67,7 +76,12 @@ pub(super) fn prepare_creators(module: &mut TypedModule, left: &mut usize) -> R<
     Ok(())
 }
 
-pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut usize) -> R<()> {
+pub(super) fn finish(
+    module: &mut TypedModule,
+    summaries: &[Summary],
+    left: &mut usize,
+    limits: &Limits,
+) -> R<()> {
     let mut updates = Vec::new();
     for d in &module.closures {
         if !candidate(d) {
@@ -81,6 +95,15 @@ pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut
             ));
         };
         spend(left, origin.inputs.len(), f.span)?;
+        if let Some(life)=&d.storage_life
+            && life.static_bindings.iter().any(|row|row.base==StorageBase::Result) {
+            if origin.local || origin.unknown || origin.receiver || !origin.places.is_empty()
+                || !origin.static_utf8 && origin.inputs.is_empty()
+                || origin.inputs.iter().any(|source|!life.static_bindings.contains(source)) {
+                return Err(error("E-LENDING-ORIGIN",f.span,"constant result retains a nonconstant capture or activation"));
+            }
+            continue;
+        }
         if origin.local || origin.unknown || origin.inputs.is_empty() {
             return Err(error(
                 "E-LENDING-ORIGIN",
@@ -178,6 +201,90 @@ pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut
                 binder: result,
             });
         }
+        if let Type::Address { inner, .. } = &d.result
+            && let Type::BorrowedStorage { life: shape, .. } = inner.as_ref()
+        {
+            // The structural candidate above grants no classes. Pay the full
+            // type comparison before projecting the actual captured head.
+            inference::charge_type_snapshot(&d.result, f.span, limits, left, 1)?;
+            for source in &origin.inputs {
+                let StorageBase::Capture(index) = source.base else {
+                    return Err(unsupported(
+                        f.span,
+                        "qualified result class has no actual captured head",
+                    ));
+                };
+                let capture = d
+                    .captures
+                    .get(index as usize)
+                    .ok_or_else(|| unsupported(f.span, "qualified result capture is absent"))?;
+                inference::charge_type_snapshot(capture, f.span, limits, left, 1)?;
+                if !source.path.is_empty() || capture != &d.result {
+                    return Err(unsupported(
+                        f.span,
+                        "qualified result requires its complete actual pointee class projection",
+                    ));
+                }
+            }
+            for class in 0..shape.binder_count {
+                let mut selected = None;
+                for source in &origin.inputs {
+                    let StorageBase::Capture(index) = source.base else {
+                        return Err(unsupported(
+                            f.span,
+                            "qualified result class has no actual captured head",
+                        ));
+                    };
+                    spend(left, life.classes.len(), f.span)?;
+                    let actual = life
+                        .classes
+                        .iter()
+                        .find(|row| {
+                            row.position.base == StorageBase::Capture(index)
+                                && row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                                && row.position.class == class
+                        })
+                        .map(|row| row.binder)
+                        .ok_or_else(|| {
+                            unsupported(
+                                f.span,
+                                "qualified result omits an actual captured pointee class",
+                            )
+                        })?;
+                    if selected
+                        .replace(actual)
+                        .is_some_and(|previous| previous != actual)
+                    {
+                        return Err(error(
+                            "E-CLOSURE-RESULT-LIFE",
+                            f.span,
+                            "qualified result joins distinct original pointee classes",
+                        ));
+                    }
+                }
+                let position = SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![LifeTypeProjection::Pointee],
+                    class,
+                };
+                let binder = selected.ok_or_else(|| {
+                    unsupported(f.span, "qualified result class has no actual source")
+                })?;
+                if let Some(row) = life.classes.iter().find(|row| row.position == position) {
+                    if row.binder != binder {
+                        return Err(error(
+                            "E-CLOSURE-RESULT-LIFE",
+                            f.span,
+                            "qualified result changes its declared pointee class",
+                        ));
+                    }
+                } else {
+                    spend(left, 2, f.span)?;
+                    life.classes
+                        .push(SignatureLifeClassBinding { position, binder });
+                }
+            }
+        }
         updates.push((d.id, d.function, life));
     }
     for (id, entry, life) in updates {
@@ -221,6 +328,11 @@ fn complete_creators(module: &mut TypedModule, left: &mut usize) -> R<()> {
                 "returned borrowed callable has no complete class inventory",
             )
         })?;
+        // A fully inventoried zero free domain has no creator class rows to
+        // map. Constant occurrence proofs remain separate obligations.
+        if life.fixed_binder_count == 0 {
+            continue;
+        }
         let header = f.storage_life.as_ref().ok_or_else(|| {
             unsupported(
                 f.span,

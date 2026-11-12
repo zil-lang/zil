@@ -54,7 +54,46 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     budget.spend(1)?;
+    let constant_result = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .is_some_and(super::stored_callables::static_result);
+    if constant_result && f.retained_return_sources.is_none() {
+        return Err(bad(f, "constant result source upper is Unknown"));
+    }
     if let Some(bindings) = &f.retained_return_sources {
+        if constant_result {
+            if bindings.len() != 1
+                || bindings[0].position.base != StorageBase::Result
+                || !bindings[0].position.path.is_empty()
+                || bindings[0].sources.len() != 1
+            {
+                return Err(bad(
+                    f,
+                    "constant result requires its complete canonical source upper",
+                ));
+            }
+            match &bindings[0].sources[0] {
+                StorageSource::Static { leaf, mode } => {
+                    super::dynamic_metadata::ty(leaf, budget)?;
+                    if *mode != StoredBorrowMode::SharedAddress
+                        || leaf != &f.return_type
+                        || !matches!(leaf, Type::Address { mutable: false, .. })
+                    {
+                        return Err(bad(
+                            f,
+                            "constant result upper changes the actual full leaf or mode",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(bad(
+                        f,
+                        "constant result lacks its explicit Static source upper",
+                    ));
+                }
+            }
+        }
         if bindings.len() > limits.max_nodes {
             return Err(limit("retained return binding count exceeds node bound"));
         }
@@ -74,6 +113,9 @@ pub(super) fn check_claim(
                     .saturating_add(1),
             )?;
             for atom in &binding.sources {
+                if constant_result {
+                    continue;
+                }
                 if let StorageSource::Exact(source) = atom {
                     // Preserve the established position-only fee. The vector
                     // charge above already accounts for this atom's tag.
@@ -88,14 +130,16 @@ pub(super) fn check_claim(
                 }
             }
         }
-        if !budget.dyn_contexts {
+        if !constant_result && !budget.dyn_contexts {
             return Err(bad(
                 f,
                 "explicit retained return sources lack complete retained result proof",
             ));
         }
         budget.spend(1)?;
-        budget.pending_dyn_returns.insert(f.id);
+        if !constant_result {
+            budget.pending_dyn_returns.insert(f.id);
+        }
     }
     if let Some(c) = &f.callable_return_contract {
         if let Some(life) = &c.life {
@@ -132,11 +176,18 @@ pub(super) fn check_claim(
                     .saturating_add(1),
             )?;
             for atom in &binding.sources {
-                let source = crate::exact_storage_source(atom)?;
-                if source.path.len() > limits.max_call_depth {
-                    return Err(limit("callable source path exceeds depth bound"));
+                if let StorageSource::Static { leaf, .. } = atom {
+                    // Prehash metadata work only. The leaf shape, actual source
+                    // and complete constructor/write invariant are separate proofs.
+                    budget.spend(2)?;
+                    crate::dynamic_metadata::ty(leaf, budget)?;
+                } else {
+                    let source = crate::exact_storage_source(atom)?;
+                    if source.path.len() > limits.max_call_depth {
+                        return Err(limit("callable source path exceeds depth bound"));
+                    }
+                    budget.spend(source.path.len().saturating_add(1))?;
                 }
-                budget.spend(source.path.len().saturating_add(1))?;
             }
         }
 

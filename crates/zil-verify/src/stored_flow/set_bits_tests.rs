@@ -167,7 +167,7 @@ fn set_bits_match_frozen_none_and_preserve_indexed_costs_and_errors() {
                                 );
                                 let mut new = budget(tasks, external, limit);
                                 let actual = live_loans(
-                                    &solution, &state, &live, definition, indexed, &mut new,
+                                    None, &solution, &state, &live, definition, indexed, &mut new,
                                 );
                                 assert_eq!(
                                     actual, expected,
@@ -193,6 +193,7 @@ fn set_bits_match_frozen_none_and_preserve_indexed_costs_and_errors() {
         let row = WordRow::from_bools(&vec![false; width]);
         assert_eq!(
             live_loans(
+                None,
                 &solution,
                 &state,
                 &row,
@@ -236,7 +237,7 @@ fn set_bits_pay_word_scan_and_live_visits_with_exact_fresh_limits() {
         let expected = old_full_scan(&solution, &state, &row, None, None, &mut old).unwrap();
         let mut new = budget(false, false, limit);
         assert_eq!(
-            live_loans(&solution, &state, &row, None, None, &mut new).unwrap(),
+            live_loans(None, &solution, &state, &row, None, None, &mut new).unwrap(),
             expected
         );
         let before = limit - old.remaining;
@@ -247,7 +248,7 @@ fn set_bits_pay_word_scan_and_live_visits_with_exact_fresh_limits() {
         }
         for steps in [n, n - 1, n] {
             let mut b = budget(false, false, steps);
-            let result = live_loans(&solution, &state, &row, None, None, &mut b);
+            let result = live_loans(None, &solution, &state, &row, None, None, &mut b);
             if steps == n {
                 assert_eq!(result.unwrap(), expected);
                 assert_eq!(b.remaining, 0);

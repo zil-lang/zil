@@ -229,6 +229,7 @@ fn actual_permission(
     match selection(module, f, buffer, span, b)? {
         Head::Owner { owner, field } => {
             let source = Source {
+                static_dependency: None,
                 retained_port: None,
                 base: HoldRoot::Local(owner),
                 leaf: Vec::new(),
@@ -602,6 +603,7 @@ impl Sites {
             b.spend(1)?;
             let p = Permission {
                 sources: vec![Source {
+                    static_dependency: None,
                     retained_port: None,
                     base: HoldRoot::Local(local),
                     leaf: Vec::new(),

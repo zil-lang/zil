@@ -67,7 +67,10 @@ pub(super) fn relation(
             "rich borrowed callable class relation requires its complete signature consumer",
         ));
     }
-    if !life.classes.is_empty() {
+    if !life.classes.is_empty()
+        || !life.static_bindings.is_empty()
+        || life.invocation_binder_count == 0
+    {
         return borrowed_fp_qualified::relation(parameters, result, life, span);
     }
     if life.invocation_binder_count == 0 {

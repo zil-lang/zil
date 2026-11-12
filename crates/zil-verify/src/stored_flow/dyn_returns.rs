@@ -119,6 +119,7 @@ fn input(
         return Ok((
             root.clone(),
             Source {
+                static_dependency: None,
                 base: HoldRoot::Parameter(index),
                 retained_port: None,
                 leaf: Vec::new(),
@@ -143,6 +144,7 @@ fn input(
         return Ok((
             port_type.clone(),
             Source {
+                static_dependency: None,
                 base: HoldRoot::Parameter(index),
                 retained_port: Some(PortOrigin::Dyn {
                     carrier: carrier.to_vec(),
@@ -164,6 +166,7 @@ fn input(
     let endpoint = crate::dynamic_ports::physical_path(storage, &path, b)?;
     dynamic_metadata::ty(endpoint, b)?;
     let source = Source {
+        static_dependency: None,
         base: HoldRoot::Parameter(index),
         retained_port: None,
         leaf: path,
@@ -275,6 +278,14 @@ pub(super) fn validate(
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
+        return Ok(());
+    }
+    // A closure's explicit Static address result has its own whole-module
+    // actual Return/ancestry proof. It is not a Dyn retained-port proposal.
+    if f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .is_some_and(stored_callables::static_result)
+    {
         return Ok(());
     }
     let expected = dyn_ports::shape(module, &f.return_type, b)?;

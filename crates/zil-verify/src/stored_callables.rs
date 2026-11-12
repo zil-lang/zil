@@ -30,6 +30,27 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+// Only structural admission. Actual incoming contents remain conditional
+// until every constructor and write has discharged the module invariant.
+pub(super) fn constant_capture_slot(
+    definition: &ClosureDefinition,
+    index: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some(life) = &definition.storage_life else {
+        return Ok(false);
+    };
+    b.spend(life.static_bindings.len())?;
+    Ok(b.static_borrow_occurrences
+        && matches!(
+            definition.captures.get(index as usize),
+            Some(Type::Address { mutable: false, .. })
+        )
+        && life.static_bindings.iter().any(|position| {
+            position.base == StorageBase::Capture(index) && position.path.is_empty()
+        }))
+}
+
 pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
     if f.foreign.is_none() {
         return Ok(false);
@@ -66,8 +87,16 @@ pub(super) fn lending(d: &ClosureDefinition) -> bool {
         && d.kind != CallableKind::FnOnce
         && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
 }
+pub(super) fn static_result(d: &ClosureDefinition) -> bool {
+    d.storage_life.as_ref().is_some_and(|life| {
+        life.static_bindings
+            .iter()
+            .any(|position| position.base == StorageBase::Result && position.path.is_empty())
+    })
+}
 pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
     if lending(d)
+        && !static_result(d)
         && !d.storage_life.as_ref().is_some_and(|life| {
             life.bindings
                 .iter()
@@ -229,6 +258,12 @@ pub(super) fn owned_entry(
     Ok(())
 }
 
+fn address_result(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()
+        || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                && life.retained.is_empty()))
+}
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
@@ -236,7 +271,8 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
             || borrowed_owned_candidate(d)
             || d.storage_life.as_ref().is_some_and(|life| {
                 super::signature_life::outer(life, StorageBase::Result).is_some()
-            }) && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee())
+                    || static_result(d)
+            }) && address_result(&d.result)
     })
 }
 pub(super) fn shared_input(t: &Type) -> bool {
@@ -297,10 +333,9 @@ pub(super) fn captured_profile(
     }
     if !((d.lending_captures.is_empty() && scalar(&d.result))
         || lending(d)
-        || d.storage_life
-            .as_ref()
-            .is_some_and(|life| super::signature_life::outer(life, StorageBase::Result).is_some())
-            && matches!(&d.result, Type::Address { inner, .. } if inner.is_address_pointee()))
+        || d.storage_life.as_ref().is_some_and(|life| {
+            super::signature_life::outer(life, StorageBase::Result).is_some() || static_result(d)
+        }) && address_result(&d.result))
     {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",
@@ -549,7 +584,11 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
-                if d.storage_life.is_some() && !scalar(t) {
+                let constant_slot = constant_capture_slot(d, *index, b)?;
+                // Shape admission does not establish the incoming source.
+                // The whole-module invariant checks every actual write,
+                // including writes in entries which are never called.
+                if d.storage_life.is_some() && !scalar(t) && !constant_slot {
                     return Err(unsupported(
                         "captured Fixed mutation is limited to inline scalar fields",
                         Some(i.span),

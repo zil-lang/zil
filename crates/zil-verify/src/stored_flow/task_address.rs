@@ -123,6 +123,7 @@ pub(super) fn seed(
     for (ordinal, port) in context.ports.iter().enumerate() {
         b.spend(leaf.len().saturating_add(3))?;
         let source = Source {
+            static_dependency: None,
             base,
             leaf: leaf.clone(),
             inline: vec![],
