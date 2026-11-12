@@ -68,3 +68,65 @@ fn task_capture_fixed_scope_comes_from_actual_input_classes() {
                 && row.binder == zil_ir::StorageBinder::Fixed(0))
     );
 }
+
+#[test]
+fn two_equal_task_types_keep_distinct_actual_capture_classes() {
+    let text=SOURCE.replace("fn keep<life a>(give original:Task<i32,&'a mut i32>)", "fn keep<life a,life b>(give original:Task<i32,&'a mut i32>,give second:Task<i32,&'b mut i32>)")
+        .replace("return move()=>drive(give original);", "return move()=>drive(give original)+drive(give second);")
+        .replace("var number=37;", "var number=37;var other=41;")
+        .replace("let callback=keep(give original);", "let otherTask=task_create(worker,&mut other)?;let callback=keep(give original,give otherTask);")
+        .replace("return answer-42;", "if other!=46{return 92;}return answer-88;");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "two-live-task-captures.zil", text);
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand(&source, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &zil_base::Limits::default(),
+    )
+    .unwrap();
+    let closure = &typed.closures[0];
+    assert_eq!(
+        closure.captures[0], closure.captures[1],
+        "equal complete machine types do not prove a shared lifetime source"
+    );
+    let relation = closure.storage_life.as_ref().unwrap();
+    assert_eq!(relation.fixed_binder_count, 2);
+    assert_eq!(relation.bindings.len(), 2);
+    for (index, binding) in relation.bindings.iter().enumerate() {
+        assert_eq!(
+            binding.position,
+            zil_ir::StoragePosition {
+                base: zil_ir::StorageBase::Capture(index as u32),
+                path: vec![zil_ir::ContractProjection::RetainedPort(0)]
+            }
+        );
+        assert_eq!(binding.binder, zil_ir::StorageBinder::Fixed(index as u32));
+    }
+    let creator = typed
+        .functions
+        .iter()
+        .find(|f| {
+            f.callable_return_contract
+                .as_ref()
+                .is_some_and(|c| c.closure == closure.id)
+        })
+        .unwrap();
+    let contract = creator.callable_return_contract.as_ref().unwrap();
+    assert_eq!(contract.writes, vec![0, 1]);
+    let sources = contract.capture_sources.as_ref().unwrap();
+    assert_eq!(sources.len(), 2);
+    for (index, row) in sources.iter().enumerate() {
+        assert_eq!(
+            row.position.base,
+            zil_ir::StorageBase::Capture(index as u32)
+        );
+        assert_eq!(
+            row.sources,
+            vec![zil_ir::StoragePosition {
+                base: zil_ir::StorageBase::Parameter(index as u32),
+                path: vec![zil_ir::ContractProjection::RetainedPort(0)]
+            }]
+        );
+    }
+}

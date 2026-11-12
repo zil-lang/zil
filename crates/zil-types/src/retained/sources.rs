@@ -921,7 +921,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     }
     loop {
         helper_classes::factory_inputs(module, left)?;
-        if !populate_creator_fixed(module, left, limits.max_call_depth)? {
+        if !populate_creator_fixed(module, left, limits)? {
             break;
         }
         helper_classes::populate(module, left, limits)?;
@@ -1274,7 +1274,8 @@ fn relative_capture<'a>(
     };
     Some((*index, tail))
 }
-fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usize) -> R<bool> {
+fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<bool> {
+    let limit = limits.max_call_depth;
     let mut updates = Vec::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else {
@@ -1351,10 +1352,24 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
                             _ => unreachable!(),
                         }
                     }
-                    Type::Closure(id) => module.closures[id.0 as usize]
-                        .storage_life
-                        .as_ref()
-                        .map_or(0, |life| life.fixed_binder_count),
+                    Type::Closure(_) => zil_ir::source_projection::scope_with_candidates(
+                        ty,
+                        zil_ir::source_projection::ScopeCandidates {
+                            closures: &module.closures,
+                            interfaces: &module.dyn_interfaces,
+                        },
+                        limits,
+                        left,
+                    )
+                    .map_err(|_| {
+                        unsupported(
+                            f.span,
+                            "captured child scope has no complete actual candidate domain",
+                        )
+                    })?
+                    .ok_or_else(|| {
+                        unsupported(f.span, "captured child has no standalone class domain")
+                    })?,
                     _ => 0,
                 };
                 let count = if matches!(ty, Type::Address { .. }) {
