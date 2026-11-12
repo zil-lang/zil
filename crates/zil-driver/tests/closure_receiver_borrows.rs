@@ -1045,3 +1045,8 @@ fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
         "both transports must reject the actual retained loan, not a stale candidate: {codes:?}"
     );
 }
+
+consumer!(
+    consuming_slice_capture_preserves_the_real_offset_length_and_parent_owner,
+    "fnonce-exclusive-slice-take"
+);
