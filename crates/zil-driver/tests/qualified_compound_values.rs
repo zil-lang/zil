@@ -259,22 +259,21 @@ fn affine_products_keep_all_child_classes_loans_and_cleanup_in_raw_wire() {
                     assert!(found);
                 }
                 2 if owned => {
+                    // Remove cleanup for the initialized child produced by
+                    // Unpack, rather than a harmless drop of a spent temporary.
                     let mut found = false;
                     for f in &mut changed.functions {
+                        let owned_children: Vec<_> = f.blocks.iter().flat_map(|b| &b.instructions)
+                            .filter_map(|i| if let InstructionKind::UnpackTuple { fields, .. } = &i.kind {Some(fields)} else {None})
+                            .flat_map(|fields| fields.iter().copied())
+                            .filter(|local| matches!(f.locals[local.0 as usize].ty, Type::Managed(_))).collect();
                         for block in &mut f.blocks {
-                            if let Some(index) = block
-                                .instructions
-                                .iter()
-                                .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
-                            {
-                                block.instructions.remove(index);
-                                found = true;
-                                break;
+                            if let Some(index) = block.instructions.iter().position(|i|
+                                matches!(i.kind, InstructionKind::DropManaged {local} if owned_children.contains(&local))) {
+                                block.instructions.remove(index); found = true; break;
                             }
                         }
-                        if found {
-                            break;
-                        }
+                        if found {break;}
                     }
                     assert!(found);
                 }
@@ -305,7 +304,8 @@ fn affine_products_keep_all_child_classes_loans_and_cleanup_in_raw_wire() {
                 } else {
                     (changed.clone(), candidate.clone())
                 };
-                let errors = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+                let errors = zil_verify::verify_module(module, plan, &target, &limits).err()
+                    .unwrap_or_else(|| panic!("accepted corruption: owned={owned} attack={attack} Wire={wire}"));
                 assert!(
                     errors
                         .iter()
