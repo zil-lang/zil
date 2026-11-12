@@ -1061,3 +1061,102 @@ consumer!(
     consuming_slice_capture_preserves_the_real_offset_length_and_parent_owner,
     "fnonce-exclusive-slice-take"
 );
+
+#[test]
+fn constant_capture_invariants_cover_an_uncalled_nonfactory_constructor() {
+    use zil_ir::{
+        FunctionId, InstructionKind, LocalDecl, LocalId, PassingMode, StorageLifeBinding,
+        StorageLifeContract, StoragePosition, Terminator, Type,
+    };
+    let original = typed(include_str!(
+        "../../../tests/fixtures/returned-owning-holders/static-byte-slice-capture.zil"
+    ));
+    let limits = Limits::default();
+    let original_plan = zil_analyze::analyze(&original, &limits).unwrap();
+    let factory = original
+        .functions
+        .iter()
+        .find(|f| f.name == "make")
+        .unwrap();
+    let mut good = original.clone();
+    let mut candidate = original_plan.clone();
+    let mut other = factory.clone();
+    let old_id = other.id;
+    other.id = FunctionId(good.functions.len() as u32);
+    other.name = "uncalled_nonfactory_constructor".into();
+    other.callable_return_contract = None;
+    other.return_type = Type::Unit;
+    other.result_mode = PassingMode::Infer;
+    let local = LocalId(other.locals.len() as u32);
+    let leaf = good.closures[0].captures[0].clone();
+    let span = other.span;
+    other.locals.push(LocalDecl {
+        id: local,
+        name: "untrusted_input".into(),
+        ty: leaf,
+        mutable: false,
+        span,
+    });
+    other.parameters.push(local);
+    other.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Parameter(0),
+                path: vec![],
+            },
+            binder: StorageBinder::Invocation(0),
+        }],
+        classes: vec![],
+        static_bindings: vec![],
+    });
+    for block in &mut other.blocks {
+        if matches!(block.terminator, Terminator::Return(_)) {
+            block.terminator = Terminator::Return(None);
+        }
+    }
+    let mut other_plan = candidate
+        .functions
+        .iter()
+        .find(|p| p.function == old_id)
+        .unwrap()
+        .clone();
+    other_plan.function = other.id;
+    for block in &mut other_plan.blocks {
+        block.initialized_in.push(local);
+        block.initialized_out.push(local);
+    }
+    let other_id = other.id;
+    good.functions.push(other);
+    candidate.functions.push(other_plan);
+    candidate.module_fingerprint = good.fingerprint();
+    zil_verify::verify_module(good.clone(), candidate.clone(), &good.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&good, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &good.target, &limits).unwrap();
+
+    let mut bad = good;
+    let producer = bad.functions[other_id.0 as usize]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| matches!(instruction.kind, InstructionKind::StaticUtf8 { .. }))
+        .unwrap();
+    // Keep the genuine good factory, public contract, entry and machine Types.
+    // Only this second constructor's input changes from a literal to a formal.
+    producer.kind = InstructionKind::Load(local);
+    candidate.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &candidate, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(bad, candidate, &original.target, &limits).map(|_| ()),
+        zil_verify::verify_module_bytes(&wire, &original.target, &limits).map(|_| ()),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-VERIFY-STORED"
+                && error.category == ResultCategory::SafeReject
+                && error.message.contains("constant field retains nonstatic")),
+            "{errors:?}"
+        );
+    }
+}
