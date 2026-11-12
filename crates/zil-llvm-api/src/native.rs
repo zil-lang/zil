@@ -376,6 +376,10 @@ fn compile_input(
     native_attempt: Option<&mut NativeAttempt<'_>>,
 ) -> Result<(Object, Option<PreflightReceipt>), Error> {
     let start = Instant::now();
+    // A cancellation callback may reenter ordinary/native compilation. Suspend
+    // its outer request for this complete invocation, including fresh fallback.
+    // This guard outlives every LLVM owner declared below and restores TLS last.
+    let _native_suspension = products::Suspension::new();
     let (mut hook_state, mut attempt_timings) = match native_attempt {
         Some(NativeAttempt {
             prior,
