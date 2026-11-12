@@ -109,10 +109,21 @@ fn imported_generic_keeps_private_drop_foreign_dependency_in_its_actual_module()
 }
 #[test]
 fn imported_private_foreign_dependency_cannot_be_called_by_consumer() {
-    let errors = expand("import model.records\nfn main()->i32{unsafe{return records.putchar(65)}}")
-        .unwrap_err();
+    let modules =
+        expand("import model.records\nfn main()->i32{unsafe{return records.putchar(65)}}").unwrap();
+    let errors = zil_types::check_program(
+        &zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: Fingerprint::of(b"private extern access"),
+            modules,
+        },
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .unwrap_err();
     assert!(
-        errors.iter().any(|e| e.code == "E-MODULE-PRIVATE"),
+        errors.iter().any(|e| e.code == "E-MODULE-PRIVATE"
+            && e.message == "function records.putchar is private"),
         "{errors:?}"
     );
 }
