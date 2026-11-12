@@ -837,9 +837,9 @@
       "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
     },
     "full_push_native": {
-      "read_goal": "5dc485da8b59431e75a102bdbbc553677f3f0df9",
+      "read_goal": "1ff7dbfba9d5222e0fa4e0c43dd77ca9ec5f6178",
       "branch": "research/full-push-native",
-      "checkpoint": "7c86653443be9d57e2d6632776a304dd57c8ad08",
+      "checkpoint": "db856d8aa9bc8965bc313191542c5810429bff14",
       "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
       "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
       "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
@@ -860,11 +860,11 @@
           "ignored": 0
         },
         "overlap": "前面的105/424测试与1588重叠，不累加",
-        "driver_actual_425": "3 current driver private/restore/broad-history tests passed at 2f9. New pre-CT consumer integration after7c in progress, not included.",
+        "driver_actual_425": "Latest measured source7c866/v8 unchanged:425fn real CGU16/O2/jobs1,34valid/180native/15whole-ELF equal pairs; single diagnostic candidate-only profile, not current formal Rust performance. New pre-CT consumers pass actual425driver3 tests, Types95.",
         "latest_verify": "646 library tests passed through bd21; next exact raw_nodes run04 23/23 passed including symbol-header obligation; overlap not summed.",
-        "latest_compile": "Full workspace tests01 and02 both failed during linking due ENOSPC; original logs retained. Disk-bounded all-tests runner prepared, rejects changed compiler+tools/llvm inputs; full final gate pending.",
+        "latest_compile": "Frozen16a full workspace33groups completed32pass/1fail;6355tests passed/1 default-worker-stack overflow. Binary dispatch stack repaird298737e9 passes original complete generic214 and Types95. Not a new full frozen workspace pass.",
         "measurement_tools": "32 lightweight tests passed after actual per-arm mapped LLVM DSO binding; original main SDK and modified candidate SDK are separated and archived.",
-        "native": "LLVMAPI50 passed at2f9/v6; overlapping native five not summed. V8 six native consumer tests passed incl original complex scalar failure reproducer. Backend15 native-related passed incl3 history tests. Each exact run/source recorded, not a full final workspace pass."
+        "native": "SDKv12 build Pass; full native06 51passed/2failed. Real complex scalar4optimizer-stage reuses,26analysis reconstructions,0fallback; machine0reuse because later SSA naming counter differs. Full exact machine key and both failing assertions retained; LastUnique restoration under construction."
       },
       "llvm_extension": {
         "base_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
@@ -913,7 +913,27 @@
         "fresh_https_restore_verified": true,
         "scope": "Through425v6 diagnostic / exact MIR failure, SDKv6/v7 actual runtime DSOs; newer v8/history runs not in this archive. Old lost environment raw remains unavailable."
       },
-      "open": "全LLVM优化实际analysisfacts和localstack准入、MIR未序列化emit字段/重放成本、pre-CT三列访客冗余、完整workspace/clippy/fmt、同参六轮main/candidate/Rust检查及native正式矩阵；结果不佳继续施工，未终态。"
+      "open": "全LLVM优化实际analysisfacts和localstack准入、MIR未序列化emit字段/重放成本、pre-CT三列访客冗余、完整workspace/clippy/fmt、同参六轮main/candidate/Rust检查及native正式矩阵；结果不佳继续施工，未终态。",
+      "panoramic_review": "tools/research/incremental-demand/full-push-panorama.md",
+      "raw_v7": {
+        "archive_bytes": 134445243,
+        "files": 935,
+        "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "parts": 6,
+        "raw_bytes": 495641306,
+        "restore_dir": "/tmp/zil-full-push-v7-restored",
+        "scope": "Post-v6 full push construction: real425 v8 diagnostic, native replay failures, full workspace default stack failure; no new formal Rust claim",
+        "sha256": "87d7c8ad657638e7fad759d36a383161a600d3ab7e97ff8fa03ec57deb0a9297",
+        "source_commits": {
+          "candidate": "c540615d58dacfec48c5384bd51c69016688033f"
+        },
+        "status": "verified",
+        "remote_commit": "c04b7a9adc7d2c53d1c64f18145c6eb371dc8638",
+        "remote_ref": "archive/source-history",
+        "remote_path": "research/incremental-demand-full-push-20261112-v7",
+        "retrieval": "Fresh HTTPS from fixed GitHub commit; all 935 entries verified after restoration",
+        "limits": "Post-v6 through full native05/default stack fix01; later scalar04 and stacktrace01 outside snapshot; not complete push or formal performance acceptance"
+      }
     }
   }
 }
