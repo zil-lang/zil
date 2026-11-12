@@ -1,0 +1,20 @@
+{
+  "archive_sha256": "b19288916e055e911d01953bec2138baaf80a7b7841b8372cce1274bb35bbe44",
+  "limits": "Fixed-commit freshHTTPS full byte/mode recovery; no compilation/execution/performance comparison. Shard of V16; restore all fixed shard commits in final union receipt for complete checkpoint.",
+  "manifest": {
+    "bytes": 12263,
+    "sha256": "850dca5bad20d78f944c2736ffd04b70e60c6137b5f0fcfd0b0c894a2b5c8f95"
+  },
+  "schema": 1,
+  "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed. Supplemental metadata24 captures exact docs commit86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb (toolsparent7ec66697cb307bc46cecc60d682dfa07af139c2a), not newly compiled code. Earlier metadata22 excluded these just-published files.",
+  "source_commits": {
+    "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "documentation": "86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb",
+    "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+    "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+  },
+  "verifier": {
+    "bytes": 21146,
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a"
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "archive": {
+    "bytes": 124370,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 124370,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "b19288916e055e911d01953bec2138baaf80a7b7841b8372cce1274bb35bbe44"
+      }
+    ],
+    "sha256": "b19288916e055e911d01953bec2138baaf80a7b7841b8372cce1274bb35bbe44",
+    "tar_bytes": 614400
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 34712,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/.task/point-to-point-continuation.md",
+        "sha256": "a6a641a73c3b5033d110bcf10fedded2ba478e009d237225832446da395daefb"
+      },
+      {
+        "bytes": 6416,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/BOUNDARY.json",
+        "sha256": "3221d1afd13aae8ada9f127cbb32aaba37642773c17b4047a7ef6d9befe8658f"
+      },
+      {
+        "bytes": 17692,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/README.md",
+        "sha256": "cfff2f63ce580e9275eb3ce9a035953d4f9c63f56ab170d9325fdb2f780a5a39"
+      },
+      {
+        "bytes": 3946,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-body-placement-review.json",
+        "sha256": "52a87f30835340931625257f95501978d8e03932afb01902820a395ef436ebc6"
+      },
+      {
+        "bytes": 3663,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-ct-allowance-review.json",
+        "sha256": "ebdbcb3c9ff8f73ac96257ed0f3c9a8520f8be3f5ee34ea242dbc8f58da5022a"
+      },
+      {
+        "bytes": 3201,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-emission-transaction-review.json",
+        "sha256": "7de127b0c204fb2fe0c8bad51be2abbfb74394928860abb4ba570891c180bd1b"
+      },
+      {
+        "bytes": 18694,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-emission-transaction-review.md",
+        "sha256": "c8fa0bfedb019f53024a4e39a6c204bdbeca808a6c6eaaa3fe679201f296ba48"
+      },
+      {
+        "bytes": 2191,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-balanced-partition-negative.json",
+        "sha256": "8339596a04cc1bec7b677e8404befd124a81e2c9eaad0dedf3159d683d6fa561"
+      },
+      {
+        "bytes": 25972,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-checkpoint-328.json",
+        "sha256": "a2746b9bc9e6d1dee8e6bffbbc29237c606467426f4e93257bc0065ddb413867"
+      },
+      {
+        "bytes": 7268,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-checkpoint-328.md",
+        "sha256": "52f002e248311f955603a155f8b37f97b53f307426f2cbda6bfcdca68aceb7fc"
+      },
+      {
+        "bytes": 1336,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-debug-cache-retirement-02.json",
+        "sha256": "0494f8efe1d9b08fc9af292362fe653be0c912b33202b0c0cd72e2403b36f19f"
+      },
+      {
+        "bytes": 5415,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-deferred-analysis-keys-review.json",
+        "sha256": "50975fcbe343fa83c30bbff8f79c9c96772354e7b0e1266eb5e5e118d9dcd206"
+      },
+      {
+        "bytes": 57388,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-profile-10-scopes.json",
+        "sha256": "a58a4c1ce89f2d107d3ffad33cd17bb193a4ac99e177d3aa5055146245e97c8c"
+      },
+      {
+        "bytes": 57395,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-profile-12-scopes.json",
+        "sha256": "4024d4bb5c069005cfeb1f95d17cff164001dced6665b4b6a93d4b03f323a02a"
+      },
+      {
+        "bytes": 8077,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-sharing-link-review-addendum.json",
+        "sha256": "957530a80fb9394937234ad88641760ecc7e820c48d8281f9f49c877a0c24c00"
+      },
+      {
+        "bytes": 2998,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-sharing-link-review.json",
+        "sha256": "f1fc6627568533cfcd118b2c1700636284f63b68a2e092dfb0db6b23721765f5"
+      },
+      {
+        "bytes": 3272,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile10-qualification.json",
+        "sha256": "6b440943484b400e10e083731ce7d749f034f7f35b6e363c84f32e3fddbc6f81"
+      },
+      {
+        "bytes": 3545,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile11-qualification.json",
+        "sha256": "41352746eb3391cd19f31123690505cf8411939092a93422b53ce098e2272375"
+      },
+      {
+        "bytes": 3368,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile12-qualification.json",
+        "sha256": "6572866990e1f82e728a163c3d7c46c1a0bd4b1590d7fc0680ace94e1f0dd056"
+      },
+      {
+        "bytes": 14397,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-recovery-v15.json",
+        "sha256": "53907de7214aace73115ecb402d163a36799af759e997290ed66aba914db10ba"
+      },
+      {
+        "bytes": 248101,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/results.json",
+        "sha256": "b7e403939800b8592f05309c45b0a8e3b3d1f710834676a10fd856d665ffb45d"
+      },
+      {
+        "bytes": 6191,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/test_validate_push_profile.py",
+        "sha256": "21e0e2575fc36e99a7cb4d25d42a3e4cb16b144dfe4f6272d194e0d52c28943b"
+      },
+      {
+        "bytes": 23339,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/validate_push_profile.py",
+        "sha256": "cf3d6764a7349cf56b3b675f1cd199c529bb42c6d4cbc579c354cf37e01a502e"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed. Supplemental metadata24 captures exact docs commit86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb (toolsparent7ec66697cb307bc46cecc60d682dfa07af139c2a), not newly compiled code. Earlier metadata22 excluded these just-published files.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "documentation": "86392ba1f2d52ee18f2f1c66d1b53bd8a35e9beb",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "cae41031d5b499ac6ff4f9f2f0a70f96bde8a7379845c13f3abfb1206a1bdaaa",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/.task/point-to-point-continuation.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/README.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-body-placement-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-ct-allowance-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-emission-transaction-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-astra-emission-transaction-review.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-balanced-partition-negative.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-checkpoint-328.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-checkpoint-328.md",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-debug-cache-retirement-02.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-deferred-analysis-keys-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-profile-10-scopes.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-profile-12-scopes.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-sharing-link-review-addendum.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-native-sharing-link-review.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile10-qualification.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile11-qualification.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-profile12-qualification.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/full-push-recovery-v15.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/results.json",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/test_validate_push_profile.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/tools/research/incremental-demand/validate_push_profile.py",
+    "zil-push-main/out/evidence/full-push-checkpoint-12/late-metadata-86392/BOUNDARY.json"
+  ],
+  "source_root": "/workspace"
+}
