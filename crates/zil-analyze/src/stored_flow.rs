@@ -5737,6 +5737,8 @@ fn actual_instructions(
             }
             | InstructionKind::TaskCreate {
                 arguments: fields, ..
+            } | InstructionKind::TaskCreateOwned {
+                arguments: fields, ..
             } => (None, fields),
             _ => (None, &[]),
         }

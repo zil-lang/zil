@@ -2028,7 +2028,7 @@ pub(super) fn preflight(
                             return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
-                    InstructionKind::TaskCreate { .. }
+                    InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
                     | InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }

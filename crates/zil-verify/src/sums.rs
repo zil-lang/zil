@@ -1819,6 +1819,12 @@ impl Flow<'_> {
                             .collect::<Check<_>>()?,
                     ));
                 }
+                InstructionKind::TaskCreateOwned { arguments, .. } => {
+                    budget.spend(arguments.len().saturating_add(12))?;
+                    let inputs=Content::Product(arguments.iter().map(|v|state.values.get(v.0 as usize,budget)?.duplicate(budget)).collect::<Check<_>>()?);
+                    let failure=Content::Product(vec![Content::Copy,inputs]);
+                    result=Some(Content::Sum(BTreeMap::from([(0,vec![failure]),(1,vec![Content::Leaf(BTreeSet::from([Source::Fresh]))])]),None));
+                }
                 InstructionKind::WithScopedThread { argument, .. }
                     if tasks::transfer::task_owner(&self.f.values[argument.0 as usize]) =>
                 {

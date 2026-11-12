@@ -148,6 +148,10 @@ fn transfer(
             arguments,
             port_bindings,
             ..
+        } | InstructionKind::TaskCreateOwned {
+            arguments,
+            port_bindings,
+            ..
         } if output.is_some() => {
             let all = actual(holds, output.unwrap(), b)?;
             if all.is_empty() {

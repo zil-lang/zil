@@ -280,7 +280,7 @@ pub(super) fn plan(
                     );
                 }
             }
-            if let InstructionKind::TaskCreate { worker, .. }
+            if let InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
             | InstructionKind::SuspendCall {
                 function: worker, ..
             }

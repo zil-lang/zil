@@ -151,7 +151,7 @@ pub(super) fn validate_template(
     function: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
-    if registration::borrowed_template(function) {
+    if registration::borrowed_template(function) || registration::owned_template(function) {
         return registration::validate_borrowed_template(function, prepay);
     }
     if registration::template(function) {
@@ -619,6 +619,26 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
+        self.call_helper_mode(signature, arguments, expected, span, None)
+    }
+    pub(super) fn call_helper_task(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+        name: &str,
+    ) -> R<(ValueId, Type)> {
+        self.call_helper_mode(signature, arguments, expected, span, Some(name))
+    }
+    fn call_helper_mode(
+        &mut self,
+        signature: &Signature,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+        task: Option<&str>,
+    ) -> R<(ValueId, Type)> {
         if signature.callable.is_empty() {
             return Err(unsupported(
                 span,
@@ -743,6 +763,35 @@ impl Builder<'_, '_> {
                 .iter()
                 .find(|bound| bound.index as usize == index)
             {
+                if matches!(ty,Type::Managed(t) if matches!(t.as_ref(),Type::AsyncRegistration{..}))
+                {
+                    let (value, actual) = self.transfer_expr(argument, None)?;
+                    let Some(Type::Closure(closure)) = registration::environment(&actual) else {
+                        return Err(error(
+                            "E-TYPE-MISMATCH",
+                            argument.span,
+                            "helper requires the actual owning registration environment",
+                        ));
+                    };
+                    let closure = *closure;
+                    if !matches!(&actual,Type::Managed(t) if matches!(t.as_ref(),Type::AsyncRegistration{..}))
+                    {
+                        return Err(error(
+                            "E-TYPE-MISMATCH",
+                            argument.span,
+                            "owning helper cannot consume a borrowed registration carrier",
+                        ));
+                    }
+                    self.validate_bound(closure, bound, false, argument.span)?;
+                    environments.bind(
+                        bound.generic_index,
+                        closure,
+                        argument.span,
+                        self.closures,
+                    )?;
+                    staged.push(self.stage_argument(value, &actual, argument.span)?);
+                    continue;
+                }
                 if registration::borrowed_environment(ty).is_some() {
                     let (value, actual) = self.expr(argument, None)?;
                     let Some(Type::Closure(closure)) = registration::borrowed_environment(&actual)
@@ -880,6 +929,48 @@ impl Builder<'_, '_> {
             self.same(&result, expected, span)?;
         }
         let values = self.commit_arguments(staged, span)?;
+        if let Some(name) = task {
+            let actual = self
+                .closures
+                .helper_functions
+                .iter()
+                .find(|f| f.id == instance)
+                .ok_or_else(|| unsupported(span, "actual Task worker specialization absent"))?;
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let mut parameters = vec![];
+            for parameter in &actual.parameters {
+                let t = &actual.locals[parameter.0 as usize].ty;
+                inference::charge_type_snapshot(t, span, self.limits, &mut remaining, 3)?;
+                parameters.push(t.clone());
+            }
+            let life = actual
+                .storage_life
+                .as_ref()
+                .and_then(|life| life.to_flat(parameters.len()));
+            let context = tasks::borrowed_context_with_life(&parameters, life.as_ref(), &result);
+            self.closures.snapshot(before - remaining, span)?;
+            let output = tasks::call_create_type(name, &result, context, &parameters);
+            if let Some(wanted) = expected {
+                self.same(&output, wanted, span)?;
+            }
+            let bindings = tasks::retained_bindings(&parameters);
+            let instruction = if name == "task_create_owned" {
+                InstructionKind::TaskCreateOwned {
+                    worker: instance,
+                    arguments: values,
+                    port_bindings: bindings,
+                }
+            } else {
+                InstructionKind::TaskCreate {
+                    worker: instance,
+                    arguments: values,
+                    port_bindings: bindings,
+                }
+            };
+            let value = self.value(instruction, output.clone(), span)?;
+            return Ok((value, output));
+        }
         let instruction = InstructionKind::Call {
             function: instance,
             arguments: values,
@@ -1065,7 +1156,8 @@ impl Builder<'_, '_> {
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
-        let borrowed_registration = registration::borrowed_template(&function);
+        let borrowed_registration =
+            registration::borrowed_template(&function) || registration::owned_template(&function);
         let forward = forwarding::bound(&function).map(|bound| bound.index);
         if registration::template(&function) {
             for bound in bounds {

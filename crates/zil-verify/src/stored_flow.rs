@@ -816,6 +816,8 @@ fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) 
         }
         | InstructionKind::TaskCreate {
             arguments: fields, ..
+        } | InstructionKind::TaskCreateOwned {
+            arguments: fields, ..
         } => (None, fields),
         _ => (None, &[]),
     }

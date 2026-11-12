@@ -663,42 +663,7 @@ pub(super) fn profile(
             "owned task worker requires a closed actual frame and complete supported result",
         ));
     }
-    // No asynchronous rollback path exists when allocating a new Task fails.
-    // This first slice constructs pollable owners inside the stable worker.
-    for parameter in &f.parameters {
-        let mut pending = vec![local_type(f, *parameter, span)?];
-        while let Some(t) = pending.pop() {
-            budget.spend(1, "pollable frame actual storage")?;
-            match t {
-                Type::AsyncRegistration { .. } => {
-                    return Err(fail(
-                        f.span,
-                        "live pollable Task input requires allocation-failure asynchronous drain",
-                    ));
-                }
-                Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } => {
-                    pending.push(p)
-                }
-                Type::Tuple(ts) => pending.extend(ts),
-                Type::Enum { variants, .. } => {
-                    budget.spend(variants.len(), "Task input variants")?;
-                    for (_, fields) in variants {
-                        budget.spend(fields.len(), "Task input fields")?;
-                        pending.extend(fields);
-                    }
-                }
-                Type::ErrorUnion { error, result } => {
-                    budget.spend(2, "Task input alternatives")?;
-                    pending.extend([error.as_ref(), result.as_ref()]);
-                }
-                Type::Array { element, .. } => pending.push(element),
-                Type::Package { fields, .. } | Type::Record { fields, .. } => {
-                    pending.extend(fields.iter().map(|(_, t)| t))
-                }
-                _ => {}
-            }
-        }
-    }
+
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
@@ -815,7 +780,7 @@ pub(super) fn profile(
                     }
                     children.push(*function);
                 }
-                InstructionKind::TaskCreate { .. }
+                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
                 | InstructionKind::TaskPoll { .. }
                 | InstructionKind::TaskValid { .. }
                 | InstructionKind::TaskRequestCancel { .. }

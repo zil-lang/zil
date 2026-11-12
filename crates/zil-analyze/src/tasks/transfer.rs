@@ -205,7 +205,10 @@ fn graph(
                     InstructionKind::SuspendCall { function, .. } => {
                         pending.push((*function, true))
                     }
-                    InstructionKind::TaskCreate { worker, .. } => pending.push((*worker, true)),
+                    InstructionKind::TaskCreate { worker, .. }
+                    | InstructionKind::TaskCreateOwned { worker, .. } => {
+                        pending.push((*worker, true))
+                    }
                     InstructionKind::AsyncRegistrationStart {
                         register,
                         request_close,
@@ -223,7 +226,9 @@ fn graph(
                                 .get(id.0 as usize)
                                 .and_then(|f| f.foreign.as_ref());
                             if !actual.is_some_and(|f| {
-                                f.static_callbacks && f.thread_driver_transfer && f.scoped_callback == Some(role)
+                                f.static_callbacks
+                                    && f.thread_driver_transfer
+                                    && f.scoped_callback == Some(role)
                             }) {
                                 return Err(bad(
                                     i.span,
@@ -351,25 +356,39 @@ pub(crate) fn thread_argument(
     ) {
         return Err(bad(span, "Task thread consumes one whole owner"));
     }
-    constructed::argument(module,caller,argument,b)?;
+    constructed::argument(module, caller, argument, b)?;
     graph(module, driver, false, b)
 }
 
 // A weak external description does not transfer exclusive storage, nor does it
 // retain the source loan. Frame-internal descriptions are checked in graph().
-fn external_input(t:&Type,b:&mut Budget,span:zil_base::Span)->CompileResult<()> {
-    b.type_work(t,false,"Task migration actual input")?;
-    let mut work=vec![t];
-    while let Some(t)=work.pop(){
-        b.spend(1,"Task migration external input")?;
+fn external_input(t: &Type, b: &mut Budget, span: zil_base::Span) -> CompileResult<()> {
+    b.type_work(t, false, "Task migration actual input")?;
+    let mut work = vec![t];
+    while let Some(t) = work.pop() {
+        b.spend(1, "Task migration external input")?;
         match t {
-            Type::Desc(_)=>return Err(bad(span,"external weak description has no cross-thread storage loan")),
-            Type::Managed(t)|Type::Address{inner:t,..}|Type::Array{element:t,..}=>work.push(t),
-            Type::Tuple(ts)=>work.extend(ts),
-            Type::Record{fields,..}|Type::Package{fields,..}=>work.extend(fields.iter().map(|(_,t)|t)),
-            Type::Enum{variants,..}=>{for (_,ts) in variants {work.extend(ts);}},
-            Type::ErrorUnion{error,result}=>work.extend([error.as_ref(),result.as_ref()]),
-            _=>{}
+            Type::Desc(_) => {
+                return Err(bad(
+                    span,
+                    "external weak description has no cross-thread storage loan",
+                ));
+            }
+            Type::Managed(t) | Type::Address { inner: t, .. } | Type::Array { element: t, .. } => {
+                work.push(t)
+            }
+            Type::Tuple(ts) => work.extend(ts),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                work.extend(fields.iter().map(|(_, t)| t))
+            }
+            Type::Enum { variants, .. } => {
+                for (_, ts) in variants {
+                    work.extend(ts);
+                }
+            }
+            Type::ErrorUnion { error, result } => work.extend([error.as_ref(), result.as_ref()]),
+            _ => {}
         }
-    }Ok(())
+    }
+    Ok(())
 }

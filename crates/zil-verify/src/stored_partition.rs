@@ -203,7 +203,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                     | InstructionKind::ForeignCall { function, .. }
                     | InstructionKind::FunctionRef { function }
                     | InstructionKind::ForeignFunctionRef { function } => Some(function),
-                    InstructionKind::TaskCreate { worker, .. }
+                    InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. }
                     | InstructionKind::WithScopedThread { worker, .. } => Some(worker),
                     _ => None,

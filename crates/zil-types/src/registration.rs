@@ -67,6 +67,10 @@ pub(super) fn borrowed_environment(t: &Type) -> Option<&Type> {
     };
     Some(environment)
 }
+pub(super) fn owned_template(f: &CoreFunction) -> bool {
+    matches!(f.callable_parameters.as_slice(),[b] if f.parameters.get(b.index as usize).is_some_and(|p|
+        p.mode==PassingMode::Give && matches!(&p.ty,Type::Managed(t) if matches!(t.as_ref(),Type::AsyncRegistration{environment} if matches!(environment.as_ref(),Type::Named(n) if n==&b.generic_name)))))
+}
 pub(super) fn borrowed_template(f: &CoreFunction) -> bool {
     matches!(f.callable_parameters.as_slice(), [b] if f.parameters.get(b.index as usize)
         .and_then(|p| borrowed_environment(&p.ty)).is_some_and(|t| matches!(t, Type::Named(n) if n == &b.generic_name)))
@@ -81,9 +85,10 @@ pub(super) fn validate_borrowed_template(
             "one borrowed registration binder is required",
         ));
     };
-    if !borrowed_template(f)
-        || f.parameters.len() != 1
-        || b.index != 0
+    let owned = owned_template(f);
+    if (!borrowed_template(f) && !owned)
+        || (!owned && f.parameters.len() != 1)
+        || (!owned && b.index != 0)
         || b.generic_index != 0
         || !b.closed_environment
         || b.kind != CallableKind::FnMut
@@ -94,7 +99,7 @@ pub(super) fn validate_borrowed_template(
         || f.foreign.is_some()
         || f.receiver.is_some()
         || !f.state_parameters.is_empty()
-        || f.call_kind.is_some_and(|kind| kind != CallKind::Direct)
+        || (!owned && f.call_kind.is_some_and(|kind| kind != CallKind::Direct))
         || !f.type_parameters.is_empty()
         || f.callable_return.is_some()
         || f.protocol_contract

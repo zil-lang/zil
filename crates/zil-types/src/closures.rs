@@ -4167,7 +4167,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         if let Some(name) = tasks::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
             self.graph.spend_count(12, span)?;
-            if matches!(name, "task_create" | "task_await") {
+            if matches!(name, "task_create" | "task_create_owned" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -4202,7 +4202,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     &if name == "task_await" {
                         signature.result
                     } else {
-                        tasks::create_type(
+                        tasks::call_create_type(name,
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
@@ -4223,8 +4223,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     })
                                     .as_ref(),
                                 &signature.result,
-                            ),
-                        )
+                            ), &signature.parameters)
                     },
                     span,
                 );

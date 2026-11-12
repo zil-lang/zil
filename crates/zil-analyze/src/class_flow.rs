@@ -937,6 +937,10 @@ fn check_with(
                     arguments,
                     port_bindings,
                     ..
+                } | InstructionKind::TaskCreateOwned {
+                    arguments,
+                    port_bindings,
+                    ..
                 } if b.task_borrowed_results => {
                     if let Some(out) = out {
                         for row in port_bindings {

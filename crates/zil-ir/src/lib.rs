@@ -2147,6 +2147,13 @@ pub enum InstructionKind {
         /// checked against the worker and the executable borrow provenance.
         port_bindings: Vec<RetainedPortBinding>,
     },
+    /// Fallible construction retaining all original inputs in the error arm.
+    /// No input cleanup, poll, close, or frame publication occurs on failure.
+    TaskCreateOwned {
+        worker: FunctionId,
+        arguments: Vec<ValueId>,
+        port_bindings: Vec<RetainedPortBinding>,
+    },
     /// A source suspension point. Its live scalar state is spilled in the SABI frame.
     TaskYield,
     /// Observe the explicit fallible nullable task head without consuming it.
@@ -3930,8 +3937,12 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             worker,
             arguments,
             port_bindings,
+        } | InstructionKind::TaskCreateOwned {
+            worker,
+            arguments,
+            port_bindings,
         } => {
-            b.push(128);
+            b.push(if matches!(i,InstructionKind::TaskCreateOwned{..}) {151} else {128});
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {

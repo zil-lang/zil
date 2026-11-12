@@ -192,7 +192,10 @@ fn graph(module: &TypedModule, root: FunctionId, resume: bool, b: &mut Budget) -
                     InstructionKind::SuspendCall { function, .. } => {
                         pending.push((*function, true))
                     }
-                    InstructionKind::TaskCreate { worker, .. } => pending.push((*worker, true)),
+                    InstructionKind::TaskCreate { worker, .. }
+                    | InstructionKind::TaskCreateOwned { worker, .. } => {
+                        pending.push((*worker, true))
+                    }
                     InstructionKind::AsyncRegistrationStart {
                         register,
                         request_close,
@@ -210,7 +213,9 @@ fn graph(module: &TypedModule, root: FunctionId, resume: bool, b: &mut Budget) -
                                 .get(id.0 as usize)
                                 .and_then(|f| f.foreign.as_ref());
                             if !actual.is_some_and(|f| {
-                                f.static_callbacks && f.thread_driver_transfer && f.scoped_callback == Some(role)
+                                f.static_callbacks
+                                    && f.thread_driver_transfer
+                                    && f.scoped_callback == Some(role)
                             }) {
                                 return Err(bad(
                                     i.span,
@@ -316,16 +321,26 @@ fn graph(module: &TypedModule, root: FunctionId, resume: bool, b: &mut Budget) -
 }
 // Migration qualification runs after Verify has reconstructed ownership. The
 // early instruction check establishes shape only, without certifying a frame.
-pub(super) fn declared(_module: &TypedModule, _b: &mut Budget) -> Check<()> { Ok(()) }
+pub(super) fn declared(_module: &TypedModule, _b: &mut Budget) -> Check<()> {
+    Ok(())
+}
 pub(crate) fn thread_argument(
-    _module: &TypedModule, caller: &TypedFunction, argument: ValueId,
-    _driver: FunctionId, _b: &mut Budget, span: zil_base::Span,
+    _module: &TypedModule,
+    caller: &TypedFunction,
+    argument: ValueId,
+    _driver: FunctionId,
+    _b: &mut Budget,
+    span: zil_base::Span,
 ) -> Check<()> {
-    if !caller.values.get(argument.0 as usize).is_some_and(task_owner) {
+    if !caller
+        .values
+        .get(argument.0 as usize)
+        .is_some_and(task_owner)
+    {
         return Err(bad(span, "Task thread consumes one whole owner"));
     }
     Ok(())
 }
 pub(crate) fn finish(module: &TypedModule, b: &mut Budget) -> Check<()> {
-    actual::finish(module,b)
+    actual::finish(module, b)
 }

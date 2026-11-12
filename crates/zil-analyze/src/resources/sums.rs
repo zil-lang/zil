@@ -1604,6 +1604,14 @@ impl Plan {
                     node: Node::Leaf(BTreeSet::from([Birth::Created])),
                 }));
             }
+            InstructionKind::TaskCreateOwned { arguments, .. } => {
+                budget.spend(arguments.len().saturating_add(12),"Task allocation failure original input tree")?;
+                let inputs=Arc::new(Tree{missing:false,node:Node::Product(arguments.iter().map(|v|facts.value(*v,budget)).collect::<CompileResult<_>>()?)});
+                let reason=Arc::new(Tree{missing:false,node:Node::Copy});
+                let failure=Arc::new(Tree{missing:false,node:Node::Product(vec![reason,inputs])});
+                let head=Arc::new(Tree{missing:false,node:Node::Leaf(BTreeSet::from([Birth::Created]))});
+                output=Some(Arc::new(Tree{missing:false,node:Node::Sum(BTreeMap::from([(0,vec![head]),(1,vec![failure])]))}));
+            }
             InstructionKind::WithScopedThread { argument, .. }
                 if crate::tasks::transfer::task_owner(&f.values[argument.0 as usize]) =>
             {
@@ -2009,7 +2017,7 @@ impl Plan {
                 Some(t) => t,
                 None => Tree::unknown(&f.values[v.0 as usize], budget)?,
             };
-            if matches!(i.kind, InstructionKind::TaskCreate { .. })
+            if matches!(i.kind, InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. })
                 || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
             {
                 match &mut edit(&mut tree, budget)?.node {

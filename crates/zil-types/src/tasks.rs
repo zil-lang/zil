@@ -133,7 +133,7 @@ fn retained_result_with_named(ty: &Type, allow_named: bool) -> bool {
         _ => false,
     }
 }
-fn retained_bindings(parameters: &[Type]) -> Vec<zil_ir::RetainedPortBinding> {
+pub(super) fn retained_bindings(parameters: &[Type]) -> Vec<zil_ir::RetainedPortBinding> {
     parameters
         .iter()
         .enumerate()
@@ -292,6 +292,30 @@ pub(super) fn create_type(result: &Type, context: zil_ir::RetainedLifeShape) -> 
         }))),
     }
 }
+pub(super) fn create_failure(inputs: Type) -> Type {
+    let name = format!("@std.task:v1:TaskCreateFailure:{}", inputs.fingerprint());
+    let copy = inputs.is_copy_value();
+    let fields = vec![("reason".into(), create_error()), ("inputs".into(), inputs)];
+    if copy {
+        Type::Record { name, fields }
+    } else {
+        Type::Package { name, fields }
+    }
+}
+pub(super) fn call_create_type(
+    name: &str,
+    result: &Type,
+    context: zil_ir::RetainedLifeShape,
+    inputs: &[Type],
+) -> Type {
+    let mut ty = create_type(result, context);
+    if name == "task_create_owned"
+        && let Type::ErrorUnion { error, .. } = &mut ty
+    {
+        *error = Box::new(create_failure(Type::Tuple(inputs.to_vec())));
+    }
+    ty
+}
 pub(super) fn result_for(name: &str, task: &Type) -> Type {
     let Type::Task { result: t, .. } = task else {
         return result(name);
@@ -324,6 +348,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
         name.as_str(),
         "task_start"
             | "task_create"
+            | "task_create_owned"
             | "task_yield"
             | "task_await"
             | "task_valid"
@@ -487,7 +512,7 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        if matches!(name, "task_create" | "task_await") {
+        if matches!(name, "task_create" | "task_create_owned" | "task_await") {
             let Some(worker_expr) = arguments.first() else {
                 return Err(error(
                     "E-CALL-ARITY",
@@ -495,6 +520,10 @@ impl Builder<'_, '_> {
                     "task_create requires a static worker",
                 ));
             };
+            let signature = self.resolve_callee(worker_expr)?;
+            if !signature.callable.is_empty() && name != "task_await" {
+                return self.call_helper_task(signature, &arguments[1..], expected, span, name);
+            }
             let before = self.closures.remaining_work();
             let mut remaining = before;
             let prepared = (|| -> R<(FunctionId, Vec<Type>, Type, Option<zil_ir::FunctionLifeContract>)> {
@@ -577,9 +606,11 @@ impl Builder<'_, '_> {
             let ty = if name == "task_await" {
                 worker_result
             } else {
-                create_type(
+                call_create_type(
+                    name,
                     &worker_result,
                     borrowed_context_with_life(&parameters, worker_life.as_ref(), &worker_result),
+                    &parameters,
                 )
             };
             if let Some(wanted) = expected {
@@ -590,6 +621,12 @@ impl Builder<'_, '_> {
                     InstructionKind::SuspendCall {
                         function: worker,
                         arguments: inputs,
+                    }
+                } else if name == "task_create_owned" {
+                    InstructionKind::TaskCreateOwned {
+                        worker,
+                        arguments: inputs,
+                        port_bindings: retained_bindings(&parameters),
                     }
                 } else {
                     InstructionKind::TaskCreate {

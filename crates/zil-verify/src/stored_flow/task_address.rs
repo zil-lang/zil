@@ -37,7 +37,7 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::TakeErrorUnion { .. }
             | InstructionKind::DropErrorUnion { .. }
             | InstructionKind::DropEnum { .. }
-            | InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskPoll { .. }
             | InstructionKind::TaskYield
             | InstructionKind::TaskValid { .. }
@@ -269,6 +269,10 @@ pub(super) fn transfer(
     let mut out = Payload::default();
     match &i.kind {
         InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,
