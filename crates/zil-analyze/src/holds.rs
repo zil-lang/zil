@@ -1364,7 +1364,8 @@ fn scoped_transition(
 // by Analyze's separate responsibility facts, not this public address graph.
 fn tracked_desc(ty: &Type, returned_borrowed: bool) -> bool {
     matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
-        || returned_borrowed && matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Record {..}))
+        || returned_borrowed
+            && matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Record {..}))
 }
 
 pub(super) fn retained_task_value(ty: &Type) -> bool {
@@ -1741,7 +1742,9 @@ fn infer_with_private(
     // preflight; a head root grants no payload borrow or management authority.
     let returned_borrowed = !budget.returned_borrowed_environments.is_empty();
     let mut has_sources = f.values.iter().any(|ty| {
-        matches!(ty, Type::Address { .. }) || tracked_desc(ty, returned_borrowed) || retained_task_value(ty)
+        matches!(ty, Type::Address { .. })
+            || tracked_desc(ty, returned_borrowed)
+            || retained_task_value(ty)
     });
     if !has_sources {
         for local in &f.parameters {
@@ -2057,9 +2060,9 @@ fn infer_with_private(
                             found.insert(Root::Local(*local));
                         }
                         InstructionKind::DescribePackageField { local, index }
-                            if instruction
-                                .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
+                            if instruction.result.is_some_and(|value| {
+                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
+                            }) =>
                         {
                             let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
@@ -2069,9 +2072,9 @@ fn infer_with_private(
                             found.insert(root);
                         }
                         InstructionKind::ProjectOwnedArrayField { local, .. }
-                            if instruction
-                                .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
+                            if instruction.result.is_some_and(|value| {
+                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
+                            }) =>
                         {
                             // Array element slots are independently owned, but the
                             // initial window profile keeps a conservative whole
@@ -2079,9 +2082,9 @@ fn infer_with_private(
                             found.insert(Root::Local(*local));
                         }
                         InstructionKind::DescribeCapture { index }
-                            if instruction
-                                .result
-                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize], returned_borrowed)) =>
+                            if instruction.result.is_some_and(|value| {
+                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
+                            }) =>
                         {
                             found.insert(Root::Capture(*index));
                         }
