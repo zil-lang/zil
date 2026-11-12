@@ -1882,7 +1882,7 @@ fn owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     assert!(
         errors
             .iter()
-            .any(|d| d.message.contains("does not grant an opaque factory")),
+            .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("factory with its exact kind")),
         "{errors:?}"
     );
 }

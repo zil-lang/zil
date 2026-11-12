@@ -213,13 +213,14 @@ impl Walk<'_> {
         self.take(20)?;
         Ok(())
     }
-    fn function(&mut self) -> R<(Option<usize>, usize)> {
+    fn function(&mut self) -> R<Vec<(usize, &'static [u8])>> {
         self.absent()?; // Direct CallKind.
+        let mut insertions: Vec<(usize, &'static [u8])> = vec![(self.pos, &[0])]; // Local resume bound.
         self.absent()?; // StorageLifeContract.
         if self.tag(1)? == 1 {
             self.words()?;
         }
-        let capture_sources = if self.tag(1)? == 1 {
+        if self.tag(1)? == 1 {
             // V48 inserts Some(empty) before the old return-source tag. The
             // authenticated subset has no qualified retained source relation;
             // its actual old capture/role semantics are still reverified.
@@ -232,14 +233,12 @@ impl Walk<'_> {
             for _ in 0..5 {
                 self.words()?;
             }
-            Some(insertion)
-        } else {
-            None
-        };
+            insertions.push((insertion, &[1, 0, 0, 0, 0])); // Some(empty).
+        }
         if self.tag(1)? == 1 {
             self.callable()?;
         }
-        let insertion = self.pos; // V44 adds protocol_contract: None here.
+        insertions.push((self.pos, &[0])); // Absent protocol contract.
         self.take(4)?;
         self.text()?;
         if self.tag(1)? == 1 {
@@ -247,6 +246,7 @@ impl Walk<'_> {
             self.text()?;
             self.words()?;
             self.tag(1)?;
+            insertions.push((self.pos, &[0])); // No driver-transfer promise.
             self.tag(2)?;
         }
         self.optional_word()?;
@@ -281,7 +281,7 @@ impl Walk<'_> {
             }
         }
         self.take(24)?;
-        Ok((capture_sources, insertion))
+        Ok(insertions)
     }
 }
 /// Structurally insert V44 None and V48 known-empty capture metadata, then
@@ -322,7 +322,7 @@ pub fn transport(
         }
     }
     let count = w.count()?;
-    let capacity = count.checked_mul(2).ok_or("fixture insertion overflow")?;
+    let capacity = count.checked_mul(4).ok_or("fixture insertion overflow")?;
     w.work = w
         .work
         .checked_sub(capacity)
@@ -330,13 +330,10 @@ pub fn transport(
     let mut insertions: Vec<(usize, &'static [u8])> = Vec::with_capacity(capacity);
     let mut added = 0usize;
     for _ in 0..count {
-        let (capture, protocol) = w.function()?;
-        if let Some(position) = capture {
-            insertions.push((position, &[1, 0, 0, 0, 0])); // Some(empty).
-            added = added.checked_add(5).ok_or("fixture output overflow")?;
+        for (position, fields) in w.function()? {
+            insertions.push((position, fields));
+            added = added.checked_add(fields.len()).ok_or("fixture output overflow")?;
         }
-        insertions.push((protocol, &[0]));
-        added = added.checked_add(1).ok_or("fixture output overflow")?;
     }
     let length = bytes
         .len()
