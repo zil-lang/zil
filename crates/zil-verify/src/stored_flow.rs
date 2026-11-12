@@ -2968,8 +2968,13 @@ fn step(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::ExtractField { aggregate, index } if anonymous_tuple::operation(f, i, b)? => {
-            if let Some(permission) = leaf(val(*aggregate)?, &[PlaceProjection::Field(*index)], b)? {
-                join_permission(&mut out.address, permission, b)?;
+            let scalar_address = matches!(vt(f, i.result.ok_or_else(||err("anonymous snapshot result absent"))?)?, Type::Address { .. });
+            for (path, permission) in &val(*aggregate)?.leaves {
+                b.spend(path.len().saturating_add(1))?;
+                if let Some((PlaceProjection::Field(field), tail)) = path.split_first() && field == index {
+                    if scalar_address && tail.is_empty() {join_permission(&mut out.address, permission, b)?;}
+                    else {add_leaf(&mut out, tail, permission, b)?;}
+                }
             }
         }
         InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
