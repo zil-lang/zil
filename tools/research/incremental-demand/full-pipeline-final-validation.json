@@ -122,5 +122,24 @@
     }
   ],
   "durability": "Final raw pending v4 remote archive and fresh recovery; prior v3 remains independent.",
-  "limits": "Correctness and bounded-source review, not full objective acceptance. Matched check/O2 six-block windows in progress; no reduced fixture/budget/optimization or skipped independent Verify."
+  "limits": "Bounded full-pipeline correctness and matched workload progress; not universal minimality or Rust parity. Independent Verify, default budgets and ordinary O2 remain. Complete raw remote recovery recorded separately.",
+  "matched": {
+    "report": "full-pipeline-matched-900.json",
+    "check": {
+      "rows": 270,
+      "measured": 144,
+      "preparations": 126,
+      "validator_exit": 0
+    },
+    "o2": {
+      "rows": 270,
+      "measured": 144,
+      "preparations": 126,
+      "native_executions": 2808,
+      "verified_blobs": 351,
+      "successful_quality_pairs": 78,
+      "validator_exit": 0
+    },
+    "launcher_controller_exit": 0
+  }
 }

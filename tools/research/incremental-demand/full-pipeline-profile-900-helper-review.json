@@ -1,0 +1,67 @@
+{
+  "scope": "Read-only small-file and isolated-AST review during formal matrix; full raw/oracle/sample/binary replay deferred until heavy window closes.",
+  "head": "7c79fa218ad52a80d3e50d05a9c89c0d0ec3faf5",
+  "compiler_source": {
+    "main": "99035931d358add0eaed6d4535035c38413701dd",
+    "candidate": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+    "candidate_tree": "e3f16832a9751f25399d4dd8e58488ed03513f54"
+  },
+  "static_small_file_review_pass": true,
+  "controller": {
+    "persisted_helper_exit": 0,
+    "externally_reported_tool_exit": null,
+    "reported_tool_exit_origin": "Root observation supplied via --controller-exit; null means the controller response was unavailable after context truncation/session expiry. Not independently encoded by runner.",
+    "complete_log_pairs": 17,
+    "agreement": null
+  },
+  "isolated_unknown_parser_and_agreement_checks": true,
+  "report_values_match_new_expectations": true,
+  "summary_complete_log_helper_exit_match": true,
+  "legacy_memory_scope": {
+    "raw_field": "tree_peak_sampled_rss_sum_kib",
+    "sample_files": 34,
+    "samples": 4840,
+    "process_counts": {
+      "1": 4840
+    },
+    "observed_scope": "root-only in every archived sample; no child RSS observed. Sampler swallows unavailable /proc/<pid>/task/<pid>/children. Not process-tree or total build memory, and no memory advantage claim."
+  },
+  "changes_since_compiler_freeze": [
+    ".task/point-to-point-continuation.md",
+    "tools/research/incremental-demand/README.md",
+    "tools/research/incremental-demand/full-pipeline-audit.md",
+    "tools/research/incremental-demand/full-pipeline-final-plan-arrays-review.json",
+    "tools/research/incremental-demand/full-pipeline-final-review.json",
+    "tools/research/incremental-demand/full-pipeline-final-validation.json",
+    "tools/research/incremental-demand/full-pipeline-profile-900.json",
+    "tools/research/incremental-demand/full-pipeline-profile-900.md",
+    "tools/research/incremental-demand/matched_summary.py",
+    "tools/research/incremental-demand/profile_validate.py"
+  ],
+  "negative_cases": {
+    "cold": {
+      "main_ms": 6907.033822,
+      "candidate_ms": 7866.905942,
+      "candidate_minus_main_ms": 959.87212
+    },
+    "broad": {
+      "main_ms": 6163.278415,
+      "candidate_ms": 8248.034134,
+      "candidate_minus_main_ms": 2084.7557189999998
+    }
+  },
+  "small_file_receipts": {
+    "profile_validate.py": "194a7d25394cca29b0e498356ac1d9e64c884610290cbd4e10e09e122232929a",
+    "full-pipeline-profile-900.json": "9b7d4c143a69c828605946a1741992d263cdf609b6d80091c9a1eada52a81db2",
+    "full-pipeline-profile-900.md": "7e220602e664b4c28a1105fd92f045682be5fa7e29965ddb5f19f4d4e3b90c33"
+  },
+  "not_performed": [
+    "build/test/compiler/measurement",
+    "compression",
+    "binary or large raw hashes",
+    "full validation script replay",
+    "independent raw-row/oracle/sample replay"
+  ],
+  "review_guard_note": "First local review guard allowed only tools/research paths and rejected the existing .task continuation Markdown change. Explicitly included that documentation path; no compiler source difference exists.",
+  "finding": "No material issue: unknown maps to JSON null, agreement null, and reproduce retains unknown. Helper exit zero/log validity are separate checks. Markdown renders Python None but explicitly states the external response was unavailable; it does not fabricate a controller success."
+}

@@ -1,15 +1,14 @@
 # 增量编译：main 与 Rust 对照
 
-> 最新冻结源码 `900293cfd` 已通过6253项完整测试、严格 Clippy/fmt 和精确源码非作者复核；[最终验证收据](full-pipeline-final-validation.json)。实际完整项目 [r7](full-pipeline-profile-900.md) 已验证单处 BodyKey1/420、425计划行复用、15KB新增数据包、无修改在完整机器IR构造前复用；180次原生结果正确，冷编译与广泛修改负结果保留。最终六轮三方同参检查/原生矩阵正在运行，不能把诊断样本当正式性能验收。
+> 最新冻结编译器 `900293cfd8afcd7118775e8165e1ec4f5266e3d7` 已完成真实私有编辑→CFG→Analyze→独立 Verify→机器 IR→CGU/对象→最终可执行文件的增量消费者接入。源码分支 `research/incremental-demand-continuation`，研究开关仍默认关闭，未合入 main。这里是限定域的实际全流程进展，中央 ReactiveGraph 仍只调度 BodyKey，全局工作和保守回退尚未消除。
 >
-> 完整流水线专项仍在施工。最新完整三方同参测量绑定源码 `140997e0`，见 [全部场景与边界](full-pipeline-matched-140.md) 和 [六轮精简结果](full-pipeline-matched-140.json)。普通 CGU16/O2/jobs1 私有编辑 main1706 → 候选888 ms，Rust515 ms；冷编译/广泛修改仍退化，不能宣称已追平或完成。
+> **最新六轮同参结果**：[全部八场景](full-pipeline-matched-900.md) / [全部六轮、父历史和实际单元内容](full-pipeline-matched-900.json)。CGU16/O2/jobs1 私有编辑 main1612→候选903ms，Rust582ms；无修改559→74ms，Rust14ms。检查私有编辑626→276ms，Rust282ms。原生冷编译7744→7844ms、广泛修改5846→6464ms仍负；候选私有原生仍慢于 Rust，不能宣称已追平。每种模式270请求（144测量+126具名父请求），原生2808次执行及351份blob校验通过，78组成功main/候选LLVM和ELF哈希一致。各方实际均16个当前单元，但内容/复用逐单元核对，未假设分区等价。Rust新Cargo与ZIL resident、LLVM23.1.1/23.1.4及检查保证差别明确保留。
 >
-> 后续 `e1ad7470` 已接通批量 raw 持久化、实际 CGU 布局复用和流式 LLVM 文本，完整项目诊断见 [r4](full-pipeline-profile-r4.json)；其暴露的大项目父版本恢复问题已由 `57554873` 按原425声明规模修复。`532e01141` 集成独立 Verify 空借用证明与无消费者投影消除，完整工作区6229项通过。后续冻结 `693f55cd0` 又接入完整 FunctionPlan 行持久化、相对函数输入版本、混合项目逐函数机器降级，并修复同 epoch warm 命中无谓清图；定向测试和严格全目标 Clippy/fmt 已通过，完整工作区6242项、430套全部通过，见 [收据](full-pipeline-input-plan-validation.json)；新 release 与同参测量正在执行。详见 [逐阶段实际消费者与剩余成本](full-pipeline-audit.md)。研究开关默认关闭，未合入 main。
+> **实际减少的工作**：完整425函数样例中，私有编辑BodyKey1重算/420复用，机器函数1降级/424复用，15分区复用/1重建，独立Verify当前证明1检查/422复用；当前全局检查仍执行。计划持久化425行零重编码，新载荷15214B/一个15314B物理包；无修改在完整机器IR构造前复用，仍做425当前输入比较。导入位置变化BodyKey0/421，同时22模块使用当前Lower/物化，未拿旧span当新结果。见 [r7逐阶段实测](full-pipeline-profile-900.md)、[完整审计](full-pipeline-audit.md) 和 [独立剩余成本诊断](full-pipeline-residual-900.md)。
 >
-> 新 raw 增量已保存到 `archive/source-history@353a6754bb4225fbd3281a94206e738488f81aec`，并从全新 HTTPS 克隆恢复核验906文件及两轮180条原生 oracle，见 [v3恢复收据](full-pipeline-recovery-v3.json)。它覆盖532/693完整测试、[r6实际计划编码与输入工作](full-pipeline-profile-693.md)、共享数组及整模块机器产物定向测试；更新的 import 偏移修复和最终矩阵仍待验。
->
-> 原始证据截至 r4/140双矩阵/history196 已推送固定 `archive/source-history@7fd718bc80535a5e0b19eff39418e49a1b4aa9a8` 的 `research/incremental-demand-full-pipeline-20261112-v2`；已从全新 HTTPS 克隆恢复并核验全部51,872文件，复跑两套原始 validator 通过（O2为2808次记录执行及351份产物）；见 [恢复收据](full-pipeline-recovery-v2.json)。更新的 Verify 工作未包含在该 checkpoint。此前丢失环境的旧 raw 仍不可恢复，不能用本地 tar 或这个新 checkpoint 冒充旧证据。
+> **正确性与证据**：[最终验证](full-pipeline-final-validation.json) 为6253项通过、0失败/忽略（416测试程序+14文档测试套件），严格Clippy/fmt通过，精确源码非作者复核保留。最终900原始证据正在归档恢复；此前v3固定archive353a6754b已从新HTTPS克隆核验906文件/298MB、r5/r6各180oracle，见 [v3收据](full-pipeline-recovery-v3.json)。v2固定7fd718bc保留旧140正式矩阵及51872文件，见 [v2收据](full-pipeline-recovery-v2.json)。旧环境最初丢失raw仍不可恢复，不能用本地tar冒充持久备份。
 
+历史版本、撤回的跨CGU比较及原始负结果继续保留下文；最新源码结果以上述900收据为准。
 
 > 2026-11-12 后续已实施函数Wire发布切片，并完成同窗口、同请求CGU16/O2/jobs1的main/候选/Rust检查及原生矩阵。新结果、负结果、逐阶段审计、独审和远端raw恢复见 [本轮交付](continuation-results.md)。下文历史数据与新结果分开保存。
 
