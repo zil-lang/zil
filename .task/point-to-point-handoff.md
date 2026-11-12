@@ -1,4 +1,4 @@
-> This checkout now contains a completed continuation slice. Read `.task/point-to-point-continuation.md` and `tools/research/incremental-demand/continuation-results.md` first. The prior handoff below remains historical provenance.
+> Latest continuation compiler: `900293cfd8afcd7118775e8165e1ec4f5266e3d7`, with6253 passing tests and completed six-block matched check/O2 windows. Read `.task/point-to-point-continuation.md`, `tools/research/incremental-demand/README.md`, `full-pipeline-matched-900.md` and `full-pipeline-recovery-v4.json` first. Final raw is remotely preserved and freshly recovered at `archive/source-history@32e1b04fb859440bb36ec3223cb35b26edf63041` (v4). Main remains99035931; full-domain minimality/Rust parity remains open. The prior handoff below is historical provenance.
 
 # Point-to-point compilation continuation
 

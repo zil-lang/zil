@@ -1,0 +1,178 @@
+{
+  "schema": "full-pipeline-remote-recovery-v4",
+  "archive_ref": "archive/source-history",
+  "archive_commit": "32e1b04fb859440bb36ec3223cb35b26edf63041",
+  "archive_path": "research/incremental-demand-full-pipeline-20261112-v4",
+  "archive_url": "https://github.com/zil-lang/zil/tree/32e1b04fb859440bb36ec3223cb35b26edf63041/research/incremental-demand-full-pipeline-20261112-v4",
+  "archive_sha256": "e16c1ed5ccb48cf02f0f15e44457fc446627d243c34be9bb7d22a49ad8178863",
+  "archive_bytes": 215359477,
+  "parts": 9,
+  "verified_inventory_files": 24642,
+  "verified_inventory_bytes": 2600107619,
+  "source_commits": {
+    "compiler": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+    "evidence": "3b955a5197c9001211e4777615862a9bbda80eb9"
+  },
+  "method": "Fresh HTTPS single-branch clone; exact fixed commit; no local alternates. Every part/archive/file byte count/hash/mode verified. Pinned source ancestors present. Restored validators executed exclusively on recovered raw, with both saved compiler binaries rehashed. All five formal runner/generator/validator files for each mode additionally byte-matched to frozen900 Git blobs before oracle execution.",
+  "profile": {
+    "validation": {
+      "rows": 34,
+      "measured_rows": 18,
+      "preparation_rows": 16,
+      "pairs": 17,
+      "successful_pairs": 15,
+      "safe_reject_pairs": 2,
+      "native_executions": 180,
+      "all_semantically_valid": true,
+      "all_successful_pairs_recorded_elf_llvm_sha_equal": true,
+      "all_native_actual_equal_expected": true,
+      "native_oracles_independently_recomputed": 180,
+      "oracle_bound_to_source_git_blob": true,
+      "full_cold_functions": 425,
+      "candidate_binary_physically_rechecked": true,
+      "main_binary_physically_rechecked": true
+    },
+    "controller": {
+      "persisted_helper_exit": 0,
+      "externally_reported_tool_exit": null,
+      "reported_tool_exit_origin": "Root observation supplied via --controller-exit; null means the controller response was unavailable after context truncation/session expiry. Not independently encoded by runner.",
+      "complete_log_pairs": 17,
+      "agreement": null
+    },
+    "oracle_binding": {
+      "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "path": "tools/research/reactive-query-graph/native_workloads.py",
+      "git_blob": "e5481842b1c9e8cd13162a755701d532cae5982a",
+      "archived_sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+      "archive_equals_pinned_git_bytes": true,
+      "recomputed_native_expectations": 180
+    }
+  },
+  "matched": {
+    "check": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 0,
+      "verified_blobs": 7
+    },
+    "o2": {
+      "valid": true,
+      "rows": 270,
+      "measured_requests": 144,
+      "preparation_requests": 126,
+      "native_executions": 2808,
+      "verified_blobs": 351
+    }
+  },
+  "regenerated_summary": {
+    "all_48_six_value_cells_equal": true,
+    "all_42_named_parent_vectors_equal": true,
+    "orders_and_validation_counts_equal": true,
+    "actual_unit_contents_equal": true,
+    "all_negative_cases_equal": true,
+    "no_raw_path_equality_claim": "Fresh recovery directory paths differ intentionally."
+  },
+  "workspace": {
+    "passed": 6253,
+    "failed": 0,
+    "ignored": 0,
+    "result_summaries": 430,
+    "test_programs": 416,
+    "doc_test_suites": 14,
+    "log_sha256": "5148e9478ad9155d2c27ed398c518a54d8dd136273f987d9738bc48f0d79935b"
+  },
+  "implementation_git_bindings": [
+    {
+      "mode": "check",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_measure.py",
+      "sha256": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd"
+    },
+    {
+      "mode": "check",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/rust_compare.py",
+      "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf"
+    },
+    {
+      "mode": "check",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_workloads.py",
+      "sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964"
+    },
+    {
+      "mode": "check",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_measure.py",
+      "sha256": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d"
+    },
+    {
+      "mode": "check",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_validate.py",
+      "sha256": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+    },
+    {
+      "mode": "o2",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_measure.py",
+      "sha256": "039d917e0c31665e2912e7e9d64152f4094cefdb488e2412e4b7efcfa51b7bcd"
+    },
+    {
+      "mode": "o2",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/rust_compare.py",
+      "sha256": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf"
+    },
+    {
+      "mode": "o2",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_workloads.py",
+      "sha256": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964"
+    },
+    {
+      "mode": "o2",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/reactive-query-graph/native_measure.py",
+      "sha256": "7294a9ade9c8f4a198bbeab9d4dd7c4791684e3b2fb45c21b995abb0ea54ba5d"
+    },
+    {
+      "mode": "o2",
+      "spec": "900293cfd8afcd7118775e8165e1ec4f5266e3d7:tools/research/incremental-demand/matched_validate.py",
+      "sha256": "20b1c35a8bc734d41233016f2c664d03192339d64616313f1fae449e7799590c"
+    }
+  ],
+  "independent_evidence_review": "full-pipeline-final-evidence-review.json",
+  "previous_archives": {
+    "v3": "353a6754bb4225fbd3281a94206e738488f81aec",
+    "v2": "7fd718bc80535a5e0b19eff39418e49a1b4aa9a8"
+  },
+  "limits": "Root remote readback and recorded-oracle revalidation, not a separate reviewer or new native/compiler execution. Prior nonauthor evidence review is a distinct receipt. No runtime toolchain reproduction or recreation of overwritten historical executables claimed. Original pre-continuation lost raw remains unavailable. Local recovery clone/restored files are disposable; fixed remote Git archive is the backup.",
+  "new_compiler_invocations": 0,
+  "new_native_executions": 0,
+  "local_recovery_observation_receipts": [
+    {
+      "path": "out/runs/full-pipeline-archive-v4-clone.log",
+      "bytes": 532,
+      "sha256": "f320588e1ecf8ebff3766bbbd02524aae356835e8dbf98ca03624e091a9b8443"
+    },
+    {
+      "path": "out/runs/full-pipeline-archive-v4-restore.json",
+      "bytes": 851,
+      "sha256": "6f0c4da7043621598ad4f0239e0b77573f62d363ce8fb67635f17f1379609c28"
+    },
+    {
+      "path": "out/runs/full-pipeline-recovery-v4/profile-validation.json",
+      "bytes": 483,
+      "sha256": "e764b93552257b96e83d60ef30bf43a6de048d1ba28a96dedb30784871a66390"
+    },
+    {
+      "path": "out/runs/full-pipeline-recovery-v4/check-validation.json",
+      "bytes": 4545,
+      "sha256": "0dbde58521c7e48884f8cbc5b4eee3048f0a9d15a527b3a9e0b11f330ab8cf3e"
+    },
+    {
+      "path": "out/runs/full-pipeline-recovery-v4/o2-validation.json",
+      "bytes": 4536,
+      "sha256": "a5734b89def558c564ddb3ce6e2d1bce51aa197feb4591b63a35b179ddf18b2b"
+    },
+    {
+      "path": "out/runs/full-pipeline-recovery-v4/revalidation.json",
+      "bytes": 4173,
+      "sha256": "9f01d34bcbcb6fd8e4b66f80e359a238b5cc4138f46f735e82ac42006b84a7b2"
+    }
+  ]
+}

@@ -2,11 +2,11 @@
 
 > 最新冻结编译器 `900293cfd8afcd7118775e8165e1ec4f5266e3d7` 已完成真实私有编辑→CFG→Analyze→独立 Verify→机器 IR→CGU/对象→最终可执行文件的增量消费者接入。源码分支 `research/incremental-demand-continuation`，研究开关仍默认关闭，未合入 main。这里是限定域的实际全流程进展，中央 ReactiveGraph 仍只调度 BodyKey，全局工作和保守回退尚未消除。
 >
-> **最新六轮同参结果**：[全部八场景](full-pipeline-matched-900.md) / [全部六轮、父历史和实际单元内容](full-pipeline-matched-900.json)。CGU16/O2/jobs1 私有编辑 main1612→候选903ms，Rust582ms；无修改559→74ms，Rust14ms。检查私有编辑626→276ms，Rust282ms。原生冷编译7744→7844ms、广泛修改5846→6464ms仍负；候选私有原生仍慢于 Rust，不能宣称已追平。每种模式270请求（144测量+126具名父请求），原生2808次执行及351份blob校验通过，78组成功main/候选LLVM和ELF哈希一致。各方实际均16个当前单元，但内容/复用逐单元核对，未假设分区等价。Rust新Cargo与ZIL resident、LLVM23.1.1/23.1.4及检查保证差别明确保留。
+> **最新六轮同参结果**：[全部八场景](full-pipeline-matched-900.md) / [全部六轮、父历史和实际单元内容](full-pipeline-matched-900.json)。CGU16/O2/jobs1 私有编辑 main1612→候选903ms，Rust582ms；无修改559→74ms，Rust14ms。检查私有编辑626→276ms，Rust282ms。原生冷编译7744→7844ms、广泛修改5846→6464ms仍负；候选私有原生仍慢于 Rust，不能宣称已追平。每种模式270请求（144测量+126具名父请求），原生2808次执行及351份blob校验通过，78组成功main/候选LLVM和ELF哈希一致。成功原生请求中各方实际均16个当前单元，但内容/复用逐单元核对，未假设分区等价。Rust新Cargo与ZIL resident、LLVM23.1.1/23.1.4及检查保证差别明确保留。
 >
 > **实际减少的工作**：完整425函数样例中，私有编辑BodyKey1重算/420复用，机器函数1降级/424复用，15分区复用/1重建，独立Verify当前证明1检查/422复用；当前全局检查仍执行。计划持久化425行零重编码，新载荷15214B/一个15314B物理包；无修改在完整机器IR构造前复用，仍做425当前输入比较。导入位置变化BodyKey0/421，同时22模块使用当前Lower/物化，未拿旧span当新结果。见 [r7逐阶段实测](full-pipeline-profile-900.md)、[完整审计](full-pipeline-audit.md) 和 [独立剩余成本诊断](full-pipeline-residual-900.md)。
 >
-> **正确性与证据**：[最终验证](full-pipeline-final-validation.json) 为6253项通过、0失败/忽略（416测试程序+14文档测试套件），严格Clippy/fmt通过，精确源码非作者复核保留。最终900原始证据正在归档恢复；此前v3固定archive353a6754b已从新HTTPS克隆核验906文件/298MB、r5/r6各180oracle，见 [v3收据](full-pipeline-recovery-v3.json)。v2固定7fd718bc保留旧140正式矩阵及51872文件，见 [v2收据](full-pipeline-recovery-v2.json)。旧环境最初丢失raw仍不可恢复，不能用本地tar冒充持久备份。
+> **正确性与证据**：[最终验证](full-pipeline-final-validation.json) 为6253项通过、0失败/忽略（416测试程序+14文档测试套件），严格Clippy/fmt通过，精确源码非作者复核保留。最终900原始证据已保存到 [固定v4归档](https://github.com/zil-lang/zil/tree/32e1b04fb859440bb36ec3223cb35b26edf63041/research/incremental-demand-full-pipeline-20261112-v4)，从全新HTTPS克隆恢复核验24642文件/2.60GB并重新通过全部profile/matrix校验，见 [v4恢复收据](full-pipeline-recovery-v4.json) 和 [独立证据复核](full-pipeline-final-evidence-review.json)；此前v3固定archive353a6754b已从新HTTPS克隆核验906文件/298MB、r5/r6各180oracle，见 [v3收据](full-pipeline-recovery-v3.json)。v2固定7fd718bc保留旧140正式矩阵及51872文件，见 [v2收据](full-pipeline-recovery-v2.json)。旧环境最初丢失raw仍不可恢复，不能用本地tar冒充持久备份。
 
 历史版本、撤回的跨CGU比较及原始负结果继续保留下文；最新源码结果以上述900收据为准。
 

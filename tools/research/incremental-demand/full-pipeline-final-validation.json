@@ -122,7 +122,12 @@
       "sha256": "e6d7bb6cb3d9d18d27baaa450ccd120b16f6109d02a3a656598dd766747e053d"
     }
   ],
-  "durability": "Final raw pending v4 remote archive and fresh recovery; prior v3 remains independent.",
+  "durability": {
+    "receipt": "full-pipeline-recovery-v4.json",
+    "archive_commit": "32e1b04fb859440bb36ec3223cb35b26edf63041",
+    "verified_files": 24642,
+    "verified_raw_bytes": 2600107619
+  },
   "limits": "Bounded full-pipeline correctness and matched workload progress; not universal minimality or Rust parity. Independent Verify, default budgets and ordinary O2 remain. Complete raw remote recovery recorded separately.",
   "matched": {
     "report": "full-pipeline-matched-900.json",
@@ -142,5 +147,6 @@
       "validator_exit": 0
     },
     "launcher_controller_exit": 0
-  }
+  },
+  "independent_evidence_review": "full-pipeline-final-evidence-review.json"
 }

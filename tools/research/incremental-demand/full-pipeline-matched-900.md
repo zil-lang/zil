@@ -3,7 +3,7 @@
 Candidate `900293cfd8afcd7118775e8165e1ec4f5266e3d7`, tree `e3f16832a9751f25399d4dd8e58488ed03513f54`, binary SHA256 `936d7c107713c11dca86bbf196fc9a0c6ceee336ef4f57e60751543ba1817d82`.
 Main `99035931d358add0eaed6d4535035c38413701dd`; Rust 1.99.1 commit `58cf8f9c35b355199727627d07ae34a4e2846d67`.
 
-[JSON summary](full-pipeline-matched-900.json) retains all six observations and original CPU/RSS field names, named preparations, exact raw-file/build/tool hashes, actual unit content examples and current reuse observations. Raw archive status: local raw evidence; pending remote archive.
+[JSON summary](full-pipeline-matched-900.json) retains all six observations and original CPU/RSS field names, named preparations, exact raw-file/build/tool hashes, actual unit content examples and current reuse observations. Raw archive: [fixed v4](https://github.com/zil-lang/zil/tree/32e1b04fb859440bb36ec3223cb35b26edf63041/research/incremental-demand-full-pipeline-20261112-v4); fresh HTTPS recovery verified24,642 files/2,600,107,619 raw bytes and all validators. See [recovery receipt](full-pipeline-recovery-v4.json) and [independent evidence review](full-pipeline-final-evidence-review.json).
 
 Each mode validates 270 rows: 144 measured and 126 named parent preparations. Native execution counts and verified blobs are the exact validator receipts in JSON.
 
@@ -40,3 +40,5 @@ CGU16/O2/jobs1 is matched native configuration, not matched partitions or optimi
 CPU and RSS scopes differ: Zil /proc root CPU deltas and root response/cumulative-peak RSS; Rust wait4 invocation-tree CPU, Cargo-root sampled RSS, and largest-process maxrss. Do not infer cross-language memory superiority. Physical Rust object carry-forward and Zil object-cache hit receipts are distinct observations.
 
 These are whole-request results for the stated fixed workload and source. No prior-candidate timing comparison, isolated-slice attribution, universal minimal-work claim or cross-language parity is implied.
+
+Successful native requests have16 actual current units for every arm; complete emitted symbol/content and reuse observations are in JSON and raw. This does not establish equal partitions. The disposable debug build cache was removed only between completed check and O2 windows; timing receipts preserve that boundary.

@@ -5,7 +5,7 @@
     "sha256": "a43dc8d18a9479c2abaa19ddbbf91b5334741894ca2dec7d030c3fd9be01a22e",
     "bytes": 24099
   },
-  "raw_archive_status": "local raw evidence; pending remote archive",
+  "raw_archive_status": "Durable fixed Git archive 32e1b04fb859440bb36ec3223cb35b26edf63041; fresh HTTPS recovery verified24642 files and revalidated all final profiles/matrices. See full-pipeline-recovery-v4.json.",
   "scope_and_limitations": [
     "Each mode has its own sequential six-block window with all six rotated arm permutations; check and native O2 are separate experiments. OS caches are not flushed; six observations are not a significance test.",
     "Zil wall is resident send-to-response and excludes resident startup; Rust wall includes each new Cargo process and rustc startup. Source writes, object/symbol inventory and native-oracle execution are outside request wall.",
@@ -4379,5 +4379,6 @@
     "o2/broad: candidate 6463.730 ms > main 5846.336 ms",
     "o2/broad: candidate 6463.730 ms > Rust 6150.068 ms",
     "o2/recovery: candidate 785.298 ms > Rust 696.138 ms"
-  ]
+  ],
+  "remote_recovery_receipt": "full-pipeline-recovery-v4.json"
 }
