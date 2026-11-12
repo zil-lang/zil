@@ -56,12 +56,8 @@ bool approvedIntrinsic(const CallBase &C) {
   for (const Use &A : C.args()) if (!A->getType()->isIntegerTy()) return false;
   // Intrinsic IDs come from LLVM's symbol table; also require the canonical
   // overloaded signature, so a declaration merely spelling llvm.* cannot pass.
-  SmallVector<Intrinsic::IITDescriptor, 16> Infos;
-  Intrinsic::getIntrinsicInfoTableEntries(F->getIntrinsicID(), Infos);
   SmallVector<Type *, 4> Overloads;
-  auto R = Intrinsic::matchIntrinsicSignature(F->getFunctionType(), Infos, Overloads);
-  return R == Intrinsic::MatchIntrinsicTypes_Match &&
-         !Intrinsic::matchIntrinsicVarArg(F->isVarArg(), Infos);
+  return Intrinsic::isSignatureValid(F->getIntrinsicID(), F->getFunctionType(), Overloads);
 }
 bool acyclic(const Function &F) {
   std::map<const BasicBlock *, unsigned> Degree;
@@ -99,7 +95,7 @@ bool eligibleFunction(const Function &F) {
         if (!approvedIntrinsic(*C)) return false;
       } else if (!(isa<BinaryOperator>(I) || isa<UnaryOperator>(I) ||
                    isa<ICmpInst>(I) || isa<PHINode>(I) || isa<SelectInst>(I) ||
-                   isa<BranchInst>(I) || isa<SwitchInst>(I) || isa<ReturnInst>(I) ||
+                   isa<CondBrInst>(I) || isa<UncondBrInst>(I) || isa<SwitchInst>(I) || isa<ReturnInst>(I) ||
                    isa<UnreachableInst>(I) || isa<ExtractValueInst>(I) ||
                    isa<InsertValueInst>(I) || isa<TruncInst>(I) ||
                    isa<ZExtInst>(I) || isa<SExtInst>(I) || isa<FreezeInst>(I))) return false;
