@@ -192,3 +192,41 @@ literals are evaluated under the real substituted carrier; an integer suffix
 must agree with the original scalar typing rules. Negate handles the signed
 minimum magnitude under that carrier without a premature positive-value
 conversion or an implicit i32 default.
+
+Canonical opaque type values
+
+At the root of an actual opaque Closure, Task, Dyn or OwnedDyn type, the
+canonical external `DynTypeValue.life` is exactly
+`{binder_count: N, slots: [], retained: [], nominal_arguments: []}` and
+`classes.len() == N`. This empty row directory describes an opaque boundary
+with a separately proved complete intrinsic domain. It is not a general
+permission to omit rows from ordinary `StorageLifeShape` values. In particular,
+an ordinary Record, Tuple, Array, Address or Desc does not acquire this rule.
+
+The independent checker establishes N from the complete actual inventory. For
+a Closure it checks the actual definition, every capture, the exact entry and
+its complete Parameter/Result relation, retaining only the complete free Fixed
+domain. Missing relations are Unknown; a claimed Some(0) is not evidence that
+capture or static-source obligations are fulfilled. For a Task it checks the
+complete retained domain, result and actual worker/frame relation. For Dyn and
+OwnedDyn it checks the complete Context, ordered actuals, associated values and
+phantom relations. Equal cardinalities or same-layout definitions do not prove
+the same opaque type. Request-local IDs must resolve to complete definitions in
+the actual module; they are not cross-module semantic identities.
+
+Internal capture, port, nominal and phantom information stays in that actual
+opaque inventory and is independently checked there. It is not flattened again
+into opaque Self storage, copied from Context physical fields, or encoded using
+invented Capture, Parameter or self-retained paths. When an opaque value is a
+child of another semantic value, the parent maps every child class once at the
+actual Field, Pointee, Element, TypeArgument or other supported semantic type
+path. Two same-typed children remain two occurrences. A two-class intrinsic
+domain stays two-class when both classes map to one enclosing Context class.
+An enclosing Address or Desc still contributes its own outer occurrence in
+addition to the opaque child's domain.
+
+Static source information is a separate obligation. It neither deletes declared
+classes, phantom positions or opaque classes, nor creates a Static binder. A
+structural check may retain pending static obligations, but actual constructors,
+writes and returns must independently establish each required static source
+before a complete usable proof is published.
