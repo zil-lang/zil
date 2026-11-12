@@ -131,7 +131,7 @@
 +++ b/llvm/lib/IR/PassManager.cpp
 @@ -15,0 +16 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +167,21 @@
+@@ -165,0 +167,29 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -152,6 +152,14 @@
 +                                                        const void *Key) {
 +  static_cast<llvm::FunctionAnalysisManager *>(Manager)->zilRequireAnalysisID(
 +      Key, *static_cast<llvm::Function *>(IR));
++}
++
++extern "C" LLVM_ABI const char *ZilLLVMFunctionAnalysisName(
++    void *Manager, const void *Key, uint64_t *Length) {
++  auto Name = static_cast<llvm::FunctionAnalysisManager *>(Manager)
++                  ->zilAnalysisName(Key);
++  if (Length) *Length = Name.size();
++  return Name.data();
 +}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
@@ -187,9 +195,14 @@
 +
 --- a/llvm/include/llvm/IR/PassManager.h
 +++ b/llvm/include/llvm/IR/PassManager.h
-@@ -467,0 +468,21 @@
+@@ -467,0 +468,26 @@
 +  // Fixed-adapter introspection: IDs refer only to registered static analysis
 +  // keys, never an IR owner. Rebuild always runs factories on CURRENT IR/AM.
++  StringRef zilAnalysisName(const void *ID) const {
++    auto It = AnalysisPasses.find(const_cast<AnalysisKey *>(
++        static_cast<const AnalysisKey *>(ID)));
++    return It == AnalysisPasses.end() ? StringRef() : It->second->name();
++  }
 +  void zilVisitCachedAnalysisIDs(IRUnitT &IR,
 +                                void (*Visit)(void *, const void *),
 +                                void *Context) const {
