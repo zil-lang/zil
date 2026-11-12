@@ -279,6 +279,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         mut body,
         mut intrinsics,
         mut task_machines,
+        mut foreign_adapters,
     } = batches.next().expect("lowering always returns a batch");
     body.reserve(
         collected
@@ -290,6 +291,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         body.extend(batch.body);
         intrinsics.extend(batch.intrinsics);
         task_machines.extend(batch.task_machines);
+        foreign_adapters.extend(batch.foreign_adapters);
     }
     // Child plans require actual machines from every ordered lowering batch.
     body.extend(tasks::lower_workers(
@@ -300,6 +302,13 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    for id in foreign_adapters {
+        text.append(foreign::callback_adapter(
+            functions[&id],
+            lir.target,
+            &task_meter,
+        )?);
+    }
     text.append(dyn_dispatch::tables(
         verified.module(),
         &copy_plans,
@@ -540,6 +549,7 @@ struct FunctionBatch {
     body: Vec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
     task_machines: Vec<(FunctionId, m::Function)>,
+    foreign_adapters: BTreeSet<FunctionId>,
 }
 
 fn resource_head_address(ty: &Type) -> bool {
@@ -563,6 +573,7 @@ fn lower_function_batch(
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
     let mut task_machines = Vec::new();
+    let mut foreign_adapters = BTreeSet::new();
     let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
@@ -651,6 +662,8 @@ fn lower_function_batch(
             closures,
             resources: lir.resources,
             intrinsics: &mut intrinsics,
+            foreign_adapters: &mut foreign_adapters,
+            machine_meter: task_meter,
             text: m::Code::new(),
             temporary: 0,
             continuation: 0,
@@ -694,6 +707,7 @@ fn lower_function_batch(
         body,
         intrinsics,
         task_machines,
+        foreign_adapters,
     })
 }
 
@@ -1528,6 +1542,8 @@ struct FunctionEmitter<'a> {
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
+    foreign_adapters: &'a mut BTreeSet<FunctionId>,
+    machine_meter: &'a tasks::Meter,
     text: m::Code,
     temporary: u64,
     continuation: u64,
@@ -2641,8 +2657,10 @@ impl FunctionEmitter<'_> {
                 variant,
                 index,
             } => self.read_variant(instruction, *value, *variant, *index)?,
-            InstructionKind::FunctionRef { function }
-            | InstructionKind::ForeignFunctionRef { function } => {
+            InstructionKind::ForeignFunctionRef { function } => {
+                self.foreign_callback_ref(instruction, *function)?
+            }
+            InstructionKind::FunctionRef { function } => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
                     m::Op::Freeze(m::Arg::new(

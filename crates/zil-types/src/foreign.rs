@@ -4,7 +4,13 @@ use super::*;
 pub(super) fn callback_scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64 | Type::ForeignHandle
+        Type::I32
+            | Type::U32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::ForeignHandle
     )
 }
 
@@ -269,7 +275,7 @@ impl Builder<'_, '_> {
             )
         })?;
         let ty = signature.foreign_callback_type().ok_or_else(|| {
-            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i32/i64/handle signature")
+            error("E-FFI-CALLBACK", target.span, "C callbacks require an ordinary environment-free function with exact i8/i16/i32/i64/u32/isize/handle signature")
         })?;
         let function = signature.concrete_id(span)?;
         let value = self.value(

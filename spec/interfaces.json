@@ -1933,5 +1933,24 @@
     "machine": "Threaded site uses atomic combined admission/invocation gate and a driver covering provider calls and final cleanup; publication and invocation/cleanup use acquire/release. Same-thread sites retain their original non-atomic path.",
     "reclamation": "ClosingIdle is insufficient. Provider no-future/drain must include every raw pre-entry/rejected/retained user and provider access; only complete drain and driver ownership allow one environment cleanup, then Closed, then finish free. Failed registration must synchronously withdraw and drain before returning null.",
     "trust": "Transport, premise bools, same-named declarations and active=0 are never proofs. Unsupported environments or graphs fail closed; runtime white-box self-close/reentry controls do not grant source owner access."
+  },
+  "complete_integer_domains": {
+    "authority": "_zil_design.md §2.4",
+    "types": {
+      "u32": "Type tag41, 32-bit unsigned, Constant tag13 u32 little-endian",
+      "i8": "Type tag42, 8-bit signed, Constant tag14 i8 little-endian",
+      "i16": "Type tag43, 16-bit signed, Constant tag15 i16 little-endian",
+      "isize": "Type tag44, target pointer-width signed, Constant tag16 fixed i64 little-endian carrier; 32-bit targets independently reject values outside i32"
+    },
+    "ct": "CtScalarTy wire tags10=u32,11=i8,12=i16,13=isize. Runtime and CT wire versions are independently gated. Full scalar actual/type identities preserve signed mathematical bits and cannot alias i32/i64/usize on equal width or value.",
+    "semantics": "No implicit numeric widening. All ten integer domains support checked value-preserving conversion, same-type checked arithmetic, explicit modulo wrapping, checked shifts, exact literal context/suffixes including signed minima and const generic negative literals. Float conversions check range/integrality before LLVM poison-producing instructions.",
+    "layout": "u32 4/4, i8 1/1, i16 2/2, isize pointer size/alignment. Native x64 C ABI uses Linux signext for i8/i16, zeroext for u8/u16, no narrow extension for u32/isize; Win64 has no narrow extension attributes. Static i8/i16 C callbacks use one stable signext adapter per actual function; ordinary internal ZIL call ABI is preserved.",
+    "independence": "Analyze and Verify independently classify scalar storage and selected-target constant ranges; Verify reconstructs operation identities and complete raw/Wire types. CT execution consumes independently verified CTIR. No quota increase or proof bypass.",
+    "consumers": [
+      "tests/integers/complete-domains.zil",
+      "tests/integers/ffi.zil",
+      "tests/integers/ffi.c",
+      "crates/zil-driver/tests/integer_domains.rs"
+    ]
   }
 }

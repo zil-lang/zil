@@ -521,6 +521,14 @@ mod tests {
             "0xffu8",
             "0o377u8",
             "0b1111_1111u8",
+            "1u32",
+            "1i8",
+            "1i16",
+            "1isize",
+            "1i32",
+            "1i64",
+            "0x7fi8",
+            "0x7fffi16",
         ] {
             let src = source(text);
             let result = lex(&src);
@@ -533,7 +541,7 @@ mod tests {
             assert_eq!(result.tokens[0].text(&src.text), text);
         }
         for text in [
-            "1_u8", "0x_u8", "0xff_u8", "0bu8", "0o8u8", "1u80", "1.0u8", "1e2u8", "1i32", "1i64",
+            "1_u8", "0x_u8", "0xff_u8", "0bu8", "0o8u8", "1u80", "1.0u8", "1e2u8",
         ] {
             assert!(!lex(&source(text)).diagnostics.is_empty(), "{text}");
         }

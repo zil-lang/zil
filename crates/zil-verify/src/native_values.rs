@@ -15,7 +15,13 @@ pub(super) fn target(target: &TargetProfile, span: Option<Span>) -> Check<()> {
 pub(super) fn callback_parameter(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::I32 | Type::I8 | Type::I16 | Type::Isize | Type::I64 | Type::ForeignHandle
+        Type::I32
+            | Type::U32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::ForeignHandle
     )
 }
 
@@ -30,7 +36,7 @@ pub(super) fn callback_signature(
         return Err(reject(
             "E-VERIFY-FOREIGN-CALLBACK",
             span,
-            "C callback parameters require i32/i64/handle and its result additionally allows unit",
+            "C callback parameters require i8/i16/i32/i64/u32/isize/handle and its result additionally allows unit",
         ));
     }
     Ok(())
