@@ -189,3 +189,307 @@ impl Engine<'_> {
         Ok(key)
     }
 }
+
+impl Engine<'_> {
+    pub(super) fn semantic_source_actual(
+        &mut self,
+        ty: &TypeRef,
+        domain: &str,
+    ) -> R<Option<SemanticActual>> {
+        if self.life_scope.is_empty() || !self.qualified_actual_syntax(ty, 0)? {
+            return Ok(None);
+        }
+        let mut classes = Vec::new();
+        self.semantic_free_classes(ty, &mut Vec::new(), &mut classes, 0)?;
+        self.budget.ty(ty)?;
+        self.budget.text(domain, ty.span)?;
+        Ok(Some(SemanticActual {
+            application: Some(ty.clone()),
+            classes,
+            domain: domain.to_owned(),
+        }))
+    }
+    fn semantic_free_classes(
+        &mut self,
+        ty: &TypeRef,
+        bound: &mut Vec<String>,
+        classes: &mut Vec<LexicalLife>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Reference {
+                lifetime, inner, ..
+            } => {
+                if let Some(name) = lifetime {
+                    self.semantic_free_life(name, ty.span, bound, classes)?;
+                }
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?;
+            }
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for arg in args {
+                    match arg {
+                        GenericArg::Lifetime(name) => {
+                            self.semantic_free_life(name, ty.span, bound, classes)?
+                        }
+                        GenericArg::Type(inner) => {
+                            self.semantic_free_classes(inner, bound, classes, depth + 1)?
+                        }
+                        GenericArg::Const(_) => {}
+                    }
+                }
+            }
+            TypeKind::Group(inner)
+            | TypeKind::Optional(inner)
+            | TypeKind::Array { element: inner, .. } => {
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?
+            }
+            TypeKind::ForLifetime { lifetime, inner } => {
+                let mark = bound.len();
+                self.budget.text(lifetime, ty.span)?;
+                bound.push(lifetime.clone());
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?;
+                bound.truncate(mark);
+            }
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+                for field in fields {
+                    self.semantic_free_classes(field, bound, classes, depth + 1)?;
+                }
+            }
+            TypeKind::Error { error, result } => {
+                self.semantic_free_classes(error, bound, classes, depth + 1)?;
+                self.semantic_free_classes(result, bound, classes, depth + 1)?;
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for param in params {
+                    self.semantic_free_classes(param, bound, classes, depth + 1)?;
+                }
+                self.semantic_free_classes(result, bound, classes, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn semantic_free_life(
+        &mut self,
+        name: &str,
+        span: Span,
+        bound: &[String],
+        classes: &mut Vec<LexicalLife>,
+    ) -> R<()> {
+        for local in bound {
+            self.budget.text(local, span)?;
+            self.budget.text(name, span)?;
+        }
+        if !bound.iter().any(|local| local == name) {
+            let class = self.source_life(name, span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<LexicalLife>(), span)?;
+            classes.push(class);
+        }
+        Ok(())
+    }
+    pub(super) fn bind_semantic_source(&mut self, pattern: &Pattern, env: &mut Env) -> R<()> {
+        match &pattern.kind {
+            PatternKind::Name(name) => {
+                let Some(source) = env
+                    .bindings
+                    .get(name)
+                    .and_then(|binding| binding.ty.as_ref())
+                else {
+                    return Ok(());
+                };
+                let Some(actual) = self.semantic_source_actual(source, &env.domain)? else {
+                    return Ok(());
+                };
+                self.budget.ty(source)?;
+                let mut physical = source.clone();
+                self.ty(&mut physical, 0)?;
+                let binding = env.bindings.get_mut(name).expect("actual binding");
+                binding.ty = Some(physical);
+                binding.semantic = Some(actual);
+            }
+            PatternKind::Tuple(fields) => {
+                for field in fields {
+                    self.bind_semantic_source(field, env)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    pub(super) fn alpha_value_actuals(
+        &mut self,
+        source: &BTreeMap<String, TypeRef>,
+        parameters: &[&GenericParam],
+        span: Span,
+    ) -> R<(BTreeMap<String, TypeRef>, Vec<GenericParam>)> {
+        let mut rebound = BTreeMap::new();
+        let mut joint = Vec::new();
+        let mut formals = Vec::new();
+        for parameter in parameters {
+            let Some(actual) = source.get(&parameter.name) else {
+                return Err(error(
+                    span,
+                    "qualified actual lacks its declared type binder",
+                ));
+            };
+            self.budget.ty(actual)?;
+            let mut actual = actual.clone();
+            let mut captured = Vec::new();
+            self.capture_actual_type(&mut actual, &mut captured, 0)?;
+            let mut names = BTreeMap::new();
+            for (token, class) in captured {
+                self.budget
+                    .identity_work(joint.len().saturating_add(1), span)?;
+                let ordinal = if let Some(ordinal) = joint.iter().position(|prior| prior == &class)
+                {
+                    ordinal
+                } else {
+                    self.budget.identity_work(64, span)?;
+                    joint.push(class);
+                    let name = format!("$value_life_{}", joint.len() - 1);
+                    self.budget.text(&name, span)?;
+                    formals.push(GenericParam {
+                        name,
+                        kind: GenericParamKind::Lifetime,
+                        span,
+                    });
+                    joint.len() - 1
+                };
+                self.budget.text(&token, span)?;
+                self.budget.text(&formals[ordinal].name, span)?;
+                names.insert(token, formals[ordinal].name.clone());
+            }
+            enums::source_field_lives(&mut actual, &names, &mut self.budget, 0)?;
+            self.budget.text(&parameter.name, span)?;
+            rebound.insert(parameter.name.clone(), actual);
+        }
+        Ok((rebound, formals))
+    }
+}
+
+impl Engine<'_> {
+    pub(super) fn source_unification_scope(
+        &mut self,
+        env: &Env,
+        span: Span,
+    ) -> R<Option<Function>> {
+        if !self.stored_nominals || self.life_scope.is_empty() {
+            return Ok(None);
+        }
+        self.budget.text(&env.domain, span)?;
+        let mut generics = Vec::new();
+        for name in &self.life_scope {
+            self.budget.text(name, span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<GenericParam>(), span)?;
+            generics.push(GenericParam {
+                name: name.clone(),
+                kind: GenericParamKind::Lifetime,
+                span,
+            });
+        }
+        Ok(Some(Function {
+            name: env.domain.clone(),
+            generics,
+            params: vec![],
+            return_type: None,
+            where_clause: vec![],
+            contract: vec![],
+            body: FunctionBody::Declaration,
+            span,
+        }))
+    }
+}
+
+pub(super) fn source_unification_key(
+    ty: &TypeRef,
+    source: Option<&Function>,
+    budget: &mut Budget<'_>,
+) -> R<String> {
+    let Some(source) = source else {
+        return type_key_bounded(ty, budget);
+    };
+    let mut key = check::source_class_key(ty, source, budget)?;
+    fn life(
+        name: &str,
+        source: &Function,
+        budget: &mut Budget<'_>,
+        span: Span,
+        key: &mut String,
+    ) -> R<()> {
+        let mut actual = None;
+        for (ordinal, formal) in source.generics.iter().enumerate() {
+            budget.node(span, 0)?;
+            budget.text(&formal.name, span)?;
+            budget.text(name, span)?;
+            if matches!(formal.kind, GenericParamKind::Lifetime) && formal.name == name {
+                actual = Some(ordinal);
+            }
+        }
+        let ordinal = actual.ok_or_else(|| {
+            error(
+                span,
+                "qualified actual class is outside its lexical unification domain",
+            )
+        })?;
+        budget.identity_work(32, span)?;
+        key.push_str(&format!("|class:{ordinal}"));
+        Ok(())
+    }
+    fn visit(
+        ty: &TypeRef,
+        source: &Function,
+        budget: &mut Budget<'_>,
+        key: &mut String,
+        depth: usize,
+    ) -> R<()> {
+        budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Reference {
+                lifetime, inner, ..
+            } => {
+                if let Some(name) = lifetime {
+                    life(name, source, budget, ty.span, key)?;
+                }
+                visit(inner, source, budget, key, depth + 1)?;
+            }
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for arg in args {
+                    match arg {
+                        GenericArg::Lifetime(name) => life(name, source, budget, ty.span, key)?,
+                        GenericArg::Type(inner) => visit(inner, source, budget, key, depth + 1)?,
+                        GenericArg::Const(_) => {}
+                    }
+                }
+            }
+            TypeKind::Group(inner)
+            | TypeKind::Optional(inner)
+            | TypeKind::Array { element: inner, .. } => {
+                visit(inner, source, budget, key, depth + 1)?
+            }
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+                for field in fields {
+                    visit(field, source, budget, key, depth + 1)?;
+                }
+            }
+            TypeKind::Error { error, result } => {
+                visit(error, source, budget, key, depth + 1)?;
+                visit(result, source, budget, key, depth + 1)?;
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for param in params {
+                    visit(param, source, budget, key, depth + 1)?;
+                }
+                visit(result, source, budget, key, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    visit(ty, source, budget, &mut key, 0)?;
+    Ok(key)
+}

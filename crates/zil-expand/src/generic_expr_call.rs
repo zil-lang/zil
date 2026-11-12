@@ -744,6 +744,7 @@ impl Engine<'_> {
             value_inferred,
             ..
         } = state;
+        let source_scope = hints.as_ref().and_then(|hints| hints.source_scope.as_ref());
         let ExprKind::Call { callee, .. } = &mut e.kind else {
             unreachable!("call dispatch")
         };
@@ -849,13 +850,14 @@ impl Engine<'_> {
                                     )?)
                             {
                                 let expected = self.original_type(expected)?;
-                                unify(
+                                unify_scoped(
                                     result,
                                     &expected,
                                     &variables,
                                     &mut found,
                                     e.span,
                                     &mut self.budget,
+                                    source_scope,
                                 )?;
                             }
                             for (index, (parameter, actual)) in
@@ -871,13 +873,14 @@ impl Engine<'_> {
                                     error(e.span, "ordinary Copy type argument cannot be inferred")
                                 })?;
                                 let actual = self.original_type(&actual)?;
-                                unify_argument(
+                                unify_argument_scoped(
                                     &parameter.ty,
                                     &actual,
                                     &variables,
                                     &mut found,
                                     e.span,
                                     &mut self.budget,
+                                    source_scope,
                                 )?;
                             }
                             let types = function
@@ -951,13 +954,14 @@ impl Engine<'_> {
                                 || !trait_bounds::associated::contains(result, &mut self.budget)?)
                         {
                             let expected = self.original_type(expected)?;
-                            unify(
+                            unify_scoped(
                                 result,
                                 &expected,
                                 &variables,
                                 &mut found,
                                 e.span,
                                 &mut self.budget,
+                                source_scope,
                             )?;
                         }
                         for (p, actual) in function.params.iter().zip(actual) {
@@ -968,13 +972,14 @@ impl Engine<'_> {
                                 )
                             })?;
                             let actual = self.original_type(&actual)?;
-                            unify_argument(
+                            unify_argument_scoped(
                                 &p.ty,
                                 &actual,
                                 &variables,
                                 &mut found,
                                 e.span,
                                 &mut self.budget,
+                                source_scope,
                             )?;
                         }
                         consts::parameters(function)

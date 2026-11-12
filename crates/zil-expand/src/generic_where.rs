@@ -10,11 +10,10 @@ fn nominal_bound<'a>(
 ) -> R<()> {
     // Keep the established pure-Copy path and its exact costs. A nominal bound
     // uses the existing declaration checker before aliases can rewrite it.
-    if stores::is_bound(bound) {
-        return Err(unsupported(
-            bound.span,
-            "StoreElement is outside the ordinary nominal where profile",
-        ));
+    if stores::is_bound(bound) || trait_bounds::value::is_bound(bound) {
+        // Structural declarations remain premises. The ordinary definition
+        // and actual argument consumers prove their distinct obligations.
+        return Ok(());
     }
     if index.is_none() {
         // This new invocation must prepay the names copied into Index's
@@ -152,7 +151,11 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
             if let [host, _member] = path.as_slice()
                 && args.is_empty()
                 && !clause.bounds.is_empty()
-                && clause.bounds.iter().all(copy::is_bound)
+                && clause.bounds.iter().all(|bound| {
+                    copy::is_bound(bound)
+                        || stores::is_bound(bound)
+                        || trait_bounds::value::is_bound(bound)
+                })
             {
                 let mut declared = false;
                 for parameter in &function.generics {

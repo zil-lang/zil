@@ -104,7 +104,7 @@ pub(super) fn source_field_actuals(
     Ok(actual)
 }
 
-fn source_field_lives(
+pub(super) fn source_field_lives(
     ty: &mut TypeRef,
     lives: &BTreeMap<String, String>,
     budget: &mut Budget<'_>,
@@ -1479,6 +1479,7 @@ impl Engine<'_> {
                 self.ty(actual, 0)?;
             }
         }
+        let source_scope = self.source_unification_scope(env, callee.span)?;
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
         };
@@ -1526,23 +1527,25 @@ impl Engine<'_> {
                         &BTreeSet::new(),
                         &mut self.budget,
                     )?;
-                    unify(
+                    unify_scoped(
                         &result,
                         expected,
                         &variables,
                         &mut found,
                         callee.span,
                         &mut self.budget,
+                        source_scope.as_ref(),
                     )?;
                 }
             } else {
-                unify(
+                unify_scoped(
                     result,
                     expected,
                     &variables,
                     &mut found,
                     callee.span,
                     &mut self.budget,
+                    source_scope.as_ref(),
                 )?;
             }
         }
@@ -1574,6 +1577,7 @@ impl Engine<'_> {
             })
             .collect::<R<Vec<_>>>()?;
         Ok(Some(CallHints {
+            source_scope,
             callable: callable::template(f, &mut self.budget)?.map_or_else(Vec::new, |bounds| {
                 bounds.roles.into_iter().map(|role| role.index).collect()
             }),
@@ -1634,6 +1638,7 @@ pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
 }
 
 pub(super) struct CallHints {
+    pub(super) source_scope: Option<Function>,
     callable: Vec<usize>,
     parameters: Vec<TypeRef>,
     variables: BTreeSet<String>,
@@ -1676,13 +1681,14 @@ impl CallHints {
                 if !matches!(grouped(actual).kind, TypeKind::Error { .. }) {
                     return Ok(());
                 }
-                unify(
+                unify_scoped(
                     parameter,
                     actual,
                     &self.variables,
                     &mut self.found,
                     span,
                     budget,
+                    self.source_scope.as_ref(),
                 )?;
             } else {
                 self.constrain(index, actual, span, budget)?;
@@ -1759,13 +1765,14 @@ impl CallHints {
             return Ok(());
         }
         if let Some(parameter) = self.parameters.get(index) {
-            unify_argument(
+            unify_argument_scoped(
                 parameter,
                 actual,
                 &self.variables,
                 &mut self.found,
                 span,
                 budget,
+                self.source_scope.as_ref(),
             )?;
         }
         Ok(())

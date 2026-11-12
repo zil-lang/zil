@@ -78,8 +78,6 @@ fn owned_store_name(name: &str) -> bool {
             | "Managed"
             | "Store"
             | "StoreElement"
-            | "Value"
-            | "SyncDrop"
             | "store_new"
             | "store_reserve"
             | "store_push"
