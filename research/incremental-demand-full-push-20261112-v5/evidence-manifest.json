@@ -1,0 +1,1196 @@
+{
+  "archive": {
+    "bytes": 1308957,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 1308957,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "da16160f46b845cb406fc3299ad41d5be6662614097e4feca0f8c39027c4bba4"
+      }
+    ],
+    "sha256": "da16160f46b845cb406fc3299ad41d5be6662614097e4feca0f8c39027c4bba4",
+    "tar_bytes": 8007680
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 12048,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/build-receipt.json",
+        "sha256": "67b987edd46bce06736da878970356a32e08206204fa9677fd81de1656db6ed2"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/apply-patch.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 55,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/apply-patch.stdout",
+        "sha256": "c3ecd3b156ba12323f87a0baea0101dc565ffa65b818dc8dfae3d99ca7a603b6"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/archive-members.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 5735,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/archive-members.stdout",
+        "sha256": "486434fc98104a7fcd751bcc69f6c4592df11746545604191f965644596b0240"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/compile-extension.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/compile-extension.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/component-libraries.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 3925,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/component-libraries.stdout",
+        "sha256": "ff6fac5d545bbf2d4ea700ce8c14afc967159ff7481fadfa21a26e86dea98b17"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/cxxflags.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 199,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/cxxflags.stdout",
+        "sha256": "0bdd478e6d3138587e11516a6b390c6a3e6f45407c9e2c2582cdfa5282a4fb3f"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/dependencies.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 660,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/dependencies.stdout",
+        "sha256": "6e3c56bd1af40d9b7bf84be2e5db4ba7e28daec490604a7856be4955e98fcca6"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/link-dso.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/link-dso.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/replace-object.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/replace-object.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 317,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/source-download.stderr",
+        "sha256": "5580755335c1ce0c823613f83d8690008a540db190309baa52e8ca199dc65f68"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/logs/source-download.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 6989,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/llvm-extension-v1/source/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+        "sha256": "f9c1d37bb47ecd3f268ee53d5c3def5621ffce66af35d2ea558f29e1d846c24c"
+      },
+      {
+        "bytes": 4405,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/clang/lib/Interpreter/IncrementalExecutor.cpp",
+        "sha256": "62d9cae7835817cd54cada4d76b5e45d736a2ac440e0a09f71f9c92f89a3ec4f"
+      },
+      {
+        "bytes": 15345,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/clang/lib/Interpreter/IncrementalParser.cpp",
+        "sha256": "8d7a8a46b79d46d6f202e4637661812af00229dc1428419dbbfd99c16d695881"
+      },
+      {
+        "bytes": 34627,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/clang/lib/Interpreter/Interpreter.cpp",
+        "sha256": "a825e7ca79aa12d2983a736deddb0a24e29ddb7c9f90608a2649bba8cd6b3d17"
+      },
+      {
+        "bytes": 19637,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/design-challenges.md",
+        "sha256": "c354b3e17d3e9265b0d4e90882a25e345430cd49bac3ee2a035aadffa83f2aa0"
+      },
+      {
+        "bytes": 27101,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/evidence-index.json",
+        "sha256": "50d02b4c90ab905e58caac90a26f072f92c07de027a3c69a2800918508c47bb7"
+      },
+      {
+        "bytes": 2523,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm-source-manifest.json",
+        "sha256": "9800190469edf18c6a1a3f2be9faa5e9a8a44e9f6f2a4cf97d08237519341732"
+      },
+      {
+        "bytes": 15141,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/LICENSE.TXT",
+        "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+      },
+      {
+        "bytes": 1822,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h",
+        "sha256": "68503d06f691b9650e4aacf91d940efa19e16c09f38b15e6ca99efe86ad342c3"
+      },
+      {
+        "bytes": 2941,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/lib/ExecutionEngine/Orc/CompileUtils.cpp",
+        "sha256": "f1d6a2eec5c9790e3ee53ad1eed26391aeac4ff7ae7d61dcb7ea49362219f676"
+      },
+      {
+        "bytes": 79167,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/lib/LTO/LTO.cpp",
+        "sha256": "6a42e743e150d83aba9c62acd4e4163bcdbfc402af0b61e1efdd2c8c9a16ec5c"
+      },
+      {
+        "bytes": 28830,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/lib/LTO/LTOBackend.cpp",
+        "sha256": "d56c6aa2f6fbdeef522fccf9147f708462bb1b85a5b04597c11c4f918ff833ee"
+      },
+      {
+        "bytes": 85654,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm/lib/Transforms/IPO/FunctionImport.cpp",
+        "sha256": "4aceb557fcbf2b2c372b03da41f9843d35f8eb9a06b486076129a7e7d46d6d54"
+      },
+      {
+        "bytes": 17485,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/clang/lib/Interpreter/IncrementalExecutor.cpp",
+        "sha256": "b887092f9f7187c9ba20444251860ec36f93e9b5f75e3d7df9e48d5c2558ddfc"
+      },
+      {
+        "bytes": 12800,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/clang/lib/Interpreter/IncrementalParser.cpp",
+        "sha256": "bb0e0b418c754cb45428bf40ec7b889d751ae7af5286ca419fd63bcba588b7e1"
+      },
+      {
+        "bytes": 15141,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/LICENSE.TXT",
+        "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+      },
+      {
+        "bytes": 25913,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/Analysis/CGSCCPassManager.h",
+        "sha256": "755b987d7263df484aaeabd43ac4132817237ac3c021bd90989bbd938fa84bef"
+      },
+      {
+        "bytes": 41299,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/AsmPrinter.h",
+        "sha256": "4bab664d41a78f4b65a4d307a48d83966af291a9f2bd4b65cfb3c8c46cd31027"
+      },
+      {
+        "bytes": 4093,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/MIRParser/MIRParser.h",
+        "sha256": "ef193d5a3b17b03f0c09a55cb0ab326a3d420623200ba72ef90a2e3f3d7d7791"
+      },
+      {
+        "bytes": 3006,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/MIRPrinter.h",
+        "sha256": "d7bd5a96c8fdcf46f0e75e5852959af2cdee7cb058d0fb8baf2a1e5d4e6fd464"
+      },
+      {
+        "bytes": 3100,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/MachineFunctionPass.h",
+        "sha256": "6341da1f855009f84224e9368afc9ae5b8f5ab4aa0bed2805dc31083000d4ee5"
+      },
+      {
+        "bytes": 8307,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/MachineModuleInfo.h",
+        "sha256": "6d70882e225dd97470827245f1b9ae9b58cc2561004071106c82117cf30d7a7d"
+      },
+      {
+        "bytes": 20167,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/CodeGen/SelectionDAGISel.h",
+        "sha256": "2b92402b5c9b266ba856b45291fd2f2454892a6c0fa01af13ce492c109c87c18"
+      },
+      {
+        "bytes": 3383,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/LegacyPassManager.h",
+        "sha256": "011337907f7714a0081488c6d537d2c7cd0ec47500d024c5fe0c4499430f72c3"
+      },
+      {
+        "bytes": 18574,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/LegacyPassManagers.h",
+        "sha256": "912633318f08bd0f04abe192ebf3bcfe3a5dd8e78856246fdf25bf43fbfd7796"
+      },
+      {
+        "bytes": 14633,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/PassInstrumentation.h",
+        "sha256": "b6c984d638e15f0a93abf7cb59a994b22d596d501a7b86de4b44dd9513fd5f45"
+      },
+      {
+        "bytes": 40760,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/PassManager.h",
+        "sha256": "7e00839cadde74a1d2c1b964fee953737171966d75a76b4e740187b9f5694141"
+      },
+      {
+        "bytes": 8252,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/PassManagerImpl.h",
+        "sha256": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527"
+      },
+      {
+        "bytes": 12264,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/IR/PassManagerInternal.h",
+        "sha256": "92e41ad57b82925f2fa97c914557595be2619274e632d71a2da603eb002ad70d"
+      },
+      {
+        "bytes": 13743,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/Pass.h",
+        "sha256": "3ce381edb7031e130d5a62c22f0f095d4c1ede907d137d1b5c3e2215887a3cf7"
+      },
+      {
+        "bytes": 44078,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/Passes/PassBuilder.h",
+        "sha256": "6d272b11ad60e223b1f92c867db684e387b9347ff923ac95dba2eb2d30e11a8f"
+      },
+      {
+        "bytes": 261398,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/include/llvm/Transforms/IPO/Attributor.h",
+        "sha256": "9d64669e123e9568dd0db4cb514de57656768dc2df9c1afb0e1ae311c7bf88c8"
+      },
+      {
+        "bytes": 49635,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Analysis/CGSCCPassManager.cpp",
+        "sha256": "bb2bddf552ce8719d8569d59895def59cdddc617f3e8591345c30054f2a41c5b"
+      },
+      {
+        "bytes": 203935,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+        "sha256": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0"
+      },
+      {
+        "bytes": 51532,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/CodeGen/MIRParser/MIRParser.cpp",
+        "sha256": "918bfdbb9bbe60d56235aa410b5513fbd3813b17fabd1d24603e36cf0cee1d9d"
+      },
+      {
+        "bytes": 41784,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/CodeGen/MIRPrinter.cpp",
+        "sha256": "5842607bf0cbe54e90f79ee5677a8e1be0486f1aeb5491516b3aacdd902556c9"
+      },
+      {
+        "bytes": 6233,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+        "sha256": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d"
+      },
+      {
+        "bytes": 7468,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/CodeGen/MachineModuleInfo.cpp",
+        "sha256": "b7eba69591fdaec6f57f5046984d88ed41c169683b1aaedbc3b04caa7b30fa2e"
+      },
+      {
+        "bytes": 2961,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/ExecutionEngine/Orc/CompileUtils.cpp",
+        "sha256": "203c8eee44f00385c14b38aa9f5b7822fe350438a11f3c6aeae045a87160cb9d"
+      },
+      {
+        "bytes": 60364,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/IR/LegacyPassManager.cpp",
+        "sha256": "0063f62e4c7cce497e03231167c72f41a7cab719af50b1638d7b9ecb4155bc6d"
+      },
+      {
+        "bytes": 6397,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/IR/PassManager.cpp",
+        "sha256": "1013d22535dda019bc70d8b5a5ea92b55e0e68dd1d2a1fa9af9abcb39380e230"
+      },
+      {
+        "bytes": 100569,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/LTO/LTO.cpp",
+        "sha256": "736ca45cdf7207894201bca604479189e2cf6a8bcc8177b395bb790f495008a8"
+      },
+      {
+        "bytes": 33718,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/LTO/LTOBackend.cpp",
+        "sha256": "3a476321bda815e21937f13e8a486055756be7fe792794bd56c707dd595b1542"
+      },
+      {
+        "bytes": 125359,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Passes/PassBuilder.cpp",
+        "sha256": "927139574b7c7a67fe4de9f2dc66786be9d279acbb65685be0c49b9f01474dcb"
+      },
+      {
+        "bytes": 110681,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Passes/PassBuilderPipelines.cpp",
+        "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+      },
+      {
+        "bytes": 43320,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86AsmPrinter.cpp",
+        "sha256": "6e5bd89265445e1cb1f4b450a1eda4c79fbec46156a6128839ec0938fdb8dc76"
+      },
+      {
+        "bytes": 2652630,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86ISelLowering.cpp",
+        "sha256": "cd9caa080e17374222add217b82cac80b40f1a3eee5a2535820cf38813495dab"
+      },
+      {
+        "bytes": 130483,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86ISelLoweringCall.cpp",
+        "sha256": "4cdacbf4e5fb4865f5819f13a380dfde943db1e204cd3f17832eb6e487ab055c"
+      },
+      {
+        "bytes": 1809,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86MachineFunctionInfo.cpp",
+        "sha256": "a6ba2d7ae5896d295c81eb3226093b706a0c77972c39e76091203051e31d5f1f"
+      },
+      {
+        "bytes": 13403,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86MachineFunctionInfo.h",
+        "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc"
+      },
+      {
+        "bytes": 24227,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Target/X86/X86TargetMachine.cpp",
+        "sha256": "6efb2a39ae2127e2ec628751b832c39b011930a314c090edee6c715ccc665d72"
+      },
+      {
+        "bytes": 159260,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Transforms/IPO/Attributor.cpp",
+        "sha256": "b077e5bab79246b4fd925d01fff0f9fec18b37a9f363caf667c4282701542013"
+      },
+      {
+        "bytes": 95923,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Transforms/IPO/FunctionImport.cpp",
+        "sha256": "0f74726ac3f8e742aea1c83e75667c831aba37a68f2fd45daf4ddc908c2e268d"
+      },
+      {
+        "bytes": 176048,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/llvm/lib/Transforms/Scalar/NewGVN.cpp",
+        "sha256": "05d71211e5ad22c772365dd56636c3330bc0dc3e6b4ad0818c417ef5e511754e"
+      },
+      {
+        "bytes": 1659,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-2.json",
+        "sha256": "b8b42176fe0f80aabd08fcb6cdb3de2032e1159cb71ac5d7cb6e3841667a409c"
+      },
+      {
+        "bytes": 851,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-3.json",
+        "sha256": "e7955c7c7d4124ee75682d5dd862e8701db5ea24dc940f38a4a880b9f511f158"
+      },
+      {
+        "bytes": 288,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-4.json",
+        "sha256": "e78c3fef4ce82e5c8093132d712fd32741ecbb200cb7712fbb39dc0e973372ce"
+      },
+      {
+        "bytes": 3348,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-5.json",
+        "sha256": "3bdf24df88f01b17323e8949a87ef4af22a6157f682b2a0c6ac8e4b68b0cca36"
+      },
+      {
+        "bytes": 1433,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-6.json",
+        "sha256": "671124060843022c4995761a3f1f888ece9a53de8753689f6075796c4b8535ac"
+      },
+      {
+        "bytes": 280,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-7.json",
+        "sha256": "cd6e7cd0088f445bf5ff4ef2369ef8e5e8809749fabeb65b6d02e39ca01d26bf"
+      },
+      {
+        "bytes": 291,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-8.json",
+        "sha256": "235b46cc96849a6cfa63aa332ce06700c11330d87eba23bbf1c60a979d5bd912"
+      },
+      {
+        "bytes": 284,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest-9.json",
+        "sha256": "7ae9b039c0026c710983f0d1760475bec25363468826bd4616541c0c9d36d160"
+      },
+      {
+        "bytes": 3550,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23-runtime/source-manifest.json",
+        "sha256": "30f4893a22469880f8c0905d781a1469767965f556e07c6edc03ae687ed2768c"
+      },
+      {
+        "bytes": 25913,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/Analysis/CGSCCPassManager.h",
+        "sha256": "755b987d7263df484aaeabd43ac4132817237ac3c021bd90989bbd938fa84bef"
+      },
+      {
+        "bytes": 14633,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/IR/PassInstrumentation.h",
+        "sha256": "b6c984d638e15f0a93abf7cb59a994b22d596d501a7b86de4b44dd9513fd5f45"
+      },
+      {
+        "bytes": 40760,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/IR/PassManager.h",
+        "sha256": "7e00839cadde74a1d2c1b964fee953737171966d75a76b4e740187b9f5694141"
+      },
+      {
+        "bytes": 8252,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/IR/PassManagerImpl.h",
+        "sha256": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527"
+      },
+      {
+        "bytes": 12264,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/IR/PassManagerInternal.h",
+        "sha256": "92e41ad57b82925f2fa97c914557595be2619274e632d71a2da603eb002ad70d"
+      },
+      {
+        "bytes": 44078,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/include/llvm/Passes/PassBuilder.h",
+        "sha256": "6d272b11ad60e223b1f92c867db684e387b9347ff923ac95dba2eb2d30e11a8f"
+      },
+      {
+        "bytes": 49635,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/lib/Analysis/CGSCCPassManager.cpp",
+        "sha256": "bb2bddf552ce8719d8569d59895def59cdddc617f3e8591345c30054f2a41c5b"
+      },
+      {
+        "bytes": 6397,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/lib/IR/PassManager.cpp",
+        "sha256": "1013d22535dda019bc70d8b5a5ea92b55e0e68dd1d2a1fa9af9abcb39380e230"
+      },
+      {
+        "bytes": 125359,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/lib/Passes/PassBuilder.cpp",
+        "sha256": "927139574b7c7a67fe4de9f2dc66786be9d279acbb65685be0c49b9f01474dcb"
+      },
+      {
+        "bytes": 110681,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/llvm/lib/Passes/PassBuilderPipelines.cpp",
+        "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+      },
+      {
+        "bytes": 2872,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/llvm23/source-manifest.json",
+        "sha256": "25106123fc7fcdffd507184a914ecd9f7e5a3a73897ddcd4c996fd5aae51976a"
+      },
+      {
+        "bytes": 14695,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/CMakeLists.txt",
+        "sha256": "119607ae3d7853079e9a81845acfcbdae41082475092f8f9ace38fa752176630"
+      },
+      {
+        "bytes": 11358,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "bytes": 4031,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/README.md",
+        "sha256": "776d67a755a5988f43a6740714dcf868462d88ffde0bdd0d4c18d686a93ce647"
+      },
+      {
+        "bytes": 4200,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/include/souper/Extractor/Solver.h",
+        "sha256": "9ee03d0e8617c7eb26c8e6e9c8138356a4b4850dfe6216636ef6e4034449d0b6"
+      },
+      {
+        "bytes": 1689,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/include/souper/SMTLIB2/Solver.h",
+        "sha256": "55259988db27803ff3e144a9f2377e882df94aa5bc010cc09651e493b91a1e6c"
+      },
+      {
+        "bytes": 2598,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/include/souper/Tool/GetSolver.h.in",
+        "sha256": "7c59fbe13c62415d651b36b9e029f9b2b105dcc6f516498e871e8ab7022c7727"
+      },
+      {
+        "bytes": 37285,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/lib/Extractor/Solver.cpp",
+        "sha256": "90295bb4abb3467c178b42a61254ba328d80f6a0b160a1d053fddfaf073947d4"
+      },
+      {
+        "bytes": 52851,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/lib/Infer/InstSynthesis.cpp",
+        "sha256": "191880d528035ef7841804669aa09cfd70a22322ef12a060be3d71c89cb96d92"
+      },
+      {
+        "bytes": 4945,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/lib/KVStore/KVStore.cpp",
+        "sha256": "cbc22eda0eb906a1c415b4c059dbb37deab654f37e69b7ea7b9b2af448a3ba33"
+      },
+      {
+        "bytes": 16219,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/lib/Pass/Pass.cpp",
+        "sha256": "8ed92349b8fdb0cc783b1d09d1d7be89c75af20ff453b4f8cd257d7ee42a1535"
+      },
+      {
+        "bytes": 10865,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/lib/SMTLIB2/Solver.cpp",
+        "sha256": "41723d94984aa05732d0c1e8afa1e8ed35f45358341c7f70313f09604198546c"
+      },
+      {
+        "bytes": 1079,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/source-manifest-2.json",
+        "sha256": "6c8a71a9776daac6abdb32704344465c35a33ae657a56d9383454a0472a43ff2"
+      },
+      {
+        "bytes": 987,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/source-manifest-3.json",
+        "sha256": "2b839d61d64ba8c26700ff393eea97d73fd6327015c32b1f82a5baa9f65cd2bc"
+      },
+      {
+        "bytes": 1721,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/souper/source-manifest.json",
+        "sha256": "554bf53a22bbc31672306b39e73d2e4cd47bc8e702371bf14204785f7f47ea5d"
+      },
+      {
+        "bytes": 1253,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig-source-manifest.json",
+        "sha256": "1138830fcffb121f7dd818f50a38ecc1101f5541387aedff89293495ce85cbb3"
+      },
+      {
+        "bytes": 1080,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig/LICENSE",
+        "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
+      },
+      {
+        "bytes": 53457,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig/src/codegen.zig",
+        "sha256": "45c0543a5921be079cb6ecca098c14a0d81d2196bd2ac4ab8bbeecdc4bfe68a7"
+      },
+      {
+        "bytes": 91225,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig/src/link.zig",
+        "sha256": "2a80d417d291d9d046efb5eb9014c9b37c60a15add2f1fd9e84c2ff9a72b1f3b"
+      },
+      {
+        "bytes": 159351,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig/src/link/Elf.zig",
+        "sha256": "131e3b6507b6dff4b4823403f1a24398a49e9bf2583d911318548a6d8e0c84b2"
+      },
+      {
+        "bytes": 95412,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/official-sources/zig/src/link/Elf/ZigObject.zig",
+        "sha256": "8c6faeb4ee47d50495e82a66a5ea9691ec376bc10aa936c380d6bef441714469"
+      },
+      {
+        "bytes": 6455,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/reviews/llvm-function-products-hook-v1-pre-review.json",
+        "sha256": "2989028cce713d1018ad9b80051d1555fb1dc12ff6102762e2cf72300e519942"
+      },
+      {
+        "bytes": 5255,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/reviews/persistent-ir-review-a05fa3fc.json",
+        "sha256": "678b85dbce88dabbdf6e2fe3fb51f2ef779212e8276c86f2d5a911b27ba127e6"
+      },
+      {
+        "bytes": 6635,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/reviews/push-frontend-review-755147571.json",
+        "sha256": "151eda0e6f01dc21874171fdc8178e12a5fb780a204c8094c73b0233a2f51eef"
+      },
+      {
+        "bytes": 2764,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/reviews/push-lower-pre-review-b525e4d0.json",
+        "sha256": "996cc5c8afc476a60384a6bdb71a31e41bddd15358a6936d28de33c3bcdb0c24"
+      },
+      {
+        "bytes": 688,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-disk-recovery-01.json",
+        "sha256": "4eaea4567091b4ff06ff7062561f05398c3e552abe5ab7d7a702362da744316d"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-integration-check-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 1797,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-integration-check-01.log",
+        "sha256": "7c0bd4b4cd83dcb1eb4ba1b45754f3885a0843b668c6ac3107e4859ec6e8578e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-integration-check-02.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 663,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-integration-check-02.log",
+        "sha256": "25daaa7e148ba1fd7915e6efcbc01368c5ddefeb6f2bb5af817a98e404832d03"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-workspace-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 8319,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/full-push-workspace-01.log",
+        "sha256": "d402c9b6a2d9a95cf05a6b92542d1afe0fe8537f0647292185d373d5541d4aaf"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-function-products-build-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 121,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-function-products-build-01.log",
+        "sha256": "d7d407a783723d66368aa10c5e2ed8d73aee254cbd8daedbba70107ee6570789"
+      },
+      {
+        "bytes": 599,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-installer-headers-help.log",
+        "sha256": "36f00d630e2bbc5e9c411d377562733f6e678b428da595e826c5900e3f4613e8"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-sdk-headers-download-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 2135,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-sdk-headers-download-01.log",
+        "sha256": "9495c7d9d87729ab034e0c0758415e164d92ba73785e63fded794743e2d72194"
+      },
+      {
+        "bytes": 548,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-sdk-headers-extract-01.json",
+        "sha256": "ceeadb6adeb008cdffa432809b2d7c94209c1c0c4b4f4dbee7e0642909ce1b3c"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/llvm-sdk-headers-extract-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-check-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 1271,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-check-01.log",
+        "sha256": "4b481671f7a0d36d8ab760286b7771d30ad9e41718c7b6549a238396b457f87c"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-check-02.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 48138,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-check-02.jsonl",
+        "sha256": "c3fba7f2f839b237970646ec58dd42ef76edd9ce80f1d2258f190f172bbe24d3"
+      },
+      {
+        "bytes": 470,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-check-02.stderr",
+        "sha256": "e7cf5602b578dbc6f1c30e4f8db610dbfd5bd8a2dcd1e4593643927dd3b56f4e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-delta-tests-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 575,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-delta-tests-01.log",
+        "sha256": "76d09bd896d32d3dd6d311cd715e4c8731f1f9d8d9af9be621753698814b3b83"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 2547,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-01.log",
+        "sha256": "ab961b03eb3c0e41f4d182ef27ca047c2ea0def0b5d50d6148dca4ae18db819f"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-02.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 1053,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-02.log",
+        "sha256": "ddcbb2124064a79613570921569edc24dd49c796458f6a904c9bf88b0b720180"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-03.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 994,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-03.log",
+        "sha256": "00bf05d374fa72048a226dc31f142ef8ae5a106ee838305e8ee5d3fc55b7cb10"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-04.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 10644,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/persistent-ir-tests-04.log",
+        "sha256": "b5c0e0d3e8e8ca1bf4b2e0982cbcfd6fe96bd446661c9479301cbdd228e413fe"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-analyze-tests-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 144694,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-analyze-tests-01.jsonl",
+        "sha256": "33acafa5e8f20f0d35257f2dfba06f71f668a13dbc22b413af9220580611a4bd"
+      },
+      {
+        "bytes": 321,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-analyze-tests-01.stderr",
+        "sha256": "493304b37fa905411116ada85c7f61aaf15833a3783639e94dd677fc1478b8ef"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-consumers-integrated-02.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 142936,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-consumers-integrated-02.log",
+        "sha256": "2c500f89d093d515aa27ba89a9f961620a9a4c65803a0e7839edc389dfd51fa1"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-db-tests-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 3934,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-db-tests-01.log",
+        "sha256": "b8737f7436b57983dc24ef6bc03b6abfd4dfd44c3a4356c7784bb1551048896f"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-driver-consumers-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 570,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-driver-consumers-01.log",
+        "sha256": "d815484ef1fba6633b6a9ea8f15ff1a17816bff230a1f0f2c837294ffa1e3b39"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-frontend-tests-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 74539,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-frontend-tests-01.jsonl",
+        "sha256": "c03c30ab6262365e6be9fb36dfaefae6a6729327f4b2645b716ae22ae199422c"
+      },
+      {
+        "bytes": 2887,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-frontend-tests-01.stderr",
+        "sha256": "70937296cc17aadb90359db682519ab87bc7c61b8c433b32f7cdefecf685b3e9"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-03.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 40291,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-03.jsonl",
+        "sha256": "1c325a68b8121e88991a11fdb7edfab72853a9fe742f5bac7389d2ca5667bba6"
+      },
+      {
+        "bytes": 495,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-03.stderr",
+        "sha256": "3e3b192881065787a7cfacf5ab0c6d148f443f5ae460d2c178df93f4b9309c41"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-04.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 168757,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-04.jsonl",
+        "sha256": "522d63c7e54c8542606e0aad0bf5c4cd16818eeabfbf9866296dc891a2d2642d"
+      },
+      {
+        "bytes": 1029,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-04.stderr",
+        "sha256": "51b49a718c3864228d2b1b5693a1251c08bdc2ad3733efa2276af55a2a395cff"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-05.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 213220,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-05.jsonl",
+        "sha256": "c710ff9e91ab807715ddfb8637ea9b688e29e377fb2bdcebce749dc51199af3a"
+      },
+      {
+        "bytes": 1119,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-05.stderr",
+        "sha256": "e09396f9f5573ba472bbf8bdaa6f0305ee9612aa39d46a4cdaffee3a4cfc4493"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-06.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 105529,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-06.jsonl",
+        "sha256": "55e62df879024d1400d7773d82392974bd3b95b0f7f369cdfc435b5f44813c80"
+      },
+      {
+        "bytes": 1043,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-06.stderr",
+        "sha256": "4b8d9ee5138f6c9a0bc59b15a6a38e518faf9e8d543104bdf158b6f90edf60ff"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-07.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 118931,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-07.jsonl",
+        "sha256": "334a5326455edb62863f66998864047a6f7f20af1e5ed9503efecebf8857abc2"
+      },
+      {
+        "bytes": 1053,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-07.stderr",
+        "sha256": "b2149249793c9003075d6c5143a12c8801aa62a33f9c0f4abbb3c78b7fab118e"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-08.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 352756,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-08.jsonl",
+        "sha256": "0f20f9651fc2f94da970518a05af229933baad8828a356de02e95792d1d3e132"
+      },
+      {
+        "bytes": 1580,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-integration-check-08.stderr",
+        "sha256": "91fcf11e7a5031ebebe3116fe7de927f60786c6d3e5d53e8f5917230153bf310"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-matched-tools-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 98,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-matched-tools-01.log",
+        "sha256": "6b2dd024ebe095abc5bc107d2909634b290f954c40ca86c4c41adc662dfd3d42"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-01.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 26992,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-01.jsonl",
+        "sha256": "ba775bc9ecddc912a90d6468bfaf70bcf78e52a0691dbaedb17e3733cf64a57b"
+      },
+      {
+        "bytes": 448,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-01.stderr",
+        "sha256": "6a88e8d480b0b1e3f5f9f228b4c96fd30cd119105325d674eafc556582e768da"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-02.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 1972,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-02.log",
+        "sha256": "d5d038347458372844645b680aeea1a55f20fea4bf1aa422aeb9ee25645dabfa"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-03.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 2377,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-03.log",
+        "sha256": "356272088e827e1bdd900698f85e5c89e8c6497679a43946d8f01c7b31463a02"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-04.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-04.jsonl",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 224,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-04.stderr",
+        "sha256": "8c39be0ece75bd48de52799fdefe3aef3bbef4fabb8913fc4ffa16fe8d202927"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-05.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 42943,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-05.jsonl",
+        "sha256": "c0a6507c7c5668cf021bb7a21712da924f204ef67d75bcc7e03b13129478acfb"
+      },
+      {
+        "bytes": 591,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-05.stderr",
+        "sha256": "b6c0c527c9a275a670f5d0fa8da05e19578f8d26721257a397c0122623feb95a"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-06.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 159556,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/runs/push-middle-tests-06.log",
+        "sha256": "86d8703283fcaa44848b053b0e3ab19dd5077854f60f69ac58c73ce916ceb547"
+      },
+      {
+        "bytes": 365,
+        "mode": 384,
+        "path": "out/evidence/full-push-checkpoint-01/scope.json",
+        "sha256": "418d100d426c26c05d72afaa6f91907410d36b36b80c2a59f4165c732362d8fe"
+      }
+    ],
+    "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+    "schema": 1,
+    "scope": "Intermediate full-push implementation checkpoint; failures retained, native enabled consumers and performance not yet accepted",
+    "source_commits": {
+      "candidate": "4d90add5117cf4d68c3f9cbdd435c381819bf692"
+    }
+  },
+  "inventory_sha256": "2884e8c0171a8213a51ae9c733e40d074c50c948df33c1d4ff88b5e412c7992f",
+  "schema": 1,
+  "selectors": [
+    "out/evidence/full-push-checkpoint-01/**"
+  ],
+  "source_root": "/workspace/zil-push-main"
+}
