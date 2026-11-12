@@ -105,10 +105,10 @@ impl generics::products::Products {
                         for ty in &row.returned.parameters {
                             crate::stored_types::pay_type(ty, &mut budget, item.span, 0)?;
                         }
-                        *hidden = Box::new(Type::FunctionPointer {
+                        **hidden = Type::FunctionPointer {
                             parameters: row.returned.parameters.clone(),
                             result: Box::new(row.returned.result.clone()),
-                        });
+                        };
                         function.source_scope = Some(row.scope);
                         function.callable_return = Some(row.returned);
                     }
