@@ -48,6 +48,7 @@ pub struct AnalysisSession {
     shared: Option<Arc<SharedEntry>>,
     pub(super) stats: AnalysisStats,
     pub(super) product: Option<crate::product::Epoch>,
+    pub(super) product_complete: Option<Arc<crate::product::Complete>>,
     pub(super) product_capture: Option<crate::product::Recording>,
     pub(super) product_changes: Vec<AnalysisFunctionResult>,
 }
@@ -157,6 +158,11 @@ impl AnalysisSession {
         // A later resource/effect error must not publish partially computed
         // initialization queries. The previous complete epoch remains intact.
         if let Ok(plan) = &result {
+            if !structural {
+                self.product = None;
+                self.product_complete = None;
+                self.product_changes.clear();
+            }
             self.product_capture = structural.then(|| crate::product::Recording {
                 costs: std::mem::take(&mut budget.product_costs),
                 cost: limits.max_analysis_steps - budget.remaining(),

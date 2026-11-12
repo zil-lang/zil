@@ -7,9 +7,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use zil_base::{Fingerprint, FingerprintBuilder};
 
+#[derive(Clone)]
 pub(super) struct Recording {
     pub(super) costs: Vec<[usize; 5]>,
     pub(super) cost: usize,
+}
+pub(super) struct Complete {
+    program: Arc<TypedProgram>,
+    candidate: Arc<CandidatePlan>,
+    limits: Limits,
 }
 #[derive(Clone)]
 struct Row {
@@ -251,7 +257,7 @@ impl Epoch {
             let callees = closed(function)?;
             for id in &callees {
                 let callee = program.module.functions.get(id.0 as usize)?;
-                if callee.id != *id || closed(callee).is_none() {
+                if callee.id != *id {
                     return None;
                 }
                 readers[id.0 as usize].insert(index);
@@ -315,7 +321,7 @@ impl Epoch {
                     .module
                     .functions
                     .get(id.0 as usize)
-                    .is_none_or(|f| f.id != *id || closed(f).is_none())
+                    .is_none_or(|f| f.id != *id)
             }) {
                 return None;
             }
@@ -466,12 +472,33 @@ impl AnalysisSession {
         program: &Arc<TypedProgram>,
         limits: &Limits,
     ) -> CompileResult<Arc<CandidatePlan>> {
+        if let Some(complete) = &self.product_complete
+            && Arc::ptr_eq(&complete.program, program)
+            && complete.limits == *limits
+        {
+            self.stats = AnalysisStats {
+                shared_program_reuses: 1,
+                product_function_queries_reused: program.module.functions.len(),
+                product_global_obligations_reused: 1,
+                candidate_reused_functions: program.module.functions.len(),
+                equal_function_results: program.module.functions.len(),
+                ..AnalysisStats::default()
+            };
+            self.product_changes.clear();
+            self.function_results = Arc::default();
+            return Ok(complete.candidate.clone());
+        }
         if let Some((next, stats, changes)) = self
             .product
             .as_ref()
             .and_then(|old| old.update(program, limits))
         {
             let result = next.candidate.clone();
+            self.product_complete = Some(Arc::new(Complete {
+                program: program.clone(),
+                candidate: result.clone(),
+                limits: limits.clone(),
+            }));
             self.product = Some(next);
             self.stats = stats;
             self.product_changes = changes;
@@ -488,6 +515,11 @@ impl AnalysisSession {
             .take()
             .expect("successful internal recording");
         self.product = Epoch::new(program, candidate.clone(), limits, recording);
+        self.product_complete = Some(Arc::new(Complete {
+            program: program.clone(),
+            candidate: candidate.clone(),
+            limits: limits.clone(),
+        }));
         self.stats.product_admission_functions_checked = program.module.functions.len();
         self.stats.product_function_queries_executed = program.module.functions.len();
         self.stats.product_global_obligations_executed = 1;
