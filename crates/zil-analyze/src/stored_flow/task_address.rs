@@ -182,7 +182,7 @@ pub(super) fn source_binding(
     let HoldRoot::Parameter(index) = source.base else {
         return Err(failure("Task result source is not an external input"));
     };
-    if let Some(origin) = source.retained_port {
+    if let Some(origin) = &source.retained_port {
         let PortOrigin::Task(port) = origin else {
             return Err(failure("Dyn dependency cannot use a Task port relation"));
         };
@@ -190,7 +190,7 @@ pub(super) fn source_binding(
             .storage_life
             .as_ref()
             .ok_or_else(|| failure("Task input omits complete retained relation"))?;
-        let path = key(&source.stored, port);
+        let path = key(&source.stored, *port);
         fee(b, c.bindings.len().saturating_add(path.len()))?;
         c.bindings
             .iter()
