@@ -138,7 +138,7 @@ pub(super) fn store_element_roots(
     let mut output = Vec::with_capacity(source.len());
     let mut width = None;
     for root in source {
-        let normalized = if budget.nested_store_windows {
+        let normalized = if budget.store_descriptions() {
             match *root {
                 Root::Local(local) if matches!(local_type(function, local, None)?, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
                 {
@@ -188,7 +188,7 @@ pub(super) fn store_element_roots(
         output.push(match normalized {
             Root::Window(origin, header_start, header_end)
             | Root::StoreElementWindow(origin, header_start, header_end, _, _)
-                if budget.nested_store_windows || matches!(normalized, Root::Window(..)) =>
+                if budget.store_descriptions() || matches!(normalized, Root::Window(..)) =>
             {
                 let payload_end = if let Some(width) = width {
                     width
@@ -309,7 +309,7 @@ pub(super) fn store_option_root(
     let head = match ty {
         Type::Managed(head) => head,
         Type::Desc(head)
-            if budget.nested_store_windows
+            if budget.store_descriptions()
                 && matches!(source.base, HoldRoot::Parameter(_))
                 && source.inline.is_empty() =>
         {
@@ -359,7 +359,7 @@ pub(super) fn store_option_root(
             Some(Type::Managed(inner.clone()))
         }
         Type::Desc(inner)
-            if budget.nested_store_windows
+            if budget.store_descriptions()
                 && matches!(
                     inner.as_ref(),
                     Type::Record { .. } | Type::OwnedStore { .. }
@@ -372,7 +372,7 @@ pub(super) fn store_option_root(
     };
     let expected = match result_type {
         Type::Desc(_) if descriptor_head.is_some() => descriptor_head.as_ref().unwrap(),
-        Type::Address { mutable, inner } if !mutable || budget.nested_store_windows => {
+        Type::Address { mutable, inner } if !mutable || budget.store_descriptions() => {
             inner.as_ref()
         }
         Type::BorrowedStorage { storage, .. } => {
