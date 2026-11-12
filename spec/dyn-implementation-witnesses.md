@@ -145,3 +145,28 @@ including local life shapes and their actual class maps; equal layouts do not
 suffice. ConstEqual independently evaluates both original recipes in its exact
 substituted carrier and compares the complete canonical value and bits. A method
 that never mentions Item or COUNT does not discharge these original premises.
+
+Complete signature and Self recipes contain explicit scoped lifetimes on every
+Address constructor. Source resolves elision before proposing these records;
+None remains Unknown and cannot ask a kernel to invent a common or fresh class.
+Type parameters substitute their complete type values instead of using an
+unscoped Address placeholder.
+
+Trait method recipe ordinals index the trait's original member list. An impl's
+member list keeps its own original source order; its associated definitions and
+method definition ordinals index that impl list. An ImplOverride resolution
+names this own impl ordinal, while the resolved member and public slot keep the
+actual trait application and original trait ordinal. Establish the complete
+implemented-trait application, then match unique real member names and kinds
+inside those declarations. Neither equal ordinals nor generated entry names
+establish the association. Impl method signatures live in definition recipes;
+the impl's method_signatures inventory is explicitly empty.
+
+A definition specialization and its matching function-instance record use that
+exact target function's own Fixed/Invocation domain. They agree there before
+relating the target to an interface. The provider's actual complete Self class
+relation maps entry Fixed classes into Context. Full original signature and
+specialization substitution determine permissible entry Invocation mappings,
+including a phantom argument instantiated into Context Fixed. An entry's local
+binder number alone cannot be interpreted as an interface binder. This permits
+one real entry to serve different correctly proved Context class mappings.
