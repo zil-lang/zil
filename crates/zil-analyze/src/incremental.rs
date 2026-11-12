@@ -45,7 +45,7 @@ pub struct AnalysisSession {
     entries: Arc<BTreeMap<Input, Arc<Entry>>>,
     candidate_entries: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Entry>>>,
     resource_entries: resources::incremental::State,
-    initialization_items: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>>,
+    pub(super) initialization_items: Arc<BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>>,
     pub(super) function_results: Arc<Vec<AnalysisFunctionResult>>,
     shared: Option<Arc<SharedEntry>>,
     pub(super) stats: AnalysisStats,
@@ -271,7 +271,7 @@ pub(super) struct Input {
 }
 
 impl Input {
-    fn of(function: &TypedFunction) -> Self {
+    pub(super) fn of(function: &TypedFunction) -> Self {
         Self {
             locals: function.locals.len(),
             parameters: function.parameters.clone(),

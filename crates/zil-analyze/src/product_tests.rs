@@ -91,6 +91,11 @@ fn product_consumes_only_changed_raw_items_and_preserves_equal_plan_owners() {
     let mut session = AnalysisSession::default();
     let cold = run(&mut session, &source, &limits);
     let cold_results = session.last_product_changes().to_vec();
+    let old_initialization = session.product.as_ref().unwrap().rows[0]
+        .initialization
+        .as_ref()
+        .unwrap()
+        .clone();
     assert_eq!(session.last_stats().product_admission_functions_checked, 3);
     let warm = run(&mut session, &source, &limits);
     assert!(Arc::ptr_eq(&cold, &warm));
@@ -100,6 +105,15 @@ fn product_consumes_only_changed_raw_items_and_preserves_equal_plan_owners() {
     assert_ne!(cold.module_fingerprint, next.module_fingerprint);
     assert_eq!(session.last_stats().product_admission_functions_checked, 1);
     assert_eq!(session.last_stats().product_function_queries_executed, 1);
+    assert_eq!(session.last_stats().executed_functions, 0);
+    assert_eq!(session.last_stats().reused_functions, 1);
+    assert!(Arc::ptr_eq(
+        &old_initialization,
+        session.product.as_ref().unwrap().rows[0]
+            .initialization
+            .as_ref()
+            .unwrap()
+    ));
     assert_eq!(session.last_stats().product_function_queries_reused, 2);
     assert_eq!(session.last_stats().product_global_obligations_reused, 1);
     assert_eq!(session.last_stats().product_plan_rows_replaced, 0);
@@ -279,6 +293,24 @@ fn changed_aggregate_counts_update_fees_and_result_rows_without_replaying_other_
     let next = run(&mut session, &changed, &normal);
     assert_eq!(session.last_stats().product_function_queries_executed, 1);
     assert_eq!(next.functions.changed_indices(&cold.functions), vec![0]);
+    let current_initialization = session.product.as_ref().unwrap().rows[0]
+        .initialization
+        .as_ref()
+        .unwrap()
+        .clone();
+    let mut literal_only = (*changed).clone();
+    literal_only.module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(901));
+    run(&mut session, &Arc::new(literal_only), &normal);
+    assert_eq!(session.last_stats().executed_functions, 0);
+    assert_eq!(session.last_stats().reused_functions, 1);
+    assert!(Arc::ptr_eq(
+        &current_initialization,
+        session.product.as_ref().unwrap().rows[0]
+            .initialization
+            .as_ref()
+            .unwrap()
+    ));
     let epoch = session.product.as_ref().unwrap();
     let exact = epoch.total.total.cost + epoch.global_cost;
     for work in [exact, exact - 1] {

@@ -25,6 +25,7 @@ struct Row {
     admission_cost: usize,
     dependencies: Fingerprint,
     span_sensitive: bool,
+    initialization: Option<Arc<candidate_queries::InitializationEntry>>,
 }
 #[derive(Clone, Copy, Default)]
 struct Total {
@@ -302,6 +303,7 @@ impl Epoch {
         candidate: Arc<CandidatePlan>,
         limits: &Limits,
         recording: Recording,
+        initialized: &BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>,
     ) -> Option<Self> {
         if !global(&program.module, program) || program.module.functions.is_empty() {
             return None;
@@ -333,6 +335,9 @@ impl Epoch {
                 admission_cost: recording.costs[index][0].checked_add(recording.costs[index][1])?,
                 dependencies: fingerprint_reads(&program.module, &callees),
                 span_sensitive: local.span_sensitive,
+                initialization: initialized
+                    .get(&function.id)
+                    .map(|entry| entry.value.clone()),
             });
             totals.push(Total::function(function, cost)?);
         }
@@ -490,8 +495,15 @@ impl Epoch {
             // original complete traversal; it must emit the original first error.
             let admission = admissions.remove(&index)?;
             let admission_cost = admission.cost;
-            let (result, cost, remaining) =
-                execute(&program.module, function, limits, admission, available).ok()?;
+            let (result, cost, remaining, initialization, reused_initialization) = execute(
+                &program.module,
+                function,
+                limits,
+                admission,
+                available,
+                prior.initialization.as_ref(),
+            )
+            .ok()?;
             available = remaining;
             for id in &prior.callees {
                 if !callees.contains(id) {
@@ -530,9 +542,12 @@ impl Epoch {
                     admission_cost,
                     dependencies,
                     span_sensitive: local.span_sensitive,
+                    initialization,
                 },
             );
-            stats.executed_functions += usize::from(function.foreign.is_none());
+            stats.reused_functions += usize::from(reused_initialization);
+            stats.executed_functions +=
+                usize::from(function.foreign.is_none() && !reused_initialization);
             stats.product_function_queries_executed += 1;
         }
         for &index in &relocated {
@@ -628,13 +643,21 @@ struct Admission {
     cost: usize,
     package: bool,
 }
+type ExecutedFunction = (
+    FunctionPlan,
+    usize,
+    usize,
+    Option<Arc<candidate_queries::InitializationEntry>>,
+    bool,
+);
 fn execute(
     module: &TypedModule,
     function: &TypedFunction,
     limits: &Limits,
     admission: Admission,
     available: usize,
-) -> CompileResult<(FunctionPlan, usize, usize)> {
+    prior: Option<&Arc<candidate_queries::InitializationEntry>>,
+) -> CompileResult<ExecutedFunction> {
     let Admission {
         mut budget,
         cost: admission_cost,
@@ -643,6 +666,8 @@ fn execute(
     budget.restrict_product_balance(available);
     let before = budget.remaining();
     budget.spend(1, "function analysis")?;
+    let mut initialization_product = None;
+    let mut reused_initialization = false;
     let (blocks, graph) = if function.foreign.is_some() {
         retained::check_function(module, function, &[], &mut budget)?;
         if !function.blocks.is_empty() || !function.values.is_empty() {
@@ -653,11 +678,31 @@ fn execute(
             (SharedVec::default(), SharedVec::default()),
         )
     } else {
+        let input = incremental::Input::of(function);
+        let reusable =
+            prior.filter(|old| old.input == input && old.value.cost <= budget.remaining());
+        let initialized = if let Some(old) = reusable {
+            budget.spend(old.value.cost, "cached product initialization")?;
+            initialization_product = Some(old.clone());
+            reused_initialization = true;
+            old.value.result.clone()
+        } else {
+            let before = budget.remaining();
+            let result = initialize(function, &mut budget)?;
+            initialization_product = Some(Arc::new(candidate_queries::InitializationEntry {
+                input,
+                value: Arc::new(incremental::Entry {
+                    cost: before - budget.remaining(),
+                    result: result.clone(),
+                }),
+            }));
+            result
+        };
         let Initialization {
             blocks,
             predecessors,
             reachable,
-        } = initialize(function, &mut budget)?;
+        } = initialized;
         retained::check_function(module, function, &reachable, &mut budget)?;
         address_sums::check(module, function, &reachable, limits, &mut budget)?;
         mixed_address_sums::check(module, function, &reachable, limits, &mut budget)?;
@@ -685,6 +730,8 @@ fn execute(
         },
         admission_cost + before - budget.remaining(),
         budget.remaining(),
+        initialization_product,
+        reused_initialization,
     ))
 }
 impl AnalysisSession {
@@ -742,7 +789,13 @@ impl AnalysisSession {
             .product_capture
             .take()
             .expect("successful internal recording");
-        self.product = Epoch::new(program, candidate.clone(), limits, recording);
+        self.product = Epoch::new(
+            program,
+            candidate.clone(),
+            limits,
+            recording,
+            &self.initialization_items,
+        );
         self.product_complete = Some(Arc::new(Complete {
             program: program.clone(),
             candidate: candidate.clone(),
