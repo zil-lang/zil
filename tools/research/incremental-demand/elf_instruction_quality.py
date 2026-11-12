@@ -422,6 +422,17 @@ def deletion_evidence(row, index, cold):
     return removed, pending
 
 
+def publish_pair(record, identity, directory, state, pending, index_path):
+    record["valid"] = True
+    record["compiler_runtime_policy_identity"] = identity
+    dump(directory / "result.json", record)
+    state["units"].update(pending)
+    temporary_index = index_path.with_suffix(".tmp")
+    dump(temporary_index, state)
+    os.replace(temporary_index, index_path)
+    return record
+
+
 def compare_pair(pair, out):
     """Compare {'baseline': row, 'candidate': row}; out is shared RUN root.
 
@@ -451,6 +462,7 @@ def compare_pair(pair, out):
             path = Path(row["resident"]["report"]["artifacts"]["executable"])
             require(path.is_absolute() and path.resolve().is_relative_to(out), "ELF path escapes run")
             data = read_regular(path)
+            require(data[:6] == b"\x7fELF\x02\x01", "artifact is not ELF64 little-endian")
             sha = digest(data)
             arm_dir = root / "elf" / sha; arm_dir.mkdir(parents=True, exist_ok=True)
             elf = arm_dir / "addressed.elf"
@@ -459,11 +471,12 @@ def compare_pair(pair, out):
             else:
                 elf.write_bytes(data)
             raw[arm] = (data, sha, arm_dir, elf)
-            record[arm] = {"elf_sha256": sha, "bytes": len(data)}
+            record[arm] = {"elf_sha256": sha, "bytes": len(data),
+                           "artifact_directory": str(arm_dir.relative_to(out))}
             require(row.get("executable_sha256") == sha, "published ELF differs from row")
         for row in (baseline, candidate):
             report = row["resident"]["report"]
-            require(row.get("valid") is True and report.get("verification_runs") == 1 and
+            require(report.get("status") == "Success" and row.get("valid") is True and report.get("verification_runs") == 1 and
                     report.get("diagnostics") == [] and row.get("native") and
                     all(n.get("valid") is True for n in row["native"]), "pair has not passed current Verify/native checks")
         comparison_key = "llvm_comparison_sha256_excluding_identity_comment"
@@ -508,9 +521,19 @@ def compare_pair(pair, out):
             require(state["identity"] == pin, "compiler/runtime/contract identity changed")
         else:
             require(cold, "block has no validated fresh cold producer")
+        # Producer authority is required by BOTH result proofs. Byte equality
+        # cannot manufacture a current receipt or borrow another block's cache.
+        allowed, pending = deletion_evidence(candidate, state["units"], cold)
+        if raw["baseline"][0] == raw["candidate"][0]:
+            record.update(proof="raw_elf_identity", machine_normalization_used=False,
+                          machine_normalization_executed=False, deleted_functions=[],
+                          changed_functions=[], receipt_removed=sorted(allowed),
+                          scope="Complete addressed ELF byte equality after current input, Verify/native and producer checks; machine normalization was not executed")
+            return publish_pair(record, identity, directory, state, pending, index_path)
+        record.update(proof="normalized_retained_machine_identity", machine_normalization_used=True,
+                      machine_normalization_executed=False)
         normalized, abi = {}, {}
         for arm, row in (("baseline", baseline), ("candidate", candidate)):
-            require(row["resident"]["report"]["status"] == "Success", "quality called on failed request")
             data, sha, arm_dir, elf = raw[arm]
             analysis_file = arm_dir / "analysis.json"
             if analysis_file.exists():
@@ -540,6 +563,7 @@ def compare_pair(pair, out):
             abi[arm] = {"elf_header": image.elf_abi,
                         "interpreter": [s["data"].hex() for s in image.sections.values() if s["name"] == ".interp"]}
             normalized[arm] = json.loads(json.dumps(image.normalized(), sort_keys=True))
+            record["machine_normalization_executed"] = True
             dump(arm_dir / "normalized-functions.json", normalized[arm])
             transcript_sha = digest((arm_dir / "normalized-functions.json").read_bytes())
             evidence = {p.name: digest(read_regular(p)) for p in arm_dir.iterdir()
@@ -552,7 +576,6 @@ def compare_pair(pair, out):
                            "normalized_sha256": transcript_sha,
                            "artifact_directory": str(arm_dir.relative_to(out))}
         require(abi["baseline"] == abi["candidate"], "ELF target/ABI/interpreter changed")
-        allowed, pending = deletion_evidence(candidate, state["units"], cold)
         before, after = normalized["baseline"], normalized["candidate"]
         deleted, added = set(before) - set(after), set(after) - set(before)
         require(not added, "new candidate STT_FUNC definitions: " + repr(sorted(added)))
@@ -560,16 +583,10 @@ def compare_pair(pair, out):
         changed = [name for name in sorted(after) if after[name] != before[name]]
         record.update(deleted_functions=sorted(deleted), receipt_removed=sorted(allowed), changed_functions=changed)
         require(not changed, "retained machine instructions/CFG/ABI changed: " + repr(changed[:20]))
-        record["valid"] = True
-        record["compiler_runtime_policy_identity"] = identity
-        dump(directory / "result.json", record)
-        state["units"].update(pending)
-        temporary_index = index_path.with_suffix(".tmp")
-        dump(temporary_index, state)
-        os.replace(temporary_index, index_path)
-        return record
+        return publish_pair(record, identity, directory, state, pending, index_path)
     except (OSError, ValueError, RuntimeError, KeyError, TypeError, IndexError,
             OverflowError, struct.error, subprocess.TimeoutExpired) as error:
+        record["valid"] = False
         record["error"] = str(error)
         dump(directory / "result.json", record)
         raise QualityError(str(error)) from error

@@ -225,6 +225,45 @@ class PairIntegration(unittest.TestCase):
         with self.assertRaises(q.QualityError): q.compare_pair(self.pair('noop', 2, block=1, fresh=False), self.out)
         with self.assertRaises(q.QualityError): q.compare_pair(self.pair('cold', 0, block=2, fresh=False), self.out)
 
+    def test_raw_elf_identity_skips_decoder_but_never_producer_or_current_checks(self):
+        (self.out/'candidate').write_bytes((self.out/'baseline').read_bytes())
+        with patch.object(q, 'tool', side_effect=AssertionError('raw identity must not run analysis tools')), \
+             patch.object(q, 'Image', side_effect=AssertionError('raw identity must not decode')):
+            result = q.compare_pair(self.pair(), self.out)
+            self.assertTrue(result['valid'])
+            self.assertEqual(result['proof'], 'raw_elf_identity')
+            self.assertFalse(result['machine_normalization_used'])
+            self.assertFalse(result['machine_normalization_executed'])
+            index_path = self.out/'closed-machine-quality'/'producer-index-block-0.json'
+            self.assertEqual(len(json.loads(index_path.read_text())['units']), 1)
+            parent = self.pair('cold', 1, fresh=False)
+            for row in parent.values(): row['measured'] = False
+            self.assertTrue(q.compare_pair(parent, self.out)['valid'])
+            for number, mode in enumerate(['missing_receipt', 'cold_hit', 'cross_block_hit',
+                                            'unknown_object', 'verify', 'native', 'source', 'llvm',
+                                            'failed_status'], 2):
+                with self.subTest(mode=mode):
+                    pair = self.pair('noop', number, fresh=False)
+                    candidate = pair['candidate']
+                    report = candidate['resident']['report']
+                    if mode in {'missing_receipt', 'cold_hit'}:
+                        for row in pair.values(): row.update(request='cold', block=number)
+                        if mode == 'missing_receipt':
+                            report['native_codegen']['object_reports'][0]['cache']['state'] = 'miss'
+                    elif mode == 'cross_block_hit':
+                        for row in pair.values(): row['block'] = number
+                    elif mode == 'unknown_object':
+                        report['native_codegen']['object_reports'][0]['object_fingerprint'] = '0'*64
+                    elif mode == 'verify': report['verification_runs'] = 0
+                    elif mode == 'native': candidate['native'][0]['valid'] = False
+                    elif mode == 'source': candidate['source_identity_sha256'] = '0'*64
+                    elif mode == 'llvm': candidate['llvm_comparison_sha256_excluding_identity_comment'] = '0'*64
+                    elif mode == 'failed_status': report['status'] = 'SafeReject'
+                    with self.assertRaises(q.QualityError): q.compare_pair(pair, self.out)
+                    if mode in {'missing_receipt', 'cold_hit', 'cross_block_hit'}:
+                        self.assertFalse(index_path.with_name(f'producer-index-block-{number}.json').exists())
+            self.assertFalse(list((self.out/'closed-machine-quality'/'elf').glob('*/analysis.json')))
+
     def test_failure_preserves_elf_and_does_not_publish_producer(self):
         pair = self.pair(); pair['candidate']['resident']['report']['native_codegen']['object_reports'][0]['late_closed'] = receipt(())
         with self.assertRaises(q.QualityError): q.compare_pair(pair, self.out)
