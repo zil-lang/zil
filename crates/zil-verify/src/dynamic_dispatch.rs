@@ -299,6 +299,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut ids = BTreeSet::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
+        crate::dynamic_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        if declaration.self_pattern.is_some() {
+            return Err(bad(
+                "dyn Self recipe requires complete implementation substitution proof",
+                None,
+            ));
+        }
         budget.spend(
             declaration
                 .members

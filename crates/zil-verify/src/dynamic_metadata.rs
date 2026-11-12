@@ -180,3 +180,71 @@ pub(super) fn retained_shape(shape: &RetainedLifeShape, b: &mut Budget) -> Check
     }
     Ok(())
 }
+
+/// Full bounded declaration recipe traversal before clone or fingerprint.
+pub(super) fn pattern(root: Option<&DynSelfPattern>, b: &mut Budget) -> Check<()> {
+    enum Node<'a> {
+        Nominal(&'a DynSelfPattern),
+        Actual(&'a DynPatternActual),
+        Ty(&'a DynTypePattern),
+        Const(&'a DynConstPattern),
+    }
+    let cap = b.limits.max_nodes;
+    let depth_cap = b.limits.max_call_depth.min(128);
+    let mut nodes = 0usize;
+    pay(b, &mut nodes, cap, 1)?;
+    let Some(root) = root else { return Ok(()) };
+    let mut pending = vec![(Node::Nominal(root), 0usize)];
+    while let Some((node, depth)) = pending.pop() {
+        if depth >= depth_cap {
+            return Err(limit("dyn Self recipe metadata limit exceeded"));
+        }
+        pay(b, &mut nodes, cap, 1)?;
+        match node {
+            Node::Nominal(value) => {
+                pay(b, &mut nodes, cap, value.arguments.len())?;
+                for actual in &value.arguments {
+                    pending.push((Node::Actual(actual), depth + 1));
+                }
+            }
+            Node::Actual(value) => match value {
+                DynPatternActual::Type(value) => pending.push((Node::Ty(value), depth + 1)),
+                DynPatternActual::Const(value) => pending.push((Node::Const(value), depth + 1)),
+                DynPatternActual::LifeParameter(_) => {}
+            },
+            Node::Const(DynConstPattern::Value(Constant::WideString(units))) => {
+                let n = units.len();
+                if n > cap {
+                    return Err(limit("dyn Self recipe metadata limit exceeded"));
+                }
+                b.spend(n)?;
+            }
+            Node::Const(_) => {}
+            Node::Ty(value) => match value {
+                DynTypePattern::Concrete(value) => ty(value, b)?,
+                DynTypePattern::Nominal(value) => pending.push((Node::Nominal(value), depth + 1)),
+                DynTypePattern::Parameter(_) => {}
+                DynTypePattern::Address { inner, .. }
+                | DynTypePattern::Slice(inner)
+                | DynTypePattern::Managed(inner)
+                | DynTypePattern::Desc(inner)
+                | DynTypePattern::OwnedStore(inner) => pending.push((Node::Ty(inner), depth + 1)),
+                DynTypePattern::Array { element, length } => {
+                    pending.push((Node::Const(length), depth + 1));
+                    pending.push((Node::Ty(element), depth + 1));
+                }
+                DynTypePattern::Tuple(values) => {
+                    pay(b, &mut nodes, cap, values.len())?;
+                    for value in values {
+                        pending.push((Node::Ty(value), depth + 1));
+                    }
+                }
+                DynTypePattern::ErrorUnion { error, result } => {
+                    pending.push((Node::Ty(error), depth + 1));
+                    pending.push((Node::Ty(result), depth + 1));
+                }
+            },
+        }
+    }
+    Ok(())
+}

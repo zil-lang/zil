@@ -289,6 +289,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
+        crate::dyn_metadata::pattern(declaration.self_pattern.as_ref(), budget)?;
+        if declaration.self_pattern.is_some() {
+            return Err(bad(
+                "dyn Self recipe requires complete implementation substitution proof",
+            ));
+        }
         budget.spend(
             declaration
                 .identity
@@ -1215,6 +1221,7 @@ mod tests {
         TypedModule {
             dyn_declarations: vec![
                 DynDeclaration {
+                    self_pattern: None,
                     id: trait_id,
                     identity: identity("Read"),
                     kind: DynDeclarationKind::Trait,
@@ -1225,6 +1232,7 @@ mod tests {
                     }],
                 },
                 DynDeclaration {
+                    self_pattern: None,
                     id: impl_id,
                     identity: identity("impl_Read_A"),
                     kind: DynDeclarationKind::Impl,

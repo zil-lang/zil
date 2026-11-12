@@ -3381,6 +3381,7 @@ mod tests {
             actuals: vec![],
         };
         core.dyn_declarations.push(DynDeclaration {
+            self_pattern: None,
             id: declaration,
             identity: LifeDeclarationIdentity {
                 package: "transport".into(),

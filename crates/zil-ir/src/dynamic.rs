@@ -17,11 +17,58 @@ pub struct DynVtableId {
 /// nominal life inventory. Keys and stable identities must be jointly unique.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynDeclaration {
+    /// Impl Self recipe in original formal order. None is unknown for a
+    /// generic borrowing impl; it never means an empty lifetime relation.
+    pub self_pattern: Option<DynSelfPattern>,
     pub id: LifeDeclarationId,
     pub identity: LifeDeclarationIdentity,
     pub kind: DynDeclarationKind,
     pub parameters: Vec<LifeParameterKind>,
     pub members: Vec<DynMemberDeclaration>,
+}
+/// Source-authenticated nominal header recipe. Raw recipes remain untrusted.
+/// Every actual position survives, including phantom and equal life actuals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynSelfPattern {
+    pub declaration: LifeDeclarationId,
+    pub arguments: Vec<DynPatternActual>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynPatternActual {
+    Type(DynTypePattern),
+    Const(DynConstPattern),
+    /// Full ordinal in DynDeclaration.parameters, never a Self class index.
+    LifeParameter(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynConstPattern {
+    Value(Constant),
+    Parameter(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynTypePattern {
+    /// Complete closed semantic type; Named placeholders are not executable.
+    Concrete(Type),
+    Parameter(u32),
+    Nominal(Box<DynSelfPattern>),
+    Address {
+        mutable: bool,
+        lifetime: Option<u32>,
+        inner: Box<DynTypePattern>,
+    },
+    Tuple(Vec<DynTypePattern>),
+    Array {
+        element: Box<DynTypePattern>,
+        length: DynConstPattern,
+    },
+    Slice(Box<DynTypePattern>),
+    Managed(Box<DynTypePattern>),
+    Desc(Box<DynTypePattern>),
+    OwnedStore(Box<DynTypePattern>),
+    ErrorUnion {
+        error: Box<DynTypePattern>,
+        result: Box<DynTypePattern>,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynDeclarationKind {
