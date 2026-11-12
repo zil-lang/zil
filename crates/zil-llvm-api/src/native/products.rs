@@ -35,6 +35,12 @@ mod enabled {
         world_projection_fallback: u64,
         tli_projection_builds: u64,
         tli_projection_reuses: u64,
+        ir_key_ns: u64,
+        ir_unpack_ns: u64,
+        ir_replay_ns: u64,
+        ir_parse_ns: u64,
+        ir_capture_ns: u64,
+        ir_pack_ns: u64,
     }
     impl From<WireStats> for NativeProductStats {
         fn from(value: WireStats) -> Self {
@@ -65,6 +71,12 @@ mod enabled {
                 world_projection_fallback: value.world_projection_fallback,
                 tli_projection_builds: value.tli_projection_builds,
                 tli_projection_reuses: value.tli_projection_reuses,
+                ir_key_ns: value.ir_key_ns,
+                ir_unpack_ns: value.ir_unpack_ns,
+                ir_replay_ns: value.ir_replay_ns,
+                ir_parse_ns: value.ir_parse_ns,
+                ir_capture_ns: value.ir_capture_ns,
+                ir_pack_ns: value.ir_pack_ns,
                 ..Self::default()
             }
         }
@@ -82,6 +94,8 @@ mod enabled {
         fn ZilNativeAnalysisFactsTLIMemoCounterexample() -> c_int;
         #[cfg(test)]
         fn ZilNativeAnalysisUnsupportedKeysCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeIRScopeTimerCounterexample() -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsUnchangedStageCounterexample() -> c_int;
         #[cfg(test)]
@@ -470,8 +484,15 @@ mod enabled {
         }
 
         #[test]
-        fn native_stats_wire_matches_the_twenty_six_u64_c_fields() {
-            assert_eq!(std::mem::size_of::<WireStats>(), 26 * 8);
+        fn ir_scope_raii_records_returns_stops_and_nested_cleanup() {
+            // SAFETY: the fixture uses only a deterministic fake monotonic
+            // clock and local counters; it runs no compiler or wall benchmark.
+            assert_eq!(unsafe { ZilNativeIRScopeTimerCounterexample() }, 1);
+        }
+
+        #[test]
+        fn native_stats_wire_preserves_prefix_and_appends_six_ir_scope_fields() {
+            assert_eq!(std::mem::size_of::<WireStats>(), 32 * 8);
             assert_eq!(
                 std::mem::align_of::<WireStats>(),
                 std::mem::align_of::<u64>()
@@ -500,6 +521,28 @@ mod enabled {
                 std::mem::offset_of!(WireStats, tli_projection_reuses),
                 25 * 8
             );
+
+            assert_eq!(std::mem::offset_of!(WireStats, ir_key_ns), 26 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, ir_unpack_ns), 27 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, ir_replay_ns), 28 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, ir_parse_ns), 29 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, ir_capture_ns), 30 * 8);
+            assert_eq!(std::mem::offset_of!(WireStats, ir_pack_ns), 31 * 8);
+            let observed = NativeProductStats::from(WireStats {
+                ir_key_ns: 11,
+                ir_unpack_ns: 12,
+                ir_replay_ns: 30,
+                ir_parse_ns: 4,
+                ir_capture_ns: 50,
+                ir_pack_ns: 6,
+                ..WireStats::default()
+            });
+            assert_eq!(observed.ir_key_ns, 11);
+            assert_eq!(observed.ir_unpack_ns, 12);
+            assert_eq!(observed.ir_replay_ns, 30);
+            assert_eq!(observed.ir_parse_ns, 4);
+            assert_eq!(observed.ir_capture_ns, 50);
+            assert_eq!(observed.ir_pack_ns, 6);
 
             fn assert_send_sync<T: Send + Sync>() {}
             assert_send_sync::<NativeWorkProducts>();

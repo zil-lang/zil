@@ -62,6 +62,9 @@ NATIVE_PROJECTION_FIELDS = (
     'world_projection_direct', 'world_projection_fallback',
     'tli_projection_builds', 'tli_projection_reuses',
 )
+NATIVE_IR_SCOPE_FIELDS = (
+    'ir_key_ns', 'ir_unpack_ns', 'ir_replay_ns', 'ir_parse_ns', 'ir_capture_ns', 'ir_pack_ns',
+)
 NATIVE_WORK_SCOPE = (
     'native_products hook counters and MIR scope timers describe the first hooked attempt only; '
     'after fresh_context_fallbacks, subsequent ordinary native work has unavailable per-pass counts. '
@@ -72,6 +75,14 @@ NATIVE_WORK_SCOPE = (
     'construction and parser/header destruction; it is not pure YAML parsing. '
     'mir_restore_validate_ns includes target/number/block state, typed recapture equality, domain, '
     'MachineVerifier and full MIR equality. Compare timer definitions at each pinned compiler source.'
+    ' Observer v3 IR scopes: key is supported-entry eligibility/current facts/Input/World/pipeline; '
+    'unpack is complete selected-slot decode; replay includes parse/clone/current validation/AM/cleanup; '
+    'parse is only MemoryBuffer+parseBitcodeFile construction, excluding later Module destruction, '
+    'and is already INCLUDED in replay. Capture is the complete afterStage callback, including '
+    'cheap early-return gates and new-stage packing. Pack is new-stage admission/frame/SHA/zstd/'
+    'typed metadata/publication and is already INCLUDED in capture. Do not add child timers to '
+    'parents, call these a partition, or classify original unknown FPM passes as measured overhead. '
+    'Observer v1/v2 IR scopes are unavailable (None), not zero. Clock overhead stays in request wall.'
 )
 
 
@@ -91,13 +102,21 @@ def inspect_native_products(report):
             if not isinstance(stats, dict):
                 raise ValueError('native_products must be an object or null')
             version = stats.get('observer_schema', 1)
-            if type(version) is not int or version not in (1, 2):
+            if type(version) is not int or version not in (1, 2, 3):
                 raise ValueError('native_products.observer_schema unsupported')
-            fields = NATIVE_PRODUCT_FIELDS + (NATIVE_PROJECTION_FIELDS if version == 2 else ())
+            fields = (NATIVE_PRODUCT_FIELDS + (NATIVE_PROJECTION_FIELDS if version >= 2 else ())
+                      + (NATIVE_IR_SCOPE_FIELDS if version >= 3 else ()))
             for field in fields:
                 if type(stats.get(field)) is not int or stats[field] < 0:
                     raise ValueError('native_products.' + field + ' missing or not a nonnegative integer')
-        result.append({'unit_index': index, 'stats': stats,
+            if version >= 3 and (stats['ir_parse_ns'] > stats['ir_replay_ns']
+                                 or stats['ir_pack_ns'] > stats['ir_capture_ns']):
+                raise ValueError('native_products IR child scope exceeds its enclosing scope')
+        # Preserve the raw stats dictionary. A separate version-aware view makes
+        # legacy unknowns explicit without fabricating measurements or changing raw.
+        ir_scopes = {field: (stats[field] if stats is not None and version >= 3 else None)
+                     for field in NATIVE_IR_SCOPE_FIELDS}
+        result.append({'unit_index': index, 'stats': stats, 'ir_scope_ns': ir_scopes,
                        'fresh_context_fallbacks': None if stats is None else stats['fresh_context_fallbacks']})
     return {'units': result, 'scope': NATIVE_WORK_SCOPE, 'unavailable_is_not_zero': True}
 

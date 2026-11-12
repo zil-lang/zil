@@ -468,9 +468,44 @@ class PushReceiptTests(unittest.TestCase):
                 report['native_codegen']['object_reports'][0]['native_products'] = malformed
                 with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, field):
                     pc.inspect_native_products(report)
-        for version in (True, 0, 3):
+        for version in (True, 0, 4):
             report['native_codegen']['object_reports'][0]['native_products'] = dict(current, observer_schema=version)
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'observer_schema'):
+                pc.inspect_native_products(report)
+
+    def test_ir_scope_v3_requires_all_observations_and_keeps_v1_v2_unknown(self):
+        legacy = self.native_stats()
+        for version in (1, 2):
+            stats = dict(legacy, observer_schema=version)
+            if version == 2:
+                stats.update({field: 7 for field in pc.NATIVE_PROJECTION_FIELDS})
+            report = {'native_codegen': {'object_reports': [{'native_products': stats}]}}
+            unit = pc.inspect_native_products(report)['units'][0]
+            self.assertEqual(unit['stats'], stats)
+            self.assertEqual(unit['ir_scope_ns'], dict.fromkeys(pc.NATIVE_IR_SCOPE_FIELDS))
+            self.assertTrue(all(field not in stats for field in pc.NATIVE_IR_SCOPE_FIELDS))
+        current = dict(legacy, observer_schema=3)
+        current.update({field: 7 for field in pc.NATIVE_PROJECTION_FIELDS})
+        current.update(dict(zip(pc.NATIVE_IR_SCOPE_FIELDS, [11, 12, 30, 4, 50, 6])))
+        report = {'native_codegen': {'object_reports': [{'native_products': current}]}}
+        unit = pc.inspect_native_products(report)['units'][0]
+        self.assertEqual(unit['stats'], current)
+        self.assertEqual(unit['ir_scope_ns'], {field: current[field] for field in pc.NATIVE_IR_SCOPE_FIELDS})
+        for field in pc.NATIVE_IR_SCOPE_FIELDS:
+            for value in (None, -1, True, 1.5, '0'):
+                broken = dict(current, **{field: value})
+                report['native_codegen']['object_reports'][0]['native_products'] = broken
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, field):
+                    pc.inspect_native_products(report)
+            broken = dict(current)
+            del broken[field]
+            report['native_codegen']['object_reports'][0]['native_products'] = broken
+            with self.subTest(missing=field), self.assertRaisesRegex(ValueError, field):
+                pc.inspect_native_products(report)
+        for field in ('ir_parse_ns', 'ir_pack_ns'):
+            broken = dict(current, **{field: 1000})
+            report['native_codegen']['object_reports'][0]['native_products'] = broken
+            with self.subTest(child=field), self.assertRaisesRegex(ValueError, 'child scope'):
                 pc.inspect_native_products(report)
 
     def native_stats(self):
