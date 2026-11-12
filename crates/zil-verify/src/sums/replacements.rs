@@ -320,6 +320,55 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
     }
     Ok(true)
 }
+// A complete ordinary input-head relation does not add an owning field or
+// change the endpoint. Reconstruct its whole directory before admitting it to
+// the pre-existing actual Content/loan/cleanup proof.
+fn ordinary_helper_header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+    let Some(c) = &f.storage_life else {
+        return Ok(true);
+    };
+    crate::signature_life::charge(c, b)?;
+    if c.fixed_binder_count != 0
+        || !c.classes.is_empty()
+        || !helper_owned_result(module, &f.return_type, b)?
+    {
+        return Ok(false);
+    }
+    let mut row = 0usize;
+    let mut next = 0u32;
+    b.spend(f.parameters.len())?;
+    for (index, local) in f.parameters.iter().enumerate() {
+        let ty = &f.locals[local.0 as usize].ty;
+        let Type::Address { inner, .. } = ty else {
+            if !helper_owned_result(module, ty, b)? {
+                return Ok(false);
+            }
+            continue;
+        };
+        if !helper_owned_result(module, inner, b)? {
+            return Ok(false);
+        }
+        let Some(binding) = c.bindings.get(row) else {
+            return Ok(false);
+        };
+        let StorageBinder::Invocation(id) = binding.binder else {
+            return Ok(false);
+        };
+        if binding.position.base != StorageBase::Parameter(index as u32)
+            || !binding.position.path.is_empty()
+            || id > next
+            || id >= c.invocation_binder_count
+        {
+            return Ok(false);
+        }
+        if id == next {
+            next += 1;
+        }
+        row += 1;
+    }
+    Ok(row == c.bindings.len() && next == c.invocation_binder_count)
+}
+
 fn package_helper(
     module: &TypedModule,
     f: &TypedFunction,
@@ -342,7 +391,7 @@ fn package_helper_with_store_input(
         || (f.callable_contract.is_some() && (parameter.is_none() || store_input.is_none()))
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
-        || f.storage_life.is_some()
+        || !ordinary_helper_header(module, f, b)?
     {
         return Ok(false);
     }
@@ -665,7 +714,7 @@ pub(crate) fn at_type<'a>(
                     f.foreign.is_none()
                         && f.callable_return_contract.is_none()
                         && f.reference_return_bound.is_none()
-                        && f.storage_life.is_none()
+                        && ordinary_helper_header(module, f, b)?
                         && helper_copy_result(&f.return_type, b)?
                         && resources::public_roles::mutable_capture(module, f, p, c, b)?
                 }
@@ -687,7 +736,7 @@ pub(crate) fn at_type<'a>(
                     f.foreign.is_none()
                         && f.callable_return_contract.is_none()
                         && f.reference_return_bound.is_none()
-                        && f.storage_life.is_none()
+                        && ordinary_helper_header(module, f, b)?
                         && helper_copy_result(&f.return_type, b)?
                         && resources::public_roles::mutable_capture(module, f, p, c, b)?
                 }
