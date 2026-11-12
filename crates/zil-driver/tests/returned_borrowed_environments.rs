@@ -282,6 +282,8 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
     for (label, text) in [
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
+        ("whole-qualified-owner", include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil").to_owned()),
+        ("loop-sources", LOOP_BORROWED.to_owned()),
         ("nested-borrowed", NESTED_BORROWED.to_owned()),
         ("wrapped-borrowed", WRAPPED_BORROWED.to_owned()),
         ("holder-pointer", HOLDER_SOURCE.to_owned()),
@@ -332,4 +334,124 @@ fn nested_borrowed_environments_propose_each_actual_leaf() {
         assert!(contract.capture_sources.as_ref().unwrap().iter().any(|binding|binding.position.path.iter().any(|step|matches!(step,zil_ir::ContractProjection::Capture(_)))));
         zil_analyze::analyze(&module,&Limits::default()).unwrap();
     }
+}
+
+const LOOP_BORROWED: &str = r#"
+fn make(a:&i32,b:&i32,n:i32)->impl Fn()->i32{
+ var pointer=a;var i=0
+ while i<n{pointer=b;i+=1}
+ return move()=>*pointer
+}
+fn main()->i32{let a=20;let b=22;let first=make(&a,&b,0);let second=make(&a,&b,1);return first()+second()-42}
+"#;
+#[test]
+fn loop_source_equations_keep_both_actual_inputs() {
+    let cycle = LOOP_BORROWED.replace("pointer=b;i+=1", "if i==0{pointer=b}else{pointer=pointer};i+=1");
+    let recurrent = typed_source(&cycle);
+    zil_analyze::analyze(&recurrent, &Limits::default()).unwrap();
+    let module=typed_source(LOOP_BORROWED);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let factory=module.functions.iter().position(|function|function.callable_return_contract.is_some()).unwrap();
+    let bindings=module.functions[factory].callable_return_contract.as_ref().unwrap().capture_sources.as_ref().unwrap();
+    assert_eq!(bindings[0].sources.len(),2);
+    for omitted in 0..2 {
+        let mut bad=module.clone();
+        bad.functions[factory].callable_return_contract.as_mut().unwrap().capture_sources.as_mut().unwrap()[0].sources.remove(omitted);
+        assert!(zil_analyze::analyze(&bad,&Limits::default()).is_err());
+    }
+}
+
+fn check_raw_and_wire(text: &str) {
+    let module = typed_source(text);
+    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &Limits::default()).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+fn check_native_factory(text: &str, stdout: &[u8]) {
+    use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage};
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") { backends.push(NativeBackend::LlvmApi); }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let directory = std::env::temp_dir().join(format!("zil-factory-native-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+            std::fs::create_dir(&directory).unwrap();
+            let executable = directory.join("program");
+            let report = zil_driver::compile_source(&SourceUnit::new(FileId(0), ModuleId(0), "factory-native.zil", text), &CompileOptions {
+                stop_after: Stage::Build, backend, optimization, output: Some(executable.clone()), ..CompileOptions::default()
+            });
+            assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let actual = std::process::Command::new(executable).output().unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            assert_eq!(actual.stdout, stdout, "{actual:?}");
+            assert!(actual.stderr.is_empty());
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+}
+
+#[test]
+fn actual_holder_slot_epochs_and_mixed_environment_cleanup_reach_machine_code() {
+    let head = HOLDER_SOURCE.split("fn main").next().unwrap();
+    let replaced = format!("{head}fn main()->i32{{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;let answer=f();n=42;return answer+n-83}}");
+    check_raw_and_wire(&replaced);
+    check_native_factory(&replaced, b"");
+    let mixed = r#"
+extern "C" fn putchar(value:i32)->i32;
+resource R{code:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Mixed<life a>{manages owned:R;pointer:&'a i32}
+fn wrap<life a>(pointer:&'a i32)->Mixed<'a>{return Mixed::<'a>{owned:R{code:65},pointer:pointer}}
+fn make<life a>(holder:Mixed<'a>)->impl Fn()->i32{let pointer=holder.pointer;let owned=give holder.owned;return move()=>owned.code+*pointer}
+fn run(fail:bool)->void!i32{let n=1;let f=make(wrap(&n));if fail{return ()};return f()-66}
+fn main()->i32{match run(true){.err(_)=>{},.ok(_)=>{return 1}};match run(false){.err(_)=>{return 2},.ok(value)=>{return value}}}
+"#;
+    check_raw_and_wire(mixed);
+    check_native_factory(mixed, b"AA");
+}
+
+const MULTI_NESTED: &str = r#"
+fn inner(pointer:&i32)->impl Fn()->i32{return move()=>*pointer}
+fn make(left:&i32,right:&i32)->impl Fn()->i32{
+ let first=inner(left);let second=inner(right)
+ return move()=>first()+second()
+}
+fn main()->i32{let left=20;let right=22;let saved=make(&left,&right);return saved()-42}
+"#;
+#[test]
+fn nested_and_wrapped_actual_environments_reach_both_backends() {
+    for text in [NESTED_BORROWED, WRAPPED_BORROWED, LOOP_BORROWED, MULTI_NESTED] {
+        check_raw_and_wire(text);
+        check_native_factory(text, b"");
+    }
+    let module=typed_source(MULTI_NESTED);
+    let factory=module.functions.iter().position(|function|function.name=="make").unwrap();
+    let mut forged=module.clone();
+    let instruction=forged.functions[factory].blocks.iter_mut().flat_map(|block|&mut block.instructions)
+        .find(|instruction|matches!(instruction.kind,zil_ir::InstructionKind::MakeClosure{..})).unwrap();
+    let zil_ir::InstructionKind::MakeClosure{captures,..}=&mut instruction.kind else{unreachable!()};
+    captures.swap(0,1);
+    assert!(zil_analyze::analyze(&forged,&Limits::default()).is_err());
+    let mut dishonest=zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    dishonest.module_fingerprint=forged.fingerprint();
+    assert!(zil_verify::verify_module(forged.clone(),dishonest.clone(),&forged.target,&Limits::default()).is_err());
+    let wire=zil_ir::wire::encode_module_candidate(&forged,&dishonest,&Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire,&forged.target,&Limits::default()).is_err());
+}
+
+#[test]
+fn whole_qualified_owner_capture_has_owner_and_leaf_responsibilities() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil");
+    let module=typed_source(source);
+    let factory=module.functions.iter().find(|function|function.name=="make").unwrap();
+    let contract=factory.callable_return_contract.as_ref().unwrap();
+    assert_eq!(contract.cleanup,vec![0]);
+    assert_eq!(contract.hold,vec![0]);
+    assert!(!contract.capture_sources.as_ref().unwrap().is_empty());
+    assert!(module.closures[contract.closure.0 as usize].storage_life.is_some());
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }

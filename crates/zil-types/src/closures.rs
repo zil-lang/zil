@@ -337,10 +337,8 @@ impl Pending {
                 capture.moved
             } else {
                 !capture.borrowed
-                    && (matches!(
-                        capture.ty,
-                        Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
-                    ) || (capture.moved && owned_shapes::sum(&capture.ty)))
+                    && (matches!(stored::physical(&capture.ty), Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. })
+                        || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
     }
@@ -900,6 +898,16 @@ impl State {
         let mut requires_source_context = false;
         for capture in &mut checker.captures {
             requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }));
+            if let Type::BorrowedStorage { storage, life } = &capture.ty
+                && matches!(storage.as_ref(), Type::Package { .. })
+            {
+                // Whole qualified owners keep their complete nominal classes.
+                // Returned capture origins are separately proved per actual
+                // leaf; an absent source Fixed header is not manufactured.
+                // Opening an exclusive stored leaf requires exclusive entry,
+                // even when its immediate source expression is a read.
+                capture.written |= life.slots.iter().any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+            }
             if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
                 // The complete body decides whether the environment borrows
                 // this owner. Field writes require an exclusive window; a
@@ -1752,6 +1760,7 @@ impl Graph {
                 || owned_shapes::tuple(ty)
                 || owned_shapes::sum(ty)
                 || packages::ordinary(ty)
+                || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
                 || ty.is_package_address()
@@ -2888,6 +2897,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
+            ty @ Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && (self.move_capture || self.nested_moves != 0) =>
+            {
+                packages::product::validate_owned(ty, self.work_left, self.limits.max_call_depth, span)?;
+                (ty, None)
+            }
             ty @ Type::Package { .. }
                 if packages::supported(ty)
                     || packages::product::nested(ty)
