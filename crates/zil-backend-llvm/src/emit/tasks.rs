@@ -2245,35 +2245,163 @@ impl FunctionEmitter<'_> {
             )));
             return Ok(());
         }
-        if let InstructionKind::TaskCreateOwned {worker,arguments,..}=&i.kind {
-            let output=result(i)?;
-            let actual=&self.function.values[output.0 as usize];
-            let Type::ErrorUnion{error,..}=actual else{return invalid("E-CODEGEN-TASK","owning constructor result must retain its error arm",Some(i.span));};
-            let physical_error=match error.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
-            let (Type::Package{fields,..}|Type::Record{fields,..})=physical_error else{return invalid("E-CODEGEN-TASK","owning constructor failure product absent",Some(i.span));};
-            let inputs=&fields[1].1;
-            let ty=llvm_type(actual)?;let failure_ty=llvm_type(error)?;let inputs_ty=llvm_type(inputs)?;
-            let frame=self.temp();let failed=self.temp();let slot=self.temp();
-            let serial=self.continuation;self.continuation+=1;
-            let allocation_failure=format!("task.create.owned.{serial}.failure");let created=format!("task.create.owned.{serial}.created");let done=format!("task.create.owned.{serial}.done");
-            let mut body=vec![];
-            push(&mut body,Some(&m::name(&slot)),m::Op::Alloca{ty:ty.clone(),align:0});
-            store(&mut body,ty.clone(),m::Val::Zero,m::val(slot.clone()));
-            let args=arguments.iter().filter(|v|self.function.values[v.0 as usize]!=Type::Unit).map(|v|Ok(m::Arg::new(llvm_type(&self.function.values[v.0 as usize])?,m::val(value(*v))))).collect::<CompileResult<Vec<_>>>()?;
-            call(&mut body,Some(&m::name(&frame)),m::Ty::Ptr,m::global(name(*worker,"init_owned")),args);
-            compare(&mut body,&m::name(&failed),m::Ty::Ptr,m::val(frame.clone()),m::Val::Null,"eq");
-            push(&mut body,None,m::Op::CondBranch{condition:m::val(failed),yes:allocation_failure.clone(),no:created.clone()});
-            for event in body {self.event(m::Event::Instruction(event));}
+        if let InstructionKind::TaskCreateOwned {
+            worker, arguments, ..
+        } = &i.kind
+        {
+            let output = result(i)?;
+            let actual = &self.function.values[output.0 as usize];
+            let Type::ErrorUnion { error, .. } = actual else {
+                return invalid(
+                    "E-CODEGEN-TASK",
+                    "owning constructor result must retain its error arm",
+                    Some(i.span),
+                );
+            };
+            let physical_error = match error.as_ref() {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let (Type::Package { fields, .. } | Type::Record { fields, .. }) = physical_error
+            else {
+                return invalid(
+                    "E-CODEGEN-TASK",
+                    "owning constructor failure product absent",
+                    Some(i.span),
+                );
+            };
+            let inputs = &fields[1].1;
+            let ty = llvm_type(actual)?;
+            let failure_ty = llvm_type(error)?;
+            let inputs_ty = llvm_type(inputs)?;
+            let frame = self.temp();
+            let failed = self.temp();
+            let slot = self.temp();
+            let serial = self.continuation;
+            self.continuation += 1;
+            let allocation_failure = format!("task.create.owned.{serial}.failure");
+            let created = format!("task.create.owned.{serial}.created");
+            let done = format!("task.create.owned.{serial}.done");
+            let mut body = vec![];
+            push(
+                &mut body,
+                Some(&m::name(&slot)),
+                m::Op::Alloca {
+                    ty: ty.clone(),
+                    align: 0,
+                },
+            );
+            store(&mut body, ty.clone(), m::Val::Zero, m::val(slot.clone()));
+            let args = arguments
+                .iter()
+                .filter(|v| self.function.values[v.0 as usize] != Type::Unit)
+                .map(|v| {
+                    Ok(m::Arg::new(
+                        llvm_type(&self.function.values[v.0 as usize])?,
+                        m::val(value(*v)),
+                    ))
+                })
+                .collect::<CompileResult<Vec<_>>>()?;
+            call(
+                &mut body,
+                Some(&m::name(&frame)),
+                m::Ty::Ptr,
+                m::global(name(*worker, "init_owned")),
+                args,
+            );
+            compare(
+                &mut body,
+                &m::name(&failed),
+                m::Ty::Ptr,
+                m::val(frame.clone()),
+                m::Val::Null,
+                "eq",
+            );
+            push(
+                &mut body,
+                None,
+                m::Op::CondBranch {
+                    condition: m::val(failed),
+                    yes: allocation_failure.clone(),
+                    no: created.clone(),
+                },
+            );
+            for event in body {
+                self.event(m::Event::Instruction(event));
+            }
             self.event(m::Event::Label(allocation_failure));
-            let mut failure=vec![];let tag=self.temp();let error_slot=self.temp();let inputs_slot=self.temp();
-            gep(&mut failure,&m::name(&tag),&ty,m::val(slot.clone()),0);
-            store(&mut failure,m::Ty::Int(1),m::val(true),m::val(tag));
-            gep(&mut failure,&m::name(&error_slot),&ty,m::val(slot.clone()),1);
-            gep(&mut failure,&m::name(&inputs_slot),&failure_ty,m::val(error_slot),1);
-            let mut tuple=m::Val::Zero;
-            for (index,arg) in arguments.iter().enumerate() {
-                let next=self.temp();let argument=&self.function.values[arg.0 as usize];
-                push(&mut failure,Some(&m::name(&next)),m::Op::Insert{arg:m::Arg::new(inputs_ty.clone(),tuple),index:index as u32,field:m::Arg::new(aggregate_field_type(argument)?,if *argument==Type::Unit {m::Val::Zero}else{m::val(value(*arg))})});tuple=m::val(next);
+            let mut failure = vec![];
+            let tag = self.temp();
+            let error_slot = self.temp();
+            let inputs_slot = self.temp();
+            gep(&mut failure, &m::name(&tag), &ty, m::val(slot.clone()), 0);
+            store(&mut failure, m::Ty::Int(1), m::val(true), m::val(tag));
+            gep(
+                &mut failure,
+                &m::name(&error_slot),
+                &ty,
+                m::val(slot.clone()),
+                1,
+            );
+            gep(
+                &mut failure,
+                &m::name(&inputs_slot),
+                &failure_ty,
+                m::val(error_slot),
+                1,
+            );
+            let mut tuple = m::Val::Zero;
+            for (index, arg) in arguments.iter().enumerate() {
+                let next = self.temp();
+                let argument = &self.function.values[arg.0 as usize];
+                push(
+                    &mut failure,
+                    Some(&m::name(&next)),
+                    m::Op::Insert {
+                        arg: m::Arg::new(inputs_ty.clone(), tuple),
+                        index: index as u32,
+                        field: m::Arg::new(
+                            aggregate_field_type(argument)?,
+                            if *argument == Type::Unit {
+                                m::Val::Zero
+                            } else {
+                                m::val(value(*arg))
+                            },
+                        ),
+                    },
+                );
+                tuple = m::val(next);
+            }
+            store(&mut failure, inputs_ty, tuple, m::val(inputs_slot));
+            branch(&mut failure, &done);
+            for event in failure {
+                self.event(m::Event::Instruction(event));
+            }
+            self.event(m::Event::Label(created));
+            let mut success = vec![];
+            let result_slot = self.temp();
+            gep(
+                &mut success,
+                &m::name(&result_slot),
+                &ty,
+                m::val(slot.clone()),
+                2,
+            );
+            store(&mut success, m::Ty::Ptr, m::val(frame), m::val(result_slot));
+            branch(&mut success, &done);
+            for event in success {
+                self.event(m::Event::Instruction(event));
+            }
+            self.event(m::Event::Label(done));
+            let mut result_value = vec![];
+            load(
+                &mut result_value,
+                &format!("v.{}", output.0),
+                ty,
+                m::val(slot),
+            );
+            for event in result_value {
+                self.event(m::Event::Instruction(event));
             }
             return Ok(());
         }
