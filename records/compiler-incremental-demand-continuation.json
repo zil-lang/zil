@@ -809,7 +809,7 @@
         "持久化与产物合同",
         "LLVM优化与机器码生成"
       ],
-      "current_activity": "先理论分析，尚未实施新架构或运行新测量",
+      "current_activity": "已转入独立分支实际施工；完整push和LLVM优化/发射增量化共同交付，尚未验收",
       "proposal_commit": "39acbf08f1d2aea2a641778156b1db4ff7fd1d6a",
       "proposal": "https://github.com/zil-lang/zil/blob/39acbf08f1d2aea2a641778156b1db4ff7fd1d6a/tools/research/incremental-demand/push-native-redesign.md",
       "distinction": "Rust query是需求驱动pull；Zit是具体变化点逐层push；响应式read一致性pull是另一问题",
@@ -835,6 +835,40 @@
       },
       "next_baseline_requirement": "独立分支对齐新main数值/FFI Type/Constant/ABI，保留旧冻结证据，重建新main对照，不跨施工方比较",
       "feasibility": "全局push/逐项表示可工程改造；独立Verify按义务分解；LLVM当前整模块emit API需有成功/失败门槛的扩展原型，尚无2倍领先证明"
+    },
+    "full_push_native": {
+      "read_goal": "22ea292d3a967a43562254a6c26fcf971718e8dc",
+      "branch": "research/full-push-native",
+      "checkpoint": "e8f598c85910e9a44d2a28c11bd0d16df1d2dc7b",
+      "current_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
+      "merged_base": "b3c918149f84ed1f65608781d104561a007ec4f9",
+      "scope": "完整push + LLVM optimization/emission实际消费者共同施工；发射缓存单项不是终态",
+      "implemented": "真实persistent Core/Typed/plan/LIR函数树与结构化身份；Expand封闭变化批次、Types实际差量CFG、Analyze实际计划patch、独立Verify raw义务树/资源入口/foreign选择、Lower当前proof差量准入；driver显式--push-reuse默认false接线，LLVM局部扩展DSO已构建但enabled产品消费者尚未验收",
+      "checks": {
+        "integration_base": "workspace all-targets llvm-api check passed",
+        "middle_crates_tests": {
+          "passed": 1588,
+          "failed": 0,
+          "ignored": 0,
+          "summaries": 50,
+          "log": "/workspace/zil-push-main/out/runs/push-middle-tests-06.log",
+          "scope": "IR/Expand/Types/Analyze/Verify/Lower；集成中检查，不能替代最终冻结SHA全workspace/driver/native gates"
+        },
+        "db_tests": {
+          "passed": 39,
+          "failed": 0,
+          "ignored": 0
+        },
+        "overlap": "前面的105/424测试与1588重叠，不累加"
+      },
+      "llvm_extension": {
+        "base_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+        "v1_patch_sha256": "06b915cdd128d0ba42c33b2bf8abb8161e07b4b5012dd7d3aa1fcb2fc06546ba",
+        "status": "isolated CodeGen object relink succeeded; default hook null; original SDK/DSO retained; optimization/MIR consumer under implementation"
+      },
+      "remaining": "rich/global obligations/位置绑定/整项目外层key、driver完整验收及native产品链仍施工；无新性能/Rust领先/全部完成声明",
+      "raw": "本轮out/runs与SDK扩展日志仍本地，尚未新归档；旧900/v4远端恢复证据保持可恢复，不能把本轮本地目录称持久备份",
+      "handoff": "https://github.com/zil-lang/zil/blob/e8f598c85910e9a44d2a28c11bd0d16df1d2dc7b/.task/full-push-native.md"
     }
   }
 }
