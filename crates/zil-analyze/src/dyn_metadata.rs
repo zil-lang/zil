@@ -343,6 +343,7 @@ fn recipe_rows<T: DynRecipeMetadata>(
 }
 pub(super) fn recipe_declaration(value: &DynDeclaration, b: &mut Budget) -> CompileResult<()> {
     let work = &mut RecipeWork { b, nodes: 0 };
+    recipe_rows(&value.implicit_lifetimes, work)?;
     recipe_rows(&value.direct_supertraits, work)?;
     recipe_rows(&value.requirements, work)?;
     recipe_rows(&value.associated_definitions, work)?;

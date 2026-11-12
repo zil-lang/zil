@@ -28,7 +28,7 @@ fn type_pattern(p: &mut DynTypePattern, r: &mut Resolver<'_>, depth: usize) -> R
         DynTypePattern::Address { inner, .. }
         | DynTypePattern::Slice(inner)
         | DynTypePattern::Managed(inner)
-        | DynTypePattern::Desc(inner)
+        | DynTypePattern::Desc { inner, .. }
         | DynTypePattern::OwnedStore(inner) => type_pattern(inner, r, depth + 1)?,
         DynTypePattern::Array { element, length } => {
             type_pattern(element, r, depth + 1)?;
