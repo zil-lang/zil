@@ -1963,7 +1963,7 @@ pub(super) fn preflight(
                     limits.max_call_depth,
                     budget.remaining(),
                 )
-                .ok_or_else(|| bad("callable return relation exceeds bounds"))?;
+                .ok_or_else(|| exhausted("callable return relation metadata"))?;
                 budget.input(work, "callable return relation")?;
                 return Err(bad(
                     "callable return relation requires independent concrete environment proof",
