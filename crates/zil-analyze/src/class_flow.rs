@@ -1280,7 +1280,19 @@ fn check_with(
                                 .get(*index as usize)
                                 .ok_or_else(|| bad("aggregate class operand is absent"))?;
                             let operand = &values[arg.0 as usize];
-                            let upper = match tail {
+                            let child_shape=shape(&f.values[arg.0 as usize]);
+                            let upper = if !tail.is_empty() && child_shape.is_some(){
+                                let child_shape=child_shape.expect("actual qualified operand");
+                                let mut selected=None;
+                                for child in &child_shape.slots{
+                                    b.spend(child.path.len().saturating_add(tail.len()).saturating_add(1),"nested constructor actual child slot")?;
+                                    if child.path==tail{
+                                        if selected.is_some(){return Err(bad("nested constructor child slot is duplicated"))}
+                                        selected=operand.classes.get(child.binder as usize).copied();
+                                    }
+                                }
+                                selected.ok_or_else(||bad("nested constructor slot lacks its actual child class"))?
+                            }else{match tail {
                                 [] => operand
                                     .outer
                                     .ok_or_else(|| bad("stored class operand is not an Address"))?,
@@ -1295,7 +1307,7 @@ fn check_with(
                                         "nested constructor class requires its physical operand consumer",
                                     ));
                                 }
-                            };
+                            }};
                             array_outer::binding(
                                 &mut e,
                                 upper,
