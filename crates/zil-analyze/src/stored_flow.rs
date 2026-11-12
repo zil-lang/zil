@@ -3539,8 +3539,10 @@ fn transfer(
                         for source in sources {union(&mut permission,&substitute(source,arguments,values,state,b)?,b)?;}
                     }
                     if !permission.targets.is_empty() {
-                        ordered(b,summary.external_stable.len(),path.len())?;
-                        let stable=summary.external_stable.contains(&(position as u32,path.clone()));
+                        let stable=if summary.external_stable.is_empty() {false} else {
+                            ordered(b,summary.external_stable.len(),path.len())?;
+                            summary.external_stable.contains(&(position as u32,path.clone()))
+                        };
                         if stable {
                             ordered(b,before.len(),path.len())?;
                             let previous=before.get(&path).ok_or_else(||failure("stable moved context omits actual previous row"))?;
@@ -3587,8 +3589,10 @@ fn transfer(
                     ));
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
-                ordered(b,summary.external_stable.len(),path.len())?;
-                let stable=summary.external_stable.contains(&(*parameter,path.clone()));
+                let stable=if summary.external_stable.is_empty() {false} else {
+                    ordered(b,summary.external_stable.len(),path.len())?;
+                    summary.external_stable.contains(&(*parameter,path.clone()))
+                };
                 let permission = if stable {
                     let previous=match &callee.locals[local.0 as usize].ty {
                         Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))=>{

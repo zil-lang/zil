@@ -1078,7 +1078,9 @@ fn check_with(
                         array_outer::transport(&mut e,head,region,outer.as_ref(),b)?;
                     }
                 }
-                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } if !captures.is_empty() => {
+                InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+                    if !captures.is_empty() && (matches!(i.kind,InstructionKind::ReadCapture{..})
+                        || out.is_some_and(|p|p.outer.is_some() || !p.classes.is_empty() || !p.task_ports.is_empty() || !p.array_elements.is_empty() || p.environment)) => {
                     if let Some(out) = out {
                         let capture = captures
                             .get(*index as usize)

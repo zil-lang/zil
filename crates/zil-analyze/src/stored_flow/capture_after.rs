@@ -267,12 +267,9 @@ pub(super) fn summarize(
             for (path, p) in value.slots.iter().chain(&value.environment) {
                 add(path, p)?;
             }
-        } else if matches!(ty, Type::Closure(_)) && definition.kind == CallableKind::FnOnce {
-            if let Some(rows) = state.external.get(&HoldRoot::Capture(index)) {
-                for (path, p) in rows {
-                    add(path, p)?;
-                }
-            }
+        } else if matches!(ty, Type::Closure(_)) && definition.kind == CallableKind::FnOnce
+            && let Some(rows) = state.external.get(&HoldRoot::Capture(index)) {
+            for (path, p) in rows {add(path, p)?;}
         }
     }
     Ok(())
