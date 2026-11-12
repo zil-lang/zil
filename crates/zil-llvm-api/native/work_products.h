@@ -52,6 +52,7 @@ int ZilNativeProductsAnalysisDiagnostics(int enabled);
 int ZilNativeProductsOwnedUseOrderCounterexample(void);
 int ZilNativeProductsIncomingCallerCounterexample(void);
 int ZilNativeProductsAttributeMetadataCounterexample(void);
+int ZilNativeProductsModuleHeaderCounterexample(void);
 #ifdef __cplusplus
 }
 #endif
