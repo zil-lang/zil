@@ -1,3 +1,65 @@
+# Active construction checkpoint, 2026-11-12
+
+Current integrated producer source d66f07456 includes real CT cost replay. It passed
+CT71/0/0 and driver207/0/0; the exact locked425 fixture test now checks21 bodies/reuses404
+after a length-changing private edit. Position-only edits still check425 bodies; global
+context, declarations and inventories remain. This is not 1/424 or complete global push.
+
+The measured compiler is separately frozen at5bf55f35c/tree a4598869, binary c584aaea...
+Native65, CT69, driver206 and strict all-target native-products Clippy passed there.
+Its parent0d134 driver gate failed205/1 because retained whole-frontend activation omitted
+plain CT checkpoint restoration. The original assertion was retained and the actual
+activation route repaired. Default workspace c18 passed33/33 groups,6363 tests with0fail/
+0ignored, all337 driver integration targets plus libraries/docs. This is not a new frozen
+whole-workspace result for d66 or5bf. Independent review scope is recorded separately.
+
+F14 found a general function-key omission: body-only named struct element definitions.
+It is fixed by complete reachable type definitions for subjects and callers, including
+special alloca/GEP/call/type-attribute and ConstantExpr roots. Current caller ownership is
+validated before dereferencing orphan instruction/block parents. Unrepresentable type
+owners and empty keys reject optional reuse. Original findings remain; no wrong-code
+example is asserted. Native65 includes strict valid same-print/different-type negatives.
+
+IR stage text now uses lossless bounded packed storage and retains all typed PA/analysis/
+name/BB state; decoding still precedes original complete comparisons and verification.
+Dead Path storage is removed. Both original decoded and encoded64MiB admission stay.
+Native history charges identical opaque allocations once and evicts by actual successful
+native use/generation, not object hits; it still has4 epochs/128MiB and checkpoint isolation.
+
+## New complete diagnostic and negative policy trial
+
+Read full-push-diagnostic-5bf55f35c.json: original real425,34valid requests,180native,
+15 successful whole-ELF and strict diagnostic-LLVM pairs. Candidate-only profiling means
+this is not a formal ratio, a Rust comparison or an isolated patch attribution.
+Private641.803ms (opt236.406/emit98.761), multi849.316, cold8997.945, broad9553.928,
+unchanged73.577, positions826.397, error73.750, recovery1074.651, restore200.913.
+Cold retained encoded payload is66,086,077B; broad history retains4 epochs/132,400,571B.
+Recovery actually reuses78 optimizer stages and39 machine functions; old profile06 had
+none in recovery. This removes real work, but wall time has not established a new lead.
+This binary's CT observer confirms425 checks/0 reuse on real private/positions inputs;
+the later d66 change above is tested but not yet measured.
+
+A separately labelled existing-policy diagnostic used common --closed-executable on both
+main and candidatebd396, preserving all425 declarations/CGU16/O2/jobs1/default budgets.
+It emitted22 functions instead of default424, with all34valid/180native/15strong pairs.
+Candidate cold10313.717ms/private1022.865/broad9529.437 remain negative; counts alone do
+not establish speed. Private has2 machine executions/0reuse; cold MIR snapshot bytes are0.
+Actual objects show ordinary spills/frames/CFI outside the admitted cache domain; there
+was no old MIR product to invalidate. The unchanged unit2 function zil.fn.361 has identical
+25,480 machine bytes in cold/private, but is recompiled. Do not attribute this observed
+failure to an unproved other-function-header dependency. Supporting complete ordinary
+frame/spill/CFI state is active construction, with owner rebinding and current verification.
+
+Last formal Rust comparison remains frozen433 below. There is no new Rust/global victory.
+Source and precision take precedence over historical checkpoints below. Source through5bf
+is pushed; d66 and current gate receipts are being preserved. v9 fixed remote f5413f8c2 has
+26,048 files/3,765,009,351 raw bytes,21parts, with complete fresh HTTPS restoration and
+both formal validators passed again. See full-push-recovery-v9.json. Newer raw v10 custody
+is in progress; old local v9 materializations may be reclaimed only after exact inventory
+verification and a saved tombstone pointing to the fully recoverable fixed remote archive.
+
+---
+
 # Current full-pipeline checkpoint, 2026-11-12
 
 This section supersedes the historical checkpoints below. The goal remains open:

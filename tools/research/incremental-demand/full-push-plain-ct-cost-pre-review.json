@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "cf222746f764c3cdedc2246eab9a708789b3dafc",
+  "source_tree": "6b47bf0da34bf3c80e1b0769da5eea8c61d767f4",
+  "status": "static_bounded_accepted_tests_pending",
+  "scope": "Plain CT additive successful cost replay and ignored cross-function diagnostic spans; not native LLVM products or whole compiler validation",
+  "file_sha256": {
+    "crates/zil-ct/src/plain_session.rs": "0f719dda7a6d413c050cc80cc51d06a2a08c6ab54d36b5a3f0ac4cf6ec613032",
+    "crates/zil-ct/src/source.rs": "7a4c98c51d6845f728f09d1197fa1d6924be8d30477290cf082ce9e89d239e9e",
+    "crates/zil-ct/src/plain_session_tests.rs": "d7bbafa27f31dcd374c45716b6c0832323116f6944f6ac18a7a74c8293be3fa2",
+    "crates/zil-driver/src/push_pipeline_tests.rs": "b14d2b6b6abeea105cec402cd721ccdefaa898143e71e808c9f7bad1a84ab6a0"
+  },
+  "method": "Read exact commit diff and original unchanged function/block/expression/hint/call-hint/type traversal/charge/shape algorithms; no Cargo, compiler, native tests, benchmarks, production edits or commits.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "non-additive state",
+      "conclusion": "Successful unchanged-shape traversal only subtracts bounded fuel. Successful plain Walker bodies only add nodes and subtract work; depths and non-ledger caps remain bound by exact original Limits. No closed-path choice or cost depends on remaining allowance. Saved receipts require unchanged CT steps and absent rewrite next_node; replay requires empty scopes and absent next_node. Current checked additions, node maximum and work subtraction reject any insufficiency. Thus fitting a nonnegative total implies all original prefixes fit; an insufficient total returns None and the original current ordered evaluator produces its own first error."
+    },
+    {
+      "topic": "module prefix changes",
+      "conclusion": "The prior module-remaining-equality gate can be removed for these additive costs because the full initial limits/target/context remain exact, original current declarations still run, and body/shape costs debit the current remaining allowance. Original ordered project CT/node/function aggregate charges remain outside the receipts."
+    },
+    {
+      "topic": "header spans",
+      "conclusion": "Cross-function hint resolution reads identity/name/imports/parameters and return types, with errors charged at the current caller span; it does not read callee function/parameter positions. Exhaustive same_header retains all other fields and parameter names/types/modes. The callee own body can replay only under its identical strongly held immutable Core function owner; changing its spans makes that owner distinct. Declaration diagnostics use the original fresh declarations walk."
+    },
+    {
+      "topic": "failure/publication",
+      "conclusion": "Speculative error or insufficient costs cannot publish a partial plain epoch. Existing successful epoch remains; caller reruns original current path, which determines diagnostic order and spans. Private owner/fingerprint/checkpoint binding and independent downstream Verify are not loosened."
+    }
+  ],
+  "test_status": {
+    "execution": "No new tests executed by reviewer; author says new tests not yet run at review time. Root owns uniform build window.",
+    "new_source_tests": [
+      "changed-prefix success fees across modules and unchanged siblings",
+      "max_analysis_steps exact N/N-1 with original diagnostic equality and previous-epoch recovery",
+      "callee diagnostic-position edit and parameter-name invalidation",
+      "actual 22-file 425-function fixture complete SHA checks; cold425/0, private21/404, positions425/0, fresh final TypedProgram equality and Verify1 expectations"
+    ],
+    "untested_claims": [
+      "node allowance boundary is statically inspected, not claimed as a new executed node N/N-1 test",
+      "new targeted Rust success",
+      "full workspace",
+      "actual native profile improvement",
+      "full push/global CT elimination"
+    ]
+  },
+  "limits": [
+    "Global SourceProgramContext and module declaration walks remain fresh. Changed own source positions or independent rematerialization still check the body.",
+    "The native fixture test stops at Lower and compares current typed results; it does not execute native code or measure native latency.",
+    "Logical budget preservation is limited to the original plain admitted domain; rich/rewriting/unknown input returns to the old complete path."
+  ]
+}

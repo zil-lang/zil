@@ -1,0 +1,49 @@
+{
+  "source_commit": "276af95dec7023dfe218b9d5d9f20511f87b76b8",
+  "tree": "612cd4976bfabfffcb4cc0fe12f1498638a82a2a",
+  "production_lineage": [
+    "3938379839e20fb72148db983da42536043d8a4d",
+    "958faa9231665fecd5bca8e46f19e7c125cdfbd4"
+  ],
+  "last_delta": "276 narrows testhelper cfg to native-products; algorithm unchanged from958",
+  "files": [
+    {
+      "path": "crates/zil-backend-llvm/src/incremental.rs",
+      "sha256": "716989d746173ddf02400a54083637e339dce2492ae69e4c1fbe9a00d9bdda64"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/build.rs",
+      "sha256": "fe7a7d63b172bcc3e17ea1fe90ec6edae0b9a5c803341dbca572c7c8e370c7fe"
+    }
+  ],
+  "reviewer": "non-author /root/audit",
+  "method": "Exact changed source and actual API/object-hit/fallback/publication callers read only. No compilation, native execution or measurement.",
+  "status": "Static bounded source review accepted; root tests and integrated-source freeze pending",
+  "confirmed_new_correctness_blockers": [],
+  "union_ledger": [
+    "Admission and all-epoch accounting deduplicate only actual opaque Product allocation identity. NativeWorkProducts equality reaches immutable opaque handle plus private immutable retained-payload value, never a raw input/content fingerprint. Live strong owners exclude address reuse/ABA during counting.",
+    "After a removal, recomputing the union charges an allocation while any current history epoch still retains it. Separate native Products that share internal C++ shared_ptr values remain conservatively charged independently. Four epochs/128MiB logical retained payload is only this history, not independent checkpoints or process RSS."
+  ],
+  "actual_recency": [
+    "compile_api_unit passes exactly one prior to actual native API. Only a successful result reporting native available, nonzero optimizer-stage or MF reuse and zero whole-context fallback produces that exact prior-use event. No untried older candidate is touched.",
+    "Successful new opaque product produces a distinct generation event. Disk object hits and alternative non-native patch paths have no NativeActivity; exact historical object restoration does not claim actual LLVM execution.",
+    "start/finish Instant values are optional retention ages, with stable ordinal/prior-new tie ordering. They are not dependency inputs or authority and not a literal timestamp of each individual reused LLVM stage.",
+    "Events are committed only after complete current build/link/executable publication success. Native failure, cancellation and outer driver rollback do not commit recency or maps. Successful disable clears epochs and recency."
+  ],
+  "eviction_and_lifetime": [
+    "Full next map is installed before capacity eviction, preventing arbitrary owner-key admission from pre-dropping a hot new product. Newly seen non-event products start cold, actual events move only still-retained handles to newest.",
+    "Single oversize allocations are removed before other LRU victims, preventing them from expelling every useful small item before being discarded. Union capacity is recomputed after each allocation removal from all epochs.",
+    "Arc::make_mut copies only raw epoch maps of Arc entries before mutation; old checkpoint owners/maps stay unchanged. The recency vector belongs to each history clone, not a shared mutable age registry.",
+    "prune_recency scans current history membership and drops age references after their last current-history owner disappears. It does not subtract other checkpoint memory or infer RSS. Allocation tracking remains distinct and complete, so capacity loop has a removable oldest member for every counted product.",
+    "Retention and eviction timing now lies inside BackendTimings::finish and residual other_ns, rather than being silently excluded from backend total."
+  ],
+  "authority_unchanged": "Complete current raw module/triple/items/options/config, independent current machine preflight and C++ stage/MIR keys/equality/Verify checks remain the reuse conditions. Retention identity/events never authorize product adoption.",
+  "complexity_limit": "Vec contains/membership scans and COW raw maps are bounded by4epochs*64units, with repeated union scans during eviction. They are real optional overhead, not free; current design favors auditable small bounds.",
+  "tests_source_reviewed": "Synthetic64MiB boundary, actual native same-input independent allocations, last-history-reference/checkpoint cases, owner overrides, real diskhit-no-event/edit-prior-and-new events, cold sibling versus hot prior/new retention, reverse generation order and no-activity cases. No test pass claimed before root executes.",
+  "not_claimed": [
+    "Recovery/restore hit-rate or performance improvement from source alone",
+    "Complete per-process memory bound",
+    "Root main integrated or alltarget compiled at this source",
+    "Completion of all native/function or whole-pipeline incrementality"
+  ]
+}

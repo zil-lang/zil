@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "source_commit": "45eff950b742b01cbb0cd139b08e627c8310b1be",
+  "tree": "422261c5a0ed2d266a1de9b7070c1e505011cf4e",
+  "reviewed_combination": [
+    "f4c3a3bb3b9de069d474d6725ab6017ee4b0c7a4",
+    "45eff950b742b01cbb0cd139b08e627c8310b1be"
+  ],
+  "files": [
+    {
+      "path": "crates/zil-llvm-api/native/work_products.cpp",
+      "sha256": "80aef096f0d2ee0ef15cfd1bb24dcaa004419ac2aee7a681dace4ba608e782d3"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/work_products.h",
+      "sha256": "9da27d1abc2d7ec5b7003d8a8bd68da78860ce85cba28c390757ff8726c5b319"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/machine_products.cpp",
+      "sha256": "bf15df714f9346670f6733ca38cf9078a027cc2bd521e278abef691214ff13b3"
+    }
+  ],
+  "reviewer": "non-author /root/audit",
+  "method": "Exact changed and full relevant source; fixed LLVM7a AsmWriter Type::print/TypePrinting/TypeFinder/Instruction owner API read. No compilation, LLVM run, native test or measurement.",
+  "verdict": {
+    "F14_type_binding": "static closure achieved for explicit projected domain; execution gate pending root",
+    "F14_orphan_owner_boundary": "static closure achieved; execution gate pending root",
+    "new_eligibility_producer": "bounded source accepted to proceed to unified compile/tests",
+    "new_confirmed_blockers": [],
+    "not_accepted": "No current-source native test pass, whole-workspace, general LLVM coverage or performance acceptance."
+  },
+  "finding_preserved": {
+    "path": "/tmp/full-push-identified-type-finding.json",
+    "sha256": "87cc15e57ef07797ce70c4fcfe6b18a703459cab0c3945f8e7918543211d198c",
+    "history": "Original complete-binding omission and old bounded receipts/logs remain. No wrongcode claim added."
+  },
+  "type_closure": {
+    "common_boundary": "Every common subject/current output/incoming caller/MIR functionText now shares FunctionTypeProjection. This fixes the generic prior key, not just the afterStage qualification shortcut.",
+    "roots": [
+      "Complete FunctionType and all type-valued function attributes",
+      "Every instruction result type and every operand value type",
+      "Alloca allocated type and GEP instruction source element type, which opaque pointers alone omit",
+      "Actual CallBase FunctionType and all call-site type-valued attributes",
+      "All recursive non-global constant operands, including ConstantExpr GEPOperator source element types"
+    ],
+    "traversal": "Type and constant visited sets terminate recursive/shared graphs. Deterministic seed/subtype/operand traversal records each named identified StructType once, then visits all subtypes transitively. Leaf opaque pointers have no hidden pointee graph in fixed LLVM23; their address space is already printed at each use.",
+    "definitions": "Definitions[I]->print(OS,false,false) uses fixed Type::print5172-5184: emits the identified name plus =type and printStructBody. Packedness/opaque/element shapes are included; recursively referenced named definitions appear separately, so named subtypes cannot hide behind names. Literal arrays/vectors/structs/function/target-extension inline forms retain their original complete textual representation plus reachable named definitions.",
+    "rejection": "Unnamed identified types would print transient addresses, so they reject optional projection. Body BlockAddress constants reject. All failures return an empty function projection and both FPM and MIR capture now explicitly refuse empty input/world; the original optimization path remains.",
+    "globals_alias_ifunc": "addValue stops at GlobalValue after recording its pointer type, because current world independently serializes actual global definitions/initializers, alias value types/aliasees, ifunc value types/resolvers and function headers/type attributes. Header TypeFinder includes those header value types. Subject eligibility was not widened to arbitrary external memory/user-call effects; this does not certify arbitrary interprocedural observations of unrelated resolver bodies.",
+    "remaining_conservatism": "Parsing transported named type snapshots in a current context may still rename/conflict and trigger existing exact-output failure/fresh-context fallback. This source does not claim all named-type products now replay profitably; unchanged complete output and all current checks still decide."
+  },
+  "eligibility_read_closure": {
+    "proof": "Entry eligibility is freshly computed. On exit, a safe actual current owner gate runs; full world must be nonempty/equal, current projectFunctionText validates name/use/DbgRecord/metadata/type closure and must equal the complete entry projection. Only then is entry qualification reused. Otherwise original current eligibility runs.",
+    "covered_reads": "Declaration/varargs/calling convention/header types and attributes; CFG acyclicity/operands; all current direct incoming caller bodies/use order; local-slot allocated type/static count/use patterns; canonical intrinsic signature; metadata/DebugLoc absence; all instruction/result/operand numeric types, now including body-only named definitions.",
+    "checking": "Current verifyFunction is still required when retaining unchanged body; supported entry/exit analysis facts and original PA handling remain independent. The shortcut neither issues Verify capability nor accepts unsupported analysis state."
+  },
+  "owner_closure": {
+    "proof": "eligibleFunction first calls safe incomingCallersHaveCurrentOwners. For every F user, require CallBase with calledOperand==F, non-null parent BB, non-null BB::getParent Function and the same current Module. All former Instruction::getFunction reads on these user paths are replaced by validated BB->Function traversal.",
+    "world": "worldText repeats safe subject/module ownership gate before collecting current caller Functions or inspecting user positions. Unrepresentable caller projection returns an empty rejected world, not an accepted shared empty fragment.",
+    "negative_fixtures": "Detached CallInst and CallInst inside detached BB must reject cheap owner check, original eligibility and world projection before getFunction preconditions; after deleting them, original valid subject recovers. Tests not run by reviewer."
+  },
+  "counterexamples_source_reviewed": [
+    "Original integer-vs-pointer identified type predicate example retained; now official text collision but generic full key difference is mandatory.",
+    "Two valid admitted scalar subjects with forced ExtractValueInst of body-only named%T{i32,i8} versus%T{i32,i16}; explicit instruction avoids constant-folder erasure.",
+    "Valid incoming callers independently covering alloca allocated type, GEP source type, indirect call byval type attribute and ConstantExpr GEP source type. Official body/header-only world equality is required; full caller key and subject incoming world must differ.",
+    "All module verifier checks and original negative expectations retained. These are key/qualification counterexamples, not demonstrated machine-code divergence."
+  ],
+  "fixed_source": {
+    "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/AsmWriter.cpp",
+    "local": "/tmp/llvm7a-audit-f12-AsmWriter.cpp",
+    "sha256": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
+    "Type_print_lines": [
+      5172,
+      5184
+    ]
+  },
+  "root_validation_pending": [
+    "Integrate exact source and strict new Rust wrappers; compile using the fixed audited SDK.",
+    "Run real new type/owner counterexamples and unchanged original native quality/reuse/fallback tests.",
+    "Preserve first failures and repaired source IDs. No test count or speedup inferred before logs."
+  ]
+}

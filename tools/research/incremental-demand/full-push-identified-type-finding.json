@@ -1,0 +1,69 @@
+{
+  "finding": "F14",
+  "source_commit": "f4c3a3bb3b9de069d474d6725ab6017ee4b0c7a4",
+  "tree": "6149c2c65a48b5091e4d1be4dc59600ef487cdaa",
+  "source_files": [
+    {
+      "path": "crates/zil-llvm-api/native/work_products.cpp",
+      "sha256": "0628aa4be8dfe2bc601dd12d0c7409f7bcc29018b29a05a23e266a9b14516ce1"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/work_products.h",
+      "sha256": "7a26857bc107144c10dd9e16169e1ad972d77051f09032fc1efb1fd436be1763"
+    },
+    {
+      "path": "crates/zil-llvm-api/native/llvm-function-products.patch",
+      "sha256": "2487bf12716248e581ab170ce932a23a46f10c61640d40f616f7f4edff910c4a"
+    }
+  ],
+  "reviewer": "non-author /root/audit",
+  "status": "OPEN; root has blocked integration of f4 pending generic subject/caller fix",
+  "claim": "Confirmed incomplete type dependency projection and unsafe caller-owner inspection boundary. No wrongcode or executable-divergence claim.",
+  "lineage": "The body-only named-struct key issue predates f4; the new EligibilityTypesBound guard recognizes part of it but only controls exit predicate reuse. Existing accepted bounded receipts/raw oracle logs remain historical evidence and are not overwritten.",
+  "A_body_only_identified_type": {
+    "problem": "numeric(Type) reads complete StructType elements, but general functionText prints an identified struct name without its definition. New header-only renderer/type finder deliberately excludes body-only types. Both subject entry keys and incoming caller projections can therefore omit such definitions. f4 turns off only afterStage eligibility fast reuse for those types; original fresh eligibility can still accept both integer-only types and an old generic stage key can still match.",
+    "valid_module_A": "%T = type { i32, i8 }\ndefine i32 @f() {\nentry:\n  %v = extractvalue %T zeroinitializer, 0\n  ret i32 %v\n}\n",
+    "valid_module_B": "%T = type { i32, i16 }\ndefine i32 @f() {\nentry:\n  %v = extractvalue %T zeroinitializer, 0\n  ret i32 %v\n}\n",
+    "conditions": "Use independent LLVM contexts with same module ID/target/options/naming/block state. Preserve the explicit ExtractValueInst: IRBuilder constant-folding it during fixture construction would remove the body-only type and make the counterexample vacuous. Textual parser or ExtractValueInst::Create is suitable.",
+    "reason": "Both modules are valid: selected field0 has i32 in both. Original numeric() accepts both integer element lists; eligibleFunction can be true on both. Official Function::print contains only%T in the body, and no header/global/named metadata refers to%T, so header-mode world can be equal. Ordered local uses and hidden BB/VST fields can also be identical.",
+    "not_proven": "The simple extractvalue may optimize to the same zero and no object-byte difference has been executed. Do not call this demonstrated wrongcode. The issue is that the advertised exact input/eligibility binding omits an actual type read, without a reviewed default-pass semantic quotient proof.",
+    "required_fix": "Prefer deterministic complete body-reachable identified-type definition projection shared by subject input/output, incoming caller and MIR. Include recursive types/names/packedness/opaque state and types reached via operands/attributes where consumed. If the complete closure cannot be represented, explicitly reject that optional product schema at the shared function projector/admission; original Verify/optimization still runs. Fixing numeric() alone does not cover arbitrary incoming callers.",
+    "exit_condition": "Actual valid all-integer A/B counterexample must either produce different common complete function/world keys or both reject optional products, with complete current native/ordinary pipeline intact. Existing pointer-field admissible-vs-ineligible test is additional but insufficient: it only tests afterStage fast predicate, not two admissible entries."
+  },
+  "B_orphan_caller": {
+    "problem": "Original eligibleFunction iterates F.users(), casts CallBase then invokes C->getFunction without checking insertion into a BasicBlock/function. New incomingCallersHaveCurrentOwners checks C->getParent but still invokes getFunction before validating that its BB has a parent Function.",
+    "source_authority": "Fixed LLVM Instruction.h217-224 explicitly says calling getFunction on an instruction not currently inserted into a function is undefined behavior.",
+    "counterexample_design": "Keep the subject F valid and create a detached CallInst using F, or attach that call to a detached BasicBlock. It still appears in F.users(). Guard code must reject before any API requiring a current function. Do not execute the old unsafe call as a regression oracle.",
+    "required_fix": "Unify a cheap safe owner gate before every original or new eligibility/world projection user walk: check CallBase, calledOperand==subject, BasicBlock* nonnull, BasicBlock::getParent Function* nonnull and parent Module==current. Obtain parent Function via checked BB rather than getFunction before its preconditions hold.",
+    "limit": "No valid source program crash has been demonstrated; native builders normally run a module verifier first. This is a real optional-hook API read precondition omission, especially when reasoning about post-pass intermediate owners, not a claim that the default compiler has already crashed on a valid project."
+  },
+  "f4_partial_review": {
+    "otherwise_safe": "Actual world must be nonempty/equal before output projection equality reuses the sealed entry predicate. Fresh current owner/name/use/DbgRecord checks precede equality; ConstantExpr/external users reject. New world empty caller checks prevent ambiguous empty accepted projections. Unsupported named-type read still runs original predicate, but that is insufficient for the older generic key as described above.",
+    "remaining": "Do not integrate until common type projection and all owner-read callers are closed; after that retain current verifyFunction, exact analysis facts and original PA/failed-context fallback."
+  },
+  "fixed_sources": [
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/AsmWriter.cpp",
+      "local": "/tmp/llvm7a-audit-f12-AsmWriter.cpp",
+      "sha256": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
+      "citations": [
+        "Function::print5095 directly prints a function; no type-identity section",
+        "Module::printModule prints type identities; TypePrinting uses named references in function body"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/Instruction.h",
+      "local": "/workspace/.zil-environment/llvm-23.1.4/include/llvm/IR/Instruction.h",
+      "sha256": "6a35f66c2f6f7ed1310ad9a7783654f6dea433784876979b3168e08077574e31",
+      "lines": [
+        217,
+        219,
+        220,
+        221,
+        224
+      ]
+    }
+  ],
+  "execution": "Read-only source review only; no Cargo, C++ compilation, LLVM pass execution, benchmark or executable-divergence experiment. Root is keeping its separate frozen default workspace gate and original failures.",
+  "panorama_addendum": "The common function/world key exactness is a correctness prerequisite before deleting repeated admission. This new open boundary narrows old source-proof language, not the observed successful native quality pairs. Continue other authorized work; do not count unsupported fallback as completed general LLVM incrementalization."
+}

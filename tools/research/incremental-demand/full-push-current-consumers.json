@@ -1,0 +1,867 @@
+{
+  "source": "48c83dbe7ac9c461224238f81270a3e529e854ac",
+  "tree": "2a403ae9e9c37295588417f8a63fdfbdf76a7072",
+  "method": "Independent actual-source and profile06 raw report review. No build, workload or measurement; explicit small profile metadata read only.",
+  "source_timing_boundary": "Profile06 binary is433227ab1/SDK15; current bd/48 stage no-snapshot/early-reject were added later and are not performance-tested by these profile timings. Later9d relative comparison removal is explicitly marked outside base48.",
+  "profile": {
+    "directory": "out/runs/full-push-native-profile-06",
+    "candidate_source": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "baseline_source": "42f0396f36b2a36860ecb55371d436e4327877a4",
+    "requests": 34,
+    "native_executions": 180,
+    "invalid_rows": 0,
+    "policy": "One profiled block, not controlled unprofiled matched speed or Rust claim; current library mappings/quality pairs remain parent evidence.",
+    "private_wall_ms": 566.389519,
+    "metrics": {
+      "cold": {
+        "wall_ms": 9224.330547,
+        "phase_ms": {
+          "parse": 0.031086,
+          "expand": 560.967461,
+          "types": 212.027558,
+          "analyze": 86.673959,
+          "verify": 49.452236,
+          "lower": 3.128862,
+          "codegen": 7878.287637,
+          "ct": 42.021682
+        },
+        "materialization_ms": 124.864996,
+        "exclusive_segments_ms": {
+          "analyze": 86.673959,
+          "codegen": 7878.287637,
+          "ct": 42.021682,
+          "discovery_receipt_publication": 1.612939,
+          "expand_assembly": 215.315532,
+          "expand_context": 11.253318,
+          "expand_materialization": 124.864996,
+          "expand_other": 4.073196,
+          "expand_production": 204.098933,
+          "expand_reuse": 1.361486,
+          "function_cache_publication": 0.00015,
+          "function_cache_read": 0.000431,
+          "function_checkpoint": 0.028924,
+          "lower": 3.128862,
+          "owner_binding": 0.008132,
+          "parse": 0.031086,
+          "producer_checkpoint": 0.006379,
+          "project_setup": 0.602033,
+          "semantic_cache_read": 0.000881,
+          "semantic_candidate_publication": 123.137293,
+          "source_ingress": 260.61967,
+          "types": 212.027558,
+          "verify": 49.452236
+        },
+        "backend_work": {
+          "lowered_functions": 425,
+          "reused_functions": 0,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 0,
+          "reused_link": false,
+          "rendered_diagnostic_items": 429,
+          "reused_diagnostic_items": 0,
+          "reused_partition_recipe": false,
+          "reused_partition_units": 0,
+          "rebuilt_partition_units": 16,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 1,
+          "native_history_payload_bytes": 129555917
+        }
+      },
+      "unchanged": {
+        "wall_ms": 68.254735,
+        "phase_ms": {
+          "analyze": 0.008814,
+          "verify": 0.004347,
+          "lower": 0.004317,
+          "codegen": 62.86969
+        },
+        "materialization_ms": 0.0,
+        "exclusive_segments_ms": {
+          "analyze": 0.008814,
+          "codegen": 62.86969,
+          "discovery_receipt_publication": 4e-05,
+          "function_checkpoint": 0.002804,
+          "lower": 0.004317,
+          "producer_epoch_activation": 0.049635,
+          "project_setup": 0.528102,
+          "source_ingress": 1.811267,
+          "verify": 0.004347
+        },
+        "backend_work": {
+          "lowered_functions": 0,
+          "reused_functions": 0,
+          "reused_machine_module": true,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": true,
+          "reused_partition": true,
+          "reused_object_keys": 16,
+          "reused_link": true,
+          "rendered_diagnostic_items": 0,
+          "reused_diagnostic_items": 0,
+          "reused_partition_recipe": false,
+          "reused_partition_units": 16,
+          "rebuilt_partition_units": 0,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 1,
+          "native_history_payload_bytes": 129555917
+        }
+      },
+      "private": {
+        "wall_ms": 566.389519,
+        "phase_ms": {
+          "parse": 0.02068,
+          "expand": 22.906422,
+          "types": 0.718587,
+          "analyze": 0.792579,
+          "verify": 16.313745,
+          "lower": 0.125007,
+          "codegen": 491.802502,
+          "ct": 14.636891
+        },
+        "materialization_ms": 16.52375,
+        "exclusive_segments_ms": {
+          "analyze": 0.792579,
+          "codegen": 491.802502,
+          "ct": 14.636891,
+          "discovery_receipt_publication": 1.565157,
+          "expand_assembly": 0.941903,
+          "expand_context": 0.269685,
+          "expand_materialization": 16.52375,
+          "expand_other": 1.035554,
+          "expand_production": 3.793041,
+          "expand_reuse": 0.342489,
+          "function_cache_publication": 0.00016,
+          "function_cache_read": 0.00029,
+          "function_checkpoint": 0.005949,
+          "lower": 0.125007,
+          "owner_binding": 0.01322,
+          "parse": 0.02068,
+          "producer_checkpoint": 0.031337,
+          "project_setup": 0.512579,
+          "semantic_cache_read": 0.00664,
+          "semantic_candidate_publication": 7.271445,
+          "source_ingress": 4.312523,
+          "types": 0.718587,
+          "verify": 16.313745
+        },
+        "backend_work": {
+          "lowered_functions": 1,
+          "reused_functions": 424,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 15,
+          "reused_link": false,
+          "rendered_diagnostic_items": 1,
+          "reused_diagnostic_items": 428,
+          "reused_partition_recipe": true,
+          "reused_partition_units": 15,
+          "rebuilt_partition_units": 1,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 1,
+          "native_history_payload_bytes": 129553129
+        }
+      },
+      "multi": {
+        "wall_ms": 891.965926,
+        "phase_ms": {
+          "parse": 0.028546,
+          "expand": 67.004404,
+          "types": 8.567209,
+          "analyze": 2.203044,
+          "verify": 23.969998,
+          "lower": 0.686109,
+          "codegen": 737.708461,
+          "ct": 15.673065
+        },
+        "materialization_ms": 24.087774,
+        "exclusive_segments_ms": {
+          "analyze": 2.203044,
+          "codegen": 737.708461,
+          "ct": 15.673065,
+          "discovery_receipt_publication": 1.380239,
+          "expand_assembly": 11.340215,
+          "expand_context": 0.894492,
+          "expand_materialization": 24.087774,
+          "expand_other": 1.419378,
+          "expand_production": 28.799558,
+          "expand_reuse": 0.462987,
+          "function_cache_publication": 0.00013,
+          "function_cache_read": 0.000131,
+          "function_checkpoint": 0.005799,
+          "lower": 0.686109,
+          "owner_binding": 0.064447,
+          "parse": 0.028546,
+          "producer_checkpoint": 0.027952,
+          "project_setup": 0.61318,
+          "semantic_cache_read": 0.008192,
+          "semantic_candidate_publication": 21.693163,
+          "source_ingress": 7.280839,
+          "types": 8.567209,
+          "verify": 23.969998
+        },
+        "backend_work": {
+          "lowered_functions": 3,
+          "reused_functions": 422,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 13,
+          "reused_link": false,
+          "rendered_diagnostic_items": 3,
+          "reused_diagnostic_items": 426,
+          "reused_partition_recipe": true,
+          "reused_partition_units": 13,
+          "rebuilt_partition_units": 3,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 1,
+          "native_history_payload_bytes": 115760948
+        }
+      },
+      "broad": {
+        "wall_ms": 8767.287057,
+        "phase_ms": {
+          "parse": 0.064236,
+          "expand": 500.638838,
+          "types": 185.517193,
+          "analyze": 31.413652,
+          "verify": 51.881529,
+          "lower": 2.829935,
+          "codegen": 7653.978233,
+          "ct": 36.261943
+        },
+        "materialization_ms": 95.686275,
+        "exclusive_segments_ms": {
+          "analyze": 31.413652,
+          "codegen": 7653.978233,
+          "ct": 36.261943,
+          "discovery_receipt_publication": 1.892208,
+          "expand_assembly": 197.659517,
+          "expand_context": 9.764805,
+          "expand_materialization": 95.686275,
+          "expand_other": 4.465733,
+          "expand_production": 191.903167,
+          "expand_reuse": 1.159341,
+          "function_cache_publication": 0.00016,
+          "function_cache_read": 0.00045,
+          "function_checkpoint": 0.005759,
+          "lower": 2.829935,
+          "owner_binding": 0.016084,
+          "parse": 0.064236,
+          "producer_checkpoint": 0.149854,
+          "project_setup": 0.535603,
+          "semantic_cache_read": 0.007,
+          "semantic_candidate_publication": 83.492522,
+          "source_ingress": 166.763523,
+          "types": 185.517193,
+          "verify": 51.881529
+        },
+        "backend_work": {
+          "lowered_functions": 400,
+          "reused_functions": 25,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 0,
+          "reused_link": false,
+          "rendered_diagnostic_items": 400,
+          "reused_diagnostic_items": 29,
+          "reused_partition_recipe": true,
+          "reused_partition_units": 0,
+          "rebuilt_partition_units": 16,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 1,
+          "native_history_payload_bytes": 129864154
+        }
+      },
+      "positions": {
+        "wall_ms": 1338.654321,
+        "phase_ms": {
+          "parse": 0.06158,
+          "expand": 634.078371,
+          "types": 157.709283,
+          "analyze": 33.243306,
+          "verify": 45.606589,
+          "lower": 4.152447,
+          "codegen": 238.050942,
+          "ct": 34.905459
+        },
+        "materialization_ms": 98.972414,
+        "exclusive_segments_ms": {
+          "analyze": 33.243306,
+          "codegen": 238.050942,
+          "ct": 34.905459,
+          "discovery_receipt_publication": 2.576564,
+          "expand_assembly": 170.309885,
+          "expand_context": 10.469862,
+          "expand_materialization": 98.972414,
+          "expand_other": 46.044748,
+          "expand_production": 305.374524,
+          "expand_reuse": 2.906938,
+          "function_cache_publication": 0.000151,
+          "function_cache_read": 0.00035,
+          "function_checkpoint": 0.023385,
+          "lower": 4.152447,
+          "owner_binding": 0.451547,
+          "parse": 0.06158,
+          "producer_checkpoint": 0.028473,
+          "project_setup": 0.544687,
+          "semantic_cache_read": 0.008733,
+          "semantic_candidate_publication": 98.682274,
+          "source_ingress": 66.716593,
+          "types": 157.709283,
+          "verify": 45.606589
+        },
+        "backend_work": {
+          "lowered_functions": 0,
+          "reused_functions": 425,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": true,
+          "reused_partition": true,
+          "reused_object_keys": 16,
+          "reused_link": true,
+          "rendered_diagnostic_items": 0,
+          "reused_diagnostic_items": 0,
+          "reused_partition_recipe": false,
+          "reused_partition_units": 16,
+          "rebuilt_partition_units": 0,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 2,
+          "native_history_payload_bytes": 129864154
+        }
+      },
+      "error": {
+        "wall_ms": 60.181919,
+        "phase_ms": {
+          "parse": 0.136357,
+          "expand": 22.441877,
+          "types": 13.091815,
+          "ct": 14.911824
+        },
+        "materialization_ms": 16.978925,
+        "exclusive_segments_ms": {
+          "ct": 14.911824,
+          "discovery_receipt_publication": 4e-05,
+          "expand_assembly": 0.902422,
+          "expand_context": 0.233089,
+          "expand_materialization": 16.978925,
+          "expand_other": 1.034728,
+          "expand_production": 2.800834,
+          "expand_reuse": 0.491879,
+          "function_cache_read": 0.00019,
+          "function_checkpoint": 0.005729,
+          "owner_binding": 0.011668,
+          "parse": 0.136357,
+          "producer_checkpoint": 0.035173,
+          "project_setup": 0.572418,
+          "semantic_cache_read": 0.00617,
+          "source_ingress": 4.586329,
+          "types": 13.091815
+        },
+        "backend_work": null
+      },
+      "recovery": {
+        "wall_ms": 1462.888965,
+        "phase_ms": {
+          "parse": 0.094762,
+          "expand": 39.402905,
+          "types": 235.910204,
+          "analyze": 19.707026,
+          "verify": 54.3792,
+          "lower": 4.919878,
+          "codegen": 1016.985446,
+          "ct": 16.563026
+        },
+        "materialization_ms": 25.987159,
+        "exclusive_segments_ms": {
+          "analyze": 19.707026,
+          "codegen": 1016.985446,
+          "ct": 16.563026,
+          "discovery_receipt_publication": 3.274772,
+          "expand_assembly": 2.079294,
+          "expand_context": 0.293761,
+          "expand_materialization": 25.987159,
+          "expand_other": 1.058025,
+          "expand_production": 9.504688,
+          "expand_reuse": 0.479978,
+          "function_cache_publication": 0.00015,
+          "function_cache_read": 0.000411,
+          "function_checkpoint": 0.005949,
+          "lower": 4.919878,
+          "owner_binding": 0.01344,
+          "parse": 0.094762,
+          "producer_checkpoint": 0.028783,
+          "project_setup": 0.497656,
+          "semantic_cache_read": 0.007681,
+          "semantic_candidate_publication": 17.728138,
+          "source_ingress": 5.256723,
+          "types": 235.910204,
+          "verify": 54.3792
+        },
+        "backend_work": {
+          "lowered_functions": 1,
+          "reused_functions": 424,
+          "reused_machine_module": false,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 15,
+          "reused_link": false,
+          "rendered_diagnostic_items": 1,
+          "reused_diagnostic_items": 428,
+          "reused_partition_recipe": true,
+          "reused_partition_units": 15,
+          "rebuilt_partition_units": 1,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 2,
+          "native_history_payload_bytes": 13797959
+        }
+      },
+      "restore": {
+        "wall_ms": 160.946331,
+        "phase_ms": {
+          "analyze": 0.011057,
+          "verify": 22.206545,
+          "lower": 0.595032,
+          "codegen": 126.614907
+        },
+        "materialization_ms": 0.0,
+        "exclusive_segments_ms": {
+          "analyze": 0.011057,
+          "codegen": 126.614907,
+          "discovery_receipt_publication": 1.772989,
+          "function_checkpoint": 0.002524,
+          "lower": 0.595032,
+          "producer_epoch_activation": 0.040821,
+          "project_setup": 0.53978,
+          "source_ingress": 5.006168,
+          "verify": 22.206545
+        },
+        "backend_work": {
+          "lowered_functions": 0,
+          "reused_functions": 0,
+          "reused_machine_module": true,
+          "whole_machine_input_functions_compared": 0,
+          "reused_machine_transforms": false,
+          "reused_partition": false,
+          "reused_object_keys": 15,
+          "reused_link": false,
+          "rendered_diagnostic_items": 1,
+          "reused_diagnostic_items": 428,
+          "reused_partition_recipe": true,
+          "reused_partition_units": 15,
+          "rebuilt_partition_units": 1,
+          "source_projection_traversals": 0,
+          "source_projection_instruction_visits": 0,
+          "source_projection_reuses": 0,
+          "native_history_restored_units": 0,
+          "native_history_retained_epochs": 2,
+          "native_history_payload_bytes": 13797959
+        }
+      }
+    },
+    "raw_evidence": [
+      {
+        "path": "out/runs/full-push-native-profile-06/manifest.json",
+        "sha256": "ff2940b03e5b4e1b30c47568bcdebc2360669f8149666104a090b2d5e395ba9f"
+      },
+      {
+        "path": "out/runs/full-push-native-profile-06/rows.jsonl",
+        "sha256": "a0b658912095b55d6c3910f6422117f5b7f313eb8c40e86fa1e787a61846042f"
+      },
+      {
+        "path": "out/runs/full-push-native-profile-06/summary.json",
+        "sha256": "5863bf963f06867881f856caa9b2957fdb7bfa44e982a4bca83c50b0bf19ed6f"
+      }
+    ]
+  },
+  "conclusion": "Outer global construction identity still redelivers private changes to complete phases, but most actual per-function downstream consumers already prevent full recomputation. Removing a PrivateImplementation label alone cannot remove re-entry: source content is also part of each phase key. The next small actual deletions are plain-domain CT admission replay and checker-owned global-loop receipts, while native optimize+link discovery remain dominant costs. Shared owners are not deep copies; exact old relative_equal COW-for-Eq was a real exception now separately removed.",
+  "table": [
+    {
+      "boundary": "Source ingress / project identity",
+      "locations": [
+        {
+          "path": "crates/zil-base/src/lib.rs",
+          "line": 78,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-base/src/lib.rs#L78"
+        },
+        {
+          "path": "crates/zil-driver/src/project.rs",
+          "line": 1910,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/project.rs#L1910"
+        },
+        {
+          "path": "crates/zil-driver/src/session.rs",
+          "line": 1368,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/session.rs#L1368"
+        }
+      ],
+      "input": "Every current file ID/module ID/path/text fingerprint plus target/rules/full Limits/build inputs. SourceUnit::fingerprint hashes text on every call.",
+      "invalidated": "One changed file produces a new complete project fingerprint; read all22 files/498621B, parse1/reuse21.",
+      "actual_recomputed": "One parser plus current discovery guards, source identity and inventory construction.",
+      "result_equal_stop": "Unchanged parser owners reused; source positions and full project identity still change.",
+      "reaggregation": "Project source/path inventories; repeated source hashes and whole key construction.",
+      "profile06": "ingress4.313ms; parser2.300ms;22reads are actual, not22parses.",
+      "next": "Deduplicate hashing within a request-owned immutable current source snapshot. Do not cache public mutable SourceUnit.text digest without mutation control."
+    },
+    {
+      "boundary": "Whole-phase DB edges",
+      "locations": [
+        {
+          "path": "crates/zil-driver/src/session.rs",
+          "line": 577,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/session.rs#L577"
+        },
+        {
+          "path": "crates/zil-driver/src/session.rs",
+          "line": 619,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/session.rs#L619"
+        },
+        {
+          "path": "crates/zil-driver/src/session.rs",
+          "line": 1427,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/session.rs#L1427"
+        }
+      ],
+      "input": "project_key.input is full project source fingerprint; phase_key copies it. Raw digest combines construction key + PrivateImplementation deps. All generic dependency edges use that kind.",
+      "invalidated": "Expand/Ct/Types/Analyze get new keys, not merely a red old key. Exact retained-parent lookup can hit, but private edit cannot whole-frontend hit.",
+      "actual_recomputed": "Outer wrappers/queries re-enter; this does NOT imply all functions execute below them.",
+      "result_equal_stop": "Per-function direct sessions perform sparse propagation. Outer DB has no stable content-independent per-function query identity for this path.",
+      "reaggregation": "New wrapper construction fingerprint/candidate module binding; most body subtrees remain shared.",
+      "profile06": "query_events executed Expand,Ct,Types,Analyze; Parse21 reused/1 executed; Verify/Lower always entered.",
+      "next": "Split stable semantic/effect/position product identities from raw construction wrapper binding. Changing only dependency kind cannot fix a source-content-changing query key and must not bypass independent current checks."
+    },
+    {
+      "boundary": "Expand / materializer / pre-CT raw inference",
+      "locations": [
+        {
+          "path": "crates/zil-driver/src/project.rs",
+          "line": 948,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/project.rs#L948"
+        },
+        {
+          "path": "crates/zil-driver/src/project.rs",
+          "line": 1244,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/project.rs#L1244"
+        },
+        {
+          "path": "crates/zil-driver/src/project.rs",
+          "line": 1297,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/project.rs#L1297"
+        }
+      ],
+      "input": "Sealed producer prior epoch + full actual source/import/environment and remaining phase budgets.",
+      "invalidated": "Changed module1;20 shifted sibling declarations gain current location bindings.",
+      "actual_recomputed": "Materialize/normalize/restore/lower1module;21module lower owners reused. Raw closure/names/dependencies each1checked424reused.",
+      "result_equal_stop": "Function input hash1/reuse424; unchanged normalized owners are retained, but changed-module AST positions still create21 item copies in this run.",
+      "reaggregation": "After sparse inference, unconditional SourceProgramContext::new and validate_unchanged_source loop over all inferred modules; current assembly/maps and budget charging.",
+      "profile06": "Expand22.906ms includes materialization16.524ms; CT14.637ms.",
+      "next": "Highest small root slice: privately sealed no-CT/no-rewrite success receipt through this real CT consumer, replaying exact successful fees/full context/target/Limits and falling back to original ordered validation on uncertainty or budget failure."
+    },
+    {
+      "boundary": "Types function consumers",
+      "locations": [
+        {
+          "path": "crates/zil-types/src/push.rs",
+          "line": 152,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-types/src/push.rs#L152"
+        },
+        {
+          "path": "crates/zil-types/src/push.rs",
+          "line": 326,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-types/src/push.rs#L326"
+        },
+        {
+          "path": "crates/zil-types/src/push.rs",
+          "line": 949,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-types/src/push.rs#L949"
+        }
+      ],
+      "input": "Producer change batch prior epoch, namespace/InputContext, exact target/Limits and actual observed callee signature leaves.",
+      "invalidated": "1body+20position leaves;0signature changes/readers.",
+      "actual_recomputed": "1body check,20 current span rebindings,21receipt tree replacements;404 untouched functions retained.",
+      "result_equal_stop": "Signature equality stops reader propagation. Actual relative typed result equality controls body result patch; no public digest grants admission.",
+      "reaggregation": "TypedProgram/interface/header wrappers; persistent function root updates, aggregate budget tree and structural fingerprint. Unchanged CFG hashes are memoized tree nodes, not full wire re-encoded.",
+      "profile06": "Types0.719ms; positions scenario has425rebindings and Types157.709ms.",
+      "next": "Base48 relative_equal clones two functions then mutating rebase triggers real SharedVec COW solely for Eq. Already removed by later9d5c40691 (source reviewed separately): read-only exhaustive relative comparison. Actual current position rebinding remains; performance not measured here."
+    },
+    {
+      "boundary": "Analyze actual plan/effect consumers",
+      "locations": [
+        {
+          "path": "crates/zil-driver/src/session.rs",
+          "line": 1040,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/session.rs#L1040"
+        },
+        {
+          "path": "crates/zil-analyze/src/product.rs",
+          "line": 472,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-analyze/src/product.rs#L472"
+        },
+        {
+          "path": "crates/zil-analyze/src/product.rs",
+          "line": 750,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-analyze/src/product.rs#L750"
+        }
+      ],
+      "input": "Current Typed owner/context/Limits and actual callee rows/signatures; private persistent function/effect reader graph.",
+      "invalidated": "Whole Analyze query new, but dirty semantic1 and20relocated bindings.",
+      "actual_recomputed": "1function query424reused;0global-obligation executions/1reuse.",
+      "result_equal_stop": "425equal function results/0changed,0plan row replacements. This is a real result-equality stop, yet a new candidate frame must bind the new current module identity.",
+      "reaggregation": "Current module structural root fingerprint and candidate wrapper; delta total tree and relocated row owners.",
+      "profile06": "Analyze0.793ms; private output effects/plans unchanged despite body edit.",
+      "next": "Keep direct result patches to actual downstream consumers. Do not rerun Analyze rows merely because outer PrivateImplementation changed; already largely achieved here."
+    },
+    {
+      "boundary": "Independent Verify",
+      "locations": [
+        {
+          "path": "crates/zil-verify/src/incremental.rs",
+          "line": 125,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-verify/src/incremental.rs#L125"
+        },
+        {
+          "path": "crates/zil-verify/src/incremental/raw_tree.rs",
+          "line": 113,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-verify/src/incremental/raw_tree.rs#L113"
+        },
+        {
+          "path": "crates/zil-verify/src/lib.rs",
+          "line": 820,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-verify/src/lib.rs#L820"
+        },
+        {
+          "path": "crates/zil-verify/src/lib.rs",
+          "line": 955,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-verify/src/lib.rs#L955"
+        }
+      ],
+      "input": "Independently bound current raw Typed/Candidate/target/full Limits; old Analyze plan is data, not authorization.",
+      "invalidated": "No full receipt hit on changed raw owner. Current Verify invoked once.",
+      "actual_recomputed": "Flow1checked422reused; empty-borrow1/424; raw inventory1/424; result-mode/regions/lexical21 changed bindings.",
+      "result_equal_stop": "133195 instruction proofs reused and112197 empty borrow values avoided. raw_shape_functions_aggregated404 means eight whole-range receipt replays, not404 per-function shape walks.",
+      "reaggregation": "Still all425 headers and all local/value type/signature/count loops in lib.rs820+, plan/function pair loop, graph list, current global obligations and structural module/plan binding.",
+      "profile06": "Verify16.314ms; positions45.607ms.",
+      "next": "Independent checker-owned header/type/count obligation receipts or prefix-context trees around the still-repeated loop, preserving exact Budget state and first-error traversal fallback. Never skip Verify based on Types/Analyze receipt."
+    },
+    {
+      "boundary": "Lower / machine-model / CGU recipe",
+      "locations": [
+        {
+          "path": "crates/zil-lower/src/session.rs",
+          "line": 110,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-lower/src/session.rs#L110"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/emit.rs",
+          "line": 170,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/emit.rs#L170"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/emit/incremental.rs",
+          "line": 256,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/emit/incremental.rs#L256"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/machine_cgu/recipe.rs",
+          "line": 1,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/machine_cgu/recipe.rs#L1"
+        }
+      ],
+      "input": "Current Verified-backed borrowed LIR; immutable function deltas, full nonfunction context, ABI/options/roles, limits and actual original remaining ledger.",
+      "invalidated": "21location leaves at Lower; only1semantically changed machine function.",
+      "actual_recomputed": "Lower21 checks404reused; machine1lowered424reused; recipe1unit rebuilt15 retained.",
+      "result_equal_stop": "Machine same_input ignores only audited diagnostic positions after current binding. Stable per-function products avoid machine lowering and15 object-key rebuilds.",
+      "reaggregation": "Backend context reconstructs/compares full headers/globals, current LIR binding and inventories; machine module/item wrappers and partition assemblies. Bodies remain SharedVec/Arc shared.",
+      "profile06": "Lower0.125ms; machine18.442ms; partition0.226ms; old-parent restore machine4.485ms now whole-machine history hits.",
+      "next": "Avoid redundant immutable context/header reconstruction; complete raw epoch history is already effective on restore. Do not repeat the obsolete claim that a parent necessarily rebuilds all machine bodies."
+    },
+    {
+      "boundary": "Actual LLVM/O2/native object",
+      "locations": [
+        {
+          "path": "crates/zil-backend-llvm/src/build.rs",
+          "line": 1351,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/build.rs#L1351"
+        },
+        {
+          "path": "crates/zil-llvm-api/native/work_products.cpp",
+          "line": 659,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-llvm-api/native/work_products.cpp#L659"
+        },
+        {
+          "path": "crates/zil-llvm-api/native/machine_products.cpp",
+          "line": 1019,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-llvm-api/native/machine_products.cpp#L1019"
+        }
+      ],
+      "input": "Actual current unit items/options/target, function and world state, stage occurrence and exact supported analysis states; independent machine preflight.",
+      "invalidated": "1CGU object changed,42 emitted functions; object15hits1fresh.",
+      "actual_recomputed": "O2 function stages300execute78reuse;507current analysis reconstructions; machine39reuse3execute;4875passes skipped; Module33/CGSCC336/current AsmPrinter42 still run.",
+      "result_equal_stop": "Exact stage output and actual object bytes stop downstream at their boundaries. No function-body-only/O0/noinline shortcut.",
+      "reaggregation": "Build/LLVMVerify/current unit preflight, full module globals, supported world/facts keys5.38MB, MIR current-owner restore+validate and whole-unit MC/object emission.",
+      "profile06": "Object352.475ms; native preflight14.808/builder20.945/optimize226.261/emit77.173ms. MIR key13.880/reconstruct14.913/restore21.833ms are nested in native scopes; do not sum again.",
+      "next": "New bd early-unknown and BodyUnchanged source slices already reduce unnecessary admission/transport on eligible stage products; not measured by profile06. Next reuse richer actual supported dependencies or shared immutable key fragments; preserve unknown fresh and full current Module/CGSCC checks."
+    },
+    {
+      "boundary": "Diagnostic output / persistence",
+      "locations": [
+        {
+          "path": "crates/zil-backend-llvm/src/build.rs",
+          "line": 270,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/build.rs#L270"
+        },
+        {
+          "path": "crates/zil-driver/src/semantic_items.rs",
+          "line": 576,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-driver/src/semantic_items.rs#L576"
+        }
+      ],
+      "input": "Current model fragment owners; current bound function/candidate products and exact cache namespace/source guards.",
+      "invalidated": "1diagnostic item,21position-bound serialized functions.",
+      "actual_recomputed": "1item rendered428reused; semantic21serialized404reused; candidate plans0serialized425reused; one dirty pack and manifest.",
+      "result_equal_stop": "Existing immutable fragments/segments avoid whole body serialization; current wrapper manifest/output still materialized.",
+      "reaggregation": "Full requested .ll streaming/write, semantic binding/manifest order and one current logical wire schema; no full repeated encode of all unchanged CFGs.",
+      "profile06": "diagnostic4.754ms; semantic publication7.271ms,266402physical pack bytes+113401manifest bytes.",
+      "next": "Avoid mandatory full sidecar write when no consumer requests it; retain exact diagnostic output contract if required. Retain current v7 guards; do not introduce stale semantic authorities."
+    },
+    {
+      "boundary": "Link dependency / final executable",
+      "locations": [
+        {
+          "path": "crates/zil-backend-llvm/src/build.rs",
+          "line": 885,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/build.rs#L885"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/build.rs",
+          "line": 949,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/build.rs#L949"
+        },
+        {
+          "path": "crates/zil-backend-llvm/src/link_cache.rs",
+          "line": 286,
+          "source_url": "https://github.com/zil-lang/zil/blob/48c83dbe7ac9c461224238f81270a3e529e854ac/crates/zil-backend-llvm/src/link_cache.rs#L286"
+        }
+      ],
+      "input": "Actual object bytes + exact options/target and current tool/runtime/library/script closure, positive/negative search candidates.",
+      "invalidated": "Private object payload changed; complete link key differs.",
+      "actual_recomputed": "Discovery before link AND recheck after link: command records two clang -###,ldd/ld --verbose sets; original final link1.",
+      "result_equal_stop": "Equal complete key reuses final ELF even if an object was freshly produced with equal bytes. Unchanged uses link hit but still current dependency discovery47.252ms.",
+      "reaggregation": "Full objects/current library bytes/candidate inventories and executable capture; actual external dependency checks cannot simply be removed.",
+      "profile06": "Private link_key79.610ms + link_execution35.815ms; unchanged link_key47.252ms.",
+      "next": "Cache the discovery recipe with all current positive/negative filesystem/tool/env/cwd observations, not just clang stamp. Or bind current discovered closure to reuse a scan within the request with correct post-link change detection. Actual linker incrementality needs symbol/section/relocation work; not solved by Rust query caching."
+    }
+  ],
+  "priority_actions": [
+    {
+      "priority": 1,
+      "owner_scope": "root driver CT",
+      "action": "Seal successful no-rewrite/no-CT original validation result and fee replay around project.rs1297 SourceProgramContext/global validate loop; first-error/low-budget fallback remains old path.",
+      "evidence": "14.637ms private CT despite raw inference1/424 and semantic no-CT fixture."
+    },
+    {
+      "priority": 2,
+      "owner_scope": "Verify independent checker",
+      "action": "Receipt-tree the remaining all-function signature/local/value metadata/count loop and preserve Budget flags/context; actual raw immutable dependencies only.",
+      "evidence": "16.314ms private Verify after successful flow/proof reuse; raw-shape range receipt already works and is not the target."
+    },
+    {
+      "priority": 3,
+      "owner_scope": "root/backend",
+      "action": "Bind/memo complete link discovery recipe/observations, retaining post-link race check; measure actual -###/ldd/library-read cost.",
+      "evidence": "79.610ms private and47.252ms unchanged link-key scopes; private invokes discovery twice."
+    },
+    {
+      "priority": 4,
+      "owner_scope": "native products",
+      "action": "Measure current bd slices, then exact-share stable world/facts fragments and extend only actual audited analysis domains; optional history union dedup can retain shared products without double charging.",
+      "evidence": "Private optimize226.261ms,5.38MB IR keys; cold52.97MB keys/22.94MB snapshots and0reuses. Native history129.55MB logical near128MiB cap, recovery no native reuse; unique opaque product accounting is a separate in-progress source slice."
+    }
+  ],
+  "rust": {
+    "pin": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "cargo_pin": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
+    "references": [
+      {
+        "path": "rust/compiler/rustc_codegen_ssa/src/base.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs",
+        "sha256": "37e5e27dfd9fea79909f4b16b8e73dfcb95bcc6e84fbfd0a848190dda1cafe18",
+        "bytes": 55444
+      },
+      {
+        "path": "rust/compiler/rustc_incremental/src/persist/save.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_incremental/src/persist/save.rs",
+        "sha256": "8098ae96038e448e95721bc4473229cc5f52a7a66d5a606b02d9ccfa6c3a4618",
+        "bytes": 6197
+      },
+      {
+        "path": "rust/compiler/rustc_middle/src/dep_graph/graph.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/dep_graph/graph.rs",
+        "sha256": "f66eda9a9dec72aece77c0660a0672b48b30fe45dc1bdc4bca18a666a07f5495",
+        "bytes": 59687
+      },
+      {
+        "path": "rust/compiler/rustc_query_impl/src/execution.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_query_impl/src/execution.rs",
+        "sha256": "83f3fa077f3c92eddafb065d1e93af706810742687069c52694b58f196b0f759",
+        "bytes": 22530
+      },
+      {
+        "path": "rust/compiler/rustc_query_impl/src/incremental.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_query_impl/src/incremental.rs",
+        "sha256": "7855be59b195ee2fa0902962cd6a72f8cfe5186f54f4e9d0ff27b15d2b3e0034",
+        "bytes": 6331
+      },
+      {
+        "path": "cargo/src/compiler/fingerprint/mod.rs",
+        "url": "https://raw.githubusercontent.com/rust-lang/cargo/5f94df4789f005f9a352888e8355ffc645b7ed0e/src/compiler/fingerprint/mod.rs",
+        "sha256": "1d38986fa39dd821ff58a9812f69c614278564079cda04fc3fa29d79b9f84979",
+        "bytes": 93849
+      }
+    ],
+    "actual_comparison": [
+      "rustc execute_job_incr execution.rs405+ first demand-checks the existing stable query dep-node, not a driver phase key containing the complete new source content. graph.rs909+ recursively validates prior actual dependency edges, forces unknown/red dependencies when necessary, and excludes eval_always from blind green reuse.",
+      "graph.rs487 hashes actual computed query result and alloc_and_color_node graph.rs792+ marks a rerun green when result fingerprint is unchanged; downstream result equality can stop despite invalidated input. Query reads dynamically record actual dep-node edges graph.rs507. Query key fingerprint is separate stable key identity (dep_node_key.rs), with DefPath-style recoverable keys and opaque unrecoverable cases.",
+      "ZIL currently has analogous actual fine-result equality in Typed signatures, Analyze rows, Verify receipts, machine products and object/link bytes, often via direct bespoke sessions. Its outer whole-project DB key/digest deliberately binds complete raw construction and uses PrivateImplementation, so it lacks rustc-style stable-key red-green reuse at that coarse boundary. One centralized graph is not required; actual dependencies and consistent completed epochs are.",
+      "Rust Cargo freshness is a different unit layer: fingerprint/dependency output and mtime/dep-info conditions can avoid invoking rustc on unchanged inputs, but a private edit normally dirties the crate and reruns rustc. It is not per-function query scheduling.",
+      "Rust determine_cgu_reuse base.rs1238 requires existing work product plus green CompileCodegenUnit; it reuses whole post-LTO object/no-LTO or pre-LTO bitcode depending LTO. A changed CGU runs backend compilation again. It does not provide per-function defaultO2/MIR products inside a red CGU. Requested CGU16 is not a guarantee of16 nonempty units or stable same grouping.",
+      "Rust persisting graph/query cache still serializes metadata and retained query values; save.rs returns on errors before writing, and saves only after queries finish. Loaded-value fingerprint verification is sampled1/32 unless incremental_verify_ich, not a fresh independent compiler verifier on every cache load. Do not idealize Rust as cost-free perfect graph reuse or function-level LLVM optimization."
+    ]
+  },
+  "no_new_claims": [
+    "No speed/Rust ranking from single-block timings",
+    "No complete push/whole-language acceptance",
+    "No old Typed/Analyze/Verified hash authorizes current source",
+    "No generalized deep-copy claim for persistent/shared owners",
+    "No unmeasured bd or9d improvement inferred from old profile06"
+  ]
+}
