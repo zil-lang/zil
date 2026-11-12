@@ -79,6 +79,7 @@ struct Context<'a> {
     defs: Vec<Option<&'a InstructionKind>>,
     stores: BTreeMap<LocalId, Vec<ValueId>>,
     returned: Vec<ValueId>,
+    capture_writes: Vec<(u32, ValueId)>,
 }
 fn context<'a>(
     module: &'a TypedModule,
@@ -124,6 +125,7 @@ fn context<'a>(
         defs: vec![None; f.values.len()],
         stores: BTreeMap::new(),
         returned: Vec::new(),
+        capture_writes: Vec::new(),
     };
     for (block, live) in f.blocks.iter().zip(reachable) {
         if !live {
@@ -140,6 +142,10 @@ fn context<'a>(
             if let InstructionKind::Store { local, value } = i.kind {
                 pay(b, c.stores.len().saturating_add(1))?;
                 c.stores.entry(local).or_default().push(value)
+            }
+            if let InstructionKind::WriteCapture { index, value } = i.kind {
+                pay(b, 1)?;
+                c.capture_writes.push((index, value));
             }
         }
         if let Terminator::Return(Some(v)) = block.terminator {
@@ -396,10 +402,22 @@ fn resolve(
             local_sources(c, *local, &p, active, depth + 1, b)
         }
         InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index } => {
-            Ok(Sources::from([ActualSource::Input(StoragePosition {
-                base: StorageBase::Capture(*index),
-                path: path.to_vec(),
-            })]))
+            if let Some(definition) =
+                c.f.environment
+                    .and_then(|id| c.module.closures.get(id.0 as usize))
+                && definition.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(*index) && position.path == path
+                    })
+                })
+            {
+                capture_sources(c.module, definition, *index, path, active, depth + 1, b)
+            } else {
+                Ok(Sources::from([ActualSource::Input(StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: path.to_vec(),
+                })]))
+            }
         }
         InstructionKind::Call {
             function,
@@ -439,6 +457,127 @@ fn resolve(
     };
     active.remove(&key);
     result
+}
+
+fn capture_sources(
+    module: &TypedModule,
+    definition: &ClosureDefinition,
+    index: u32,
+    path: &[ContractProjection],
+    active: &mut BTreeSet<(FunctionId, ValueId, Path)>,
+    depth: usize,
+    b: &mut Budget,
+) -> CompileResult<Sources> {
+    pay(b, module.functions.len().saturating_add(1))?;
+    if depth > b.partial_depth {
+        return Err(err("constant capture source graph exceeds finite depth"));
+    }
+    let mut out = Sources::new();
+    let mut constructed = false;
+    for function in &module.functions {
+        if function.foreign.is_some() || function.blocks.is_empty() {
+            continue;
+        }
+        let c = context(module, function, b)?;
+        for instruction in c.defs.iter().flatten() {
+            pay(b, 1)?;
+            if let InstructionKind::MakeClosure { closure, captures } = instruction
+                && *closure == definition.id
+            {
+                constructed = true;
+                let operand = *captures
+                    .get(index as usize)
+                    .ok_or_else(|| err("constant capture constructor omits an actual operand"))?;
+                let actual = function
+                    .values
+                    .get(operand.0 as usize)
+                    .ok_or_else(|| err("constant capture constructor operand is absent"))?;
+                let expected = definition
+                    .captures
+                    .get(index as usize)
+                    .ok_or_else(|| err("constant capture selector is absent"))?;
+                b.type_work(actual, false, "constant constructor complete actual type")?;
+                b.type_work(
+                    expected,
+                    false,
+                    "constant constructor complete capture type",
+                )?;
+                if actual != expected {
+                    return Err(err(
+                        "constant capture constructor changes the complete actual leaf",
+                    ));
+                }
+                extend(
+                    &mut out,
+                    resolve(&c, operand, path, active, depth + 1, b)?,
+                    b,
+                )?;
+            }
+        }
+        if function.environment == Some(definition.id) {
+            for (slot, value) in &c.capture_writes {
+                if *slot == index {
+                    extend(
+                        &mut out,
+                        resolve(&c, *value, path, active, depth + 1, b)?,
+                        b,
+                    )?;
+                }
+            }
+        }
+    }
+    if !constructed {
+        return Err(err("constant capture has no actual constructor grounding"));
+    }
+    Ok(out)
+}
+
+pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    pay(b, module.functions.len())?;
+    for function in &module.functions {
+        let Some(life) = &function.storage_life else {
+            continue;
+        };
+        for position in &life.static_bindings {
+            pay(b, position.path.len().saturating_add(1))?;
+            let c = context(module, function, b)?;
+            let mut active = BTreeSet::new();
+            let actual = match position.base {
+                StorageBase::Capture(index) => {
+                    let definition = function
+                        .environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .ok_or_else(|| err("constant capture has no actual environment"))?;
+                    capture_sources(module, definition, index, &position.path, &mut active, 0, b)?
+                }
+                StorageBase::Result => {
+                    let mut sources = Sources::new();
+                    for value in &c.returned {
+                        extend(
+                            &mut sources,
+                            resolve(&c, *value, &position.path, &mut active, 0, b)?,
+                            b,
+                        )?;
+                    }
+                    sources
+                }
+                StorageBase::Parameter(_) => {
+                    return Err(err(
+                        "constant input requires a complete actual call-site source proof",
+                    ));
+                }
+                StorageBase::Receiver => {
+                    return Err(err("invocation receiver cannot be a constant static input"));
+                }
+            };
+            if actual.is_empty() || actual.iter().any(|source| *source != ActualSource::Static) {
+                return Err(err(
+                    "constant occurrence retains an actual local, parameter, or unknown source",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 fn local_sources(
     c: &Context<'_>,

@@ -56,6 +56,20 @@ pub(super) fn check(
         .iter()
         .filter(|row| !matches!(row.position.base, StorageBase::Capture(_)))
         .collect::<Vec<_>>();
+    let constants = actual
+        .static_bindings
+        .iter()
+        .filter(|position| !matches!(position.base, StorageBase::Capture(_)))
+        .collect::<Vec<_>>();
+    if expected
+        .static_bindings
+        .iter()
+        .ne(constants.iter().copied())
+    {
+        return Err(bad(
+            "return constant positions differ from the complete actual interface",
+        ));
+    }
     if bindings.len() != expected.bindings.len() || classes.len() != expected.classes.len() {
         return Err(bad(
             "return life omits an actual parameter, result or receiver position",

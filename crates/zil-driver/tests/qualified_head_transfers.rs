@@ -302,9 +302,18 @@ fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventin
         .find(|function| function.name == "make")
         .unwrap();
     let definition = &module.closures[0];
-    assert!(
-        definition.storage_life.is_none(),
-        "a missing domain remains unknown; no input-grounded Fixed class is invented"
+    let life = definition.storage_life.as_ref().unwrap();
+    assert_eq!(
+        (life.fixed_binder_count, life.invocation_binder_count),
+        (0, 0)
+    );
+    assert!(life.bindings.is_empty() && life.classes.is_empty());
+    assert_eq!(
+        life.static_bindings,
+        vec![zil_ir::StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![]
+        }]
     );
     let sources = factory
         .callable_return_contract
@@ -333,4 +342,16 @@ fn actual_static_byte_capture_proposes_a_complete_static_source_without_inventin
             mode: zil_ir::StoredBorrowMode::SharedAddress,
         }]
     );
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    if let Ok(directory) = std::env::var("ZIL_STATIC_CAPTURE_ARTIFACT_DIR") {
+        let directory = std::path::Path::new(&directory);
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("source.zil"), text).unwrap();
+        std::fs::write(directory.join("typed.txt"), format!("{module:#?}")).unwrap();
+        std::fs::write(directory.join("candidate.wire"), &wire).unwrap();
+    }
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), candidate);
 }

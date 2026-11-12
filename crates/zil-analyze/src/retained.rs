@@ -4,6 +4,12 @@ use super::*;
 
 mod return_life;
 mod sources;
+pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    if !b.static_occurrences {
+        return Ok(());
+    }
+    sources::check_static_occurrences(module, b)
+}
 pub(super) fn check_pending_sources(b: &Budget) -> CompileResult<()> {
     if b.pending_returned_source_proofs.is_empty() {
         Ok(())

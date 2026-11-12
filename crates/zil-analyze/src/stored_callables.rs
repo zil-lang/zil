@@ -243,7 +243,7 @@ pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
     } else {
         t
     };
-    matches!(t, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+    matches!(t, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
 }
 pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {

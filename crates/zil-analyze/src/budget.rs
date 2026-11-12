@@ -49,6 +49,8 @@ pub(super) struct Budget {
     pub(super) owning_address_captures: bool,
     pub(super) mutable_capture_contexts: bool,
     pub(super) receiver_borrows: bool,
+    // Raw presence schedules a complete independent proof, never a domain.
+    pub(super) static_occurrences: bool,
     // Actual return-type presence only schedules refreshing a qualified head's
     // current pointee rows. It never grants a root, class, or permission.
     pub(super) qualified_head_returns: bool,
@@ -178,6 +180,7 @@ impl Budget {
             owning_address_captures: false,
             mutable_capture_contexts: false,
             receiver_borrows: false,
+            static_occurrences: false,
             qualified_head_returns: false,
             returned_borrowed_environments: BTreeSet::new(),
             pending_returned_source_proofs: BTreeSet::new(),

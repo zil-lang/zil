@@ -1237,6 +1237,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
+    populate_static_capture_contracts(module, left, limits)?;
     loop {
         helper_classes::factory_inputs(module, left)?;
         if !populate_creator_fixed(module, left, limits.max_call_depth)? {
@@ -1245,6 +1246,84 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         helper_classes::populate(module, left, limits)?;
     }
     receiver_contracts::finish(module, &summaries, left, limits)?;
+    Ok(())
+}
+
+fn populate_static_capture_contracts(
+    module: &mut TypedModule,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<()> {
+    let mut changes = BTreeMap::new();
+    for factory in &module.functions {
+        let Some(returned) = &factory.callable_return_contract else {
+            continue;
+        };
+        let definition = &module.closures[returned.closure.0 as usize];
+        if definition.storage_life.is_some()
+            || !definition.result.is_copy_value()
+            || definition.parameters.iter().any(|ty| !ty.is_copy_value())
+        {
+            continue;
+        }
+        let Some(sources) = &returned.capture_sources else {
+            continue;
+        };
+        let mut contract = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: Vec::new(),
+            static_bindings: Vec::new(),
+            classes: Vec::new(),
+        };
+        let mut complete = true;
+        for (index, capture) in definition.captures.iter().enumerate() {
+            inference::charge_type_snapshot(capture, factory.span, limits, left, 1)?;
+            if capture.is_copy_value() {
+                continue;
+            }
+            let position = StoragePosition {
+                base: StorageBase::Capture(index as u32),
+                path: Vec::new(),
+            };
+            spend(left, sources.len().saturating_add(1), factory.span)?;
+            if !matches!(capture,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                || !sources.iter().any(|row|row.position==position && matches!(row.sources.as_slice(),[StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress}]if leaf==capture)) {
+                complete=false;break;
+            }
+            contract.static_bindings.push(position);
+        }
+        if complete && !contract.static_bindings.is_empty() {
+            borrowed_fp::charge_contract(&contract, |work| spend(left, work, factory.span), 2)?;
+            borrowed_fp_qualified::source_capture_relation(
+                &definition.parameters,
+                &definition.captures,
+                &definition.result,
+                &contract,
+                factory.span,
+            )?;
+            changes.insert(definition.id, contract);
+        }
+    }
+    for (id, contract) in changes {
+        let entry = module.closures[id.0 as usize].function;
+        module.closures[id.0 as usize].storage_life = Some(contract.clone());
+        module.functions[entry.0 as usize].storage_life = Some(contract.clone());
+        for function in &mut module.functions {
+            if let Some(callable) = &mut function.callable_contract {
+                for role in &mut callable.roles {
+                    if role.closure == id {
+                        borrowed_fp::charge_contract(
+                            &contract,
+                            |work| spend(left, work, function.span),
+                            1,
+                        )?;
+                        role.life = Some(contract.clone());
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }
 

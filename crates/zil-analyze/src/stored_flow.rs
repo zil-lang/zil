@@ -3309,7 +3309,18 @@ fn seed(
             let mut value = seed_value(
                 module,
                 ty,
-                HoldRoot::Capture(index as u32),
+                if d.storage_life.as_ref().is_some_and(|life| {
+                    life.static_bindings.iter().any(|position| {
+                        position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty()
+                    })
+                }) {
+                    // The all-constructor/write proof ran before any CFG is
+                    // admitted; this is its constant input, not a fresh root.
+                    HoldRoot::Static
+                } else {
+                    HoldRoot::Capture(index as u32)
+                },
                 &mut state,
                 loans,
                 b,
