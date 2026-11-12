@@ -142,8 +142,7 @@ fn signatures(
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
-                || !f.state_parameters.is_empty()
-                || f.callable_return.is_some())
+                || !f.state_parameters.is_empty())
         {
             return Err(vec![unsupported(
                 f.span,
@@ -656,6 +655,7 @@ pub fn check(
         unsupported: vec![],
     };
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+    retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
     registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
         .map_err(|e| vec![e])?;
     Ok(module)
