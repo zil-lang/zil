@@ -286,6 +286,7 @@ fn seed_origin(base: HoldRoot, inline: Vec<PlaceProjection>, b: &mut Budget) -> 
             base,
             leaf: Vec::new(),
             inline,
+            heap_parents: Vec::new(),
             heap_element: None,
         }],
         loans: Vec::new(),

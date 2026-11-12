@@ -501,12 +501,33 @@ fn option_store_origin(
             };
         }
     }
-    if !matches!(head, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-    {
+    let payload = match head {
+        Type::Managed(payload) => payload,
+        Type::Desc(payload)
+            if budget.nested_store_windows
+                && matches!(source.base, HoldRoot::Parameter(_))
+                && source.inline.is_empty() =>
+        {
+            payload
+        }
+        _ => {
+            return Err(bad(
+                f.span,
+                "Option description header is not an actual owned Store",
+            ));
+        }
+    };
+    if !matches!(payload.as_ref(), Type::OwnedStore { .. }) {
         return Err(bad(
             f.span,
             "Option description header is not an actual owned Store",
         ));
+    }
+    if !source.heap_parents.is_empty() {
+        let Type::OwnedStore { element } = payload.as_ref() else {
+            unreachable!()
+        };
+        crate::stored_flow::nested_store_endpoint(element, source, budget)?;
     }
     budget.spend(source.heap_element.as_ref().map_or(0, Vec::len))?;
     Ok(root)

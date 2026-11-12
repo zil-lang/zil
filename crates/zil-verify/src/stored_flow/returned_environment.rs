@@ -61,6 +61,7 @@ pub(super) fn seed(
             leaf: path.clone(),
             retained_port: None,
             inline: Vec::new(),
+            heap_parents: Vec::new(),
             heap_element: None,
         };
         let loan = loans.len();
