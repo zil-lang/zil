@@ -55,6 +55,69 @@ pub struct Config<'a> {
     pub optimization: Optimization,
 }
 
+/// Actual native hook work in this invocation. Availability is explicit: zero
+/// available means this LLVM DSO did not provide the audited hook capability.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeProductStats {
+    pub available: u64,
+    pub optimizer_function_stage_executions: u64,
+    pub optimizer_function_stage_reuses: u64,
+    pub optimizer_module_pass_executions: u64,
+    pub optimizer_cgscc_pass_executions: u64,
+    pub analysis_reconstructions: u64,
+    pub ir_key_bytes: u64,
+    pub ir_snapshot_bytes: u64,
+    pub ir_replay_bytes: u64,
+    pub machine_function_executions: u64,
+    pub machine_function_reuses: u64,
+    pub machine_pass_skips: u64,
+    pub asm_printer_runs: u64,
+    pub mir_key_bytes: u64,
+    pub mir_snapshot_bytes: u64,
+    pub mir_replay_bytes: u64,
+    pub retained_bytes: u64,
+    pub failed_replays: u64,
+    pub fresh_context_fallbacks: u64,
+    pub fallback_ns: u64,
+}
+impl NativeProductStats {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"available\":{},\"optimizer_function_stage_executions\":{},\"optimizer_function_stage_reuses\":{},\"optimizer_module_pass_executions\":{},\"optimizer_cgscc_pass_executions\":{},\"analysis_reconstructions\":{},\"ir_key_bytes\":{},\"ir_snapshot_bytes\":{},\"ir_replay_bytes\":{},\"machine_function_executions\":{},\"machine_function_reuses\":{},\"machine_pass_skips\":{},\"asm_printer_runs\":{},\"mir_key_bytes\":{},\"mir_snapshot_bytes\":{},\"mir_replay_bytes\":{},\"retained_bytes\":{},\"failed_replays\":{},\"fresh_context_fallbacks\":{},\"fallback_ns\":{}}}",
+            self.available,
+            self.optimizer_function_stage_executions,
+            self.optimizer_function_stage_reuses,
+            self.optimizer_module_pass_executions,
+            self.optimizer_cgscc_pass_executions,
+            self.analysis_reconstructions,
+            self.ir_key_bytes,
+            self.ir_snapshot_bytes,
+            self.ir_replay_bytes,
+            self.machine_function_executions,
+            self.machine_function_reuses,
+            self.machine_pass_skips,
+            self.asm_printer_runs,
+            self.mir_key_bytes,
+            self.mir_snapshot_bytes,
+            self.mir_replay_bytes,
+            self.retained_bytes,
+            self.failed_replays,
+            self.fresh_context_fallbacks,
+            self.fallback_ns,
+        )
+    }
+}
+
+/// Opaque immutable native snapshots, without LLVM context/module ownership.
+/// Equality only identifies the same retained allocation; it authorizes no reuse.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeWorkProducts {
+    #[cfg(feature = "native")]
+    inner: std::sync::Arc<native::products::Product>,
+    #[cfg(not(feature = "native"))]
+    _private: (),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Receipt {
     pub llvm_version: String,
@@ -73,6 +136,7 @@ pub struct Receipt {
     pub optimize_ns: u64,
     pub emit_ns: u64,
     pub total_ns: u64,
+    pub native_products: Option<NativeProductStats>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,6 +272,37 @@ pub fn compile_module_with_preflight_receipt(
     #[cfg(not(feature = "native"))]
     {
         let _ = (module, config, function_merging, cancelled);
+        Err(Error {
+            kind: ErrorKind::Unavailable,
+            message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+        })
+    }
+}
+
+/// Explicit native optimization/machine work products. Current machine preflight,
+/// Builder, target/layout checks and LLVM verification remain mandatory. A failed
+/// replay destroys the entire LLVM request before a fresh ordinary compilation;
+/// cancellation or ordinary compiler failure publishes no products.
+pub fn compile_module_with_native_products(
+    module: &model::Module,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    prior: Option<&NativeWorkProducts>,
+) -> Result<(Object, PreflightReceipt, Option<NativeWorkProducts>), Error> {
+    #[cfg(feature = "native")]
+    {
+        native::compile_module_with_native_products(
+            module,
+            config,
+            function_merging,
+            cancelled,
+            prior,
+        )
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        let _ = (module, config, function_merging, cancelled, prior);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),

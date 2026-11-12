@@ -151,6 +151,8 @@ pub struct BuildOptions {
     pub closed_executable: bool,
     /// Explicit stable O2 chunks with complete direct-call implementation copies.
     pub incremental_o2: bool,
+    /// Explicit audited LLVM optimization/machine products; no default opt-in.
+    pub native_products: bool,
     /// Explicit O2 pass policy; default preserves the reference pipeline.
     pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
@@ -169,6 +171,7 @@ impl BuildOptions {
             optimization: Optimization::O0,
             closed_executable: false,
             incremental_o2: false,
+            native_products: false,
             function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
@@ -273,6 +276,7 @@ pub fn build_view_with_cancellation_and_session(
     mut session: Option<&mut crate::BackendSession>,
 ) -> CompileResult<BuildArtifact> {
     let build_started = std::time::Instant::now();
+    let mut next_native_products = std::collections::BTreeMap::new();
     let mut timings = BackendTimings::default();
     if let Some(session) = session.as_deref_mut() {
         session.begin();
@@ -760,6 +764,14 @@ pub fn build_view_with_cancellation_and_session(
                     key: None,
                     preflight: None,
                     retain_preflight: session.is_some(),
+                    native_owner: options.native_products.then(|| {
+                        crate::incremental::NativeUnitOwner {
+                            triple: lir.target.triple.clone(),
+                            requested_units: options.codegen.units,
+                            ordinal: id,
+                        }
+                    }),
+                    native_prior: None,
                 })
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -801,6 +813,9 @@ pub fn build_view_with_cancellation_and_session(
         }
         if let Some(session) = session.as_ref() {
             for unit in &mut inputs {
+                if let Some(owner) = &unit.native_owner {
+                    unit.native_prior = session.native_products.get(owner).cloned();
+                }
                 if !unit.retain_preflight {
                     continue;
                 }
@@ -824,6 +839,15 @@ pub fn build_view_with_cancellation_and_session(
         )?;
         let mut next_preflights = Vec::new();
         for (unit, result) in inputs.iter().zip(compiled) {
+            if let (Some(owner), Some(products)) = (&unit.native_owner, result.native_products) {
+                next_native_products.insert(
+                    owner.clone(),
+                    std::sync::Arc::new(crate::incremental::NativeUnitProduct {
+                        module: unit.module.clone(),
+                        products,
+                    }),
+                );
+            }
             if let Some(receipt) = result.preflight.or_else(|| unit.preflight.clone()) {
                 next_preflights.push(std::sync::Arc::new(crate::incremental::PreflightProduct {
                     module: unit.module.clone(),
@@ -962,6 +986,9 @@ pub fn build_view_with_cancellation_and_session(
     codegen.timings = timings;
     if let Some(session) = session {
         codegen.link_tool_identities = session.link_tools.summary.clone();
+        // Publish native candidates only after the entire current build succeeds.
+        // Errors/cancellation retain the preceding successful native map.
+        session.native_products = next_native_products;
     }
     Ok(BuildArtifact {
         executable: final_executable,
@@ -983,6 +1010,8 @@ struct UnitInput {
     key: Option<zil_base::Fingerprint>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
     retain_preflight: bool,
+    native_owner: Option<crate::incremental::NativeUnitOwner>,
+    native_prior: Option<std::sync::Arc<crate::incremental::NativeUnitProduct>>,
 }
 struct UnitResult {
     commands: Vec<Vec<String>>,
@@ -990,6 +1019,7 @@ struct UnitResult {
     access: Option<Access>,
     pending: Option<PendingObject>,
     preflight: Option<std::sync::Arc<zil_llvm_api::PreflightReceipt>>,
+    native_products: Option<zil_llvm_api::NativeWorkProducts>,
 }
 
 fn compile_units(
@@ -1055,6 +1085,7 @@ fn compile_units(
                                         access: None,
                                         pending: None,
                                         preflight: None,
+                                        native_products: None,
                                     })
                                 }
                                 NativeBackend::LlvmApi => compile_api_unit(
@@ -1185,12 +1216,23 @@ fn compile_api_unit(
                 access: Some(lookup),
                 pending: None,
                 preflight: Some(preflight),
+                // Disk-object reuse does not execute a native consumer. Keep
+                // only a product already bound to this exact raw unit; never
+                // carry an obsolete same-slot product as a historical tail.
+                native_products: unit
+                    .native_prior
+                    .as_ref()
+                    .filter(|prior| {
+                        prior.module.triple == unit.module.triple
+                            && prior.module.items == unit.module.items
+                    })
+                    .map(|prior| prior.products.clone()),
             });
         }
         access = Some(lookup);
     }
     let snapshot = cache
-        .filter(|cache| cache.patch_policy.is_some())
+        .filter(|cache| cache.patch_policy.is_some() && unit.native_owner.is_none())
         .and_then(|_| crate::machine_object_patch::Snapshot::new(&unit.module));
     let mut commands = Vec::new();
     let mut patch_fallback = None;
@@ -1266,6 +1308,7 @@ fn compile_api_unit(
                         access: Some(lookup),
                         pending: Some(pending),
                         preflight,
+                        native_products: None,
                     });
                 }
                 patch_fallback = attempt.reason;
@@ -1279,7 +1322,17 @@ fn compile_api_unit(
     // The opt-in receipt entry point signs the same successful native
     // preflight that constructs the Builder schedule. It adds no second check,
     // and only returns a proof together with a fully verified emitted object.
-    let (object, preflight) = if unit.retain_preflight {
+    let (object, preflight, native_products) = if unit.native_owner.is_some() {
+        let (object, receipt, products) = zil_llvm_api::compile_module_with_native_products(
+            &unit.module,
+            &config,
+            function_merging,
+            cancelled,
+            unit.native_prior.as_ref().map(|prior| &prior.products),
+        )
+        .map_err(api_error)?;
+        (object, Some(std::sync::Arc::new(receipt)), products)
+    } else if unit.retain_preflight {
         let (object, receipt) = zil_llvm_api::compile_module_with_preflight_receipt(
             &unit.module,
             &config,
@@ -1287,7 +1340,7 @@ fn compile_api_unit(
             cancelled,
         )
         .map_err(api_error)?;
-        (object, Some(std::sync::Arc::new(receipt)))
+        (object, Some(std::sync::Arc::new(receipt)), None)
     } else {
         let object = zil_llvm_api::compile_module_with_function_merging(
             &unit.module,
@@ -1296,7 +1349,7 @@ fn compile_api_unit(
             cancelled,
         )
         .map_err(api_error)?;
-        (object, None)
+        (object, None, None)
     };
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
@@ -1324,6 +1377,12 @@ fn compile_api_unit(
         r.total_ns
     );
 
+    if let Some(stats) = &r.native_products {
+        receipt.pop();
+        receipt.push_str(",\"native_products\":");
+        receipt.push_str(&stats.to_json());
+        receipt.push('}');
+    }
     if let Some(access) = &access {
         receipt.pop();
         receipt.push_str(",\"cache\":");
@@ -1355,6 +1414,7 @@ fn compile_api_unit(
         access,
         pending,
         preflight,
+        native_products,
     })
 }
 #[cfg(not(feature = "llvm-api"))]
