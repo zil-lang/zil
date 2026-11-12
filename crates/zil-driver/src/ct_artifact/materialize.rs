@@ -731,19 +731,19 @@ impl Materializer<'_, '_> {
                                     s::Literal::Integer(value.to_string())
                                 }
                                 zil_ir::Constant::U32(value) => {
-                                    s::Literal::Integer(value.to_string())
+                                    s::Literal::Integer(format!("{value}u32"))
                                 }
                                 zil_ir::Constant::I32(value) => {
                                     s::Literal::Integer(value.to_string())
                                 }
                                 zil_ir::Constant::I8(value) => {
-                                    s::Literal::Integer(value.to_string())
+                                    s::Literal::Integer(format!("{value}i8"))
                                 }
                                 zil_ir::Constant::I16(value) => {
-                                    s::Literal::Integer(value.to_string())
+                                    s::Literal::Integer(format!("{value}i16"))
                                 }
                                 zil_ir::Constant::Isize(value) => {
-                                    s::Literal::Integer(value.to_string())
+                                    s::Literal::Integer(format!("{value}isize"))
                                 }
                                 zil_ir::Constant::U64(value) => {
                                     s::Literal::Integer(format!("{value}u64"))
@@ -2229,19 +2229,19 @@ impl Materializer<'_, '_> {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
                     zil_ir::Constant::U32(value) => {
-                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}u32")))
                     }
                     zil_ir::Constant::I32(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
                     zil_ir::Constant::I8(value) => {
-                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}i8")))
                     }
                     zil_ir::Constant::I16(value) => {
-                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}i16")))
                     }
                     zil_ir::Constant::Isize(value) => {
-                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}isize")))
                     }
                     zil_ir::Constant::U64(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(format!("{value}u64")))

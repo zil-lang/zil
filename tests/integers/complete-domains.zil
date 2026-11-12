@@ -17,7 +17,8 @@ fn result()->i32 {
     let index:u32=1
     if values[index]!=42i16 {return 3}
     let value=Choice.Wide(c)
-    let selected=match value {Choice.Small(x)=>u32(x),Choice.Wide(x)=>x,Choice.Native(x)=>u32(x)}
+    var selected:u32=0
+    match value {Choice.Small(x)=>{selected=u32(x)},Choice.Wide(x)=>{selected=x},Choice.Native(x)=>{selected=u32(x)}}
     if selected!=c {return 4}
     if (127i8 +% 1i8)!=-128i8 || (32767i16 +% 1i16)!=-32768i16 || (4294967295u32 +% 1u32)!=0u32 || (9223372036854775807isize +% 1isize)!=d {return 5}
     if (a>>7i8)!=-1i8 || (b>>15i16)!=-1i16 || (c>>31u32)!=1u32 || (d>>63isize)!=-1isize {return 6}

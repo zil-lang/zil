@@ -369,7 +369,7 @@ fn lower_view_with_budget(
             target,
             functions: &module.functions,
             closures: &module.closures,
-            layouts: std::borrow::Cow::Owned(scalar_layouts()),
+            layouts: std::borrow::Cow::Owned(scalar_layouts_for_width(target.pointer_width)),
         },
         sum_budget,
     ))
@@ -636,6 +636,9 @@ fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool
 /// The B0 ABI uses no storage for unit and natural scalar size/alignment. This
 /// table describes storage; Boolean arithmetic still uses LLVM's `i1` values.
 pub fn scalar_layouts() -> Vec<ScalarLayout> {
+    scalar_layouts_for_width(64)
+}
+fn scalar_layouts_for_width(pointer_width: u16) -> Vec<ScalarLayout> {
     vec![
         ScalarLayout {
             ty: Type::Unit,
@@ -694,8 +697,8 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
         },
         ScalarLayout {
             ty: Type::Isize,
-            size: 8,
-            alignment: 8,
+            size: u32::from(pointer_width / 8),
+            alignment: u32::from(pointer_width / 8),
         },
         ScalarLayout {
             ty: Type::ForeignHandle,

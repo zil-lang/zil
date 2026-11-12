@@ -57,7 +57,7 @@ TypePrimary = CallableType | Qualified, [TypeArgs]
             | MetaEval | MetaBlock | MetaSplice ;
 TupleType = "(", ")" | "(", Type, ")" | "(", Type, ",", [TypeList], ")" ;
 TypeArgs = "<", GenericArg, {",", GenericArg}, [","], ">" ;
-GenericArg = Type | NUMBER | "true" | "false" ;
+GenericArg = Type | ["-"], NUMBER | "true" | "false" ;
 TypeAlias = "type", IDENT, [Generics], "=", Type, End ;
 ConstDecl = "const", IDENT, [":", Type], "=", Expr, End ;
 Contract = "contract", "{", {ContractClause, End}, "}" ;

@@ -218,7 +218,7 @@ impl Builder<'_, '_> {
             Constant::I32(value) => i64::from(value),
             Constant::I8(value) => i64::from(value),
             Constant::I16(value) => i64::from(value),
-            Constant::Isize(value) => i64::from(value),
+            Constant::Isize(value) => value,
             Constant::I64(value) => value,
             Constant::U8(value) => i64::from(value),
             Constant::U16(value) => i64::from(value),
