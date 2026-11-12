@@ -1,0 +1,189 @@
+{
+  "schema": "final-bounded-source-retarget-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "source_commit": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+  "source_tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+  "frozen_worktree": "/workspace/zil-demand-frozen-900293cfd",
+  "acceptance_status": "ACCEPT_BOUNDED_FROZEN_SOURCE",
+  "static_assessment": "ACCEPT bounded frozen source900293cfd8afcd7118775e8165e1ec4f5266e3d7 in the explicitly owned and separately reviewed scopes below. No new blocking correctness/dependency/authority issue established. Exact-source full workspace05 completed6253/0/0 with430 test/doc binaries, and final strict lint/format evidence is complete. This does not accept performance, global minimality or full user-task completion.",
+  "workspace_safety": "Rechecked exact frozen checkout HEAD900293cfd/treee3f16832 and clean status at finalization. No root/frozen worktree file written, source/helper edit or commit, or Cargo/compiler/native/benchmark/formatter run. Only this /tmp final JSON was written; original pending draft remains intact.",
+  "owned_scope_files_sha256": {
+    "crates/zil-backend-llvm/src/build.rs": "4915be183cb3d7936b99ae9d9c0b778097e8ad7e8df0267200f3597473d863dc",
+    "crates/zil-backend-llvm/src/emit.rs": "7961d9bd31f193a3083f9ea071e9018bcb71533d07adb46f04c461a9a0be5e85",
+    "crates/zil-backend-llvm/src/emit/copy_aggregates.rs": "cde7e8ac5d3d7de2ee9ec283d4f38dfc85411b6d5e380377c4d34deac98ba86c",
+    "crates/zil-backend-llvm/src/emit/incremental.rs": "1b417788b26fd6586c3622c584592b8cd4b558020e3d2e5ac923441c37b2e946",
+    "crates/zil-backend-llvm/src/emit/incremental/whole.rs": "9d8937aac4044ad09f29327314f021306744eb26de587c50af45f5af91ae83b9",
+    "crates/zil-backend-llvm/src/incremental.rs": "b29f904088fd9e4b178b3d0388146920ff80afa224cf032fcd8f2d26830304c5",
+    "crates/zil-backend-llvm/src/mixed_lowering_tests.rs": "ffe0896892219b9d257c859259694965eee67395592297eaf7e9b7568223d891",
+    "crates/zil-backend-llvm/src/tests.rs": "3b022f95e3d8c5f32793cc0016d070f4f73db992312197f9e2aea77f90e2d336",
+    "crates/zil-backend-llvm/src/whole_machine_tests.rs": "154ff2fed0f527aec5f151845e0b4052276facd884935c5b6637d557b076b519",
+    "crates/zil-driver/src/lib.rs": "6bf6ab3096a6104fcc827e9dd84bda82acfbf7eef1c6d597323bf96e352cfe5d",
+    "crates/zil-driver/src/mixed_machine_reuse_tests.rs": "935d58106252584eb4aa426e602bf5f29b7a878fa38109b4c498c8bc63165f7e",
+    "crates/zil-driver/src/producer_reuse_tests.rs": "483432bcc389d916509d34435ea514d0fea42fdae4932015c194345491c2cd91",
+    "crates/zil-driver/src/project.rs": "df9e74006a11aeda3e64b139a71c874ead985eec4086386d0c0b7a31011903ed",
+    "crates/zil-driver/src/session.rs": "2e523589d910620f825f420ef3077c7c22e494a8ecd5048f502f7dc017b6b345",
+    "crates/zil-expand/src/incremental.rs": "2d4cffddacef1c851913b1c3d3a58f31ed910845734fa0087034ee9d82b348fa",
+    "crates/zil-expand/src/incremental_tests.rs": "f07272a4605af9918d69c1d8ad25f0f662336b9f8a0a901fd0fffa313472dbf3",
+    "crates/zil-expand/src/lib.rs": "2c19387c6084edad09aaac08ba91b20fbcfc77fd71f167b1aca8797e11c3a2a0",
+    "crates/zil-types/src/incremental.rs": "6b418acd7d6818793d07da47c8cc525d850332f9cda4bef3aca9d5c13f52413c",
+    "crates/zil-types/src/incremental_producer_tests.rs": "851b11527b561fbfffba86e6afd8ed54ced8cef98dd1cb5a55dbd88a07716870",
+    "crates/zil-types/src/preparation.rs": "b175bc0675c221b6e6c77dfd4de20312ce7981471b2486bdab5a78ccf3e417ff"
+  },
+  "retargeted_scopes": [
+    {
+      "scope": "693 sealed relative scalar inputs and mixed per-function machine cache",
+      "reviewed_source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+      "initial_receipt": "/tmp/full-pipeline-input-mixed-review-693f55cd0-targeted.json",
+      "initial_receipt_sha256": "54e2bb0b811091c58c281e5ccc7ad4dd73f1284e6d30081de2ff5d0580cf280f",
+      "continuity": "Types prepared/memo/graph-owner correction and actual mixed source/native tests remain unchanged. Expand adds only the separately reviewed import-position input-table refinement. Producer history test adds stronger current-position assertions. Whole-machine implementation is the separately reviewed extension; array-related backend changes before it are mechanical test constructors within owned files."
+    },
+    {
+      "scope": "Whole-machine exact closed-scalar result reuse",
+      "reviewed_source": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+      "continuity": "Production whole-machine/emit/counter code is unchanged. The sole later crate delta before900 is test-only be95dd06c: replace is_ok+unwrap_err with equivalent match in budget boundary search. Both success update and ResourceLimit assertion/low update remain; no production admission or test assertion is relaxed."
+    },
+    {
+      "scope": "Import diagnostic position correction",
+      "reviewed_source": "62a9e7ff2cdd1444aca20649439a9501a519663e",
+      "production_commit": "fd01dea8c",
+      "continuity": "All three reviewed source/test files retain exact production semantics. Original full environment compatibility and complete stage invalidation remain; only candidate function-input table survives import start/end changes, followed by current successful fresh production and real function bytes/IDs/file checks."
+    }
+  ],
+  "prior_committed_receipts": [
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-whole-machine-review.json",
+      "sha256": "4982f7452f23a4c2d3066a38707e55f0bbf88b742631a3056c20e640615bb71c",
+      "scope": "Independently reviewed whole-machine scope at4bc, retargeted below."
+    },
+    {
+      "path": "tools/research/incremental-demand/full-pipeline-import-bindings-review.json",
+      "sha256": "06937031b4de59496af1f30c279693cfae09600e7473710c484a9f6307e9a29b",
+      "scope": "Independently reviewed import-position scope at62a, unchanged production below."
+    }
+  ],
+  "separate_review_not_blanket_proof": {
+    "candidate_arrays_receipt": "tools/research/incremental-demand/full-pipeline-candidate-arrays-review.json",
+    "receipt_sha256": "56ce1d40ab9a576d48aa87ab65d5935385acbb3366226a1e6335bf46d779a25f",
+    "independent_author": "/root/verification_pipeline",
+    "source_commit": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+    "scope_focused_files": 17,
+    "focused_hash_mismatches_at900": [],
+    "interpretation": "This confirms source continuity of the other non-author review, not an independent re-audit or a blanket approval by /root/audit. Candidate-array/analysis representation and RawFunctionPlan transport scope remain covered only by their designated independent reviews.",
+    "verify_scope": "Independent current Verify remains mandatory. Earlier Verify empty-borrow and any other Verify changes have their own exact-source receipts and limitations; this combined retarget does not claim full verifier point-to-point coverage or prove all safety obligations from raw input/epoch/machine caches."
+  },
+  "core_binding_conclusions": [
+    "Relative scalar input preservation uses actual immutable parser-owned declaration byte equality and private IDs under compatible current environment; public fingerprints/old Typed results cannot mint a seal. Rewrite/CT/generic/capture domains fall back. Types still binds complete current context/target/Limits/observed signature reads and rebases current diagnostics with original fees.",
+    "Same-raw-epoch graph preservation is after complete current receipt/key/exact Program association and four private Arc identities; it creates no graph authority/history. Failure-cleared graph remains conservative and other histories restore/reset.",
+    "Mixed primitive machine functions require current bind_lir/global/copy planning, complete raw global and ABI/role context, conservative callee/worker/copy admission and current original reservation consumer. Mixed modules issue no ScalarIdentity and multi-job mixed work uses the original parallel fallback.",
+    "Whole machine reuse requires the complete actual module/functions including spans/layouts/options/Limits/current role gates and exact post-binding ledger, followed by original successful cost subtraction. Cold/miss/error cannot publish a partial product or checker authority. Downstream native/object/link checks remain current.",
+    "Import span-insensitive comparison never authorizes old normalized/restored/lowered/map output. All those stages still clear and run on the position request; only successful exact function inputs can stop BodyKey propagation."
+  ],
+  "completed_validation_evidence": {
+    "raw_files": [
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-mixed-01.log",
+        "sha256": "080e863fc7c06abf2fd0f68a665f892d03e569aa1548dd82a5bae2b0e529db1b",
+        "bytes": 24332
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-mixed-backend-02.log",
+        "sha256": "6e6904862a01fbd4e138465fc9ce5fb24c68d1d185b271beee837f6652889fc5",
+        "bytes": 22934
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-01.log",
+        "sha256": "05d6e9ce06a00f0063bef3a041215b9248b961128f9b705dfc92d9a1585f2ae6",
+        "bytes": 50448
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-plan-input-front-02.log",
+        "sha256": "3c74097de8265effbfa679598c55faeb171e3e8edababfdfae92778e505d8e5a",
+        "bytes": 31671
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-whole-machine-01.log",
+        "sha256": "acfc69306a6d4f397a6a70443861db0a4635bd34d349726fc1125f41c431c6f3",
+        "bytes": 46868
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-import-bindings-01.log",
+        "sha256": "80d8ee3500e12b5002be64935e2ee2b140a2e753dc5e4fd3b9134c4465761d4a",
+        "bytes": 34058
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-arrays-machine-import-clippy-01.log",
+        "sha256": "69b81affc15352b8f241717b755f27333dfab41b51d99b2fddcbf146dc66b57b",
+        "bytes": 1428
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-arrays-machine-import-clippy-02.log",
+        "sha256": "e31a4b8d73abdfbd71b8d771a4c53a7566af4d5b122e17ea38b448a0ea05c04a",
+        "bytes": 493
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-arrays-machine-import-clippy-02.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "bytes": 2
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-arrays-machine-import-fmt-02.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "/workspace/zil-demand/out/runs/full-pipeline-arrays-machine-import-fmt-02.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "bytes": 2
+      }
+    ],
+    "targeted_scopes": "Historical initial failures are preserved. After corrections,693 mixed Backend224 and frontend Driver200/Types80 passed;4bc whole-machine Backend230/Driver200 passed;62a import Driver200/Expand98 passed. These are overlapping, different bounded source windows and are not added as a new900 source-wide pass.",
+    "strict_lint": "Root reports strict workspace/all-target Clippy02 on final code; raw log ends Finished dev profile and adjacent .exit independently reads0. Initial Clippy01 test unnecessary_unwrap failure remains preserved; only equivalent test match repair followed.",
+    "format": "fmt02 empty output plus explicit independently read exit0 file. Reviewer did not run formatter.",
+    "source_attribution": "Root supplies compiler invocation/source-window attribution; raw logs and exit files independently corroborate results but do not embed complete Git identity.",
+    "full_workspace": {
+      "path": "/workspace/zil-demand/out/runs/full-pipeline-workspace-05.log",
+      "sha256": "5148e9478ad9155d2c27ed398c518a54d8dd136273f987d9738bc48f0d79935b",
+      "bytes": 631374,
+      "exit_path": "/workspace/zil-demand/out/runs/full-pipeline-workspace-05.exit",
+      "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "observed_exit": "0",
+      "suite_results": 430,
+      "test_binaries": 416,
+      "doc_test_binaries": 14,
+      "passed": 6253,
+      "failed": 0,
+      "ignored": 0,
+      "all_suite_statuses_ok": true,
+      "source_commit": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+      "scope": "Complete root workspace LLVM-api window as reported by root; independently parsed every result row, including zero-test suites and compile-fail doctests. This current-source total replaces pending state; older targeted/history totals are not added to it."
+    },
+    "representative_actual_cases_observed": {
+      "whole_machine_exact_original_emitter_budget_n_and_n_minus_one_preserve_first_error": true,
+      "whole_machine_hit_cannot_authorize_any_substituted_public_lir_shape": true,
+      "whole_machine_native_cold_unchanged_edit_failure_recovery_match_fresh_llvm_and_elf": true,
+      "mixed_task_leaf_reuse_runs_current_reservations_at_n_and_n_minus_one": true,
+      "original_resource_closure_project_reuses_independent_private_scalar_machine": true,
+      "nonyield_scalar_worker_is_never_reused_as_an_ordinary_function_batch": true,
+      "full_profile_history_reactivates_parsed_parents_and_rolls_back_sealed_memos": true
+    }
+  },
+  "carried_limits": [
+    "No user objective exit/task completion, Rust parity or performance gain is accepted from these source receipts or work counters.",
+    "Global admission/aggregation, source-byte comparisons, fresh materialization, conservative nonadmitted recomputation, current Verify, object integrity, external link discovery and full output I/O remain.",
+    "F2 explicit transform/stable-name COW, EB1 failed-request counter scope, shared historical-slot memory and packed disk/read-amplification caveats remain unless independently resolved elsewhere.",
+    "Per-scope source continuity and tests do not replace an independent safety proof for all compiler features; default-off research and existing authority boundaries persist.",
+    "Full workspace success is finite validation, not proof that every compiler/domain dependency is minimal or that the user objective is complete. The independent Verify/native/link authority boundaries and separate-review scope limitations remain explicit."
+  ],
+  "pending_draft_chain": {
+    "path": "/tmp/full-pipeline-final-retarget-review-900293cfd-pending.json",
+    "sha256": "e2035afc7d387faf44868f81c9de9028fe3c70b1eaac7c9c936b9ce79e2b5be7",
+    "preserved": true,
+    "change": "Finalizes only after completed full workspace05 evidence; source scope and limits remain unchanged."
+  },
+  "pending_after_source_acceptance": [
+    "Frozen900 release build and associated binary/source receipt were still in progress at review finalization. No release pass or resulting artifact identity is claimed here.",
+    "Final profile and matched main/candidate/Rust measurement for900 remain pending and separate. No wall-time/RSS/CPU/native output parity or statistical performance conclusion is inferred from compiler tests."
+  ]
+}

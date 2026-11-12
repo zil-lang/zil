@@ -1,0 +1,126 @@
+{
+  "schema": "full-pipeline-frozen-source-validation-v1",
+  "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+  "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+  "full_workspace": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--features",
+      "llvm-api",
+      "--no-fail-fast"
+    ],
+    "passed": 6253,
+    "failed": 0,
+    "ignored": 0,
+    "result_summaries": 430,
+    "running_test_programs": 416,
+    "doc_test_suites": 14,
+    "exit_code": 0,
+    "source_boundary": "Frozen 900, production sources and Cargo inputs unchanged during final tests and release."
+  },
+  "strict_clippy": {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--workspace",
+      "--all-targets",
+      "--features",
+      "llvm-api",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "passed_run": "02",
+    "retained_failure": "01 unnecessary_unwrap in new complete-budget regression fixture; match repair preserves assertions."
+  },
+  "fmt": "02 passed",
+  "release": {
+    "source": "900293cfd8afcd7118775e8165e1ec4f5266e3d7",
+    "tree": "e3f16832a9751f25399d4dd8e58488ed03513f54",
+    "binary": "/workspace/zil-demand/out/runs/full-pipeline-final-build/candidate-zil",
+    "sha256": "936d7c107713c11dca86bbf196fc9a0c6ceee336ef4f57e60751543ba1817d82",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--features",
+      "llvm-api"
+    ],
+    "exit_code": 0,
+    "log": "out/runs/full-pipeline-final-release-01.log",
+    "cwd": "/workspace/zil-demand",
+    "target_dir": "/workspace/zil-demand/target",
+    "toolchain": "rustc58cf8f9c35b355199727627d07ae34a4e2846d67;LLVM23.1.4"
+  },
+  "reviews": [
+    "full-pipeline-final-review.json",
+    "full-pipeline-final-plan-arrays-review.json"
+  ],
+  "diagnostic_profile": "full-pipeline-profile-900.json",
+  "raw": [
+    {
+      "path": "out/runs/full-pipeline-workspace-05.log",
+      "bytes": 631374,
+      "sha256": "5148e9478ad9155d2c27ed398c518a54d8dd136273f987d9738bc48f0d79935b"
+    },
+    {
+      "path": "out/runs/full-pipeline-workspace-05.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-clippy-01.log",
+      "bytes": 1428,
+      "sha256": "69b81affc15352b8f241717b755f27333dfab41b51d99b2fddcbf146dc66b57b"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-clippy-01.exit",
+      "bytes": 4,
+      "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-clippy-02.log",
+      "bytes": 493,
+      "sha256": "e31a4b8d73abdfbd71b8d771a4c53a7566af4d5b122e17ea38b448a0ea05c04a"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-clippy-02.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-fmt-02.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "out/runs/full-pipeline-arrays-machine-import-fmt-02.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-final-release-01.log",
+      "bytes": 781,
+      "sha256": "e7c181ada3aa8dcf7c4d1fddf53a83162dd9ff568988d024ea1452add6699157"
+    },
+    {
+      "path": "out/runs/full-pipeline-final-release-01.exit",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "out/runs/full-pipeline-final-build/candidate-build.json",
+      "bytes": 647,
+      "sha256": "e6d7bb6cb3d9d18d27baaa450ccd120b16f6109d02a3a656598dd766747e053d"
+    }
+  ],
+  "durability": "Final raw pending v4 remote archive and fresh recovery; prior v3 remains independent.",
+  "limits": "Correctness and bounded-source review, not full objective acceptance. Matched check/O2 six-block windows in progress; no reduced fixture/budget/optimization or skipped independent Verify."
+}

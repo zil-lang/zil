@@ -33,11 +33,13 @@ def main():
     for name in ('repo', 'run-dir', 'build-receipt', 'output-stem'):
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--source', required=True)
-    parser.add_argument('--controller-exit', type=int, required=True, help='externally observed tool exit; retained separately')
+    parser.add_argument('--controller-exit', type=lambda value: None if value == 'unknown' else int(value), required=True, help='externally observed tool exit, or unknown; retained separately')
     parser.add_argument('--main-binary', type=Path)
     parser.add_argument('--reference-fixtures', type=Path, help='compare source identities only; never compare its times')
     parser.add_argument('--expect-plan-fragments', action='store_true')
     parser.add_argument('--expect-body-revision', action='store_true')
+    parser.add_argument('--expect-relocated-input-revision', action='store_true')
+    parser.add_argument('--expect-whole-machine', action='store_true')
     parser.add_argument('--scope-note', default='Only the supplied frozen source is represented.')
     args = parser.parse_args()
     repo = args.repo.resolve()
@@ -151,12 +153,27 @@ def main():
             assert (value['serialized_function_plans'],value['reused_function_plans'],value['serialized_function_plan_bytes'],value['reused_function_plan_bytes']) == (0,425,0,1447096)
         value = private['semantic_cache_publication']
         assert (value['written_segments'],value['written_bytes'],value['physical_pack_writes'],value['physical_pack_bytes']) == (4,15214,1,15314)
-    if args.expect_body_revision:
+    if args.expect_body_revision or args.expect_relocated_input_revision:
         for request in ('private','error','recovery'):
             value = reports[request]['frontend_stats']['function_types']
             assert (value['body_key_executions'],value['body_key_reuses'],value['body_key_visited_nodes']) == (1,420,389)
         assert (positions['function_cache_encoding']['serialized_functions'],positions['function_cache_encoding']['reused_functions']) == (0,421)
-        assert (positions['frontend_stats']['function_types']['body_key_executions'],positions['frontend_stats']['function_types']['body_key_reuses']) == (421,0)
+        position_types = positions['frontend_stats']['function_types']
+        if args.expect_relocated_input_revision:
+            assert (position_types['body_key_executions'],position_types['body_key_reuses'],position_types['body_key_visited_nodes']) == (0,421,0)
+            producer = positions['frontend_stats']['producer']
+            assert (producer['function_input_hashes'],producer['function_input_reuses'],producer['function_input_binding_hashes']) == (0,425,425)
+            assert (producer['lower_modules'],producer['reused_lower_modules']) == (22,0)
+            materializer = positions['frontend_stats']['materialization']
+            assert (materializer['executed_modules'],materializer['reused_modules'],materializer['cloned_modules']) == (22,0,22)
+        else:
+            # Keep the previous profile's negative control unless the new
+            # relocated-input mechanism is explicitly expected by this run.
+            assert (position_types['body_key_executions'],position_types['body_key_reuses']) == (421,0)
+    if args.expect_whole_machine:
+        machine = reports['unchanged']['backend_work']
+        assert machine['reused_machine_module'] is True
+        assert (machine['lowered_functions'],machine['reused_functions'],machine['whole_machine_input_functions_compared']) == (0,0,425)
     cases = []
     for index, request in enumerate(REQUESTS):
         a,b = pairs[(0,index,True)]['baseline'],pairs[(0,index,True)]['candidate']
@@ -166,10 +183,12 @@ def main():
         cases.append({'request':request,'status':b['status'],'main_ms':a['wall_ms'],'candidate_ms':b['wall_ms'],'candidate_minus_main_ms':b['wall_ms']-a['wall_ms'],'candidate_over_main':b['wall_ms']/a['wall_ms'],'candidate_counters':{k:reports[request].get(k) for k in METRICS}})
     evidence = [row_path,raw/'manifest.json',raw/'summary.json',log_path,exit_path,build_path,local(Path(build['log'])),raw/'native_measure.py',raw/'native_workloads.py']+sample_paths
     receipts = [{'path':relative(p),'sha256':sha(p),'bytes':p.stat().st_size} for p in evidence]
-    command = ['python',STABLE,'--repo','.', '--run-dir',relative(raw),'--source',args.source,'--build-receipt',relative(build_path),'--controller-exit',str(args.controller_exit),'--output-stem',str(args.output_stem)]
+    command = ['python',STABLE,'--repo','.', '--run-dir',relative(raw),'--source',args.source,'--build-receipt',relative(build_path),'--controller-exit',('unknown' if args.controller_exit is None else str(args.controller_exit)),'--output-stem',str(args.output_stem)]
     if args.reference_fixtures: command += ['--reference-fixtures',relative(local(args.reference_fixtures))]
     if args.expect_plan_fragments: command += ['--expect-plan-fragments']
     if args.expect_body_revision: command += ['--expect-body-revision']
+    if args.expect_relocated_input_revision: command += ['--expect-relocated-input-revision']
+    if args.expect_whole_machine: command += ['--expect-whole-machine']
     command += ['--scope-note',args.scope_note]
     validation = {'rows':34,'measured_rows':18,'preparation_rows':16,'pairs':17,'successful_pairs':15,'safe_reject_pairs':2,'native_executions':180,'all_semantically_valid':True,'all_successful_pairs_recorded_elf_llvm_sha_equal':True,'all_native_actual_equal_expected':True,'native_oracles_independently_recomputed':180,'oracle_bound_to_source_git_blob':True,'full_cold_functions':425,'candidate_binary_physically_rechecked':True,'main_binary_physically_rechecked':main_rechecked}
     output = {'schema':'single-block-profile-v1','purpose':'Single-block scalar diagnosis against same-run main only, not a formal Rust comparison, statistical result, acceptance, or improvement versus any prior candidate.',
@@ -178,7 +197,7 @@ def main():
               'scope_note':args.scope_note,'workload':{k:manifest['arguments'][k] for k in ('case','modules','functions','steps','blocks','mode','backend','cache','codegen_units','codegen_jobs','capacity')},
               'binaries':{'main':{'path_base':'main_source_checkout','path':'target/release/zil','sha256':manifest['binaries']['baseline']['sha256']},'candidate':{'path_base':'candidate_source_checkout','path':relative(candidate_binary),'sha256':build['sha256']}},
               'candidate_build':{'receipt':relative(build_path),'source':build['source'],'tree':tree,'toolchain':build['toolchain'],'command':build['command'],'exit_code':build['exit_code'],'log':build['log']},
-              'validation':validation,'controller':{'persisted_helper_exit':helper_exit,'externally_reported_tool_exit':args.controller_exit,'reported_tool_exit_origin':'Root observation supplied via --controller-exit; not independently encoded by runner.','complete_log_pairs':17,'agreement':helper_exit==args.controller_exit},
+              'validation':validation,'expectations':{'plan_fragments':args.expect_plan_fragments,'body_revision':args.expect_body_revision,'relocated_input_revision':args.expect_relocated_input_revision,'whole_machine':args.expect_whole_machine},'controller':{'persisted_helper_exit':helper_exit,'externally_reported_tool_exit':args.controller_exit,'reported_tool_exit_origin':'Root observation supplied via --controller-exit; null means the controller response was unavailable after context truncation/session expiry. Not independently encoded by runner.','complete_log_pairs':17,'agreement':None if args.controller_exit is None else helper_exit==args.controller_exit},
               'legacy_memory_scope':{'raw_field':'tree_peak_sampled_rss_sum_kib','sample_files':34,'samples':sum(sample_counts.values()),'process_counts':dict(sample_counts),'observed_scope':'root-only in every archived sample; no child RSS observed. Sampler swallows unavailable /proc/<pid>/task/<pid>/children. Not process-tree or total build memory, and no memory advantage claim.'},
               'fixture_reference':fixtures,'cases':cases,'all_rows':reduced,'pair_receipts':pair_receipts,'raw_receipts':receipts,
               'validation_script':{'path':STABLE,'sha256':sha(Path(__file__))},'reproduce':shlex.join(command),
@@ -191,10 +210,37 @@ def main():
     for c in cases: md += [f'| {c["request"]} | {c["main_ms"]:.3f} | {c["candidate_ms"]:.3f} | {c["candidate_minus_main_ms"]:+.3f} | {c["candidate_over_main"]:.3f} |']
     if args.expect_plan_fragments:
         md += ['', 'Actual publication: private serializes 1 function/reuses 424 and serializes 0 FunctionPlans/reuses all 425 (1,447,096 cached row bytes). It writes 4 new logical segments / 15,214 payload bytes in 1 physical pack of 15,314 bytes; the manifest is 113,401 bytes. Cold has 856 ordered logical entries/855 unique items: identical 12-byte module/plan suffixes are deduplicated within that pack (`existing_segments=1` is not prior-epoch reuse). It serializes all 425 plans and writes 6,738,230 unique payload bytes. Segment counts describe logical items; physical pack writes remain separately reported. Multi/broad/positions/recovery also reuse all 425 raw plan rows.']
-    if args.expect_body_revision:
-        md += ['', 'Input revision: private, error and recovery each execute 1 BodyKey/reuse 420 and visit 389 body nodes; producer input hashes/reuses are 1/424. Positions is a remaining whole scan: BodyKey 421/0 and 159,558 visited nodes, producer input hashes/reuses 425/0. Positions 0/421 refers to FunctionStore serialization reuse, while Types CFG execution/reuse is 4/421 with 421 relocated CFGs. These counters must not be conflated.']
-    md += ['', 'Remaining costs are retained in JSON: private still clones 21 normalized items/1 restored module, multi 63/3, broad 420/20, positions 425/22. Private Analyze/Verify take '+f'{private["phase_timings_ns"]["analyze"]/1e6:.3f}/{private["phase_timings_ns"]["verify"]/1e6:.3f} ms; its Analyze candidate counts are 5 executed/420 reused with all 425 equal outputs; Verify function proofs 1 checked/422 reused, empty-borrow proofs 1/424, 112197 values avoided. Current module/interface checks remain.', '',
-          'Cold and broad regressions versus this run’s main are explicit in the table. Multi remains over one second despite three changed final functions; broad executes 404 Types functions and 400 function serializations. Position edits still hash/normalize every function. No improvement versus a prior candidate is inferred from this one block.', '',
+    if args.expect_body_revision or args.expect_relocated_input_revision:
+        parts = []
+        for request in ('private','error','recovery','positions'):
+            values = reports[request]['frontend_stats']['function_types']
+            producer = reports[request]['frontend_stats']['producer']
+            part = (f"{request}: BodyKey {values['body_key_executions']} executed/{values['body_key_reuses']} reused, "
+                    f"{values['body_key_visited_nodes']} visited nodes; producer text hashes/reuses "
+                    f"{producer['function_input_hashes']}/{producer['function_input_reuses']}")
+            if 'function_input_binding_hashes' in producer:
+                part += f", current binding hashes {producer['function_input_binding_hashes']}"
+            parts.append(part)
+        md += ['', 'Input revision counters: '+ '; '.join(parts)+'. FunctionStore positions serialization/reuse is 0/421; these are separate counters.']
+    if args.expect_relocated_input_revision:
+        producer = positions['frontend_stats']['producer']
+        materializer = positions['frontend_stats']['materialization']
+        md += ['', f"Relocation preserves raw text revisions while renewing current bindings: positions Lower {producer['lower_modules']} executed/{producer['reused_lower_modules']} reused and materialization {materializer['executed_modules']} executed/{materializer['reused_modules']} reused/{materializer['cloned_modules']} cloned. The revision shortcut does not reuse old lowering or materialization outputs."]
+    if args.expect_whole_machine:
+        machine = reports['unchanged']['backend_work']
+        md += ['', f"Unchanged whole-machine reuse: reused_machine_module={machine['reused_machine_module']}, per-function lowered/reused={machine['lowered_functions']}/{machine['reused_functions']}, whole input functions compared={machine['whole_machine_input_functions_compared']}. The 425 compatibility comparisons remain real work. This does not assert zero full equality or zero input checking for cold or edited requests; their reported counters remain in JSON."]
+    clone_parts = []
+    for request in ('private','multi','broad','positions'):
+        producer = reports[request]['frontend_stats'].get('producer') or {}
+        if all(k in producer for k in ('normalized_item_deep_clones','restored_module_deep_clones')):
+            clone_parts.append(f"{request} {producer['normalized_item_deep_clones']} normalized-item/{producer['restored_module_deep_clones']} restored-module clones")
+    md += ['', 'Reported remaining cloning: '+('; '.join(clone_parts) if clone_parts else 'not reported')+'.']
+    phases, initialization, proofs = private['phase_timings_ns'], private['frontend_stats']['initialization'], private['verification_work']
+    md += ['', f"Private Analyze/Verify take {phases['analyze']/1e6:.3f}/{phases['verify']/1e6:.3f} ms. Analyze candidate {initialization['candidate_executed_functions']} executed/{initialization['candidate_reused_functions']} reused, {initialization['equal_function_results']} equal outputs; Verify function proofs {proofs['function_proofs_checked']} checked/{proofs['function_proofs_reused']} reused, empty-borrow {proofs['empty_borrow_proofs_checked']}/{proofs['empty_borrow_proofs_reused']}, {proofs['empty_borrow_values_avoided']} values avoided. Current module/interface checks remain."]
+    negative = [f"{c['request']} {c['candidate_minus_main_ms']:+.3f} ms" for c in cases if c['candidate_minus_main_ms']>0]
+    multi = next(c for c in cases if c['request']=='multi')
+    broad = reports['broad']['frontend_stats']['function_types']
+    md += ['', 'Wall regressions versus this run’s main: '+(', '.join(negative) if negative else 'none in these single samples')+f". Multi remains {multi['candidate_ms']:.3f} ms; broad executes {broad['executed_functions']} Types functions. Residual position work is represented by its actual counters above and in JSON. No improvement versus a prior candidate is inferred from this one block.", '',
           f'Memory caveat: `{output["legacy_memory_scope"]["raw_field"]}` is a legacy field. All {sum(sample_counts.values())} samples in 34 files report exactly one process, with per-row sample lengths/maxima verified. Only root RSS was observed; do not call it process-tree RSS, total build memory, or a memory advantage.', '',
           'History: unchanged reuses one full Verify receipt. Restore is a historical raw frontend hit (`resident_frontend_hits=1`, no producer/Types/Analyze counters), but still checks 1 Verify function and reuses 422 (empty-borrow 1/424); it is not a full Verify hit or disk semantic restore. Backend source-projection counters remain zero where reported. Error and recovery results remain part of the 34-row validation.', '',
           f'Controller: persisted helper exit {helper_exit}, root-reported tool exit {args.controller_exit}, complete 17-pair valid log. These observations are recorded separately.', '',

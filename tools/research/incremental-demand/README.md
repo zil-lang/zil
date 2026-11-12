@@ -1,5 +1,7 @@
 # 增量编译：main 与 Rust 对照
 
+> 最新冻结源码 `900293cfd` 已通过6253项完整测试、严格 Clippy/fmt 和精确源码非作者复核；[最终验证收据](full-pipeline-final-validation.json)。实际完整项目 [r7](full-pipeline-profile-900.md) 已验证单处 BodyKey1/420、425计划行复用、15KB新增数据包、无修改在完整机器IR构造前复用；180次原生结果正确，冷编译与广泛修改负结果保留。最终六轮三方同参检查/原生矩阵正在运行，不能把诊断样本当正式性能验收。
+>
 > 完整流水线专项仍在施工。最新完整三方同参测量绑定源码 `140997e0`，见 [全部场景与边界](full-pipeline-matched-140.md) 和 [六轮精简结果](full-pipeline-matched-140.json)。普通 CGU16/O2/jobs1 私有编辑 main1706 → 候选888 ms，Rust515 ms；冷编译/广泛修改仍退化，不能宣称已追平或完成。
 >
 > 后续 `e1ad7470` 已接通批量 raw 持久化、实际 CGU 布局复用和流式 LLVM 文本，完整项目诊断见 [r4](full-pipeline-profile-r4.json)；其暴露的大项目父版本恢复问题已由 `57554873` 按原425声明规模修复。`532e01141` 集成独立 Verify 空借用证明与无消费者投影消除，完整工作区6229项通过。后续冻结 `693f55cd0` 又接入完整 FunctionPlan 行持久化、相对函数输入版本、混合项目逐函数机器降级，并修复同 epoch warm 命中无谓清图；定向测试和严格全目标 Clippy/fmt 已通过，完整工作区6242项、430套全部通过，见 [收据](full-pipeline-input-plan-validation.json)；新 release 与同参测量正在执行。详见 [逐阶段实际消费者与剩余成本](full-pipeline-audit.md)。研究开关默认关闭，未合入 main。
