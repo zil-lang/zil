@@ -1,0 +1,89 @@
+{
+  "schema": "import-position-input-independent-review-v1",
+  "date_utc": "2026-11-12",
+  "reviewer": "/root/audit",
+  "non_author": true,
+  "candidate_commit": "62a9e7ff2cdd1444aca20649439a9501a519663e",
+  "candidate_tree": "b82d203cca5aa6c331aa968a1bb910cb896308b3",
+  "delta_base": "4bc594151f5dc8f83ecb73f88c769196318a5a44",
+  "production_commit": "fd01dea8c17c4e924c3c6a95b87337e965644ac4",
+  "status": "ACCEPT_BOUNDED_SOURCE_WITH_TARGETED_TESTS",
+  "judgment": "ACCEPT bounded source correctness for the exact import-position input-table correction at62a9e7ff2cdd1444aca20649439a9501a519663e. No blocking dependency/source-binding/budget/authority issue was established. Driver200 and Expand98 targeted tests passed. This is not whole-workspace, performance, task/default-enable/main-merge acceptance.",
+  "frozen_scope_sha256": {
+    "crates/zil-expand/src/incremental.rs": "2d4cffddacef1c851913b1c3d3a58f31ed910845734fa0087034ee9d82b348fa",
+    "crates/zil-expand/src/incremental_tests.rs": "f07272a4605af9918d69c1d8ad25f0f662336b9f8a0a901fd0fffa313472dbf3",
+    "crates/zil-driver/src/project.rs": "df9e74006a11aeda3e64b139a71c874ead985eec4086386d0c0b7a31011903ed"
+  },
+  "unchanged_combined_context_sha256": {
+    "crates/zil-types/src/incremental.rs": "6b418acd7d6818793d07da47c8cc525d850332f9cda4bef3aca9d5c13f52413c",
+    "crates/zil-types/src/preparation.rs": "b175bc0675c221b6e6c77dfd4de20312ce7981471b2486bdab5a78ccf3e417ff",
+    "crates/zil-syntax/src/parsed_source.rs": "304b77f032e5a74ae807ae9b2d150d03c3b6304666a43603c1e6970513b98400"
+  },
+  "assessments": [
+    {
+      "area": "Original full environment validity",
+      "assessment": "The original Environment::compatible is unchanged, including exact complete CoreImport span equality. It is still the sole stage-output/receipt compatibility predicate. Only when it fails does the new input-specific comparison run; ordinary compatible/private edits do not pay an added second environment/header comparison."
+    },
+    {
+      "area": "Narrow import-position comparison",
+      "assessment": "function_inputs_compatible exhaustively destructures Environment, CoreImport and Span. It preserves ordered row counts, aliases, target module IDs and Span.file, plus exact source module/file/path inventory, complete normalized declaration headers, target and context. Only start/end of resolved CoreImport diagnostic positions are ignored. It uses the same original nonmonotone limit domain; current node/work allowances are not renewed, and downstream Types still binds complete Limits."
+    },
+    {
+      "area": "No old output reused under weaker predicate",
+      "assessment": "On every full compatibility failure all stage receipts, normalized syntax, restored modules and lower/Core/source-map products are cleared, and module revision is refreshed. The weaker predicate only decides whether old FunctionInput records remain candidates. Current original expand_program_cached must succeed before they are published. Actual lower/maps therefore contain current positions, not cached import positions."
+    },
+    {
+      "area": "Combination with693 relative input seal",
+      "assessment": "Each candidate still compares the old parser-owned declaration slice with current actual bytes after fresh production, and requires current name-map owner/NodeId/FileId association. Whitespace inside the declaration or any changed semantic bytes creates a new opaque input revision. Absolute function binding/fingerprint updates current position separately. A retained table is not sufficient to mint a current revision or retarget arbitrary raw Core/public hashes. No new source buffer/history owner is added."
+    },
+    {
+      "area": "Types and rewrite fallback",
+      "assessment": "Direct and graph Types consumers retain complete current context/target/Limits, signature/observed declaration reads, original CFG cost replay and checked current-span rebasing. CT/constant/generic/trait/capture and materialized inference domains remain excluded from producer evidence as reviewed on693; no semantic compatibility is inferred from import diagnostic position for those rewriting domains. Unchanged current raw equality fallback remains separate and cannot claim a sealed producer hit."
+    },
+    {
+      "area": "Current diagnostics and authority",
+      "assessment": "Source/import discovery and original normalization/restore/lower/error and budget paths still execute with current spans. Only body-key input identity may stop propagating to unchanged closed scalar declarations. Current independent Verify and later native/link checks remain, with no cache authority or stage-cost fee removed."
+    }
+  ],
+  "validation_state": {
+    "log": "out/runs/full-pipeline-import-bindings-01.log",
+    "log_sha256": "80d8ee3500e12b5002be64935e2ee2b140a2e753dc5e4fd3b9134c4465761d4a",
+    "log_bytes": 34058,
+    "exit": "out/runs/full-pipeline-import-bindings-01.exit",
+    "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "observed_exit": "0",
+    "suites": [
+      {
+        "crate": "zil-driver",
+        "passed": 200,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 39.36
+      },
+      {
+        "crate": "zil-expand",
+        "passed": 98,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.36
+      }
+    ],
+    "scope": "Includes the existing original-scale425 history, new position-only BodyKey0/421 and fresh complete current TypedProgram assertions. Two new Expand tests and current-source map equality passed. Root reports source unchanged across its docs-only follow-up.",
+    "attribution": "Root executed the sole targeted compiler window and supplies source/command attribution. Reviewer independently read completed raw logs/results and explicit exit0 file and computed hashes; Cargo output does not embed Git identity.",
+    "pending": [
+      "Strict all-target lint/fmt and full-workspace/release validation are not accepted by this receipt. Root reports a separate backend test-only unnecessary_unwrap Clippy issue under repair; it does not change this import production scope."
+    ],
+    "no_claim": "No full-workspace or actual release timing on this source is claimed. Durable v3 archive/recovery reports belong to their independent scope."
+  },
+  "limits": [
+    "Positions still run22 materializer and producer module passes,425 declaration byte comparisons and425 small absolute-binding hashes. BodyKey0 is not a whole-source no-work claim.",
+    "Full current keys/global admission/CFG rebasing/independent Verify and conservative rich-domain fallback remain. Source/parser provenance cannot become safety authority.",
+    "No new memory/disk/performance or task-completion claim follows from this narrow compatibility correction; prior F2/EB1 and whole-request cost limitations remain."
+  ],
+  "reviewer_actions": "Read-only exact Git/source/log/hash processing; no Cargo, compiler/native/benchmark/formatter, production/helper mutation or commit. Only this final review JSON and its /tmp draft written.",
+  "tests_reviewed": [
+    "Two new Expand tests compare complete actual Core and source maps to the original fresh expander, prove only relative function revisions survive import diagnostic relocation, and assert normalize/restore/lower execute while no old normalized/restored/lower outputs are retained.",
+    "Nearest identity negatives change alias/module/import FileId/count/source IDs/path/header/context/target or each nonmonotone limit and require input-specific compatibility to reject.",
+    "Original22-file/498620-byte/425-declaration/capacity256 history retains existing results and adds positions BodyKey0/421, text hashes0/reuses425,425 actual comparisons/binding hashes,22 current materializations/lowerings and full current TypedProgram/source-file/diagnostic equality with the real legacy fresh pipeline. Existing4/421 CFG/serialization assertions remain."
+  ]
+}
