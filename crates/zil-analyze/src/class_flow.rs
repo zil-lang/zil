@@ -1616,7 +1616,7 @@ fn check_with(
                         b,
                     )?;
                 }
-                InstructionKind::MakeAggregate { fields } => {
+                InstructionKind::MakeAggregate { fields } | InstructionKind::MakeOwnedTuple{fields}=> {
                     if let Some(out) = out
                         && !out.array_elements.is_empty()
                     {
@@ -1749,6 +1749,16 @@ fn check_with(
                                 b,
                             )?;
                         }
+                    }
+                }
+                InstructionKind::UnpackTuple{local,fields} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
+                    for (index,field) in fields.iter().enumerate(){link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],&locals[field.0 as usize],LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),&mut e,b)?;}
+                }
+                InstructionKind::TakeTupleField{local,path} if matches!(f.locals[local.0 as usize].ty,Type::Tuple(_))=>{
+                    if let Some(out)=out {
+                        let Some(PlaceProjection::Field(index))=path.first() else{return Err(bad("compound class take has no field"))};
+                        if path.len()!=1{return Err(bad("compound class take needs exact inline field consumer"))}
+                        link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],out,LifeTypeProjection::Place(PlaceProjection::Field(*index)),&mut e,b)?;
                     }
                 }
                 InstructionKind::ExtractField { aggregate, index } => {

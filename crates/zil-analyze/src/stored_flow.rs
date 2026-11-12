@@ -1313,6 +1313,40 @@ pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->Compi
     }
     walk(module,ty,b)
 }
+pub(super) fn affine_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
+    b.type_work(ty,true,"affine compound complete type")?;
+    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<Option<(bool,bool)>>{
+        fee(b,1)?;
+        match ty {
+            Type::Tuple(fields)=>{let(mut owns,mut exclusive)=(false,false);for field in fields{let Some((o,e))=walk(module,field,b)? else{return Ok(None)};owns|=o;exclusive|=e;}Ok(Some((owns,exclusive)))},
+            Type::BorrowedStorage{storage,life}=>{
+                if !matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Enum{..}){return Ok(None)}
+                physical(ty,b)?;
+                let mut count=0;
+                for actual in &module.life_instances{b.type_work(&actual.ty,false,"affine compound candidate identity")?;b.type_work(ty,false,"affine compound actual identity")?;count+=usize::from(actual.ty==*ty);}
+                if count!=1{return Err(failure("affine compound child lacks unique complete nominal instance"))}
+                fee(b,life.slots.len())?;
+                Ok(Some((resources::sums::owned(storage),life.slots.iter().any(|slot|slot.mode==StoredBorrowMode::ExclusiveAddress))))
+            },
+            Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..}|Type::ByteBuffer|Type::OwnedStore{..})=>{
+                if matches!(payload.as_ref(),Type::OwnedStore{..}){crate::ownership_store::ordinary_owned(module,ty,b)?;}else{crate::budget::legacy_value(ty,zil_base::Span::default(),module)?;}
+                Ok(Some((true,false)))
+            },
+            other if other.is_copy_value()=>Ok(Some((false,false))),
+            _=>Ok(None),
+        }
+    }
+    Ok(walk(module,ty,b)?.is_some_and(|(owns,exclusive)|owns||exclusive))
+}
+fn compound_move(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::TakeTupleField{local,path}=&i.kind else{return Ok(false)};
+    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound take local absent"))?.ty;
+    if !affine_compound(module,parent,b)?{return Ok(false)}
+    let child=slot(parent,path,b)?;
+    if i.result.map(|result|value_type(f,result)).transpose()?!=Some(child){return Err(failure("compound take changes complete actual field type"))}
+    Ok(true)
+}
 fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
     let InstructionKind::ExtractField{aggregate,index}=i.kind else{return Ok(false)};
     let parent=value_type(f,aggregate)?;
@@ -1321,6 +1355,33 @@ fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut B
     let child=fields.get(index as usize).ok_or_else(||failure("compound extraction field absent"))?;
     let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
     if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
+    Ok(true)
+}
+fn compound_unpack(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::UnpackTuple{local,fields}=&i.kind else{return Ok(false)};
+    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound unpack local absent"))?.ty;
+    if !affine_compound(module,parent,b)?{return Ok(false)}
+    let Type::Tuple(types)=parent else{unreachable!()};
+    if i.result.is_some() || fields.len()!=types.len(){return Err(failure("compound unpack omits complete fields"))}
+    let mut seen=BTreeSet::new();
+    for (field,expected) in fields.iter().zip(types){ordered(b,seen.len(),0)?;if field==local || !seen.insert(*field) || f.locals.get(field.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(failure("compound unpack changes or duplicates actual field place"))}}
+    Ok(true)
+}
+fn compound_drop(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::DropTuple{local}=i.kind else{return Ok(false)};
+    let ty=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound drop local absent"))?.ty;
+    if !affine_compound(module,ty,b)?{return Ok(false)}
+    if i.result.is_some(){return Err(failure("compound drop fabricates a result"))}
+    Ok(true)
+}
+fn compound_constructor(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::MakeOwnedTuple{fields}=&i.kind else{return Ok(false)};
+    let id=i.result.ok_or_else(||failure("compound constructor result absent"))?;
+    let ty=value_type(f,id)?;
+    if !affine_compound(module,ty,b)?{return Ok(false)}
+    let Type::Tuple(types)=ty else{unreachable!()};
+    if types.len()!=fields.len(){return Err(failure("compound constructor omits actual fields"))}
+    for (field,expected) in fields.iter().zip(types){b.type_work(expected,false,"compound constructor complete field")?;if value_type(f,*field)?!=expected{return Err(failure("compound constructor changes actual field Type"))}}
     Ok(true)
 }
 fn compound_slot_rows(ty:&Type,prefix:&mut Path,out:&mut Vec<StorageLifeSlot>,b:&mut Budget)->CompileResult<()> {
@@ -3321,6 +3382,7 @@ fn transfer(
                 )
                 || environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
                 || (b.stored_enum_addresses
                     && enum_address::signature(&f.locals[local.0 as usize].ty))
                 || matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
@@ -3564,7 +3626,7 @@ fn transfer(
                 }
             }
         }
-        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
+        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
             if b.task_failure_carriers
                 && i.result.is_some_and(|r| matches!(f.values.get(r.0 as usize),Some(Type::BorrowedStorage{storage,..}) if matches!(storage.as_ref(),Type::Tuple(_))))
             {
@@ -3591,7 +3653,8 @@ fn transfer(
                 }
                 return Ok(out);
             }
-            if matches!(ty,Type::Tuple(_)) && shared_compound(module,ty,b)? {
+            if matches!(ty,Type::Tuple(_)) && (shared_compound(module,ty,b)? || affine_compound(module,ty,b)?) {
+                if matches!(i.kind,InstructionKind::MakeAggregate{..}) && affine_compound(module,ty,b)? {return Err(failure("affine compound requires an actual owning tuple constructor"))}
                 for (index,field) in fields.iter().enumerate(){
                     let source=get(*field)?;
                     union(&mut out.held,&source.held,b)?;
@@ -4065,7 +4128,7 @@ fn transfer(
             owned::instruction(module,f,i,b)?;
             owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
         }
-        InstructionKind::DropManaged { local } if b.stored_owned_fixed => {
+        InstructionKind::DropManaged { local } if b.stored_owned_fixed || b.stored_compound_values => {
             state.locals.remove(local);
         }
         InstructionKind::DropPackage { local }
@@ -4188,6 +4251,25 @@ fn transfer(
         }
         InstructionKind::ExtractIndex { aggregate, .. } if array_index::candidate(f, i) => {
             out.pointer = array_index::transfer(f, i, get(*aggregate)?, b)?;
+        }
+        InstructionKind::DropTuple{local} if compound_drop(module,f,i,b)?=>{
+            state.locals.remove(local);clear_local_holes(state,*local,b)?;
+        }
+        InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
+            let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
+            for (index,field) in fields.iter().enumerate(){
+                let mut child=Value::default();
+                child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                union(&mut child.held,&source.held,b)?;
+                ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
+            }
+        }
+        InstructionKind::TakeTupleField{local,path} if compound_move(module,f,i,b)?=>{
+            let Some(PlaceProjection::Field(index))=path.first() else{return Err(failure("compound take lacks actual field"))};
+            if path.len()!=1{return Err(failure("compound take nested path needs its actual position consumer"))}
+            let holder=state.locals.get_mut(local).ok_or_else(||failure("compound take source unavailable"))?;
+            out.slots=take_package_field_slots(holder,*index,b)?;
+            union(&mut out.held,&holder.held,b)?;
         }
         InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
             let parent=value_type(f,*aggregate)?;
@@ -4848,6 +4930,7 @@ fn reverse(
         | InstructionKind::CallClosureMut { callee: local, .. }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -4899,6 +4982,7 @@ fn reverse_bool(
         | InstructionKind::CallClosureMut { callee: local, .. }
             if environment_value(module, &f.locals[local.0 as usize].ty, b)?
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || affine_compound(module,&f.locals[local.0 as usize].ty,b)?
                 || matches!(i.kind, InstructionKind::TakeLocal { .. })
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
@@ -5363,6 +5447,8 @@ fn windows(
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::TakeLocal { local }
+                    | InstructionKind::UnpackTuple{local,..}
+                    | InstructionKind::DropTuple{local}
                     | InstructionKind::DropClosure { local } => {
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
                             fee(b, state.vacant.len())?;
@@ -6219,6 +6305,10 @@ fn derive_cfg(
                         }
                     }
                 }
+                if b.stored_compound_values && matches!(ty,Type::Tuple(_)) && !ty.is_copy_value(){
+                    let mut rows=Vec::new();compound_slot_rows(ty,&mut Vec::new(),&mut rows,b)?;
+                    for row in rows{ordered(b,value.slots.len(),row.path.len())?;if value.slots.get(&row.path).is_none_or(|permission|permission.targets.is_empty()){grounded=false;}}
+                }
                 if let Some((_, life)) = carrier(ty) {
                     if enum_address::ordinary(module, ty, b)? {
                         if !value.enum_variants.grounded(ty, b)? {
@@ -6434,7 +6524,7 @@ pub(super) fn infer(
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
         && owned_byte_views::profile(module, b)?;
-    b.stored_owned_fixed = if !owned_byte_profile
+    b.stored_owned_fixed = if !b.stored_compound_values && !owned_byte_profile
         && !b.task_sources()
         && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
@@ -6493,7 +6583,7 @@ pub(super) fn infer(
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
-            let mixed_resource = if b.stored_packages {
+            let mixed_resource = if b.stored_packages || b.stored_compound_values {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -6530,6 +6620,7 @@ pub(super) fn infer(
                     && enum_address::signature(ty)
                     && enum_address::ordinary(module, ty, b)?
                 || shared_compound(module,ty,b)?
+                || affine_compound(module,ty,b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -6582,6 +6673,7 @@ pub(super) fn infer(
             .iter()
             .any(|d| d.kind == CallableKind::FnOnce)
         || b.stored_owned_fixed
+        || b.stored_compound_values
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
             && !b.task_sources()
@@ -6892,10 +6984,12 @@ fn actual_instructions(
             let package_read = pure_copy::ordinary_package_read(f, i, b)?;
             let package_description = pure_copy::ordinary_package_description(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
+            let compound_take=compound_move(module,f,i,b)? || compound_unpack(module,f,i,b)? || compound_constructor(module,f,i,b)? || compound_drop(module,f,i,b)?;
             ordinary_observations |=
                 package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let owned_operation = (b.stored_owned_fixed
+                || b.stored_compound_values && matches!(i.kind,InstructionKind::DropManaged{local} if matches!(&f.locals[local.0 as usize].ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})))
                 || matches!(i.kind, InstructionKind::ReadDesc { .. })
                 || matches!(i.kind, InstructionKind::MakeManaged { .. })
                     && i.result.is_some_and(|id| matches!(f.values.get(id.0 as usize),
@@ -6911,6 +7005,7 @@ fn actual_instructions(
                 && !package_read
                 && !package_description
                 && !error_borrow
+                && !compound_take
                 && !(b.task_sources() && task_address::operation(&i.kind))
                 && !unpack_failure
                 && !(b.masked_stored_tasks()
@@ -7335,7 +7430,8 @@ fn actual_instructions(
                     super::stored_borrows::instruction(f, i, b)?
                 }
                 InstructionKind::MakeAggregate { fields }
-                | InstructionKind::MakePackage { fields } => {
+                | InstructionKind::MakePackage { fields }
+                | InstructionKind::MakeOwnedTuple{fields}=> {
                     let ty = value_type(
                         f,
                         i.result.ok_or_else(|| failure("aggregate lacks result"))?,
