@@ -192,3 +192,134 @@ impl Engine<'_> {
         Ok(key)
     }
 }
+
+impl Engine<'_> {
+    pub(super) fn semantic_source_actual(
+        &mut self,
+        ty: &TypeRef,
+        domain: &str,
+    ) -> R<Option<SemanticActual>> {
+        if self.life_scope.is_empty() || !self.qualified_actual_syntax(ty, 0)? {
+            return Ok(None);
+        }
+        let mut classes = Vec::new();
+        self.semantic_free_classes(ty, &mut Vec::new(), &mut classes, 0)?;
+        self.budget.ty(ty)?;
+        self.budget.text(domain, ty.span)?;
+        Ok(Some(SemanticActual {
+            application: Some(ty.clone()),
+            classes,
+            domain: domain.to_owned(),
+        }))
+    }
+    fn semantic_free_classes(
+        &mut self,
+        ty: &TypeRef,
+        bound: &mut Vec<String>,
+        classes: &mut Vec<LexicalLife>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Reference {
+                lifetime, inner, ..
+            } => {
+                if let Some(name) = lifetime {
+                    self.semantic_free_life(name, ty.span, bound, classes)?;
+                }
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?;
+            }
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for arg in args {
+                    match arg {
+                        GenericArg::Lifetime(name) => {
+                            self.semantic_free_life(name, ty.span, bound, classes)?
+                        }
+                        GenericArg::Type(inner) => {
+                            self.semantic_free_classes(inner, bound, classes, depth + 1)?
+                        }
+                        GenericArg::Const(_) => {}
+                    }
+                }
+            }
+            TypeKind::Group(inner)
+            | TypeKind::Optional(inner)
+            | TypeKind::Array { element: inner, .. } => {
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?
+            }
+            TypeKind::ForLifetime { lifetime, inner } => {
+                let mark = bound.len();
+                self.budget.text(lifetime, ty.span)?;
+                bound.push(lifetime.clone());
+                self.semantic_free_classes(inner, bound, classes, depth + 1)?;
+                bound.truncate(mark);
+            }
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+                for field in fields {
+                    self.semantic_free_classes(field, bound, classes, depth + 1)?;
+                }
+            }
+            TypeKind::Error { error, result } => {
+                self.semantic_free_classes(error, bound, classes, depth + 1)?;
+                self.semantic_free_classes(result, bound, classes, depth + 1)?;
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for param in params {
+                    self.semantic_free_classes(param, bound, classes, depth + 1)?;
+                }
+                self.semantic_free_classes(result, bound, classes, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn semantic_free_life(
+        &mut self,
+        name: &str,
+        span: Span,
+        bound: &[String],
+        classes: &mut Vec<LexicalLife>,
+    ) -> R<()> {
+        for local in bound {
+            self.budget.text(local, span)?;
+            self.budget.text(name, span)?;
+        }
+        if !bound.iter().any(|local| local == name) {
+            let class = self.source_life(name, span)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<LexicalLife>(), span)?;
+            classes.push(class);
+        }
+        Ok(())
+    }
+    pub(super) fn bind_semantic_source(&mut self, pattern: &Pattern, env: &mut Env) -> R<()> {
+        match &pattern.kind {
+            PatternKind::Name(name) => {
+                let Some(source) = env
+                    .bindings
+                    .get(name)
+                    .and_then(|binding| binding.ty.as_ref())
+                else {
+                    return Ok(());
+                };
+                let Some(actual) = self.semantic_source_actual(source, &env.domain)? else {
+                    return Ok(());
+                };
+                self.budget.ty(source)?;
+                let mut physical = source.clone();
+                self.ty(&mut physical, 0)?;
+                let binding = env.bindings.get_mut(name).expect("actual binding");
+                binding.ty = Some(physical);
+                binding.semantic = Some(actual);
+            }
+            PatternKind::Tuple(fields) => {
+                for field in fields {
+                    self.bind_semantic_source(field, env)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}

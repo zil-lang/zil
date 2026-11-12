@@ -435,7 +435,7 @@ impl Engine<'_> {
                     self.expr_expected(value, env, hint.as_ref(), depth + 1)?;
                 }
             }
-            record_type
+            source_record.or(record_type)
         };
         Ok(result)
     }

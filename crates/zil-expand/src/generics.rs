@@ -12,10 +12,19 @@ type R<T> = Result<T, Diagnostic>;
 struct Env {
     bindings: BTreeMap<String, EnvBinding>,
     closure_depth: u32,
+    domain: String,
+}
+#[derive(Clone)]
+struct SemanticActual {
+    application: Option<TypeRef>,
+    classes: Vec<crate::stored_types::LexicalLife>,
+    domain: String,
 }
 #[derive(Clone)]
 struct EnvBinding {
+    // Physical syntax is separate from the source application used by inference.
     ty: Option<TypeRef>,
+    semantic: Option<SemanticActual>,
     input: Option<u32>,
     closure_depth: u32,
 }
@@ -30,7 +39,12 @@ impl Env {
         self.bindings.contains_key(name)
     }
     fn get(&self, name: &str) -> Option<&Option<TypeRef>> {
-        self.bindings.get(name).map(|binding| &binding.ty)
+        self.bindings.get(name).map(|binding| {
+            binding
+                .semantic
+                .as_ref()
+                .map_or(&binding.ty, |actual| &actual.application)
+        })
     }
     fn values(&self) -> impl Iterator<Item = &Option<TypeRef>> {
         self.bindings.values().map(|binding| &binding.ty)
@@ -41,6 +55,7 @@ impl Env {
                 name,
                 EnvBinding {
                     ty,
+                    semantic: None,
                     input: None,
                     closure_depth: self.closure_depth,
                 },
@@ -56,6 +71,7 @@ impl Env {
                 parameter.name.clone(),
                 EnvBinding {
                     ty: Some(parameter.ty.clone()),
+                    semantic: None,
                     input: Some(input),
                     closure_depth: 0,
                 },
@@ -548,6 +564,7 @@ struct Engine<'a> {
     // Concrete source field layouts for stored physical records. Hints only;
     // storage classes and actual permissions live in the independent catalog.
     stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
+    stored_source_parameters: BTreeMap<String, Vec<Option<SemanticActual>>>,
     stored_enum_layouts: BTreeMap<String, StoredEnumLayout>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
@@ -664,6 +681,7 @@ impl<'a> Engine<'a> {
             next_nominal_capture: 0,
             nominal_source_actuals: BTreeMap::new(),
             stored_record_fields: BTreeMap::new(),
+            stored_source_parameters: BTreeMap::new(),
             stored_enum_layouts: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
@@ -1978,6 +1996,25 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
+                if let Some(source) = self.stored_source_parameters.get(&f.name) {
+                    self.budget.text(&f.name, f.span)?;
+                    env.domain = f.name.clone();
+                    for (parameter, source) in f.params.iter().zip(source) {
+                        if let Some(source) = source {
+                            self.budget
+                                .ty(source.application.as_ref().expect("semantic source"))?;
+                            self.budget.text(&source.domain, f.span)?;
+                            self.budget.identity_work(source.classes.len(), f.span)?;
+                            env.bindings
+                                .get_mut(&parameter.name)
+                                .expect("parameter binding")
+                                .semantic = Some(source.clone());
+                        }
+                    }
+                } else if self.stored_nominals {
+                    self.budget.text(&f.name, f.span)?;
+                    env.domain = f.name.clone();
+                }
                 let source_enum_result = self.source_enum_return.is_some();
                 let body_result = self
                     .source_enum_return
@@ -2347,6 +2384,13 @@ impl<'a> Engine<'a> {
                     && {
                         self.stored_lookup_fee(self.enums.len(), path[0].len(), t.span)?;
                         self.enums.contains_key(&path[0])
+                            || matches!(
+                                self.nominals.get(&path[0]),
+                                Some(Item {
+                                    kind: ItemKind::Aggregate(_),
+                                    ..
+                                })
+                            )
                     }
                     && self.stored_application(&path[0], args, t.span, depth + 1)?
                 {
@@ -2369,6 +2413,7 @@ impl<'a> Engine<'a> {
                     self.enum_pattern(pattern, actual.as_ref(), env, depth + 1)?;
                 } else {
                     bind(pattern, actual, env);
+                    self.bind_semantic_source(pattern, env)?;
                 }
             }
             StmtKind::Return(Some(e)) => {
@@ -3011,6 +3056,22 @@ impl<'a> Engine<'a> {
     fn clone_env(&mut self, env: &Env) -> R<Env> {
         for ty in env.values().flatten() {
             self.budget.ty(ty)?;
+        }
+        self.budget.text(&env.domain, Span::default())?;
+        for binding in env.bindings.values() {
+            if let Some(source) = &binding.semantic {
+                self.budget
+                    .ty(source.application.as_ref().expect("semantic source"))?;
+                self.budget.text(&source.domain, Span::default())?;
+                self.budget
+                    .identity_work(source.classes.len(), Span::default())?;
+                if source.domain != env.domain {
+                    return Err(error(
+                        Span::default(),
+                        "semantic Type actual crossed its lexical domain without alpha-renaming",
+                    ));
+                }
+            }
         }
         Ok(env.clone())
     }
