@@ -99,6 +99,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     let f = TypedFunction {
         storage_life: Some(contract.clone()),
         call_kind: CallKind::Direct,
+        resume_bound: crate::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

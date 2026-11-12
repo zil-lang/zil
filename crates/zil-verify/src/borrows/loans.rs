@@ -10,6 +10,9 @@ type Loans = BTreeSet<usize>;
 type Locals = BTreeMap<LocalId, Loans>;
 
 fn parameter_task_ports(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    if let Some(owner) = tasks::transfer::outcome_owner(ty) {
+        return parameter_task_ports(owner);
+    }
     let payload = match ty {
         Type::Managed(payload) | Type::Desc(payload) => payload.as_ref(),
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -478,6 +481,11 @@ fn reconstruct(
                             | InstructionKind::AddressSlice { address, .. }
                             | InstructionKind::AddressIndex { address, .. } => {
                                 join(&mut row, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::WithScopedThread { argument, .. }
+                                if super::retained_task_value(&f.values[id]) =>
+                            {
+                                join(&mut row, &flow.values[argument.0 as usize], budget)?;
                             }
                             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                                 if let Some(source) = state.get(local) {
@@ -1472,7 +1480,9 @@ pub(super) fn check(
                 ),
                 InstructionKind::WithScopedThread { argument, body, .. } => {
                     let arguments =
-                        if matches!(&f.values[argument.0 as usize], Type::Address { .. }) {
+                        if matches!(&f.values[argument.0 as usize], Type::Address { .. })
+                            || tasks::transfer::task_owner(&f.values[argument.0 as usize])
+                        {
                             std::slice::from_ref(argument)
                         } else {
                             &[]

@@ -3639,6 +3639,13 @@ impl Flow<'_> {
                         | InstructionKind::WithSyncCell { body, .. } => [None, Some((body, true))],
                         _ => unreachable!(),
                     };
+                    if let InstructionKind::WithScopedThread { argument, .. } = i.kind
+                        && crate::tasks::transfer::task_owner(&f.values[argument.0 as usize])
+                    {
+                        let source = copied(state, Place::Value(argument), budget)?;
+                        self.consume(state, argument, check, budget)?;
+                        produced = Some(source);
+                    }
                     for (value, consume) in operands.into_iter().flatten() {
                         let ty = &f.values[value.0 as usize];
                         if let Some(shape) = self.shapes.get(&Place::Value(value)) {

@@ -52,6 +52,15 @@ pub enum CallKind {
     Suspend = 1,
 }
 
+/// Raw request for the threads on which a stable Task may resume. Each kernel
+/// independently proves the actual frame, reachable execution and cleanup.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TaskResumeBound {
+    #[default]
+    Local = 0,
+    Transfer = 1,
+}
+
 /// Sealed native cell kind; this raw tag grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SyncCellKind {
@@ -948,6 +957,7 @@ pub struct CoreFunction {
     pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
     pub call_kind: Option<CallKind>,
+    pub resume_bound: TaskResumeBound,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
     pub life: Option<CoreLifeContract>,
     /// Retained ordinary template metadata; only a checked full instance may run.
@@ -1632,6 +1642,7 @@ pub struct TypedFunction {
     pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
     pub call_kind: CallKind,
+    pub resume_bound: TaskResumeBound,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
     /// source parameter indices. Each kernel checks the actual CFG separately.
     /// None preserves body-derived origins for unannotated functions.
@@ -3321,6 +3332,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     b.push(f.call_kind as u8);
+    b.push(f.resume_bound as u8);
     encode_storage_contract(b, &f.storage_life);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {

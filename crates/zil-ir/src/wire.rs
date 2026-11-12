@@ -1105,6 +1105,7 @@ impl<'a> Writer<'a> {
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.u8(function.call_kind as u8)?;
+        self.u8(function.resume_bound as u8)?;
         self.storage_contract(&function.storage_life)?;
         self.boolean(function.reference_return_bound.is_some())?;
         if let Some(bound) = &function.reference_return_bound {
@@ -3519,6 +3520,11 @@ impl<'a> Reader<'a> {
             1 => CallKind::Suspend,
             _ => return Err(malformed("E-WIRE-TAG", "unknown function call kind")),
         };
+        let resume_bound = match self.u8()? {
+            0 => TaskResumeBound::Local,
+            1 => TaskResumeBound::Transfer,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown Task resume bound")),
+        };
         let storage_life = self.storage_contract()?;
         let reference_return_bound = if self.boolean()? {
             Some(self.callable_indices()?)
@@ -3700,6 +3706,7 @@ impl<'a> Reader<'a> {
         Ok(TypedFunction {
             storage_life,
             call_kind,
+            resume_bound,
             reference_return_bound,
             callable_return_contract,
             callable_contract,

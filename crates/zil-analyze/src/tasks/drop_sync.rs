@@ -405,7 +405,9 @@ fn infer_origins(
                 {
                     changed |= locals[local.0 as usize].add(&values[value.0 as usize], budget)?;
                 }
-                if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
+                if let InstructionKind::UnpackTuple { local, fields }
+                | InstructionKind::UnpackVariant { local, fields, .. } = &i.kind
+                {
                     for field in fields {
                         budget.spend(
                             locals[local.0 as usize].workers.len().saturating_add(1),
@@ -427,6 +429,9 @@ fn infer_origins(
                         workers: BTreeSet::from([*worker]),
                         parameters: BTreeSet::new(),
                     },
+                    InstructionKind::WithScopedThread { argument, .. } => {
+                        values[argument.0 as usize].clone()
+                    }
                     InstructionKind::Call {
                         function,
                         arguments,
@@ -610,4 +615,38 @@ fn require_workers(
         }
     }
     Ok(())
+}
+
+/// Independently reconstructed constructor identities for a migrated owner.
+pub(super) fn transfer_workers(
+    module: &TypedModule,
+    f: &TypedFunction,
+    value: ValueId,
+    budget: &mut Budget,
+) -> CompileResult<Vec<FunctionId>> {
+    let (values, _) = infer_origins(
+        module,
+        f,
+        budget,
+        &mut BTreeSet::from([f.id]),
+        &mut BTreeMap::new(),
+    )?;
+    let actual = values
+        .get(value.0 as usize)
+        .ok_or_else(|| fail(f.span, "migrated Task value is absent"))?;
+    budget.spend(
+        actual
+            .workers
+            .len()
+            .saturating_add(actual.parameters.len())
+            .saturating_add(1),
+        "Task transfer actual origins",
+    )?;
+    if actual.unknown || !actual.parameters.is_empty() || actual.workers.is_empty() {
+        return Err(fail(
+            f.span,
+            "Task migration has no complete actual constructor origin",
+        ));
+    }
+    Ok(actual.workers.iter().copied().collect())
 }

@@ -715,3 +715,12 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> CompileResul
     }
     Ok(())
 }
+
+pub(crate) fn transfer_callback(
+    module: &TypedModule,
+    id: ClosureId,
+    budget: &mut Budget,
+    span: Span,
+) -> CompileResult<()> {
+    threaded::actual(module, id, budget, span)
+}

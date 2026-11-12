@@ -5,6 +5,7 @@ use crate::generated_spans::{self, Visitor as _};
 pub(crate) const TEMPLATE: &str = "$builtinOption340";
 pub(super) const TASK_POLL: &str = "$stdTaskPoll343";
 pub(super) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
+pub(super) const TASK_THREAD_SCOPE: &str = "$stdTaskThreadScope";
 pub(super) const TASK_POLL_STATE: &str = "$stdTaskPollState343";
 
 pub(super) fn storage_identity(
@@ -120,6 +121,7 @@ fn task_declaration(name: &str) -> Option<&'static str> {
         "Poll" => Some(TASK_POLL),
         "TaskCreateError" => Some(TASK_CREATE_ERROR),
         "TaskPollState" => Some(TASK_POLL_STATE),
+        "TaskThreadScopeResult" => Some(TASK_THREAD_SCOPE),
         _ => None,
     }
 }
@@ -286,6 +288,12 @@ pub(super) fn prepare(
             .budget
             .identity_work(4096, span)
             .map_err(|e| vec![e])?;
+        let thread_result = task_thread_declaration(span);
+        normal.budget.item(&thread_result).map_err(|e| vec![e])?;
+        output.items.insert(0, thread_result);
+        prelude.len += 1;
+        prelude.option = prelude.option.map(|i| i + 1);
+        prelude.poll = prelude.poll.map(|i| i + 1);
         let aliases = task_aliases(module, span, &mut normal.budget).map_err(|e| vec![e])?;
         for (role, item) in task_declarations(span)
             .into_iter()
@@ -363,6 +371,51 @@ fn task_declarations(span: Span) -> Vec<(Option<origins::CompilerRole>, Item)> {
     .collect()
 }
 
+fn task_thread_declaration(span: Span) -> Item {
+    Item {
+        public: false,
+        attributes: vec![],
+        span,
+        kind: ItemKind::Enum(EnumDecl {
+            name: TASK_THREAD_SCOPE.into(),
+            generics: vec![GenericParam {
+                name: "T".into(),
+                kind: GenericParamKind::Type(vec![]),
+                span,
+            }],
+            variants: vec![
+                Variant {
+                    name: "Failed".into(),
+                    fields: VariantFields::Tuple(vec![VariantTupleField {
+                        ty: named("T", span),
+                        manages: false,
+                        span,
+                    }]),
+                    attributes: vec![],
+                    span,
+                },
+                Variant {
+                    name: "Completed".into(),
+                    fields: VariantFields::Tuple(vec![
+                        VariantTupleField {
+                            ty: named("i32", span),
+                            manages: false,
+                            span,
+                        },
+                        VariantTupleField {
+                            ty: named("i32", span),
+                            manages: false,
+                            span,
+                        },
+                    ]),
+                    attributes: vec![],
+                    span,
+                },
+            ],
+        }),
+    }
+}
+
 // Prelude aliases are ordinary bindings. Existing user declarations win, and
 // the ordinary alias visitor handles local value/type shadowing at each use.
 fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<Item>> {
@@ -395,7 +448,12 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
         }
     }
     let mut aliases = vec![];
-    for public in ["Poll", "TaskCreateError", "TaskPollState"] {
+    for public in [
+        "Poll",
+        "TaskCreateError",
+        "TaskPollState",
+        "TaskThreadScopeResult",
+    ] {
         let target = task_declaration(public).unwrap();
         for qualified in [true, false] {
             let key = if qualified { "std" } else { public };
@@ -411,7 +469,7 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
             if occupied.contains(key) {
                 continue;
             }
-            let generic = public == "Poll";
+            let generic = public == "Poll" || public == "TaskThreadScopeResult";
             aliases.push(Item {
                 public: false,
                 attributes: vec![],

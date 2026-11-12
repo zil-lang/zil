@@ -2,6 +2,7 @@
 use super::*;
 mod context_work;
 mod drop_sync;
+pub(super) mod transfer;
 pub(super) use context_work::{
     context as charge_result_context, selection as charge_result_selection,
 };
@@ -128,6 +129,9 @@ pub(super) fn result_port(ty: &Type, port: u32) -> bool {
             p.binder == binder && p.mode == zil_ir::StoredBorrowMode::SharedAddress && p.leaf == **result))
 }
 fn borrowed_result(ty: &Type) -> bool {
+    if let Some(owner) = transfer::outcome_owner(ty) {
+        return borrowed_result(owner);
+    }
     match ty {
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
         Type::Managed(inner) | Type::Desc(inner) => {
@@ -190,6 +194,9 @@ fn retained_parameter(ty: &Type, budget: &mut Budget) -> Check<bool> {
     Ok(false)
 }
 fn direct_retained_carrier(ty: &Type) -> bool {
+    if let Some(owner) = transfer::outcome_owner(ty) {
+        return direct_retained_carrier(owner);
+    }
     let task = |ty: &Type| matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
     match ty {
         ty if task(ty) => true,
@@ -206,6 +213,9 @@ fn direct_retained_carrier(ty: &Type) -> bool {
     }
 }
 fn retained_input_carrier(ty: &Type) -> bool {
+    if let Some(owner) = transfer::outcome_owner(ty) {
+        return retained_input_carrier(owner);
+    }
     let payload = match ty {
         Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -316,7 +326,17 @@ pub(super) fn borrowed_signature(
     budget: &mut Budget,
 ) -> Check<bool> {
     if !borrowed_result(&f.return_type) {
-        return Ok(false);
+        if !budget.borrowed_task_ports {
+            return Ok(false);
+        }
+        budget.spend(f.parameters.len())?;
+        let mut actual_task_input = false;
+        for parameter in &f.parameters {
+            actual_task_input |= retained_input_carrier(local_type(f, *parameter, Some(f.span))?);
+        }
+        if !actual_task_input {
+            return Ok(false);
+        }
     }
     let Some(contract) = &f.storage_life else {
         return Ok(false);
@@ -859,6 +879,7 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if !budget.tasks {
         return Ok(());
     }
+    transfer::declared(module, budget)?;
     for f in &module.functions {
         budget.spend(1)?;
         let mut has_retained_input = false;

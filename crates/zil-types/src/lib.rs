@@ -835,6 +835,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         let storage_life = f.storage_life.clone().or(worker_life);
         closures.array_snapshot(&f.return_type, 1, f.span)?;
+        if f.resume_bound == zil_ir::TaskResumeBound::Transfer
+            && f.call_kind != Some(CallKind::Suspend)
+        {
+            return Err(error(
+                "E-TASK-RESUME",
+                f.span,
+                "Transfer resume requires explicit Suspend selection",
+            ));
+        }
         let first_closure = closures.pending.len();
         let helper_bounds = closures.source_helper_bounds(f)?;
         let mut b = Self {
@@ -842,6 +851,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             function: TypedFunction {
                 storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
+                resume_bound: f.resume_bound,
                 reference_return_bound: if f.call_kind == Some(CallKind::Suspend)
                     && matches!(f.return_type, Type::Address { mutable: false, .. })
                     && f.life
@@ -3169,6 +3179,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let function = CoreFunction {
                 storage_life: None,
                 call_kind: None,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
@@ -3375,6 +3386,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let function = CoreFunction {
             storage_life,
             call_kind: None,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),
@@ -4059,6 +4071,7 @@ mod tests {
             functions: vec![CoreFunction {
                 storage_life: None,
                 call_kind: None,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

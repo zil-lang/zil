@@ -1825,6 +1825,22 @@ impl Flow<'_> {
                             .collect::<Check<_>>()?,
                     ));
                 }
+                InstructionKind::WithScopedThread { argument, .. }
+                    if tasks::transfer::task_owner(&self.f.values[argument.0 as usize]) =>
+                {
+                    budget.spend(8)?;
+                    let source = state
+                        .values
+                        .get(argument.0 as usize, budget)?
+                        .duplicate(budget)?;
+                    result = Some(Content::Sum(
+                        BTreeMap::from([
+                            (0, vec![source]),
+                            (1, vec![Content::Copy, Content::Copy]),
+                        ]),
+                        None,
+                    ));
+                }
                 InstructionKind::MakeVariant { variant, fields } => {
                     budget.spend(fields.len())?;
                     result = Some(Content::Sum(

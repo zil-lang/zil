@@ -574,15 +574,22 @@ impl Emitter {
     }
 }
 
-pub(super) fn functions(
-    lir: &LirView<'_>,
+pub(super) struct Helpers<'a> {
+    pub code: m::Code,
+    pub types: BTreeMap<zil_base::Fingerprint, &'a Type>,
+}
+pub(super) fn functions<'a>(
+    lir: &LirView<'a>,
     limits: &zil_base::Limits,
     enabled: bool,
-    capture_roots: &[&Type],
+    capture_roots: &[&'a Type],
     entry: EntryPoint,
-) -> CompileResult<m::Code> {
+) -> CompileResult<Helpers<'a>> {
     if !enabled {
-        return Ok(m::Code::new());
+        return Ok(Helpers {
+            code: m::Code::new(),
+            types: BTreeMap::new(),
+        });
     }
     let mut budget = Budget::new(limits);
     let mut found = BTreeMap::new();
@@ -833,7 +840,7 @@ pub(super) fn functions(
         }
     }
     let mut code = m::Code::new();
-    for ty in found.into_values() {
+    for ty in found.values() {
         let p = plan(ty, lir.resources, &mut budget, 0)?;
         let mut emitter = Emitter {
             code: m::Code::new(),
@@ -857,7 +864,7 @@ pub(super) fn functions(
         emitter.code.push(m::Event::End);
         code.append(emitter.code);
     }
-    Ok(code)
+    Ok(Helpers { code, types: found })
 }
 
 /// Whole SSA packages introduced by verified continuation transfers use the
@@ -866,6 +873,7 @@ pub(super) fn functions(
 pub(super) fn task_helpers(
     verified: &VerifiedModule,
     meter: &tasks::Meter,
+    ordinary: &BTreeMap<zil_base::Fingerprint, &Type>,
 ) -> CompileResult<m::Code> {
     if verified.task_worker_ids().is_empty() {
         return Ok(m::Code::new());
@@ -887,8 +895,24 @@ pub(super) fn task_helpers(
                     continue;
                 }
                 budget.tree(ty, 0)?;
-                budget.pay(0, found.len().saturating_add(1))?;
+                budget.pay(
+                    0,
+                    ordinary.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                )?;
                 let hash = key(ty);
+                if let Some(previous) = ordinary.get(&hash) {
+                    budget.tree(previous, 0)?;
+                    budget.tree(ty, 0)?;
+                    if **previous != *ty {
+                        return invalid(
+                            "E-CODEGEN-SUM-HASH",
+                            "task and ordinary cleanup Types share a helper key",
+                            None,
+                        );
+                    }
+                    continue;
+                }
+                budget.pay(0, found.len().saturating_add(1))?;
                 if let Some(previous) = found.insert(hash, ty) {
                     budget.tree(ty, 0)?;
                     if previous != ty {
@@ -967,6 +991,7 @@ mod owned_sum_drop_plan_tests {
             functions: vec![TypedFunction {
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 reference_return_bound: None,
                 id: FunctionId(0),
                 name: "recipe".into(),

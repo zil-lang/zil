@@ -147,6 +147,9 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
 }
 
 pub(super) fn owned(ty: &Type) -> bool {
+    if let Some(owner) = tasks::transfer::outcome_owner(ty) {
+        return owned(owner);
+    }
     match ty {
         Type::Managed(inner) => {
             matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
@@ -453,6 +456,18 @@ fn produce(
         | InstructionKind::DescribeLocal { local } => {
             local_address(f, value, *local, state, budget)
         }
+        InstructionKind::WithScopedThread { argument, .. }
+            if tasks::transfer::outcome_owner(ty).is_some() =>
+        {
+            wrap(
+                &values[argument.0 as usize],
+                ContractProjection::Place(PlaceProjection::Variant(zil_ir::VariantProjection {
+                    variant: 0,
+                    index: 0,
+                })),
+                budget,
+            )
+        }
         InstructionKind::TaskCreate {
             arguments,
             port_bindings,
@@ -651,6 +666,27 @@ fn transfer(
     match instruction.kind {
         InstructionKind::Store { local, value } => {
             state.insert(local, copy(&values[value.0 as usize], budget)?);
+        }
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            ref fields,
+        } => {
+            let source = state.remove(&local).unwrap_or_default();
+            budget.spend(fields.len())?;
+            for (index, target) in fields.iter().enumerate() {
+                let child = project(
+                    &source,
+                    &[ContractProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant,
+                            index: index as u32,
+                        },
+                    ))],
+                    budget,
+                )?;
+                state.insert(*target, child);
+            }
         }
         InstructionKind::TakeLocal { local }
         | InstructionKind::TakeVariantField { local, .. }
@@ -1097,6 +1133,7 @@ mod tests {
             span: span(),
             storage_life: None,
             call_kind: CallKind::Direct,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

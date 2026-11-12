@@ -968,6 +968,7 @@ fn evaluate_with_context(
         functions.push(CoreFunction {
             storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
+            resume_bound: f.resume_bound,
             life: f.life.clone(),
             callable_return: f.callable_return.clone(),
             state_parameters: f.state_parameters.clone(),
@@ -3364,6 +3365,7 @@ mod tests {
             functions: vec![CoreFunction {
                 storage_life: None,
                 call_kind: None,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

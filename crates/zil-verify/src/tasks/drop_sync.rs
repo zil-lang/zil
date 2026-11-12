@@ -286,6 +286,12 @@ fn returned_value(
                 module, f, reachable, *local, functions, values, locals, budget,
             )?
         }
+        Some(InstructionKind::WithScopedThread { argument, .. }) => returned_value(
+            module, f, reachable, *argument, functions, values, locals, budget,
+        )?,
+        Some(InstructionKind::TakeVariantField { local, .. }) => returned_local(
+            module, f, reachable, *local, functions, values, locals, budget,
+        )?,
         Some(InstructionKind::Call {
             function,
             arguments,
@@ -363,6 +369,22 @@ fn returned_local(
             continue;
         }
         for instruction in &block.instructions {
+            if let InstructionKind::UnpackVariant {
+                local: source,
+                fields,
+                ..
+            } = &instruction.kind
+                && fields.contains(&local)
+            {
+                found = true;
+                origin.add(
+                    &returned_local(
+                        module, f, reachable, *source, functions, values, locals, budget,
+                    )?,
+                    budget,
+                )?;
+            }
+
             if let InstructionKind::Store {
                 local: target,
                 value,
@@ -665,4 +687,39 @@ fn require_workers(
         }
     }
     Ok(())
+}
+
+/// Rebuild actual origins without consuming Analyze's candidate facts.
+pub(super) fn transfer_workers(
+    module: &TypedModule,
+    f: &TypedFunction,
+    value: ValueId,
+    budget: &mut Budget,
+) -> Check<Vec<FunctionId>> {
+    let reachable = live_blocks(f, budget)?;
+    let actual = returned_value(
+        module,
+        f,
+        &reachable,
+        value,
+        &mut BTreeSet::from([f.id]),
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+        budget,
+    )?;
+    budget.spend(
+        actual
+            .workers
+            .len()
+            .saturating_add(actual.parameters.len())
+            .saturating_add(1),
+    )?;
+    if actual.unknown || !actual.parameters.is_empty() || actual.workers.is_empty() {
+        return Err(reject(
+            "E-VERIFY-TASK-TRANSFER",
+            Some(f.span),
+            "Task migration requires actual constructor identities",
+        ));
+    }
+    Ok(actual.workers.into_iter().collect())
 }

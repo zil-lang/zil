@@ -31,6 +31,7 @@ fn raw() -> TypedModule {
         functions: vec![TypedFunction {
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: crate::TaskResumeBound::Local,
             reference_return_bound: None,
             id: FunctionId(0),
             name: "transport_only".into(),

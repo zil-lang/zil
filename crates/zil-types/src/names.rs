@@ -427,6 +427,7 @@ mod tests {
             functions: vec![CoreFunction {
                 storage_life: None,
                 call_kind: None,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

@@ -980,6 +980,7 @@ impl<'a> Engine<'a> {
                 && !engine.budget.enum_profile(item.span)
                 && e.name != options::TEMPLATE
                 && e.name != options::TASK_POLL
+                && e.name != options::TASK_THREAD_SCOPE
             {
                 enums::validate_declaration(
                     e,
@@ -1645,6 +1646,8 @@ impl<'a> Engine<'a> {
         // values; this never grants Copy or manufactures a resource header.
         if let ItemKind::Enum(e) = &mut instance.kind
             && template != options::TEMPLATE
+            && template != options::TASK_POLL
+            && template != options::TASK_THREAD_SCOPE
         {
             let projected_bounds = if e.generics.iter().any(|parameter| {
                 matches!(&parameter.kind, GenericParamKind::Type(bounds)

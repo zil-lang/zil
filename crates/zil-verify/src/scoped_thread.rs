@@ -37,6 +37,15 @@ fn wide_integer(kind: zil_ir::SyncCellKind) -> Option<Type> {
         K::MutexI32 | K::AtomicI32 => None,
     }
 }
+fn task_scope_result(owner: &Type) -> Type {
+    Type::Enum {
+        name: format!("@std.task:v1:TaskThreadScopeResult:{}", owner.fingerprint()),
+        variants: vec![
+            ("Failed".into(), vec![owner.clone()]),
+            ("Completed".into(), vec![Type::I32, Type::I32]),
+        ],
+    }
+}
 fn mutex_head(ty: &Type) -> Option<&Type> {
     if let Type::Desc(inner) = ty
         && let Type::Mutex { payload } = inner.as_ref()
@@ -462,7 +471,8 @@ pub(super) fn instruction(
     let payload = value_type(caller, argument, span)?;
     let shared = shared_i32(payload);
     let generic_mutex = mutex_head(payload);
-    if payload != &Type::I32 && !shared && generic_mutex.is_none() {
+    let task = tasks::transfer::task_owner(payload);
+    if payload != &Type::I32 && !shared && generic_mutex.is_none() && !task {
         return Err(invalid(
             span,
             "thread argument is not the actual i32 payload",
@@ -528,12 +538,25 @@ pub(super) fn instruction(
             "thread payload differs from exact worker parameter type",
         ));
     }
-    if let Some(payload) = generic_mutex {
+    if task {
+        tasks::transfer::thread_argument(
+            module,
+            caller,
+            argument,
+            worker,
+            budget,
+            instruction.span,
+        )?;
+    } else if let Some(payload) = generic_mutex {
         mutex_worker_graph(module, worker, payload, budget, span)?;
     } else {
         worker_graph(module, worker, budget, span, shared)?;
     }
-    Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])))
+    Ok(Some(if task {
+        task_scope_result(payload)
+    } else {
+        Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])
+    }))
 }
 
 /// Reconstruct sealed cell operations without trusting source constructor names.

@@ -4782,6 +4782,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 },
                 _ => None,
             };
+            let complex_payload = !shared_payload && worker_signature.parameters[0] != Type::I32;
+            let payload_work = if complex_payload {
+                inference::type_snapshot_work(&worker_signature.parameters[0], span, self.limits)?
+            } else {
+                0
+            };
             if shared_payload {
                 *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
                     limit("thread shared payload construction budget exceeded", span)
@@ -4792,6 +4798,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     mutable: false,
                     inner: Box::new(cell_kind.map_or(Type::I32, Type::SyncCell)),
                 }
+            } else if complex_payload {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(payload_work)
+                    .ok_or_else(|| limit("thread owned payload snapshot budget exceeded", span))?;
+                self.thread_worker_lookup(worker)?;
+                self.callee(worker)?.parameters[0].clone()
             } else {
                 Type::I32
             };
@@ -4909,7 +4922,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             return self.graph.thread_work(self.work_left, |graph| {
                 graph.spend_count(4, span)?;
-                let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
+                let ty = scoped_thread::scope_result(&payload_type);
+                graph.reserve_type(&ty, 0, span)?;
                 let variable = graph.fresh(VALUE, false);
                 graph.bind(variable, &ty, span)?;
                 Ok(LocalType::Scalar(variable))

@@ -49,6 +49,7 @@ fn base(kind: CallableKind) -> TypedModule {
     let callback = TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -84,6 +85,7 @@ fn base(kind: CallableKind) -> TypedModule {
     let keep = TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
             capture_sources: Some(Vec::new()),

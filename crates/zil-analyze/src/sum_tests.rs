@@ -31,6 +31,7 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
     let mut f = TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -932,6 +933,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1061,6 +1063,7 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
         let identity = TypedFunction {
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
@@ -1435,6 +1438,7 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1521,6 +1525,7 @@ fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1680,6 +1685,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1761,6 +1767,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

@@ -344,16 +344,17 @@ impl Expander<'_> {
                 }
             }
         };
-        let call_kind = match tasks::selection(f, &mut self.callable_work) {
+        let (call_kind, resume_bound) = match tasks::selection(f, &mut self.callable_work) {
             Ok(selection) => selection,
             Err(error) => {
                 self.diagnostics.push(error);
-                None
+                (None, zil_ir::TaskResumeBound::Local)
             }
         };
         self.functions.push(CoreFunction {
             storage_life: None,
             call_kind,
+            resume_bound,
             life,
             callable_return,
             type_parameters,

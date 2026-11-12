@@ -384,6 +384,7 @@ fn clone_function(
     let TypedFunction {
         storage_life,
         call_kind,
+        resume_bound,
         reference_return_bound,
         callable_return_contract,
         callable_contract,
@@ -433,6 +434,7 @@ fn clone_function(
     Ok(TypedFunction {
         storage_life: storage_life.clone(),
         call_kind: *call_kind,
+        resume_bound: *resume_bound,
         reference_return_bound: reference_return_bound.clone(),
         callable_return_contract: callable_return_contract.clone(),
         callable_contract: callable_contract.clone(),
@@ -816,6 +818,7 @@ mod tests {
             functions: vec![TypedFunction {
                 storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
+                resume_bound: zil_ir::TaskResumeBound::Local,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -979,6 +982,7 @@ mod tests {
         module.functions.push(TypedFunction {
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: zil_ir::TaskResumeBound::Local,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

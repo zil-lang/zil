@@ -26,6 +26,7 @@ fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
     TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -58,6 +59,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let pair = Type::Tuple(vec![Type::Bool, Type::I32]);
     let source = TypedFunction {
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         parameters: vec![LocalId(0), LocalId(1)],
         locals: vec![

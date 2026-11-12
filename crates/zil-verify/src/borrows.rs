@@ -21,6 +21,9 @@ fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
         if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
 }
 fn retained_task_value(ty: &Type) -> bool {
+    if let Some(owner) = tasks::transfer::outcome_owner(ty) {
+        return retained_task_value(owner);
+    }
     match ty {
         Type::MutexGuard { .. } => true,
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
@@ -767,6 +770,11 @@ fn reconstruct(
                             InstructionKind::StaticUtf8 { .. } => {
                                 budget.spend(1)?;
                                 row.push(Root::Static);
+                            }
+                            InstructionKind::WithScopedThread { argument, .. }
+                                if retained_task_value(&f.values[result.0 as usize]) =>
+                            {
+                                roots_join(&mut row, &values[argument.0 as usize], budget)?;
                             }
                             InstructionKind::TaskCreate {
                                 arguments,
@@ -2105,6 +2113,7 @@ mod frontier_tests {
                 TypedFunction {
                     storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
+                    resume_bound: zil_ir::TaskResumeBound::Local,
                     reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,

@@ -3,6 +3,7 @@ use super::*;
 mod borrowed_loans;
 mod context_work;
 mod drop_sync;
+pub(super) mod transfer;
 pub(super) use context_work::{
     context as charge_result_context, selection as charge_result_selection,
 };
@@ -122,6 +123,9 @@ pub(super) fn result_port(ty: &Type, port: u32) -> bool {
             p.binder == binder && p.mode == zil_ir::StoredBorrowMode::SharedAddress && p.leaf == **result))
 }
 fn borrowed_result(ty: &Type) -> bool {
+    if let Some(owner) = transfer::outcome_owner(ty) {
+        return borrowed_result(owner);
+    }
     match ty {
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
         Type::Managed(inner) | Type::Desc(inner) => {
@@ -186,7 +190,25 @@ fn retained_parameter(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
 }
 pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
     if !borrowed_result(&f.return_type) {
-        return Ok(false);
+        if !budget.borrowed_task_ports {
+            return Ok(false);
+        }
+        budget.spend(
+            f.parameters.len(),
+            "retained Task helper signature parameters",
+        )?;
+        let mut retained_input = false;
+        for parameter in &f.parameters {
+            let ty = &f
+                .locals
+                .get(parameter.0 as usize)
+                .ok_or_else(|| fail(f.span, "retained Task helper parameter absent"))?
+                .ty;
+            retained_input |= direct_retained_parameter(ty);
+        }
+        if !retained_input {
+            return Ok(false);
+        }
     }
     let Some(contract) = &f.storage_life else {
         return Ok(false);
@@ -218,6 +240,9 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
     Ok(true)
 }
 fn direct_retained_parameter(ty: &Type) -> bool {
+    if let Some(owner) = transfer::outcome_owner(ty) {
+        return direct_retained_parameter(owner);
+    }
     let task = match ty {
         Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -519,6 +544,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     if !budget.tasks {
         return Ok(());
     }
+    transfer::declared(module, budget)?;
     for f in &module.functions {
         budget.spend(
             f.parameters.len().saturating_add(1),

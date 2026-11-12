@@ -631,3 +631,12 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+
+pub(crate) fn transfer_callback(
+    module: &TypedModule,
+    id: ClosureId,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    threaded::actual(module, id, span, budget)
+}

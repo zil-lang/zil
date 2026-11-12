@@ -146,6 +146,7 @@ fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
                 pending.extend(fields.iter().map(|(_, t)| t));
             }
             Type::Tuple(fields) => pending.extend(fields),
+            Type::Array { element, .. } => pending.push(element),
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
                     pending.extend(fields);
@@ -160,6 +161,80 @@ fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(true)
 }
+// Complete ordinary products/sums retain their existing canonical debt. This
+// qualification grants neither thread migration nor borrowed environment escape.
+fn complete_aggregate(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    budget.type_work(t, false, "complete task aggregate")?;
+    let mut work = vec![t];
+    while let Some(t) = work.pop() {
+        budget.spend(1, "complete task aggregate")?;
+        match t {
+            t if scalar(t) => {}
+            Type::Managed(payload) => {
+                if payload.as_ref() != &Type::ByteBuffer && !record(payload, budget)? {
+                    return Ok(false);
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len(), "complete task aggregate fields")?;
+                work.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len(), "complete task aggregate fields")?;
+                work.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len(), "complete task aggregate variants")?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "complete task aggregate fields")?;
+                    work.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2, "complete task aggregate arms")?;
+                work.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } => {
+                if !record(element, budget)? {
+                    return Ok(false);
+                }
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn aggregate_resources<'a>(t: &'a Type, budget: &mut Budget) -> CompileResult<Vec<&'a Type>> {
+    let mut work = vec![t];
+    let mut leaves = Vec::new();
+    while let Some(t) = work.pop() {
+        budget.spend(1, "complete task aggregate")?;
+        match t {
+            Type::Managed(_) => leaves.push(t),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len(), "complete task aggregate fields")?;
+                work.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len(), "complete task aggregate fields")?;
+                work.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len(), "complete task aggregate variants")?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "complete task aggregate fields")?;
+                    work.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2, "complete task aggregate arms")?;
+                work.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => {}
+        }
+    }
+    Ok(leaves)
+}
 pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     if *t == Type::I32 {
         return Ok(true);
@@ -172,9 +247,16 @@ pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> 
         return Ok(retained_pointee(inner));
     }
     if let Type::Managed(payload) = t {
-        return record(payload, budget);
+        return if payload.as_ref() == &Type::ByteBuffer {
+            Ok(true)
+        } else {
+            record(payload, budget)
+        };
     }
-    record(t, budget)
+    if record(t, budget)? {
+        return Ok(true);
+    }
+    complete_aggregate(t, budget)
 }
 fn package(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     let Type::Package { fields, .. } = t else {
@@ -212,36 +294,39 @@ fn tuple(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
 // Whole Enum roots retain one canonical obligation. Their alternatives are
 // not simultaneous owners; ordinary Sum transfer checks the active tag.
 // Keep the existing Copy classification first so old frame costs stay exact.
-fn complete_enum(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
-    budget.type_work(t, false, "complete Enum task storage")?;
-    let mut pending = vec![t];
-    while let Some(t) = pending.pop() {
-        budget.spend(1, "complete Enum task storage")?;
-        match t {
-            Type::Enum { variants, .. } => {
-                budget.spend(variants.len(), "complete Enum task variants")?;
-                for (_, fields) in variants {
-                    budget.spend(fields.len(), "complete Enum task fields")?;
-                    pending.extend(fields);
-                }
-            }
-            Type::Managed(payload) => {
-                if !record(payload, budget)? {
-                    return Ok(false);
-                }
-            }
-            t if record(t, budget)? => {}
-            _ => return Ok(false),
-        }
-    }
-    Ok(true)
-}
 fn enum_resource<'a>(
     module: &'a TypedModule,
     payload: &Type,
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<&'a zil_ir::ResourceDefinition> {
+    if *payload == Type::ByteBuffer {
+        budget.spend(
+            module.resources.len().saturating_add(1),
+            "Task sealed buffer resource",
+        )?;
+        let mut found = None;
+        for resource in &module.resources {
+            if resource.payload == Type::ByteBuffer
+                || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
+            {
+                if found.is_some()
+                    || resource.payload != Type::ByteBuffer
+                    || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                    || resource.teardown.is_some()
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        span,
+                        "Task ByteBuffer cleanup is not uniquely sealed",
+                    ));
+                }
+                found = Some(resource);
+            }
+        }
+        return found
+            .ok_or_else(|| reject("E-VERIFY-TASK", span, "Task ByteBuffer resource is absent"));
+    }
     let Type::Record { name, .. } = payload else {
         return Err(reject(
             "E-VERIFY-TASK",
@@ -324,7 +409,13 @@ fn enum_resource<'a>(
 fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.spend(1, "actual frame storage constructor")?;
     match t {
-        Type::Managed(p) | Type::Desc(p) => record(p, budget),
+        Type::Managed(p) | Type::Desc(p) => {
+            if p.as_ref() == &Type::ByteBuffer {
+                Ok(true)
+            } else {
+                record(p, budget)
+            }
+        }
         Type::Record { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => record(t, budget),
         Type::Package { .. } => package(t, budget),
         Type::Tuple(_) => tuple(t, budget),
@@ -357,23 +448,22 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                 return Ok(false);
             }
             for capture in &c.captures {
-                if let Type::Managed(payload) = capture {
-                    if !record(payload, budget)? {
-                        return Ok(false);
-                    }
-                    budget.spend(module.resources.len(), "actual pollable capture resource")?;
-                    for _ in &module.resources {
-                        budget.type_work(payload, false, "actual pollable capture cleanup")?;
-                    }
-                    let Some(resource) = module.resources.iter().find(|r| r.payload == **payload)
-                    else {
-                        return Ok(false);
+                let complete = if matches!(capture, Type::Closure(_)) {
+                    pollable_storage(module, capture, budget)?
+                } else {
+                    complete_aggregate(capture, budget)?
+                };
+                if !complete {
+                    return Ok(false);
+                }
+                for leaf in aggregate_resources(capture, budget)? {
+                    let Type::Managed(payload) = leaf else {
+                        unreachable!()
                     };
+                    let resource = enum_resource(module, payload, budget, None)?;
                     if let Some(drop) = resource.teardown {
                         cleanup(module, drop, budget, None)?;
                     }
-                } else if !record(capture, budget)? {
-                    return Ok(false);
                 }
             }
             Ok(true)
@@ -409,7 +499,7 @@ fn cleanup(
             || f.environment.is_some()
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
-            || !record(&f.return_type, budget)?
+            || !(record(&f.return_type, budget)? || complete_aggregate(&f.return_type, budget)?)
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -435,7 +525,7 @@ fn cleanup(
             continue;
         }
         for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-            if !storage(t, budget)? {
+            if !storage(t, budget)? && !complete_aggregate(t, budget)? {
                 return Err(reject(
                     "E-VERIFY-TASK",
                     span,
@@ -455,6 +545,24 @@ fn cleanup(
                     .and_then(|r| r.teardown)
                 {
                     pending.push(drop);
+                }
+            }
+        }
+        for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
+            if matches!(
+                t,
+                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && !t.is_copy_value()
+            {
+                for leaf in aggregate_resources(t, budget)? {
+                    budget.spend(1, "complete helper cleanup leaves")?;
+                    let Type::Managed(payload) = leaf else {
+                        unreachable!()
+                    };
+                    let resource = enum_resource(module, payload, budget, span)?;
+                    if let Some(drop) = resource.teardown {
+                        pending.push(drop);
+                    }
                 }
             }
         }
@@ -481,6 +589,13 @@ fn cleanup(
                     | InstructionKind::DescribeLocal { .. }
                     | InstructionKind::Unary { .. }
                     | InstructionKind::Binary { .. }
+                    | InstructionKind::ByteBufferNew
+                    | InstructionKind::ByteBufferReserve { .. }
+                    | InstructionKind::ByteBufferPush { .. }
+                    | InstructionKind::ByteBufferTruncate { .. }
+                    | InstructionKind::ByteBufferLen { .. }
+                    | InstructionKind::ByteBufferCapacity { .. }
+                    | InstructionKind::ByteBufferBorrow { .. }
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::MakeAggregate { .. }
                     | InstructionKind::MakeVariant { .. }
@@ -488,6 +603,24 @@ fn cleanup(
                     | InstructionKind::ReadVariant { .. }
                     | InstructionKind::MakeErrorUnion { .. }
                     | InstructionKind::ErrorTag { .. }
+                    | InstructionKind::TakeErrorUnion { .. }
+                    | InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::UnpackTuple { .. }
+                    | InstructionKind::DropErrorUnion { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::MakeOwnedTuple { .. }
+                    | InstructionKind::DropTuple { .. }
+                    | InstructionKind::MakePackage { .. }
+                    | InstructionKind::DropPackage { .. }
+                    | InstructionKind::TakePackageField { .. }
+                    | InstructionKind::StorePackageField { .. }
+                    | InstructionKind::DropPackageField { .. }
+                    | InstructionKind::VariantTagLocal { .. }
+                    | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::PlaceTagLocal { .. }
+                    | InstructionKind::BorrowPlaceLocal { .. }
                     | InstructionKind::ReadErrorUnion { .. } => {}
                     _ => {
                         return Err(reject(
@@ -517,10 +650,11 @@ pub(super) fn profile(
             && (if matches!(f.return_type, Type::Address { mutable: false, .. }) {
                 result_type(&f.return_type, budget)?
             } else {
-                record(&f.return_type, budget)?
+                record(&f.return_type, budget)? || result_type(&f.return_type, budget)?
             })
             || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
-                && matches!(f.return_type, Type::Managed(_))
+                && (matches!(f.return_type, Type::Managed(_))
+                    || matches!(&f.return_type, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(_))))
                 && result_type(&f.return_type, budget)?)
         || module.resources.iter().any(|r| r.teardown == Some(f.id))
     {
@@ -547,6 +681,18 @@ pub(super) fn profile(
                     pending.push(p)
                 }
                 Type::Tuple(ts) => pending.extend(ts),
+                Type::Enum { variants, .. } => {
+                    budget.spend(variants.len(), "Task input variants")?;
+                    for (_, fields) in variants {
+                        budget.spend(fields.len(), "Task input fields")?;
+                        pending.extend(fields);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    budget.spend(2, "Task input alternatives")?;
+                    pending.extend([error.as_ref(), result.as_ref()]);
+                }
+                Type::Array { element, .. } => pending.push(element),
                 Type::Package { fields, .. } | Type::Record { fields, .. } => {
                     pending.extend(fields.iter().map(|(_, t)| t))
                 }
@@ -557,6 +703,7 @@ pub(super) fn profile(
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
+            && !complete_aggregate(local_type(f, *parameter, span)?, budget)?
             && !matches!(local_type(f, *parameter, span)?, Type::Address { inner, .. } if retained_pointee(inner))
         {
             return Err(reject(
@@ -569,20 +716,12 @@ pub(super) fn profile(
     let mut checked = BTreeSet::new();
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
         let old_storage = pollable_storage(module, t, budget)?;
-        let enum_storage =
-            !old_storage && matches!(t, Type::Enum { .. }) && complete_enum(t, budget)?;
+        let enum_storage = !old_storage && complete_aggregate(t, budget)?;
         if !old_storage && !enum_storage {
             return Err(reject(
                 "E-VERIFY-TASK",
                 span,
                 "task owner needs a complete canonical inline resource frame slot",
-            ));
-        }
-        if enum_storage && f.return_type != Type::I32 {
-            return Err(reject(
-                "E-VERIFY-TASK",
-                span,
-                "complete Enum frame storage currently requires the existing i32 task result",
             ));
         }
         let mut leaves = match t {
@@ -591,28 +730,11 @@ pub(super) fn profile(
             _ => vec![t],
         };
         if enum_storage {
-            // Only newly admitted Enum storage needs transitive leaf discovery.
-            // Keep old Copy/Managed/tuple/package classification and fees intact.
-            let mut pending = leaves;
-            leaves = Vec::new();
-            while let Some(leaf) = pending.pop() {
-                budget.spend(1, "complete Enum task cleanup leaf")?;
-                match leaf {
-                    Type::Enum { variants, .. } => {
-                        budget.spend(variants.len(), "complete Enum task cleanup variants")?;
-                        for (_, fields) in variants {
-                            budget.spend(fields.len(), "complete Enum task cleanup fields")?;
-                            pending.extend(fields);
-                        }
-                    }
-                    Type::Managed(_) => leaves.push(leaf),
-                    _ => {}
-                }
-            }
+            leaves = aggregate_resources(t, budget)?;
         }
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
-                let resource = if enum_storage {
+                let resource = if enum_storage || payload.as_ref() == &Type::ByteBuffer {
                     enum_resource(module, payload, budget, span)?
                 } else {
                     for _ in &module.resources {
@@ -635,6 +757,17 @@ pub(super) fn profile(
                 {
                     cleanup(module, drop, budget, span)?;
                 }
+            }
+        }
+    }
+    if !f.return_type.is_copy_value() && !matches!(f.return_type, Type::Managed(_)) {
+        for leaf in aggregate_resources(&f.return_type, budget)? {
+            let Type::Managed(payload) = leaf else {
+                unreachable!()
+            };
+            let resource = enum_resource(module, payload, budget, span)?;
+            if let Some(drop) = resource.teardown {
+                cleanup(module, drop, budget, span)?;
             }
         }
     }
@@ -702,6 +835,13 @@ pub(super) fn profile(
                 | InstructionKind::ScopeExit { .. }
                 | InstructionKind::Unary { .. }
                 | InstructionKind::Binary { .. }
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::ByteBufferReserve { .. }
+                | InstructionKind::ByteBufferPush { .. }
+                | InstructionKind::ByteBufferTruncate { .. }
+                | InstructionKind::ByteBufferLen { .. }
+                | InstructionKind::ByteBufferCapacity { .. }
+                | InstructionKind::ByteBufferBorrow { .. }
                 | InstructionKind::ConvertInteger { .. }
                 | InstructionKind::TaskYield
                 | InstructionKind::MakeManaged { .. }
@@ -738,6 +878,11 @@ pub(super) fn profile(
                 | InstructionKind::DropEnum { .. }
                 | InstructionKind::MakeErrorUnion { .. }
                 | InstructionKind::ErrorTag { .. }
+                | InstructionKind::TakeErrorUnion { .. }
+                | InstructionKind::TakeTupleField { .. }
+                | InstructionKind::UnpackTuple { .. }
+                | InstructionKind::DropErrorUnion { .. }
+                | InstructionKind::ConvertNumber { .. }
                 | InstructionKind::ReadErrorUnion { .. } => {}
                 _ => {
                     return Err(reject(

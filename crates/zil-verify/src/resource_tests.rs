@@ -38,6 +38,7 @@ fn function() -> TypedFunction {
     TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -323,6 +324,7 @@ fn with_teardown() -> TypedModule {
     m.functions.push(TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -435,6 +437,7 @@ fn consume_function(id: u32) -> TypedFunction {
     TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

@@ -755,6 +755,19 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
+        if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
+            budget.spend(1)?;
+            if function.call_kind != CallKind::Suspend
+                || function.foreign.is_some()
+                || function.environment.is_some()
+            {
+                return Err(reject(
+                    "E-VERIFY-TASK-TRANSFER",
+                    Some(function.span),
+                    "Transfer resume cannot mark a Direct, foreign or closure entry",
+                ));
+            }
+        }
         budget.protocol_contracts |= function.protocol_contract.is_some();
         if let Some(contract) = &function.storage_life {
             if function.call_kind == CallKind::Suspend {

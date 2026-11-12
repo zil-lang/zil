@@ -163,6 +163,41 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        if crate::foreign::bare_name(callee) == Some("thread_scope") && arguments.len() == 3 {
+            if let Some(worker) = stores::call_name(&arguments[0].value)
+                && let Some(signature) = self.signatures.get(worker)
+                && let Some(parameter) = signature.params.first()
+                && matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,..} if path.as_slice()==["Task"])
+            {
+                self.budget.const_function(signature)?;
+                let wanted = parameter.ty.clone();
+                let actual = self
+                    .expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?
+                    .unwrap_or(wanted);
+                self.expr_expected(&mut arguments[2].value, env, None, depth + 1)?;
+                let owner = if matches!(&actual.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
+                {
+                    actual
+                } else {
+                    TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Named {
+                            path: vec!["Managed".into()],
+                            args: vec![GenericArg::Type(actual)],
+                        },
+                    }
+                };
+                let mut result = TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Named {
+                        path: vec![options::TASK_THREAD_SCOPE.into()],
+                        args: vec![GenericArg::Type(owner)],
+                    },
+                };
+                self.ty(&mut result, depth + 1)?;
+                return Ok(Some(Some(result)));
+            }
+        }
         if let ExprKind::TypeApply {
             callee: base,
             arguments: type_args,
@@ -335,17 +370,25 @@ impl Engine<'_> {
                 }
                 let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
                     && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));
-                if owning_result
-                    && !matches!(&result.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
-                {
-                    self.budget.ty(&result)?;
-                    result = TypeRef {
-                        span: e.span,
-                        kind: TypeKind::Named {
-                            path: vec!["Managed".into()],
-                            args: vec![GenericArg::Type(result)],
-                        },
+                if owning_result {
+                    // Result(give/create) describes the success payload of an
+                    // ordinary error union. Keep the union and its actual tag;
+                    // only the successful resource receives the owning carrier.
+                    let success = match &mut result.kind {
+                        TypeKind::Error { result, .. } => result.as_mut(),
+                        _ => &mut result,
                     };
+                    if !matches!(&success.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
+                    {
+                        self.budget.ty(success)?;
+                        *success = TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Named {
+                                path: vec!["Managed".into()],
+                                args: vec![GenericArg::Type(success.clone())],
+                            },
+                        };
+                    }
                 }
                 if name == "task_await" {
                     self.ty(&mut result, depth + 1)?;
