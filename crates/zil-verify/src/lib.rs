@@ -66,6 +66,7 @@ mod dynamic_metadata;
 mod dynamic_patterns;
 mod dynamic_ports;
 mod dynamic_store;
+mod dynamic_witness;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;

@@ -260,6 +260,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         budget.spend(1)?;
         if let Some(instance) = &f.dyn_instance {
             crate::dynamic_metadata::recipe(instance, budget)?;
+            crate::dynamic_witness::declaration_graph(module,budget)?;
             return Err(bad(
                 "dynamic function instance requires its complete definition proof",
                 None,
@@ -269,6 +270,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     for table in &module.dyn_vtables {
         crate::dynamic_metadata::recipe_table(table, budget)?;
         if table.self_life.is_some() || table.implementation_witnesses.is_some() {
+            crate::dynamic_witness::declaration_graph(module,budget)?;
             return Err(bad(
                 "dynamic implementation recipes require their complete static proof",
                 None,
@@ -330,6 +332,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             || declaration.method_signatures.is_some()
             || declaration.method_definitions.is_some()
         {
+            crate::dynamic_witness::declaration_graph(module,budget)?;
             return Err(bad(
                 "dynamic declaration recipes require their complete static proof",
                 None,
