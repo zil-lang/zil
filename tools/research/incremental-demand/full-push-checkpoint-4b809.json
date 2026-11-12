@@ -2054,8 +2054,10 @@
     }
   ],
   "raw_custody": {
-    "status": "profile15_and_SDK16_local_pending_v21",
-    "prior_v20": "ee233ee95142263cf6777f10f381a9a0d64220c8"
+    "status": "complete_v21_remote_fresh_recovered_allfiles_modes_exact_master_union",
+    "fixed_commit": "902ed10db8cc7fe634de585fd3dabf4b7fd75096",
+    "receipt": "full-push-recovery-v21.json",
+    "limits": "No fresh assembled whole qualifier/native rerun claimed. Original immutable paths and SDK16 kept."
   },
   "limitations": [
     "One diagnostic block, candidate profiling enabled; no current Rust measurement or cross-window causal attribution.",

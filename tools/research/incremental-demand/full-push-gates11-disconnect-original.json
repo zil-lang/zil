@@ -1,0 +1,8 @@
+{
+  "event": "write_stdin_unknown_process_id",
+  "tool_session": 96999,
+  "boot_id": "c4bd35c1-a597-4db3-a851-6cf700bb6114",
+  "compiler_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+  "scope": "Tool handle disappeared while underlying frozen controller990686 and driver test992200 still running. Prior backend completion exit0 directly observed; do not infer controller exit0 from missing handle. No process interrupted or duplicate heavy window started.",
+  "time_unix_ns": 1794524190841221554
+}

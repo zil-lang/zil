@@ -1,0 +1,215 @@
+{
+  "schema": "full-push-whole-component-checkpoint-v1",
+  "compiler_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+  "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+  "build": {
+    "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+    "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+    "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "-p",
+      "zil-cli",
+      "--features",
+      "native-products"
+    ],
+    "exit_code": 0,
+    "elapsed_ns": 110630231578,
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+      "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+      "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+      "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+    },
+    "log_sha256": "d08cb4077391c7ae7a07eecf1bec308662d9a5c4248156ee03ac58b793d29075",
+    "binary": "/workspace/zil-push-main/out/binaries/96f5053f59ddb50871eaabbf5005a46ff782dcda/zil",
+    "sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "llvm_library": {
+      "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+      "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+    }
+  },
+  "status": "in_progress_default_off_no_main_merge_new_diagnostic_component_performance_unmeasured",
+  "production_author_source": "d1da81ed1d962d302425b169fe11663cf1f6bef9",
+  "production_integration": "b4dd540b6",
+  "gates": {
+    "push-backend-library-tests-17": {
+      "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+      "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 73216967179,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "9aa94f58324a32bf94d50afa521f8e26a2a03e28da4cdaf5bce05f3513d446ff"
+    },
+    "push-driver-library-tests-20": {
+      "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+      "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 193317853211,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "803759d0e336a93cb7c366685ef93a4f167b881a3e5925ace1c454819b77c882"
+    },
+    "full-push-native-clippy-20": {
+      "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+      "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--features",
+        "native-products",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 22103910984,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e1be44e3afe7e654aa2d549b66568f8a13b07319226da5645b134d827edb016a"
+    },
+    "full-push-fmt-18": {
+      "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+      "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 8289529234,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "full-push-release-19": {
+      "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+      "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 110630231578,
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/zil-push-main/target",
+        "ZIL_LLVM_CONFIG": "/workspace/.zil-environment/llvm-23.1.4/bin/llvm-config",
+        "ZIL_LLVM_INCLUDE_DIR": "/workspace/.zil-environment/llvm-23.1.4/include",
+        "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v16/lib:/workspace/.zil-environment/llvm-23.1.4/lib"
+      },
+      "log_sha256": "d08cb4077391c7ae7a07eecf1bec308662d9a5c4248156ee03ac58b793d29075",
+      "binary": "/workspace/zil-push-main/out/binaries/96f5053f59ddb50871eaabbf5005a46ff782dcda/zil",
+      "sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1",
+      "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "llvm_library": {
+        "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+        "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+      }
+    }
+  },
+  "counts": {
+    "backend": 249,
+    "driver": 210,
+    "failed": 0,
+    "ignored": 0
+  },
+  "initial_controller": {
+    "exit": "unknown",
+    "event": {
+      "event": "write_stdin_unknown_process_id",
+      "tool_session": 96999,
+      "boot_id": "c4bd35c1-a597-4db3-a851-6cf700bb6114",
+      "compiler_source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+      "scope": "Tool handle disappeared while underlying frozen controller990686 and driver test992200 still running. Prior backend completion exit0 directly observed; do not infer controller exit0 from missing handle. No process interrupted or duplicate heavy window started.",
+      "time_unix_ns": 1794524190841221554
+    },
+    "completed_before_disconnection_effects": [
+      "push-backend-library-tests-17",
+      "push-driver-library-tests-20"
+    ],
+    "scope": "Both completed subprocess receipts/exit0/full logs independently rechecked; initial controller exit not inferred. No duplicate heavy window or test rerun."
+  },
+  "resume_controller": {
+    "observed_tool_exit": 0,
+    "persisted_exit": 0,
+    "log_sha256": "4685f6eb296f989237b65ad1439ec800bb917412a76805bba2fa87152ca76ab1",
+    "only_previously_unexecuted": [
+      "full-push-native-clippy-20",
+      "full-push-fmt-18",
+      "full-push-release-19"
+    ]
+  },
+  "current_measured_profile_source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+  "current_formal_Rust_comparison_source": "328eb392d8d88148a75a743d899b43aebae73587",
+  "limits": [
+    "No new performance measurement or current-source Rust ratio.",
+    "This source changes one backend Rust file; prior SDK16/native76 proof remains scoped to original source, not a claim of fresh native76 at96.",
+    "Diagnostic full current output and all writer error propagation remain; no current Verify, budgets, optimization or default enablement changed.",
+    "Actual Item equality traversal remains; complete push/global minimality and full LLVM incrementality remain unfinished."
+  ],
+  "raw_custody": {
+    "profile15_SDK16_prior_gates": "fixed v21@902ed10db8cc7fe634de585fd3dabf4b7fd75096, fresh fullfilehash/mode/masterunion verified",
+    "current_96_gates_and_binary": "local out/runs and out/binaries, pending next fixed remote metadata archive"
+  }
+}
