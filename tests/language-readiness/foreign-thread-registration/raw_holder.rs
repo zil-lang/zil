@@ -480,6 +480,7 @@ fn threaded_callback_checks_actual_source_core_raw_and_wire_dependencies() {
                     })
                     .unwrap();
                 function.foreign = Some(zil_ir::ForeignDeclaration {
+                    thread_driver_transfer: false,
                     abi: "C".into(),
                     symbol: function.name.clone(),
                     noescape_parameters: vec![],
