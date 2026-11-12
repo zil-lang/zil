@@ -1097,3 +1097,108 @@ mod native_machine_numbering_tests {
         assert_eq!(after.bytes, ordinary.bytes);
     }
 }
+
+#[cfg(all(test, feature = "native-products", feature = "text-reference"))]
+mod native_machine_alignment_tests {
+    use super::*;
+
+    // Exact fn6/fn7 bodies from the 425-function measurement workload. Keeping
+    // these branches makes the actual AsmPrinter consume block alignment state.
+    const SOURCE: &str = include_str!("../tests/fixtures/scalar-native-products.ll");
+
+    fn config() -> Config<'static> {
+        Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: Optimization::O2,
+        }
+    }
+
+    fn compile(
+        prior: Option<&crate::NativeWorkProducts>,
+    ) -> (Object, crate::NativeWorkProducts, crate::NativeProductStats) {
+        let mut attempt = NativeAttempt {
+            prior,
+            stats: crate::NativeProductStats::default(),
+            replay_failed: false,
+            products: None,
+            timings: AttemptTimings::default(),
+        };
+        let (object, _) = compile_input(
+            Input::Text(SOURCE),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            Some(&mut attempt),
+        )
+        .expect("current native compile must succeed without replay failure");
+        assert!(!attempt.replay_failed);
+        assert_eq!(attempt.stats.available, 1);
+        assert_eq!(attempt.stats.failed_replays, 0);
+        assert_eq!(attempt.stats.fresh_context_fallbacks, 0);
+        assert_eq!(attempt.stats.asm_printer_runs, 2);
+        assert!(object.receipt.verify_before_after);
+        (
+            object,
+            attempt.products.expect("actual native snapshot"),
+            attempt.stats,
+        )
+    }
+
+    #[test]
+    fn actual_block_alignment_consumers_restore_max_bytes_and_bind_policy() {
+        let (unlimited, _, unlimited_stats) = {
+            let _policy = products::machine_alignment_test_for_test(0);
+            compile(None)
+        };
+        assert_eq!(unlimited_stats.machine_function_executions, 2);
+        let (limited, limited_prior, limited_stats) = {
+            let _policy = products::machine_alignment_test_for_test(1);
+            compile(None)
+        };
+        assert_eq!(limited_stats.machine_function_executions, 2);
+        assert_ne!(
+            unlimited.bytes, limited.bytes,
+            "max alignment padding must reach the actual AsmPrinter consumer"
+        );
+        let (warm, _, warm_stats) = {
+            let _policy = products::machine_alignment_test_for_test(1);
+            compile(Some(&limited_prior))
+        };
+        assert_eq!(warm_stats.machine_function_reuses, 2);
+        assert_eq!(warm_stats.machine_function_executions, 0);
+        assert_eq!(
+            warm.bytes, limited.bytes,
+            "warm path restores captured max-bytes state without the cold setter"
+        );
+        let (changed_policy, _, changed_stats) = {
+            let _policy = products::machine_alignment_test_for_test(0);
+            compile(Some(&limited_prior))
+        };
+        assert_eq!(changed_stats.machine_function_reuses, 0);
+        assert_eq!(changed_stats.machine_function_executions, 2);
+        assert_eq!(
+            changed_policy.bytes, unlimited.bytes,
+            "different current policy must invalidate the old machine product"
+        );
+        let (ordinary, _) = compile_input(
+            Input::Text(SOURCE),
+            &config(),
+            FunctionMerging::Disabled,
+            &|| false,
+            false,
+            None,
+        )
+        .unwrap();
+        let (default_native, _, default_stats) = {
+            let _disabled = products::machine_alignment_test_for_test(-1);
+            compile(Some(&limited_prior))
+        };
+        assert_eq!(default_stats.machine_function_reuses, 0);
+        assert_eq!(default_stats.machine_function_executions, 2);
+        assert_eq!(
+            default_native.bytes, ordinary.bytes,
+            "disabled production policy must emit the ordinary LLVM object"
+        );
+    }
+}

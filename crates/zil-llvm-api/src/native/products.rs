@@ -70,6 +70,8 @@ mod enabled {
         fn ZilNativeProductsMachineNumberingTests(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineNumberingTestResults() -> u32;
+        #[cfg(all(test, feature = "text-reference"))]
+        fn ZilNativeProductsMachineAlignmentTest(max_bytes: c_int) -> c_int;
         fn ZilNativeProductsSuspend() -> Handle;
         fn ZilNativeProductsResume(previous: Handle);
         fn ZilNativeProductsCreateRequest(
@@ -281,6 +283,26 @@ mod enabled {
         MachineNumberingTestsGuard(prior, std::marker::PhantomData)
     }
 
+    /// Explicit test policy applied only at cold AsmPrinter entry. Its value is
+    /// bound into the native machine request so warm reuse must restore it.
+    #[cfg(all(test, feature = "text-reference"))]
+    pub(crate) struct MachineAlignmentTestGuard(c_int, std::marker::PhantomData<*mut ()>);
+    #[cfg(all(test, feature = "text-reference"))]
+    impl Drop for MachineAlignmentTestGuard {
+        fn drop(&mut self) {
+            // SAFETY: restore the same thread's previous test-only scalar mode.
+            unsafe { ZilNativeProductsMachineAlignmentTest(self.0) };
+        }
+    }
+    #[cfg(all(test, feature = "text-reference"))]
+    pub(crate) fn machine_alignment_test_for_test(max_bytes: c_int) -> MachineAlignmentTestGuard {
+        assert!(max_bytes >= -1);
+        // SAFETY: no LLVM owner crosses this scalar TLS setter. Only explicit
+        // test scopes enable the policy; -1 restores production's disabled mode.
+        let prior = unsafe { ZilNativeProductsMachineAlignmentTest(max_bytes) };
+        MachineAlignmentTestGuard(prior, std::marker::PhantomData)
+    }
+
     #[cfg(test)]
     thread_local! {
         static NEXT_FINISH_FAILURE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
@@ -325,6 +347,9 @@ pub(crate) use enabled::{Product, Scope, Suspension};
 pub(crate) use enabled::{
     analysis_diagnostics_for_test, fail_next_finish_for_test, machine_numbering_tests_for_test,
 };
+
+#[cfg(all(test, feature = "native-products", feature = "text-reference"))]
+pub(crate) use enabled::machine_alignment_test_for_test;
 
 // Native-only builds do not reference the custom C++ adapter or its DSO hooks.
 // Ordinary compile_input always passes None; this inert type keeps that shared
