@@ -108,6 +108,22 @@ impl<'a, 'b> Walk<'a, 'b> {
             inference::charge_type_snapshot(node, self.span, self.limits, self.left, 1)?;
             inference::charge_type_snapshot(output_inner, self.span, self.limits, self.left, 1)?;
             if !path.is_empty()
+                && (output_inner.is_b0_scalar() || output_inner.as_ref() == &Type::Unit)
+                && matches!(node, Type::Record { .. } | Type::Tuple(_))
+            {
+                // A nested inline region has one real head and may contain
+                // several matching places. Keep that operation explicit;
+                // consumers reconstruct its initialized owning reach.
+                inference::charge_type_snapshot(wanted, self.span, self.limits, self.left, 1)?;
+                self.pay(path.len().saturating_add(2))?;
+                sources.push(StorageSource::OwnedView {
+                    head: StoragePosition { base, path },
+                    leaf: wanted.clone(),
+                    mode,
+                });
+                continue;
+            }
+            if !path.is_empty()
                 && node == output_inner.as_ref()
                 && (node.is_b0_scalar() || *node == Type::Unit)
             {

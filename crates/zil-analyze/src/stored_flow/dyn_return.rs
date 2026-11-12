@@ -368,6 +368,141 @@ fn place_address(
         }),
     })
 }
+fn owned_views(
+    f: &TypedFunction,
+    head: &StoragePosition,
+    leaf: &Type,
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<Vec<Leaf>> {
+    crate::dyn_metadata::ty(leaf, b)?;
+    fee(b, head.path.len().saturating_add(1))?;
+    let StorageBase::Parameter(index) = head.base else {
+        return Err(failure("owned region head is not an actual parameter"));
+    };
+    let input = f
+        .parameters
+        .get(index as usize)
+        .and_then(|id| f.locals.get(id.0 as usize))
+        .ok_or_else(|| failure("owned region has no actual input head"))?;
+    let (
+        Type::Address {
+            mutable: input_mutable,
+            inner,
+        },
+        Type::Address {
+            mutable: result_mutable,
+            inner: wanted,
+        },
+    ) = (&input.ty, leaf)
+    else {
+        return Err(failure(
+            "owned region needs actual address and complete borrowed leaf",
+        ));
+    };
+    if mode
+        != if *result_mutable {
+            StoredBorrowMode::ExclusiveAddress
+        } else {
+            StoredBorrowMode::SharedAddress
+        }
+        || *result_mutable && !input_mutable
+        || !(wanted.is_b0_scalar() || wanted.as_ref() == &Type::Unit)
+    {
+        return Err(failure(
+            "owned region changes mode or needs a complete child domain proof",
+        ));
+    }
+    let life = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| failure("owned region head relation is Unknown"))?;
+    fee(b, life.bindings.len())?;
+    let mut bindings = life
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == head.base && row.position.path.is_empty());
+    let binding = bindings
+        .next()
+        .ok_or_else(|| failure("owned region lacks an actual head lifetime"))?;
+    if bindings.next().is_some() {
+        return Err(failure("owned region head lifetime is ambiguous"));
+    }
+    let mut node = inner.as_ref();
+    let mut prefix = Vec::new();
+    for step in &head.path {
+        let ContractProjection::Place(PlaceProjection::Field(i)) = step else {
+            return Err(failure("owned region head crosses a nonphysical selector"));
+        };
+        node = match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.get(*i as usize).map(|(_, ty)| ty)
+            }
+            Type::Tuple(fields) => fields.get(*i as usize),
+            _ => None,
+        }
+        .ok_or_else(|| failure("owned region head crosses an external or absent field"))?;
+        fee(b, prefix.len().saturating_add(1))?;
+        prefix.push(PlaceProjection::Field(*i));
+    }
+    let mut work = vec![(node, prefix)];
+    let mut leaves = Vec::new();
+    while let Some((node, path)) = work.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        if path.len() > b.partial_depth.min(128) {
+            return Err(failure("owned region directory exceeds depth"));
+        }
+        if node == wanted.as_ref() {
+            crate::dyn_metadata::ty(leaf, b)?;
+            fee(
+                b,
+                head.path.len().saturating_add(path.len()).saturating_add(3),
+            )?;
+            leaves.push(Leaf {
+                position: head.clone(),
+                ty: leaf.clone(),
+                mode,
+                binder: binding.binder,
+                target: Some(Target {
+                    base: HoldRoot::Parameter(index),
+                    stored: vec![],
+                    place: path.clone(),
+                    retained_port: None,
+                    heap_element: None,
+                    heap_parents: vec![],
+                }),
+            });
+        }
+        match node {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(b, fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, (_, child)) in fields.iter().enumerate().rev() {
+                    let mut selected = path.clone();
+                    selected.push(PlaceProjection::Field(index as u32));
+                    work.push((child, selected));
+                }
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len().saturating_mul(path.len().saturating_add(2)))?;
+                for (index, child) in fields.iter().enumerate().rev() {
+                    let mut selected = path.clone();
+                    selected.push(PlaceProjection::Field(index as u32));
+                    work.push((child, selected));
+                }
+            }
+            // These are the boundary of owning reach, not loads of saved
+            // pointers. An unrelated same-typed external pointee is excluded.
+            Type::Address { .. } | Type::Desc(_) => {}
+            ty if ty.is_b0_scalar() || *ty == Type::Unit => {}
+            _ => {
+                return Err(failure(
+                    "owned region needs its actual owning-edge directory",
+                ));
+            }
+        }
+    }
+    Ok(leaves)
+}
 fn contract(
     module: &TypedModule,
     f: &TypedFunction,
@@ -486,6 +621,31 @@ fn contract(
                 StorageSource::PlaceAddress { place, mode } => {
                     derived = place_address(f, place, *mode, b)?;
                     &derived
+                }
+                StorageSource::OwnedView {
+                    head,
+                    leaf: ty,
+                    mode,
+                } => {
+                    for input in owned_views(f, head, ty, *mode, b)? {
+                        if input.mode != leaf.mode
+                            || input.binder != leaf.binder
+                            || input.ty != leaf.ty
+                        {
+                            return Err(failure(
+                                "owned region changes complete leaf, mode or head class",
+                            ));
+                        }
+                        let target = input.target.expect("actual owning region place");
+                        fee(
+                            b,
+                            target_width(&target).saturating_mul(allowed.len().saturating_add(1)),
+                        )?;
+                        if !allowed.contains(&target) {
+                            allowed.push(target);
+                        }
+                    }
+                    continue;
                 }
                 StorageSource::Static { leaf: ty, mode } => {
                     crate::dyn_metadata::ty(ty, b)?;

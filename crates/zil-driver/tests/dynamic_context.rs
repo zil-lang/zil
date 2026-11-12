@@ -1058,3 +1058,29 @@ fn static_context_preserves_an_unused_phantom_class_without_a_target() {
     zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
     native_context(&project, &dir);
 }
+
+#[test]
+fn nested_owned_regions_are_explicit_and_keep_the_actual_head() {
+    use zil_ir::*;
+    let text = include_str!("../../../tests/fixtures/dyn-context/owned-inline-region.zil");
+    let (project, module, candidate, dir) = context_candidate(text, "owned-inline-region");
+    let f = module
+        .functions
+        .iter()
+        .find(|f| f.name == "create")
+        .unwrap();
+    let sources = &f.retained_return_sources.as_ref().unwrap()[0].sources;
+    assert_eq!(sources.len(), 2);
+    assert!(
+        sources
+            .iter()
+            .all(|source| matches!(source, StorageSource::OwnedView { .. }))
+    );
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
