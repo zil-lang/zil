@@ -22,6 +22,14 @@ relations or runtime targets. The factory result relates each free Fixed class
 to a class already present on its inputs. Analyze and Verify independently
 check the class equations and the actual source permissions.
 
+An owning factory can capture an input callable as a whole child environment.
+Its input header names the child's complete free Fixed domain. Each outer
+Capture class selects the corresponding actual child class, and the factory
+result relates it to that input domain. Nested leaf sources keep every Capture
+selector. Borrowing the child head transports those classes to its Pointee
+domain, while the separate stored ledger preserves the leaf targets and parent
+loans. Cleanup retains the child's entire owning responsibility.
+
 A shared entry cannot mutate captured storage or hide an exclusive stored
 address behind the qualification wrapper. Mutable entries publish the actual
 terminal state of each external capture leaf. At invocation the caller

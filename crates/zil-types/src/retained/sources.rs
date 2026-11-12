@@ -3,7 +3,7 @@
 use super::*;
 #[path = "helper_classes.rs"]
 mod helper_classes;
-#[path="mutable_sources.rs"]
+#[path = "mutable_sources.rs"]
 mod mutable_sources;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -16,7 +16,11 @@ struct Origins {
 }
 type Row = BTreeMap<Path, Origins>;
 #[derive(Default)]
-struct Summary { returned:Row, captures:Row, external:BTreeMap<u32,Row> }
+struct Summary {
+    returned: Row,
+    captures: Row,
+    external: BTreeMap<u32, Row>,
+}
 
 fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
     spend(left, row.len(), span)?;
@@ -240,16 +244,30 @@ fn solve(
     limit: usize,
 ) -> R<Summary> {
     let span = f.span;
-    let captures=f.environment.and_then(|id|module.closures.get(id.0 as usize)).map_or(&[][..],|definition|definition.captures.as_slice());
-    let mut external_cells=BTreeMap::new();
-    for (position,local) in f.parameters.iter().enumerate() {
-        if let Type::Address{inner,..}=&f.locals[local.0 as usize].ty
-            && matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..}) {
-            spend(left,1,span)?;
-            external_cells.insert(position,LocalId((f.locals.len()+captures.len()+external_cells.len()) as u32));
+    let captures = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .map_or(&[][..], |definition| definition.captures.as_slice());
+    let mut external_cells = BTreeMap::new();
+    for (position, local) in f.parameters.iter().enumerate() {
+        if let Type::Address { inner, .. } = &f.locals[local.0 as usize].ty
+            && matches!(
+                inner.as_ref(),
+                Type::Closure(_) | Type::BorrowedStorage { .. }
+            )
+        {
+            spend(left, 1, span)?;
+            external_cells.insert(
+                position,
+                LocalId((f.locals.len() + captures.len() + external_cells.len()) as u32),
+            );
         }
     }
-    let width=f.locals.len().saturating_add(captures.len()).saturating_add(external_cells.len());
+    let width = f
+        .locals
+        .len()
+        .saturating_add(captures.len())
+        .saturating_add(external_cells.len());
 
     spend(
         left,
@@ -260,7 +278,14 @@ fn solve(
         span,
     )?;
     let mut values = vec![Row::new(); f.values.len()];
-    spend(left,captures.len().saturating_add(external_cells.len()).saturating_mul(f.blocks.len().saturating_add(1)),span)?;
+    spend(
+        left,
+        captures
+            .len()
+            .saturating_add(external_cells.len())
+            .saturating_mul(f.blocks.len().saturating_add(1)),
+        span,
+    )?;
     let mut outputs = vec![vec![Row::new(); width]; f.blocks.len()];
     let mut predecessors = vec![Vec::new(); f.blocks.len()];
     let mut reachable = vec![false; f.blocks.len()];
@@ -297,14 +322,32 @@ fn solve(
             limit,
         )?;
     }
-    for (index,ty) in captures.iter().enumerate() {
-        initial[f.locals.len()+index]=seed(module,ty,Some(StorageBase::Capture(index as u32)),left,span,limit)?;
+    for (index, ty) in captures.iter().enumerate() {
+        initial[f.locals.len() + index] = seed(
+            module,
+            ty,
+            Some(StorageBase::Capture(index as u32)),
+            left,
+            span,
+            limit,
+        )?;
     }
-    for (position,cell) in &external_cells {
-        let local=f.parameters[*position];
-        let Type::Address{inner,..}=&f.locals[local.0 as usize].ty else {unreachable!()};
-        initial[cell.0 as usize]=seed(module,inner,Some(StorageBase::Parameter(*position as u32)),left,span,limit)?;
-        if let Some(head)=initial[local.0 as usize].get_mut(&Vec::new()) {head.places.insert((*cell,Vec::new()));}
+    for (position, cell) in &external_cells {
+        let local = f.parameters[*position];
+        let Type::Address { inner, .. } = &f.locals[local.0 as usize].ty else {
+            unreachable!()
+        };
+        initial[cell.0 as usize] = seed(
+            module,
+            inner,
+            Some(StorageBase::Parameter(*position as u32)),
+            left,
+            span,
+            limit,
+        )?;
+        if let Some(head) = initial[local.0 as usize].get_mut(&Vec::new()) {
+            head.places.insert((*cell, Vec::new()));
+        }
     }
     loop {
         let mut changed = false;
@@ -468,15 +511,21 @@ fn solve(
                             at,
                         )?,
                         InstructionKind::ReadCapture { index }
-                        | InstructionKind::TakeCapture { index } => copy(&state[f.locals.len()+*index as usize],left,at)?,
-                        InstructionKind::BorrowCapture{index,..} => {
-                            let mut row=seed(module,&f.values[result.0 as usize],None,left,at,limit)?;
-                            if let Some(head)=row.get_mut(&Vec::new()) {
-                                head.unknown=false;
-                                head.places.insert((LocalId((f.locals.len()+*index as usize) as u32),Vec::new()));
+                        | InstructionKind::TakeCapture { index } => {
+                            copy(&state[f.locals.len() + *index as usize], left, at)?
+                        }
+                        InstructionKind::BorrowCapture { index, .. } => {
+                            let mut row =
+                                seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                            if let Some(head) = row.get_mut(&Vec::new()) {
+                                head.unknown = false;
+                                head.places.insert((
+                                    LocalId((f.locals.len() + *index as usize) as u32),
+                                    Vec::new(),
+                                ));
                             }
                             row
-                        },
+                        }
                         InstructionKind::Call {
                             function,
                             arguments,
@@ -494,8 +543,17 @@ fn solve(
                                         continue;
                                     };
                                     let actual = &values[arguments[index as usize].0 as usize];
-                                    let selected = if source.path.is_empty() {select(actual,&[],left,at)?}
-                                        else {mutable_sources::current(actual,&source.path,&state,left,at)?};
+                                    let selected = if source.path.is_empty() {
+                                        select(actual, &[], left, at)?
+                                    } else {
+                                        mutable_sources::current(
+                                            actual,
+                                            &source.path,
+                                            &state,
+                                            left,
+                                            at,
+                                        )?
+                                    };
                                     if let Some(from) = selected.get(&Vec::new()) {
                                         o.inputs.extend(from.inputs.iter().cloned());
                                         o.local |= from.local;
@@ -515,49 +573,161 @@ fn solve(
                     InstructionKind::Store { local, value } => {
                         state[local.0 as usize] = copy(&values[value.0 as usize], left, at)?
                     }
-                    InstructionKind::BindPackageCapture{local,index}=>state[local.0 as usize]=copy(&state[f.locals.len()+*index as usize],left,at)?,
-                    InstructionKind::EndPackageCapture{local,index}=>state[f.locals.len()+*index as usize]=copy(&state[local.0 as usize],left,at)?,
-                    InstructionKind::WriteCapture{index,value}=>state[f.locals.len()+*index as usize]=copy(&values[value.0 as usize],left,at)?,
-                    InstructionKind::StoreStoredBorrow{storage,path,value}=> {
-                        let prefix=path.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
-                        let address=pointed(&values[storage.0 as usize],&prefix,left,at)?;
-                        mutable_sources::publish(&address,&values[value.0 as usize],&mut state,left,at)?;
-                    },
-                    InstructionKind::StorePackageField{local,index,value}=>mutable_sources::replace(&mut state[local.0 as usize],&[ContractProjection::Place(PlaceProjection::Field(*index))],&values[value.0 as usize],false,left,at)?,
-                    InstructionKind::CallClosureMut{callee,arguments}=> {
-                        if let Type::Closure(id)=f.locals[callee.0 as usize].ty {
-                            let updates=mutable_sources::invoke(module,id,&state[callee.0 as usize],arguments,&values,&state,summaries,left,at,limit)?;
-                            mutable_sources::replace(&mut state[callee.0 as usize],&[],&updates,false,left,at)?;
+                    InstructionKind::BindPackageCapture { local, index } => {
+                        state[local.0 as usize] =
+                            copy(&state[f.locals.len() + *index as usize], left, at)?
+                    }
+                    InstructionKind::EndPackageCapture { local, index } => {
+                        state[f.locals.len() + *index as usize] =
+                            copy(&state[local.0 as usize], left, at)?
+                    }
+                    InstructionKind::WriteCapture { index, value } => {
+                        state[f.locals.len() + *index as usize] =
+                            copy(&values[value.0 as usize], left, at)?
+                    }
+                    InstructionKind::StoreStoredBorrow {
+                        storage,
+                        path,
+                        value,
+                    } => {
+                        let prefix = path
+                            .iter()
+                            .copied()
+                            .map(ContractProjection::Place)
+                            .collect::<Vec<_>>();
+                        let address = pointed(&values[storage.0 as usize], &prefix, left, at)?;
+                        mutable_sources::publish(
+                            &address,
+                            &values[value.0 as usize],
+                            &mut state,
+                            left,
+                            at,
+                        )?;
+                    }
+                    InstructionKind::StorePackageField {
+                        local,
+                        index,
+                        value,
+                    } => mutable_sources::replace(
+                        &mut state[local.0 as usize],
+                        &[ContractProjection::Place(PlaceProjection::Field(*index))],
+                        &values[value.0 as usize],
+                        false,
+                        left,
+                        at,
+                    )?,
+                    InstructionKind::CallClosureMut { callee, arguments } => {
+                        if let Type::Closure(id) = f.locals[callee.0 as usize].ty {
+                            let updates = mutable_sources::invoke(
+                                module,
+                                id,
+                                &state[callee.0 as usize],
+                                arguments,
+                                &values,
+                                &state,
+                                summaries,
+                                left,
+                                at,
+                                limit,
+                            )?;
+                            mutable_sources::replace(
+                                &mut state[callee.0 as usize],
+                                &[],
+                                &updates,
+                                false,
+                                left,
+                                at,
+                            )?;
                         }
-                    },
-                    InstructionKind::CallClosureBorrowed{callee,kind:CallableKind::FnMut,arguments}=> {
-                        if let Type::Address{inner,..}=&f.values[callee.0 as usize] && let Type::Closure(id)=inner.as_ref() {
-                            let updates=mutable_sources::invoke(module,*id,&values[callee.0 as usize],arguments,&values,&state,summaries,left,at,limit)?;
-                            mutable_sources::publish(&values[callee.0 as usize],&updates,&mut state,left,at)?;
+                    }
+                    InstructionKind::CallClosureBorrowed {
+                        callee,
+                        kind: CallableKind::FnMut,
+                        arguments,
+                    } => {
+                        if let Type::Address { inner, .. } = &f.values[callee.0 as usize]
+                            && let Type::Closure(id) = inner.as_ref()
+                        {
+                            let updates = mutable_sources::invoke(
+                                module,
+                                *id,
+                                &values[callee.0 as usize],
+                                arguments,
+                                &values,
+                                &state,
+                                summaries,
+                                left,
+                                at,
+                                limit,
+                            )?;
+                            mutable_sources::publish(
+                                &values[callee.0 as usize],
+                                &updates,
+                                &mut state,
+                                left,
+                                at,
+                            )?;
                         }
-                    },
-                    InstructionKind::Call{function,arguments}=> {
-                        let summary=&summaries[function.0 as usize];
-                        let callee=&module.functions[function.0 as usize];
-                        let mut publications=Vec::new();
-                        for (parameter,local) in callee.parameters.iter().enumerate() {
-                            let Type::Address{mutable:true,inner}=&callee.locals[local.0 as usize].ty else {continue;};
-                            if !matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..}) {continue;}
-                            let mut paths=Vec::new();
-                            leaves(module,inner,0,&mut Vec::new(),&mut paths,left,at,limit)?;
-                            let mut updates=Row::new();
-                            for path in paths {
-                                let origin=if let Some(actual)=summary.external.get(&(parameter as u32)).and_then(|row|row.get(&path)) {
-                                    mutable_sources::substitute(actual,None,arguments,&values,&state,left,at)?
-                                } else {Origins::default()};
-                                updates.insert(path,origin);
+                    }
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let summary = &summaries[function.0 as usize];
+                        let callee = &module.functions[function.0 as usize];
+                        let mut publications = Vec::new();
+                        for (parameter, local) in callee.parameters.iter().enumerate() {
+                            let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                            else {
+                                continue;
+                            };
+                            if !matches!(
+                                inner.as_ref(),
+                                Type::Closure(_) | Type::BorrowedStorage { .. }
+                            ) {
+                                continue;
                             }
-                            publications.push((parameter,updates));
+                            let mut paths = Vec::new();
+                            leaves(
+                                module,
+                                inner,
+                                0,
+                                &mut Vec::new(),
+                                &mut paths,
+                                left,
+                                at,
+                                limit,
+                            )?;
+                            let mut updates = Row::new();
+                            for path in paths {
+                                let origin = if let Some(actual) = summary
+                                    .external
+                                    .get(&(parameter as u32))
+                                    .and_then(|row| row.get(&path))
+                                {
+                                    mutable_sources::substitute(
+                                        actual, None, arguments, &values, &state, left, at,
+                                    )?
+                                } else {
+                                    Origins::default()
+                                };
+                                updates.insert(path, origin);
+                            }
+                            publications.push((parameter, updates));
                         }
-                        for (parameter,updates) in publications {
-                            mutable_sources::publish(&values[arguments[parameter].0 as usize],&updates,&mut state,left,at)?;
+                        for (parameter, updates) in publications {
+                            mutable_sources::publish(
+                                &values[arguments[parameter].0 as usize],
+                                &updates,
+                                &mut state,
+                                left,
+                                at,
+                            )?;
                         }
-                    },
+                    }
                     InstructionKind::TakeLocal { local }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
@@ -572,19 +742,34 @@ fn solve(
             break;
         }
     }
-    let mut summary=Summary::default();
-    for (index,(block,live)) in f.blocks.iter().zip(reachable).enumerate() {
-        if live && matches!(block.terminator,Terminator::Return(_)) {
-            if let Terminator::Return(Some(value))=block.terminator {join(&mut summary.returned,&values[value.0 as usize],left,span)?;}
-            for capture in 0..captures.len() {
-                let row=wrap(&outputs[index][f.locals.len()+capture],ContractProjection::Capture(capture as u32),left,span)?;
-                join(&mut summary.captures,&row,left,span)?;
+    let mut summary = Summary::default();
+    for (index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
+        if live && matches!(block.terminator, Terminator::Return(_)) {
+            if let Terminator::Return(Some(value)) = block.terminator {
+                join(&mut summary.returned, &values[value.0 as usize], left, span)?;
             }
-            for (parameter,cell) in &external_cells {
-                let local=f.parameters[*parameter];
-                if matches!(f.locals[local.0 as usize].ty,Type::Address{mutable:true,..}) {
-                    let row=copy(&outputs[index][cell.0 as usize],left,span)?;
-                    join(summary.external.entry(*parameter as u32).or_default(),&row,left,span)?;
+            for capture in 0..captures.len() {
+                let row = wrap(
+                    &outputs[index][f.locals.len() + capture],
+                    ContractProjection::Capture(capture as u32),
+                    left,
+                    span,
+                )?;
+                join(&mut summary.captures, &row, left, span)?;
+            }
+            for (parameter, cell) in &external_cells {
+                let local = f.parameters[*parameter];
+                if matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Address { mutable: true, .. }
+                ) {
+                    let row = copy(&outputs[index][cell.0 as usize], left, span)?;
+                    join(
+                        summary.external.entry(*parameter as u32).or_default(),
+                        &row,
+                        left,
+                        span,
+                    )?;
                 }
             }
         }
@@ -603,7 +788,9 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         return Ok(());
     }
     spend(left, module.functions.len(), Span::default())?;
-    let mut summaries = (0..module.functions.len()).map(|_|Summary::default()).collect::<Vec<_>>();
+    let mut summaries = (0..module.functions.len())
+        .map(|_| Summary::default())
+        .collect::<Vec<_>>();
     let mut relevant = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
         let mut result_leaves = Vec::new();
@@ -617,7 +804,10 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             f.span,
             limits.max_call_depth,
         )?;
-        let mutable_environment=f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(|d|d.kind==CallableKind::FnMut);
+        let mutable_environment = f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .is_some_and(|d| d.kind == CallableKind::FnMut);
         let mutable_input=f.parameters.iter().any(|local|matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Closure(_)|Type::BorrowedStorage{..})));
         relevant.push(!result_leaves.is_empty() || mutable_environment || mutable_input);
     }
@@ -625,11 +815,18 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         let mut changed = false;
         for f in &module.functions {
             if f.foreign.is_none() && relevant[f.id.0 as usize] {
-                let actual=solve(module,f,&summaries,left,limits.max_call_depth)?;
-                let summary=&mut summaries[f.id.0 as usize];
-                changed|=join(&mut summary.returned,&actual.returned,left,f.span)?;
-                changed|=join(&mut summary.captures,&actual.captures,left,f.span)?;
-                for (parameter,row) in actual.external {changed|=join(summary.external.entry(parameter).or_default(),&row,left,f.span)?;}
+                let actual = solve(module, f, &summaries, left, limits.max_call_depth)?;
+                let summary = &mut summaries[f.id.0 as usize];
+                changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+                changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+                for (parameter, row) in actual.external {
+                    changed |= join(
+                        summary.external.entry(parameter).or_default(),
+                        &row,
+                        left,
+                        f.span,
+                    )?;
+                }
             }
         }
         if !changed {
@@ -691,27 +888,47 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             .collect();
     }
     loop {
-        helper_classes::factory_inputs(module,left)?;
-        if !populate_creator_fixed(module, left)? {break;}
-        helper_classes::populate(module,left,limits)?;
+        helper_classes::factory_inputs(module, left)?;
+        if !populate_creator_fixed(module, left)? {
+            break;
+        }
+        helper_classes::populate(module, left, limits)?;
     }
     Ok(())
 }
 
 // A proposal from the actual creator header. This never supplies targets: both
 // kernels must check the MakeClosure class equation and every source leaf.
-fn source_class(module:&TypedModule, f: &TypedFunction, source: &StoragePosition, left: &mut usize) -> R<StorageBinder> {
+fn source_class(
+    module: &TypedModule,
+    f: &TypedFunction,
+    source: &StoragePosition,
+    left: &mut usize,
+) -> R<StorageBinder> {
     spend(left, source.path.len().saturating_add(1), f.span)?;
     let StorageBase::Parameter(index) = source.base else {
-        return Err(unsupported(f.span, "capture class source is not an actual creator input"));
+        return Err(unsupported(
+            f.span,
+            "capture class source is not an actual creator input",
+        ));
     };
-    let local = *f.parameters.get(index as usize)
-        .ok_or_else(||unsupported(f.span, "capture class input absent"))?;
-    let life = f.storage_life.as_ref()
-        .ok_or_else(||unsupported(f.span, "capture class needs its complete actual creator header"))?;
+    let local = *f
+        .parameters
+        .get(index as usize)
+        .ok_or_else(|| unsupported(f.span, "capture class input absent"))?;
+    let life = f.storage_life.as_ref().ok_or_else(|| {
+        unsupported(
+            f.span,
+            "capture class needs its complete actual creator header",
+        )
+    })?;
     if source.path.is_empty() {
         spend(left, life.bindings.len(), f.span)?;
-        if let Some(binding) = life.bindings.iter().find(|binding|binding.position==*source) {
+        if let Some(binding) = life
+            .bindings
+            .iter()
+            .find(|binding| binding.position == *source)
+        {
             return Ok(binding.binder);
         }
     }
@@ -719,155 +936,409 @@ fn source_class(module:&TypedModule, f: &TypedFunction, source: &StoragePosition
         Type::Address { inner, .. } => (inner.as_ref(), true),
         ty => (ty, false),
     };
-    if let Type::Closure(id)=ty {
-        let class=capture_class(module,*id,&source.path,0,left,f.span)?;
-        return header_class(f,index,if pointer{vec![LifeTypeProjection::Pointee]}else{Vec::new()},class,left);
+    if let Type::Closure(id) = ty {
+        let class = capture_class(module, *id, &source.path, 0, left, f.span)?;
+        return header_class(
+            f,
+            index,
+            if pointer {
+                vec![LifeTypeProjection::Pointee]
+            } else {
+                Vec::new()
+            },
+            class,
+            left,
+        );
     }
     let Type::BorrowedStorage { life: shape, .. } = ty else {
-        return Err(unsupported(f.span, "capture class source has no actual qualified owner"));
+        return Err(unsupported(
+            f.span,
+            "capture class source has no actual qualified owner",
+        ));
     };
-    spend(left, shape.slots.len().saturating_mul(source.path.len().saturating_add(1)), f.span)?;
-    let class = shape.slots.iter().find(|slot|source.path.iter().copied().eq(slot.path.iter().copied().map(ContractProjection::Place)))
-        .map(|slot|slot.binder)
-        .ok_or_else(||unsupported(f.span, "capture class source does not select an actual stored leaf"))?;
-    header_class(f, index, if pointer { vec![LifeTypeProjection::Pointee] } else { Vec::new() }, class, left)
-}
-fn capture_class(module:&TypedModule,id:ClosureId,path:&[ContractProjection],depth:usize,left:&mut usize,span:Span)->R<u32> {
-    spend(left,path.len().saturating_add(1),span)?;
-    if depth>module.closures.len() {return Err(unsupported(span,"captured class graph is cyclic"));}
-    let d=module.closures.get(id.0 as usize).ok_or_else(||unsupported(span,"captured class child absent"))?;
-    let Some((ContractProjection::Capture(index),tail))=path.split_first() else{return Err(unsupported(span,"nested class source omits its capture selector"));};
-    let ty=d.captures.get(*index as usize).ok_or_else(||unsupported(span,"captured class field absent"))?;
-    let life=d.storage_life.as_ref().ok_or_else(||unsupported(span,"captured class child relation absent"))?;
-    let base=StorageBase::Capture(*index);
-    let actual=match ty {
-        Type::Address{..}|Type::Desc(_) if tail.is_empty()=>{
-            spend(left,life.bindings.len(),span)?;
-            life.bindings.iter().find(|row|row.position.base==base && row.position.path.is_empty()).map(|row|row.binder)
+    spend(
+        left,
+        shape
+            .slots
+            .len()
+            .saturating_mul(source.path.len().saturating_add(1)),
+        f.span,
+    )?;
+    let class = shape
+        .slots
+        .iter()
+        .find(|slot| {
+            source
+                .path
+                .iter()
+                .copied()
+                .eq(slot.path.iter().copied().map(ContractProjection::Place))
+        })
+        .map(|slot| slot.binder)
+        .ok_or_else(|| {
+            unsupported(
+                f.span,
+                "capture class source does not select an actual stored leaf",
+            )
+        })?;
+    header_class(
+        f,
+        index,
+        if pointer {
+            vec![LifeTypeProjection::Pointee]
+        } else {
+            Vec::new()
         },
-        Type::BorrowedStorage{life:shape,..}=>{
-            spend(left,shape.slots.len().saturating_mul(tail.len().saturating_add(1)).saturating_add(life.classes.len()),span)?;
-            let class=shape.slots.iter().find(|slot|tail.iter().copied().eq(slot.path.iter().copied().map(ContractProjection::Place))).map(|slot|slot.binder).ok_or_else(||unsupported(span,"nested class source is not an actual stored leaf"))?;
-            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
-        },
-        Type::Closure(child)=>{
-            let class=capture_class(module,*child,tail,depth+1,left,span)?;
-            spend(left,life.classes.len(),span)?;
-            life.classes.iter().find(|row|row.position.base==base && row.position.path.is_empty() && row.position.class==class).map(|row|row.binder)
-        },
-        _=>None,
-    }.ok_or_else(||unsupported(span,"captured leaf has no exact child class binding"))?;
-    match actual {StorageBinder::Fixed(class)=>Ok(class),_=>Err(unsupported(span,"captured child leaf is not Fixed"))}
+        class,
+        left,
+    )
 }
-fn header_class(f: &TypedFunction, parameter: u32, path: Vec<LifeTypeProjection>, class: u32, left: &mut usize) -> R<StorageBinder> {
-    let header = f.storage_life.as_ref().ok_or_else(||unsupported(f.span, "capture class header absent"))?;
-    spend(left, header.classes.len().saturating_mul(path.len().saturating_add(1)), f.span)?;
-    let position = SignatureLifeClass { base: StorageBase::Parameter(parameter), path, class };
-    header.classes.iter().find(|row|row.position==position).map(|row|row.binder)
-        .ok_or_else(||unsupported(f.span, "actual creator omits the captured nominal class"))
+fn capture_class(
+    module: &TypedModule,
+    id: ClosureId,
+    path: &[ContractProjection],
+    depth: usize,
+    left: &mut usize,
+    span: Span,
+) -> R<u32> {
+    spend(left, path.len().saturating_add(1), span)?;
+    if depth > module.closures.len() {
+        return Err(unsupported(span, "captured class graph is cyclic"));
+    }
+    let d = module
+        .closures
+        .get(id.0 as usize)
+        .ok_or_else(|| unsupported(span, "captured class child absent"))?;
+    let Some((ContractProjection::Capture(index), tail)) = path.split_first() else {
+        return Err(unsupported(
+            span,
+            "nested class source omits its capture selector",
+        ));
+    };
+    let ty = d
+        .captures
+        .get(*index as usize)
+        .ok_or_else(|| unsupported(span, "captured class field absent"))?;
+    let life = d
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| unsupported(span, "captured class child relation absent"))?;
+    let base = StorageBase::Capture(*index);
+    let actual = match ty {
+        Type::Address { .. } | Type::Desc(_) if tail.is_empty() => {
+            spend(left, life.bindings.len(), span)?;
+            life.bindings
+                .iter()
+                .find(|row| row.position.base == base && row.position.path.is_empty())
+                .map(|row| row.binder)
+        }
+        Type::BorrowedStorage { life: shape, .. } => {
+            spend(
+                left,
+                shape
+                    .slots
+                    .len()
+                    .saturating_mul(tail.len().saturating_add(1))
+                    .saturating_add(life.classes.len()),
+                span,
+            )?;
+            let class = shape
+                .slots
+                .iter()
+                .find(|slot| {
+                    tail.iter().copied().eq(slot
+                        .path
+                        .iter()
+                        .copied()
+                        .map(ContractProjection::Place))
+                })
+                .map(|slot| slot.binder)
+                .ok_or_else(|| {
+                    unsupported(span, "nested class source is not an actual stored leaf")
+                })?;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path.is_empty()
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
+        }
+        Type::Closure(child) => {
+            let class = capture_class(module, *child, tail, depth + 1, left, span)?;
+            spend(left, life.classes.len(), span)?;
+            life.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path.is_empty()
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
+        }
+        _ => None,
+    }
+    .ok_or_else(|| unsupported(span, "captured leaf has no exact child class binding"))?;
+    match actual {
+        StorageBinder::Fixed(class) => Ok(class),
+        _ => Err(unsupported(span, "captured child leaf is not Fixed")),
+    }
 }
-fn captured_parameter(f: &TypedFunction, closure: ClosureId, capture: usize, left: &mut usize) -> R<u32> {
+fn header_class(
+    f: &TypedFunction,
+    parameter: u32,
+    path: Vec<LifeTypeProjection>,
+    class: u32,
+    left: &mut usize,
+) -> R<StorageBinder> {
+    let header = f
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| unsupported(f.span, "capture class header absent"))?;
+    spend(
+        left,
+        header
+            .classes
+            .len()
+            .saturating_mul(path.len().saturating_add(1)),
+        f.span,
+    )?;
+    let position = SignatureLifeClass {
+        base: StorageBase::Parameter(parameter),
+        path,
+        class,
+    };
+    header
+        .classes
+        .iter()
+        .find(|row| row.position == position)
+        .map(|row| row.binder)
+        .ok_or_else(|| unsupported(f.span, "actual creator omits the captured nominal class"))
+}
+fn captured_parameter(
+    f: &TypedFunction,
+    closure: ClosureId,
+    capture: usize,
+    left: &mut usize,
+) -> R<u32> {
     spend(left, f.blocks.len().saturating_add(f.values.len()), f.span)?;
     let mut definitions = vec![None; f.values.len()];
     let mut values = Vec::new();
     for block in &f.blocks {
         spend(left, block.instructions.len(), f.span)?;
         for instruction in &block.instructions {
-            if let Some(result) = instruction.result { definitions[result.0 as usize] = Some(&instruction.kind); }
-            if let InstructionKind::MakeClosure { closure: actual, captures } = &instruction.kind
-                && *actual==closure
-            { values.push(*captures.get(capture).ok_or_else(||unsupported(f.span, "actual capture operand absent"))?); }
+            if let Some(result) = instruction.result {
+                definitions[result.0 as usize] = Some(&instruction.kind);
+            }
+            if let InstructionKind::MakeClosure {
+                closure: actual,
+                captures,
+            } = &instruction.kind
+                && *actual == closure
+            {
+                values.push(
+                    *captures
+                        .get(capture)
+                        .ok_or_else(|| unsupported(f.span, "actual capture operand absent"))?,
+                );
+            }
         }
     }
     let mut parameter = None;
     for value in values {
-        let Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) = definitions[value.0 as usize] else {
-            return Err(unsupported(f.span, "phantom capture class needs its actual whole-input origin"));
+        let Some(InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) =
+            definitions[value.0 as usize]
+        else {
+            return Err(unsupported(
+                f.span,
+                "phantom capture class needs its actual whole-input origin",
+            ));
         };
-        let actual = f.parameters.iter().position(|parameter|parameter==local)
-            .ok_or_else(||unsupported(f.span, "phantom capture class is not a direct creator input"))? as u32;
-        if parameter.replace(actual).is_some_and(|old|old!=actual) {
-            return Err(unsupported(f.span, "phantom class capture joins different whole inputs"));
+        let actual = f
+            .parameters
+            .iter()
+            .position(|parameter| parameter == local)
+            .ok_or_else(|| {
+                unsupported(
+                    f.span,
+                    "phantom capture class is not a direct creator input",
+                )
+            })? as u32;
+        if parameter.replace(actual).is_some_and(|old| old != actual) {
+            return Err(unsupported(
+                f.span,
+                "phantom class capture joins different whole inputs",
+            ));
         }
     }
-    parameter.ok_or_else(||unsupported(f.span, "capture class has no actual construction"))
+    parameter.ok_or_else(|| unsupported(f.span, "capture class has no actual construction"))
 }
 fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool> {
     let mut updates = Vec::new();
     for f in &module.functions {
-        let Some(contract) = &f.callable_return_contract else { continue; };
-        if contract.source!=CallableReturnSource::Fresh { continue; }
+        let Some(contract) = &f.callable_return_contract else {
+            continue;
+        };
+        if contract.source != CallableReturnSource::Fresh {
+            continue;
+        }
         let definition = &module.closures[contract.closure.0 as usize];
         if definition.storage_life.is_some()
             || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
         { continue; }
-        if !definition.result.is_copy_value() || definition.parameters.iter().any(|ty|!ty.is_copy_value()) {
-            return Err(unsupported(f.span,"captured owning classes need the complete callable input/result class relation"));
+        if !definition.result.is_copy_value()
+            || definition.parameters.iter().any(|ty| !ty.is_copy_value())
+        {
+            return Err(unsupported(
+                f.span,
+                "captured owning classes need the complete callable input/result class relation",
+            ));
         }
         let mut keys = BTreeMap::new();
-        let mut proposed = StorageLifeContract { fixed_binder_count:0, invocation_binder_count:0, bindings:Vec::new(), classes:Vec::new() };
-        let rows = contract.capture_sources.as_ref().ok_or_else(||unsupported(f.span,"capture class source relation unknown"))?;
+        let mut proposed = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: Vec::new(),
+            classes: Vec::new(),
+        };
+        let rows = contract
+            .capture_sources
+            .as_ref()
+            .ok_or_else(|| unsupported(f.span, "capture class source relation unknown"))?;
         for (index, ty) in definition.captures.iter().enumerate() {
             let class_count = match ty {
-                Type::BorrowedStorage{life,..}=>life.binder_count,
-                Type::Closure(id)=>module.closures[id.0 as usize].storage_life.as_ref().map_or(0,|life|life.fixed_binder_count),
-                _=>0,
+                Type::BorrowedStorage { life, .. } => life.binder_count,
+                Type::Closure(id) => module.closures[id.0 as usize]
+                    .storage_life
+                    .as_ref()
+                    .map_or(0, |life| life.fixed_binder_count),
+                _ => 0,
             };
-            let count = if matches!(ty,Type::Address{..}) { 1 } else { class_count };
+            let count = if matches!(ty, Type::Address { .. }) {
+                1
+            } else {
+                class_count
+            };
             for class in 0..count {
                 let mut actual = None;
-                for row in rows.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)) {
+                for row in rows
+                    .iter()
+                    .filter(|row| row.position.base == StorageBase::Capture(index as u32))
+                {
                     let selected = match ty {
-                        Type::BorrowedStorage { life, .. } => life.slots.iter().any(|slot|slot.binder==class
-                            && row.position.path.iter().copied().eq(slot.path.iter().copied().map(ContractProjection::Place))),
+                        Type::BorrowedStorage { life, .. } => life.slots.iter().any(|slot| {
+                            slot.binder == class
+                                && row.position.path.iter().copied().eq(slot
+                                    .path
+                                    .iter()
+                                    .copied()
+                                    .map(ContractProjection::Place))
+                        }),
                         Type::Address { .. } => row.position.path.is_empty(),
-                        Type::Closure(id)=>capture_class(module,*id,&row.position.path,0,left,f.span)?==class,
+                        Type::Closure(id) => {
+                            capture_class(module, *id, &row.position.path, 0, left, f.span)?
+                                == class
+                        }
                         _ => false,
                     };
-                    if !selected { continue; }
+                    if !selected {
+                        continue;
+                    }
                     for source in &row.sources {
-                        let key = source_class(module,f, source, left)?;
-                        if actual.replace(key).is_some_and(|old|old!=key) {
-                            return Err(unsupported(f.span,"captured class has no single proved creator relation"));
+                        let key = source_class(module, f, source, left)?;
+                        if actual.replace(key).is_some_and(|old| old != key) {
+                            return Err(unsupported(
+                                f.span,
+                                "captured class has no single proved creator relation",
+                            ));
                         }
                     }
                 }
-                let actual = if let Some(actual)=actual { actual } else {
-                    header_class(f,captured_parameter(f,definition.id,index,left)?,Vec::new(),class,left)?
+                let actual = if let Some(actual) = actual {
+                    actual
+                } else {
+                    header_class(
+                        f,
+                        captured_parameter(f, definition.id, index, left)?,
+                        Vec::new(),
+                        class,
+                        left,
+                    )?
                 };
-                spend(left,keys.len().saturating_add(1),f.span)?;
+                spend(left, keys.len().saturating_add(1), f.span)?;
                 let next = keys.len() as u32;
                 let fixed = *keys.entry(actual).or_insert(next);
-                if matches!(ty,Type::Address{..}) {
-                    proposed.bindings.push(StorageLifeBinding { position:StoragePosition { base:StorageBase::Capture(index as u32),path:Vec::new() },binder:StorageBinder::Fixed(fixed) });
+                if matches!(ty, Type::Address { .. }) {
+                    proposed.bindings.push(StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Capture(index as u32),
+                            path: Vec::new(),
+                        },
+                        binder: StorageBinder::Fixed(fixed),
+                    });
                 } else {
-                    proposed.classes.push(SignatureLifeClassBinding { position:SignatureLifeClass { base:StorageBase::Capture(index as u32),path:Vec::new(),class },binder:StorageBinder::Fixed(fixed) });
+                    proposed.classes.push(SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Capture(index as u32),
+                            path: Vec::new(),
+                            class,
+                        },
+                        binder: StorageBinder::Fixed(fixed),
+                    });
                 }
             }
         }
-        proposed.fixed_binder_count=keys.len() as u32;
+        proposed.fixed_binder_count = keys.len() as u32;
         let mut result_classes = Vec::new();
-        spend(left,keys.len(),f.span)?;
+        spend(left, keys.len(), f.span)?;
         for (creator, fixed) in keys {
             result_classes.push(SignatureLifeClassBinding {
-                position: SignatureLifeClass { base:StorageBase::Result,path:Vec::new(),class:fixed },
-                binder:creator,
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                    class: fixed,
+                },
+                binder: creator,
             });
         }
-        result_classes.sort_by_key(|row|row.position.class);
-        updates.push((definition.id,definition.function,f.id,proposed,result_classes));
+        result_classes.sort_by_key(|row| row.position.class);
+        updates.push((
+            definition.id,
+            definition.function,
+            f.id,
+            proposed,
+            result_classes,
+        ));
     }
-    let changed=!updates.is_empty();
-    for (id,function,creator,proposal,result_classes) in updates {
-        spend(left,borrowed_fp::metadata_work(&proposal).saturating_mul(2),module.functions[function.0 as usize].span)?;
-        module.closures[id.0 as usize].storage_life=Some(proposal.clone());
-        module.functions[function.0 as usize].storage_life=Some(proposal);
-        let span=module.functions[creator.0 as usize].span;
-        let header=module.functions[creator.0 as usize].storage_life.as_mut()
-            .ok_or_else(||unsupported(span,"actual creator class header absent"))?;
-        spend(left,header.classes.len().saturating_add(result_classes.len()),span)?;
-        if header.classes.iter().any(|row|row.position.base==StorageBase::Result) {
-            return Err(unsupported(span,"creator already declares a different result class relation"));
+    let changed = !updates.is_empty();
+    for (id, function, creator, proposal, result_classes) in updates {
+        spend(
+            left,
+            borrowed_fp::metadata_work(&proposal).saturating_mul(2),
+            module.functions[function.0 as usize].span,
+        )?;
+        module.closures[id.0 as usize].storage_life = Some(proposal.clone());
+        module.functions[function.0 as usize].storage_life = Some(proposal);
+        let span = module.functions[creator.0 as usize].span;
+        let header = module.functions[creator.0 as usize]
+            .storage_life
+            .as_mut()
+            .ok_or_else(|| unsupported(span, "actual creator class header absent"))?;
+        spend(
+            left,
+            header.classes.len().saturating_add(result_classes.len()),
+            span,
+        )?;
+        if header
+            .classes
+            .iter()
+            .any(|row| row.position.base == StorageBase::Result)
+        {
+            return Err(unsupported(
+                span,
+                "creator already declares a different result class relation",
+            ));
         }
         header.classes.extend(result_classes);
     }

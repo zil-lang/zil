@@ -99,9 +99,12 @@ fn projected_multiple_sources_and_owned_capture_compose_across_modules() {
 }
 
 fn typed_source(text: &str) -> zil_ir::TypedModule {
-    typed_source_with_limit(text,&Limits::default()).unwrap()
+    typed_source_with_limit(text, &Limits::default()).unwrap()
 }
-fn typed_source_with_limit(text: &str, typing_limits: &Limits) -> zil_base::CompileResult<zil_ir::TypedModule> {
+fn typed_source_with_limit(
+    text: &str,
+    typing_limits: &Limits,
+) -> zil_base::CompileResult<zil_ir::TypedModule> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "source-proof.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let limits = Limits::default();
@@ -283,17 +286,59 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
         .replace("model.", "")
         .replace("factory.", "");
     for (label, text) in [
-        ("nested-qualified-callback",include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil").to_owned()),
-        ("external-mutable-holder-helper",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil").to_owned()),
-        ("external-mutable-callback",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil").to_owned()),
-        ("call-before-return", include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil").to_owned()),
-        ("forward-qualified", include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil").to_owned()),
-        ("forward-lending", include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil").to_owned()),
-        ("forward-borrowed", include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil").to_owned()),
-        ("mutable-whole", include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil").to_owned()),
+        (
+            "nested-qualified-callback",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil"
+            )
+            .to_owned(),
+        ),
+        (
+            "external-mutable-holder-helper",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil"
+            )
+            .to_owned(),
+        ),
+        (
+            "external-mutable-callback",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil"
+            )
+            .to_owned(),
+        ),
+        (
+            "call-before-return",
+            include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil")
+                .to_owned(),
+        ),
+        (
+            "forward-qualified",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil")
+                .to_owned(),
+        ),
+        (
+            "forward-lending",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil")
+                .to_owned(),
+        ),
+        (
+            "forward-borrowed",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil")
+                .to_owned(),
+        ),
+        (
+            "mutable-whole",
+            include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil")
+                .to_owned(),
+        ),
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
-        ("whole-qualified-owner", include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil").to_owned()),
+        (
+            "whole-qualified-owner",
+            include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil")
+                .to_owned(),
+        ),
         ("loop-sources", LOOP_BORROWED.to_owned()),
         ("nested-borrowed", NESTED_BORROWED.to_owned()),
         ("wrapped-borrowed", WRAPPED_BORROWED.to_owned()),
@@ -339,11 +384,26 @@ fn main()->i32{let value=41;let pointer=&value;let inner=move()=>*pointer;let ou
 "#;
 #[test]
 fn nested_borrowed_environments_propose_each_actual_leaf() {
-    for text in [NESTED_BORROWED,WRAPPED_BORROWED] {
-        let module=typed_source(text);
-        let contract=module.functions.iter().find_map(|function|function.callable_return_contract.as_ref()).unwrap();
-        assert!(contract.capture_sources.as_ref().unwrap().iter().any(|binding|binding.position.path.iter().any(|step|matches!(step,zil_ir::ContractProjection::Capture(_)))));
-        zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    for text in [NESTED_BORROWED, WRAPPED_BORROWED] {
+        let module = typed_source(text);
+        let contract = module
+            .functions
+            .iter()
+            .find_map(|function| function.callable_return_contract.as_ref())
+            .unwrap();
+        assert!(
+            contract
+                .capture_sources
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|binding| binding
+                    .position
+                    .path
+                    .iter()
+                    .any(|step| matches!(step, zil_ir::ContractProjection::Capture(_))))
+        );
+        zil_analyze::analyze(&module, &Limits::default()).unwrap();
     }
 }
 
@@ -357,42 +417,88 @@ fn main()->i32{let a=20;let b=22;let first=make(&a,&b,0);let second=make(&a,&b,1
 "#;
 #[test]
 fn loop_source_equations_keep_both_actual_inputs() {
-    let cycle = LOOP_BORROWED.replace("pointer=b;i+=1", "if i==0{pointer=b}else{pointer=pointer};i+=1");
+    let cycle = LOOP_BORROWED.replace(
+        "pointer=b;i+=1",
+        "if i==0{pointer=b}else{pointer=pointer};i+=1",
+    );
     let recurrent = typed_source(&cycle);
     zil_analyze::analyze(&recurrent, &Limits::default()).unwrap();
-    let module=typed_source(LOOP_BORROWED);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    let factory=module.functions.iter().position(|function|function.callable_return_contract.is_some()).unwrap();
-    let bindings=module.functions[factory].callable_return_contract.as_ref().unwrap().capture_sources.as_ref().unwrap();
-    assert_eq!(bindings[0].sources.len(),2);
+    let module = typed_source(LOOP_BORROWED);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let factory = module
+        .functions
+        .iter()
+        .position(|function| function.callable_return_contract.is_some())
+        .unwrap();
+    let bindings = module.functions[factory]
+        .callable_return_contract
+        .as_ref()
+        .unwrap()
+        .capture_sources
+        .as_ref()
+        .unwrap();
+    assert_eq!(bindings[0].sources.len(), 2);
     for omitted in 0..2 {
-        let mut bad=module.clone();
-        bad.functions[factory].callable_return_contract.as_mut().unwrap().capture_sources.as_mut().unwrap()[0].sources.remove(omitted);
-        assert!(zil_analyze::analyze(&bad,&Limits::default()).is_err());
+        let mut bad = module.clone();
+        bad.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .capture_sources
+            .as_mut()
+            .unwrap()[0]
+            .sources
+            .remove(omitted);
+        assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
     }
 }
 
 fn check_raw_and_wire(text: &str) {
     let module = typed_source(text);
     let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    zil_verify::verify_module(module.clone(), candidate.clone(), &module.target, &Limits::default()).unwrap();
-    let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        candidate.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
 }
 fn check_native_factory(text: &str, stdout: &[u8]) {
     use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage};
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let mut backends = vec![NativeBackend::Clang];
-    if cfg!(feature = "llvm-api") { backends.push(NativeBackend::LlvmApi); }
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
-            let directory = std::env::temp_dir().join(format!("zil-factory-native-{}-{}", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+            let directory = std::env::temp_dir().join(format!(
+                "zil-factory-native-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            ));
             std::fs::create_dir(&directory).unwrap();
             let executable = directory.join("program");
-            let report = zil_driver::compile_source(&SourceUnit::new(FileId(0), ModuleId(0), "factory-native.zil", text), &CompileOptions {
-                stop_after: Stage::Build, backend, optimization, output: Some(executable.clone()), ..CompileOptions::default()
-            });
-            assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
+            let report = zil_driver::compile_source(
+                &SourceUnit::new(FileId(0), ModuleId(0), "factory-native.zil", text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
@@ -408,7 +514,9 @@ fn check_native_factory(text: &str, stdout: &[u8]) {
 #[test]
 fn actual_holder_slot_epochs_and_mixed_environment_cleanup_reach_machine_code() {
     let head = HOLDER_SOURCE.split("fn main").next().unwrap();
-    let replaced = format!("{head}fn main()->i32{{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;let answer=f();n=42;return answer+n-83}}");
+    let replaced = format!(
+        "{head}fn main()->i32{{var n:i32=41;let other:i32=9;var holder=hold(&n);let f=make(&holder);holder.pointer=&other;let answer=f();n=42;return answer+n-83}}"
+    );
     check_raw_and_wire(&replaced);
     check_native_factory(&replaced, b"");
     let mixed = r#"
@@ -435,210 +543,461 @@ fn main()->i32{let left=20;let right=22;let saved=make(&left,&right);return save
 "#;
 #[test]
 fn nested_and_wrapped_actual_environments_reach_both_backends() {
-    for text in [NESTED_BORROWED, WRAPPED_BORROWED, LOOP_BORROWED, MULTI_NESTED] {
+    for text in [
+        NESTED_BORROWED,
+        WRAPPED_BORROWED,
+        LOOP_BORROWED,
+        MULTI_NESTED,
+    ] {
         check_raw_and_wire(text);
         check_native_factory(text, b"");
     }
-    let module=typed_source(MULTI_NESTED);
-    let factory=module.functions.iter().position(|function|function.name=="make").unwrap();
-    let mut forged=module.clone();
-    let instruction=forged.functions[factory].blocks.iter_mut().flat_map(|block|&mut block.instructions)
-        .find(|instruction|matches!(instruction.kind,zil_ir::InstructionKind::MakeClosure{..})).unwrap();
-    let zil_ir::InstructionKind::MakeClosure{captures,..}=&mut instruction.kind else{unreachable!()};
-    captures.swap(0,1);
-    assert!(zil_analyze::analyze(&forged,&Limits::default()).is_err());
-    let mut dishonest=zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    dishonest.module_fingerprint=forged.fingerprint();
-    assert!(zil_verify::verify_module(forged.clone(),dishonest.clone(),&forged.target,&Limits::default()).is_err());
-    let wire=zil_ir::wire::encode_module_candidate(&forged,&dishonest,&Limits::default()).unwrap();
-    assert!(zil_verify::verify_module_bytes(&wire,&forged.target,&Limits::default()).is_err());
+    let module = typed_source(MULTI_NESTED);
+    let factory = module
+        .functions
+        .iter()
+        .position(|function| function.name == "make")
+        .unwrap();
+    let mut forged = module.clone();
+    let instruction = forged.functions[factory]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                zil_ir::InstructionKind::MakeClosure { .. }
+            )
+        })
+        .unwrap();
+    let zil_ir::InstructionKind::MakeClosure { captures, .. } = &mut instruction.kind else {
+        unreachable!()
+    };
+    captures.swap(0, 1);
+    assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
+    let mut dishonest = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    dishonest.module_fingerprint = forged.fingerprint();
+    assert!(
+        zil_verify::verify_module(
+            forged.clone(),
+            dishonest.clone(),
+            &forged.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    let wire =
+        zil_ir::wire::encode_module_candidate(&forged, &dishonest, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err());
 }
 
 #[test]
 fn whole_qualified_owner_capture_has_owner_and_leaf_responsibilities() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil");
-    let module=typed_source(source);
-    let factory=module.functions.iter().find(|function|function.name=="make").unwrap();
-    let contract=factory.callable_return_contract.as_ref().unwrap();
-    assert_eq!(contract.cleanup,vec![0]);
-    assert_eq!(contract.hold,vec![0]);
+    let source = include_str!("../../../tests/fixtures/returned-owning-holders/whole-mixed.zil");
+    let module = typed_source(source);
+    let factory = module
+        .functions
+        .iter()
+        .find(|function| function.name == "make")
+        .unwrap();
+    let contract = factory.callable_return_contract.as_ref().unwrap();
+    assert_eq!(contract.cleanup, vec![0]);
+    assert_eq!(contract.hold, vec![0]);
     assert!(!contract.capture_sources.as_ref().unwrap().is_empty());
-    assert!(module.closures[contract.closure.0 as usize].storage_life.is_some());
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    assert!(
+        module.closures[contract.closure.0 as usize]
+            .storage_life
+            .is_some()
+    );
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
     check_raw_and_wire(source);
-    check_native_factory(source,b"AA");
+    check_native_factory(source, b"AA");
 }
 
 #[test]
 fn mutable_qualified_owner_publishes_actual_environment_slot_epoch() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let source = include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
     check_raw_and_wire(source);
-    check_native_factory(source,b"A");
+    check_native_factory(source, b"A");
 }
 
 #[test]
 fn mutable_environment_release_tracks_actual_old_and_new_targets() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
-    let head=source.split("fn main").next().unwrap();
-    for (body,accepted) in [
-        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();a=21;let second=f();return first+second+a-63}",true),
-        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);a=21;let first=f();return first-21}",false),
-        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();b=23;let second=f();return first+second-43}",false),
-        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();let second=f();b=23;return first+second+b-65}",true),
-        ("fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();a=1;let old=g();let next=f();let last=g();return first+old+next+last-62}",true),
-        ("fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();c=1;let old=g();return first+old-11}",false),
+    let source = include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let head = source.split("fn main").next().unwrap();
+    for (body, accepted) in [
+        (
+            "fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();a=21;let second=f();return first+second+a-63}",
+            true,
+        ),
+        (
+            "fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);a=21;let first=f();return first-21}",
+            false,
+        ),
+        (
+            "fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();b=23;let second=f();return first+second-43}",
+            false,
+        ),
+        (
+            "fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();let second=f();b=23;return first+second+b-65}",
+            true,
+        ),
+        (
+            "fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();a=1;let old=g();let next=f();let last=g();return first+old+next+last-62}",
+            true,
+        ),
+        (
+            "fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();c=1;let old=g();return first+old-11}",
+            false,
+        ),
     ] {
-        let text=format!("{head}{body}");
-        let module=typed_source(&text);
-        let result=zil_analyze::analyze(&module,&Limits::default());
-        assert_eq!(result.is_ok(),accepted,"{body}: {result:?}");
+        let text = format!("{head}{body}");
+        let module = typed_source(&text);
+        let result = zil_analyze::analyze(&module, &Limits::default());
+        assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
     }
 }
 
 #[test]
 fn ordinary_parameter_forwarding_keeps_each_actual_external_environment() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil");
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
 
 #[test]
 fn mutable_environment_raw_and_wire_reconstruct_both_slot_epochs() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
-    let module=typed_source(source);
-    let plan=zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    for (target,after_call,accepted) in [("a",0,false),("a",1,true),("b",1,false),("b",2,true)] {
-        let mut changed=module.clone();
-        let main=changed.functions.iter().position(|f|f.name=="main").unwrap();
-        let f=&mut changed.functions[main];
-        let local=f.locals.iter().find(|local|local.name==target).unwrap().id;
-        f.locals[local.0 as usize].mutable=true;
-        let value=zil_ir::ValueId(f.values.len() as u32);
+    let source = include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let module = typed_source(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for (target, after_call, accepted) in [
+        ("a", 0, false),
+        ("a", 1, true),
+        ("b", 1, false),
+        ("b", 2, true),
+    ] {
+        let mut changed = module.clone();
+        let main = changed
+            .functions
+            .iter()
+            .position(|f| f.name == "main")
+            .unwrap();
+        let f = &mut changed.functions[main];
+        let local = f
+            .locals
+            .iter()
+            .find(|local| local.name == target)
+            .unwrap()
+            .id;
+        f.locals[local.0 as usize].mutable = true;
+        let value = zil_ir::ValueId(f.values.len() as u32);
         f.values.push(zil_ir::Type::I32);
-        let block=f.blocks.iter_mut().find(|block|block.instructions.iter().any(|i|matches!(i.kind,zil_ir::InstructionKind::CallClosureMut{..}))).unwrap();
-        let calls=block.instructions.iter().enumerate().filter_map(|(index,i)|matches!(i.kind,zil_ir::InstructionKind::CallClosureMut{..}).then_some(index)).collect::<Vec<_>>();
-        let at=if after_call==0 {calls[0]} else {calls[after_call-1]+1};
-        block.instructions.splice(at..at,[
-            zil_ir::Instruction{result:Some(value),kind:zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(99)),span:f.span},
-            zil_ir::Instruction{result:None,kind:zil_ir::InstructionKind::Store{local,value},span:f.span},
-        ]);
-        let mut claim=plan.clone();
-        claim.module_fingerprint=changed.fingerprint();
-        claim.functions[main].holds.push(zil_ir::ValueHold{value,roots:Vec::new()});
-        let raw=zil_verify::verify_module(changed.clone(),claim.clone(),&changed.target,&Limits::default());
-        let wire=zil_ir::wire::encode_module_candidate(&changed,&claim,&Limits::default()).unwrap();
-        let decoded=zil_verify::verify_module_bytes(&wire,&changed.target,&Limits::default());
-        assert_eq!(raw.is_ok(),accepted,"{target}/{after_call}: {raw:?}");
-        assert_eq!(decoded.is_ok(),accepted,"Wire {target}/{after_call}: {decoded:?}");
-        assert_eq!(zil_analyze::analyze(&changed,&Limits::default()).is_ok(),accepted);
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, zil_ir::InstructionKind::CallClosureMut { .. }))
+            })
+            .unwrap();
+        let calls = block
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, i)| {
+                matches!(i.kind, zil_ir::InstructionKind::CallClosureMut { .. }).then_some(index)
+            })
+            .collect::<Vec<_>>();
+        let at = if after_call == 0 {
+            calls[0]
+        } else {
+            calls[after_call - 1] + 1
+        };
+        block.instructions.splice(
+            at..at,
+            [
+                zil_ir::Instruction {
+                    result: Some(value),
+                    kind: zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(99)),
+                    span: f.span,
+                },
+                zil_ir::Instruction {
+                    result: None,
+                    kind: zil_ir::InstructionKind::Store { local, value },
+                    span: f.span,
+                },
+            ],
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = changed.fingerprint();
+        claim.functions[main].holds.push(zil_ir::ValueHold {
+            value,
+            roots: Vec::new(),
+        });
+        let raw = zil_verify::verify_module(
+            changed.clone(),
+            claim.clone(),
+            &changed.target,
+            &Limits::default(),
+        );
+        let wire =
+            zil_ir::wire::encode_module_candidate(&changed, &claim, &Limits::default()).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default());
+        assert_eq!(raw.is_ok(), accepted, "{target}/{after_call}: {raw:?}");
+        assert_eq!(
+            decoded.is_ok(),
+            accepted,
+            "Wire {target}/{after_call}: {decoded:?}"
+        );
+        assert_eq!(
+            zil_analyze::analyze(&changed, &Limits::default()).is_ok(),
+            accepted
+        );
     }
 }
 
 #[test]
 fn forwarded_lending_buffer_environments_preserve_real_lending_indices() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil");
-    let module=typed_source(source);
-    let helpers=module.functions.iter().filter(|f|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_)))).collect::<Vec<_>>();
-    assert_eq!(helpers.len(),2);
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/forward-lending.zil");
+    let module = typed_source(source);
+    let helpers = module
+        .functions
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.callable_return_contract.as_ref().map(|c| c.source),
+                Some(zil_ir::CallableReturnSource::Parameter(_))
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(helpers.len(), 2);
     for helper in helpers {
-        let c=helper.callable_return_contract.as_ref().unwrap();
-        assert_eq!(c.lending_captures,[0]);
-        assert_eq!(c.cleanup,[0]);
-        assert_eq!(c.lending_captures,module.closures[c.closure.0 as usize].lending_captures);
+        let c = helper.callable_return_contract.as_ref().unwrap();
+        assert_eq!(c.lending_captures, [0]);
+        assert_eq!(c.cleanup, [0]);
+        assert_eq!(
+            c.lending_captures,
+            module.closures[c.closure.0 as usize].lending_captures
+        );
     }
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
 
 #[test]
 fn qualified_owner_forwarding_preserves_late_actual_free_classes() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
 
 #[test]
 fn call_before_return_uses_terminal_capture_sources_and_releases_the_old_target() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil");
-    let module=typed_source(source);
-    for function in module.functions.iter().filter(|f|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_)))) {
-        let c=function.callable_return_contract.as_ref().unwrap();
-        let holder=c.capture_sources.as_ref().unwrap().iter().find(|row|row.position.base==zil_ir::StorageBase::Capture(0)).unwrap();
-        assert_eq!(holder.sources,vec![zil_ir::StoragePosition{base:zil_ir::StorageBase::Parameter(0),path:vec![zil_ir::ContractProjection::Capture(1)]}],"{}",function.name);
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil");
+    let module = typed_source(source);
+    for function in module.functions.iter().filter(|f| {
+        matches!(
+            f.callable_return_contract.as_ref().map(|c| c.source),
+            Some(zil_ir::CallableReturnSource::Parameter(_))
+        )
+    }) {
+        let c = function.callable_return_contract.as_ref().unwrap();
+        let holder = c
+            .capture_sources
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|row| row.position.base == zil_ir::StorageBase::Capture(0))
+            .unwrap();
+        assert_eq!(
+            holder.sources,
+            vec![zil_ir::StoragePosition {
+                base: zil_ir::StorageBase::Parameter(0),
+                path: vec![zil_ir::ContractProjection::Capture(1)]
+            }],
+            "{}",
+            function.name
+        );
     }
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    for index in module.functions.iter().enumerate().filter_map(|(index,f)|matches!(f.callable_return_contract.as_ref().map(|c|c.source),Some(zil_ir::CallableReturnSource::Parameter(_))).then_some(index)) {
-        let mut dishonest=module.clone();
-        let c=dishonest.functions[index].callable_return_contract.as_mut().unwrap();
-        let holder=c.capture_sources.as_mut().unwrap().iter_mut().find(|row|row.position.base==zil_ir::StorageBase::Capture(0)).unwrap();
-        holder.sources[0].path=vec![zil_ir::ContractProjection::Capture(0),zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(1))];
-        let errors=zil_analyze::analyze(&dishonest,&Limits::default()).unwrap_err();
-        assert!(errors.iter().any(|error|error.message.contains("terminal capture source exceeds")),"{errors:?}");
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for index in module
+        .functions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, f)| {
+            matches!(
+                f.callable_return_contract.as_ref().map(|c| c.source),
+                Some(zil_ir::CallableReturnSource::Parameter(_))
+            )
+            .then_some(index)
+        })
+    {
+        let mut dishonest = module.clone();
+        let c = dishonest.functions[index]
+            .callable_return_contract
+            .as_mut()
+            .unwrap();
+        let holder = c
+            .capture_sources
+            .as_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|row| row.position.base == zil_ir::StorageBase::Capture(0))
+            .unwrap();
+        holder.sources[0].path = vec![
+            zil_ir::ContractProjection::Capture(0),
+            zil_ir::ContractProjection::Place(zil_ir::PlaceProjection::Field(1)),
+        ];
+        let errors = zil_analyze::analyze(&dishonest, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("terminal capture source exceeds")),
+            "{errors:?}"
+        );
     }
-    let bad=source.replace("a=21;let answer=f()","b=23;let answer=f()");
-    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+    let bad = source.replace("a=21;let answer=f()", "b=23;let answer=f()");
+    assert!(zil_analyze::analyze(&typed_source(&bad), &Limits::default()).is_err());
 }
 
 #[test]
 fn external_mutable_callback_publishes_current_environment_through_helpers() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    let reused=source.replace("let first=relay(&mut f)","let receiver=&mut f;let first=relay(receiver)").replace("relay(&mut f)+relay(&mut g)","relay(receiver)+relay(&mut g)");
-    zil_analyze::analyze(&typed_source(&reused),&Limits::default()).unwrap();
-    for bad in [source.replace("a=21", "b=21"),source.replace("c=31", "d=31"),source.replace("a=21", "c=21"),reused.replace("a=21","b=21")] {
-        assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/external-mutable-callback.zil"
+    );
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let reused = source
+        .replace(
+            "let first=relay(&mut f)",
+            "let receiver=&mut f;let first=relay(receiver)",
+        )
+        .replace(
+            "relay(&mut f)+relay(&mut g)",
+            "relay(receiver)+relay(&mut g)",
+        );
+    zil_analyze::analyze(&typed_source(&reused), &Limits::default()).unwrap();
+    for bad in [
+        source.replace("a=21", "b=21"),
+        source.replace("c=31", "d=31"),
+        source.replace("a=21", "c=21"),
+        reused.replace("a=21", "b=21"),
+    ] {
+        assert!(zil_analyze::analyze(&typed_source(&bad), &Limits::default()).is_err());
     }
 }
 
 #[test]
 fn mutable_callback_slot_updates_compose_with_ordinary_holder_helpers() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil");
-    zil_analyze::analyze(&typed_source(&source),&Limits::default()).unwrap();
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil"
+    );
+    zil_analyze::analyze(&typed_source(&source), &Limits::default()).unwrap();
 }
 
 #[test]
 fn called_before_return_via_external_mutable_helper_uses_terminal_sources() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil");
-    let source=source.replace("fn step<", "fn invoke<F:FnMut()->i32>(input:&mut F)->i32{return input()}\nfn step<")
-        .replace("current();return current", "invoke(&mut current);return current");
-    zil_analyze::analyze(&typed_source(&source),&Limits::default()).unwrap();
+    let source =
+        include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil");
+    let source = source
+        .replace(
+            "fn step<",
+            "fn invoke<F:FnMut()->i32>(input:&mut F)->i32{return input()}\nfn step<",
+        )
+        .replace(
+            "current();return current",
+            "invoke(&mut current);return current",
+        );
+    zil_analyze::analyze(&typed_source(&source), &Limits::default()).unwrap();
 }
 
 #[test]
 fn mutable_helper_source_and_environment_proofs_have_exact_request_budgets() {
-    for (name,source) in [
-        ("forward-qualified",include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil")),
-        ("call-before-return",include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil")),
-        ("external-holder-helper",include_str!("../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil")),
-        ("nested-qualified",include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil")),
+    for (name, source) in [
+        (
+            "forward-qualified",
+            include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil"),
+        ),
+        (
+            "call-before-return",
+            include_str!("../../../tests/fixtures/returned-owning-holders/call-before-return.zil"),
+        ),
+        (
+            "external-holder-helper",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/external-mutable-holder-helper.zil"
+            ),
+        ),
+        (
+            "nested-qualified",
+            include_str!(
+                "../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil"
+            ),
+        ),
     ] {
-        let limits=|n|Limits{max_analysis_steps:n,..Limits::default()};
-        let module=typed_source(source);
-        let mut low=1;let mut high=Limits::default().max_analysis_steps;
-        while low<high {
-            let mid=low+(high-low)/2;
-            if typed_source_with_limit(source,&limits(mid)).is_ok(){high=mid}else{low=mid+1}
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let module = typed_source(source);
+        let mut low = 1;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if typed_source_with_limit(source, &limits(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
         }
-        assert_eq!(typed_source_with_limit(source,&limits(low)).unwrap(),module);
-        let errors=typed_source_with_limit(source,&limits(low-1)).unwrap_err();
-        assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::ResourceLimit),"{name}: {errors:?}");
-        assert_eq!(typed_source_with_limit(source,&limits(low)).unwrap(),module);
+        assert_eq!(
+            typed_source_with_limit(source, &limits(low)).unwrap(),
+            module
+        );
+        let errors = typed_source_with_limit(source, &limits(low - 1)).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::ResourceLimit),
+            "{name}: {errors:?}"
+        );
+        assert_eq!(
+            typed_source_with_limit(source, &limits(low)).unwrap(),
+            module
+        );
         eprintln!("{name} Types exact N={low}, N-1 rejected, retry identical");
-        let plan=zil_analyze::analyze(&module,&Limits::default()).unwrap();
-        low=1;high=Limits::default().max_analysis_steps;
-        while low<high {
-            let mid=low+(high-low)/2;
-            if zil_analyze::analyze(&module,&limits(mid)).is_ok(){high=mid}else{low=mid+1}
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        low = 1;
+        high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if zil_analyze::analyze(&module, &limits(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
         }
-        let mut session=zil_analyze::AnalysisSession::default();
-        for warm in [false,true] {
-            assert_eq!(session.analyze(&module,&limits(low)).unwrap(),plan);
-            if warm {assert!(session.last_stats().reused_functions>0);}
-            let errors=session.analyze(&module,&limits(low-1)).unwrap_err();
-            assert!(errors.iter().any(|error|error.category==zil_base::ResultCategory::ResourceLimit),"{name}: {errors:?}");
-            assert_eq!(zil_analyze::analyze(&module,&limits(low)).unwrap(),plan);
+        let mut session = zil_analyze::AnalysisSession::default();
+        for warm in [false, true] {
+            assert_eq!(session.analyze(&module, &limits(low)).unwrap(), plan);
+            if warm {
+                assert!(session.last_stats().reused_functions > 0);
+            }
+            let errors = session.analyze(&module, &limits(low - 1)).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.category == zil_base::ResultCategory::ResourceLimit),
+                "{name}: {errors:?}"
+            );
+            assert_eq!(zil_analyze::analyze(&module, &limits(low)).unwrap(), plan);
         }
         eprintln!("{name} Analyze exact N={low}, N-1 rejected, fresh/warm identical");
     }
@@ -646,24 +1005,62 @@ fn mutable_helper_source_and_environment_proofs_have_exact_request_budgets() {
 
 #[test]
 fn nested_qualified_factory_preserves_child_classes_sources_and_cleanup() {
-    let source=include_str!("../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil");
-    let module=typed_source(source);
-    zil_analyze::analyze(&module,&Limits::default()).unwrap();
-    let factory=module.functions.iter().position(|f|f.callable_return_contract.as_ref().is_some_and(|c|module.closures[c.closure.0 as usize].captures.iter().any(|ty|matches!(ty,zil_ir::Type::Closure(_))))).unwrap();
-    let c=module.functions[factory].callable_return_contract.as_ref().unwrap();
-    assert_eq!(c.cleanup,[0]);
-    assert!(module.closures[c.closure.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0));
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/nested-qualified-callback.zil"
+    );
+    let module = typed_source(source);
+    zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| {
+            f.callable_return_contract.as_ref().is_some_and(|c| {
+                module.closures[c.closure.0 as usize]
+                    .captures
+                    .iter()
+                    .any(|ty| matches!(ty, zil_ir::Type::Closure(_)))
+            })
+        })
+        .unwrap();
+    let c = module.functions[factory]
+        .callable_return_contract
+        .as_ref()
+        .unwrap();
+    assert_eq!(c.cleanup, [0]);
+    assert!(
+        module.closures[c.closure.0 as usize]
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| life.fixed_binder_count > 0)
+    );
     for attack in 0..2 {
-        let mut dishonest=module.clone();
-        let c=dishonest.functions[factory].callable_return_contract.as_mut().unwrap();
-        if attack==0 {c.cleanup.clear();} else {
-            let row=c.capture_sources.as_mut().unwrap().iter_mut().find(|row|row.position.path.len()>1).unwrap();
-            row.sources[0].path=vec![zil_ir::ContractProjection::Capture(1)];
+        let mut dishonest = module.clone();
+        let c = dishonest.functions[factory]
+            .callable_return_contract
+            .as_mut()
+            .unwrap();
+        if attack == 0 {
+            c.cleanup.clear();
+        } else {
+            let row = c
+                .capture_sources
+                .as_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|row| row.position.path.len() > 1)
+                .unwrap();
+            row.sources[0].path = vec![zil_ir::ContractProjection::Capture(1)];
         }
-        assert!(zil_analyze::analyze(&dishonest,&Limits::default()).is_err(),"attack {attack}");
+        assert!(
+            zil_analyze::analyze(&dishonest, &Limits::default()).is_err(),
+            "attack {attack}"
+        );
     }
-    let double=source.replace("var f=nested(make(wrap(&a),&b))", "var f=nested(nested(make(wrap(&a),&b)))");
-    zil_analyze::analyze(&typed_source(&double),&Limits::default()).unwrap();
-    let bad=source.replace("a=21", "b=21");
-    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
+    let double = source.replace(
+        "var f=nested(make(wrap(&a),&b))",
+        "var f=nested(nested(make(wrap(&a),&b)))",
+    );
+    zil_analyze::analyze(&typed_source(&double), &Limits::default()).unwrap();
+    let bad = source.replace("a=21", "b=21");
+    assert!(zil_analyze::analyze(&typed_source(&bad), &Limits::default()).is_err());
 }

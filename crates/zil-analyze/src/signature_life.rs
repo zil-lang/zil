@@ -817,12 +817,12 @@ mod tests {
             }],
         };
         assert!(
-            capture_relation(&[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+            capture_relation(&[], &[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
         );
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
-        capture_relation(&[], &[child], &Type::Unit, &contract).unwrap();
+        capture_relation(&[], &[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {
