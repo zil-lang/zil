@@ -51,6 +51,7 @@ header='''//! Complete untrusted CT inventory for dynamic metadata and storage s
 //! Type payloads are edges in the finite metadata Type DAG in this catalogue.
 //! Catalogue membership grants no visibility, trait, provider or borrow right.
 use crate::*;
+use super::{CtStageIdentity, CtStageFacetRequest};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CtDynamicTypeId(pub u32);
