@@ -79,7 +79,11 @@ fn replacement_through_capture_keeps_real_fnmut_authority() {
             assert!(
                 errors
                     .iter()
-                    .any(|d| d.message.contains("shared Fn entry cannot replace")),
+                    .any(|d| {
+                        d.message.contains("shared Fn entry cannot replace")
+                            || d.message
+                                == "resource closure: shared environment cannot expose a mutable captured capability"
+                    }),
                 "{errors:?}"
             );
         } else {

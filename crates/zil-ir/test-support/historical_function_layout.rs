@@ -234,7 +234,9 @@ impl Walk<'_> {
             for _ in 0..5 {
                 self.words()?;
             }
-            insertions.push((insertion, &[1, 0, 0, 0, 0])); // Some(empty).
+            // Unknown callable return life, then known-empty capture sources.
+            // Neither absence is a proof of an empty semantic life domain.
+            insertions.push((insertion, &[0, 1, 0, 0, 0, 0]));
         }
         if self.tag(1)? == 1 {
             self.callable()?;
