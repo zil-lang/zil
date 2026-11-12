@@ -525,6 +525,8 @@ fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
     let mut entries = session.entries.clone();
     let mut stats = ProducerStats::default();
     let mut reuse = Reuse {
+        prior_entries: &session.entries,
+        item_reuse: false,
         entries: &mut entries,
         files: [(FileId(0), ModuleId(0))].into(),
         stats: &mut stats,
