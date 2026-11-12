@@ -57,17 +57,19 @@ pub(super) fn current(
     Ok(out)
 }
 
-pub(super) fn held(value: &Value, state: &State, b: &mut Budget) -> CompileResult<Permission> {
-    if value.environment.is_empty() {
-        let mut out = Permission::default();
-        union(&mut out, &value.held, b)?;
-        return Ok(out);
+pub(super) fn held<'a>(
+    value: &'a Value,
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<std::borrow::Cow<'a, Permission>> {
+    if value.environment.is_empty() || value.pointer.targets.is_empty() {
+        return Ok(std::borrow::Cow::Borrowed(&value.held));
     }
     let mut held = Permission::default();
     for permission in current(value, state, b)?.values() {
         union(&mut held, permission, b)?;
     }
-    Ok(held)
+    Ok(std::borrow::Cow::Owned(held))
 }
 
 pub(super) fn publish(
