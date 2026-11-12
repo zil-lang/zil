@@ -18,8 +18,9 @@ fn attempt(session: &VerifySession) -> Attempt<'_> {
         next_resource_inventory: None,
         delta: None,
         previous_inputs: session.verified.as_ref(),
-        next: BTreeMap::new(),
-        next_empty_borrows: BTreeMap::new(),
+        next: session.flows.clone(),
+        next_empty_borrows: session.empty_borrows.clone(),
+        empty_borrow_phase_entered: false,
         next_shapes: session.shapes.clone(),
         next_inventory: session.inventory.clone(),
         bound_functions: BTreeMap::new(),
@@ -158,10 +159,7 @@ fn changed_holds_keep_error_order_and_failed_proofs_unpublished() {
             assert_eq!(warm_budget.remaining, fresh_budget.remaining);
         }
         oracle(&module, &invalid, &mut session);
-        assert!(Arc::ptr_eq(
-            &session.empty_borrows,
-            &checkpoint.empty_borrows
-        ));
+        assert!(session.empty_borrows.ptr_eq(&checkpoint.empty_borrows));
     }
     oracle(&module, &plan, &mut session);
     assert_eq!(session.stats().empty_borrow_proofs_reused, 2);
@@ -202,7 +200,12 @@ fn raw_source_type_same_id_and_current_global_mode_cannot_use_old_absence() {
         );
         assert_eq!(warm, fresh);
         assert_eq!(warm_budget.remaining, fresh_budget.remaining);
-        assert!(!attempt.next_empty_borrows.contains_key(&FunctionId(0)));
+        assert!(
+            !attempt
+                .next_empty_borrows
+                .get(0)
+                .is_some_and(Option::is_some)
+        );
     }
     // These flags select actual dense-fact consumers. No previous absence
     // proof may suppress them, even when the function allocation is unchanged.
@@ -306,7 +309,7 @@ fn source_absence_does_not_skip_affine_local_loan_work() {
     assert!(session.verified.is_some());
     assert_eq!(session.stats().empty_borrow_proofs_checked, 1);
     assert_eq!(session.stats().empty_borrow_values_avoided, 4);
-    assert!(!session.empty_borrows.contains_key(&FunctionId(0)));
+    assert!(!session.empty_borrows.get(0).is_some_and(Option::is_some));
     oracle(&module, &plan, &mut session);
     assert_eq!(session.stats().empty_borrow_proofs_reused, 1);
     assert_eq!(session.stats().empty_borrow_values_avoided, 4);

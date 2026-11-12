@@ -76,8 +76,9 @@ fn attempt<'a>(
         current_shape_functions: None,
         previous_resource_inventory: session.resource_inventory.as_ref(),
         next_resource_inventory: None,
-        next: BTreeMap::new(),
-        next_empty_borrows: BTreeMap::new(),
+        next: session.flows.clone(),
+        next_empty_borrows: session.empty_borrows.clone(),
+        empty_borrow_phase_entered: false,
         next_shapes: session.shapes.clone(),
         next_inventory: session.inventory.clone(),
         bound_plans: BTreeMap::new(),
@@ -980,4 +981,102 @@ fn foreign_call_span_outside_current_unsafe_region_cannot_reuse_span_free_flow()
     assert_eq!(session.stats().region_functions_checked, 1);
     product(&mut session, &module, &plan, &limits).unwrap();
     assert_eq!(session.stats().region_functions_reused, 1);
+}
+
+#[test]
+fn persistent_receipt_rows_retain_unchanged_owners_and_remove_ineligible_epochs() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let flows = session.flows.clone();
+    let empty = session.empty_borrows.clone();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert!(flows.ptr_eq(&session.flows));
+    assert!(empty.ptr_eq(&session.empty_borrows));
+    let mut changed = module.clone();
+    changed.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(41));
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = changed.fingerprint();
+    verify(&mut session, &changed, &candidate, &limits).unwrap();
+    assert!(!flows.ptr_eq(&session.flows));
+    assert!(Arc::ptr_eq(
+        flows.owner(1).unwrap(),
+        session.flows.owner(1).unwrap()
+    ));
+    assert!(empty.ptr_eq(&session.empty_borrows));
+
+    // A successful dense-facts epoch must not leave empty receipts bound to
+    // its raw inputs merely because they were present in an older epoch.
+    let mut dense = changed.clone();
+    dense.resources.push(ResourceDefinition {
+        name: "UnusedReceiptResource".into(),
+        payload: Type::Record {
+            name: "UnusedReceiptResource".into(),
+            fields: vec![("value".into(), Type::I32)],
+        },
+        teardown: None,
+    });
+    let mut dense_plan = candidate.clone();
+    dense_plan.module_fingerprint = dense.fingerprint();
+    verify_module(dense.clone(), dense_plan.clone(), &dense.target, &limits).unwrap();
+    verify(&mut session, &dense, &dense_plan, &limits).unwrap();
+    assert!(session.empty_borrows.iter().all(Option::is_none));
+    verify(&mut session, &changed, &candidate, &limits).unwrap();
+    assert_eq!(session.stats().empty_borrow_proofs_checked, 2);
+    assert_eq!(session.stats().empty_borrow_proofs_reused, 0);
+
+    let mut foreign = changed.clone();
+    let f = &mut foreign.functions[1];
+    f.foreign = Some(ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "receipt_foreign_epoch".into(),
+        noescape_parameters: vec![],
+        static_callbacks: false,
+        scoped_callback: None,
+    });
+    f.locals.clear();
+    f.values.clear();
+    f.blocks.clear();
+    let mut foreign_plan = candidate.clone();
+    foreign_plan.functions[1].blocks.clear();
+    foreign_plan.functions[1].holds.clear();
+    foreign_plan.module_fingerprint = foreign.fingerprint();
+    verify(&mut session, &foreign, &foreign_plan, &limits).unwrap();
+    assert!(session.flows[1].is_none());
+    assert!(session.lexical[1].is_none());
+    verify(&mut session, &changed, &candidate, &limits).unwrap();
+    assert_eq!(session.stats().function_proofs_checked, 1);
+    assert_eq!(session.stats().function_proofs_reused, 1);
+}
+
+#[test]
+fn complete_persistent_delta_avoids_rebuilding_boolean_binding_maps() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let mut changed = module.clone();
+    changed.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(41));
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(changed),
+        plan: Arc::new(plan),
+    };
+    let mut call = attempt(&session, &current, &limits);
+    for (f, p) in current
+        .module()
+        .functions
+        .iter()
+        .zip(&current.plan().functions)
+    {
+        assert_eq!(
+            call.function_matches(f, &module.target, &limits),
+            f.id == FunctionId(1)
+        );
+        assert!(call.plan_matches(f, p));
+    }
+    assert_eq!(call.bound_functions.len(), 1);
+    assert!(call.bound_plans.is_empty());
 }

@@ -204,7 +204,7 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
     let limits = Limits::default();
     let mut session = VerifySession::new();
     verify(&mut session, &module, &plan, &limits).unwrap();
-    let work = session.flows[&FunctionId(0)].work;
+    let work = session.flows[0].as_ref().unwrap().work;
     assert!(work > 0);
     let function = &module.functions[0];
     let mut definitions = vec![None; function.values.len()];
@@ -246,8 +246,9 @@ fn insufficient_remaining_work_falls_back_at_the_original_check_position() {
         next_resource_inventory: None,
         delta: None,
         previous_inputs: session.verified.as_ref(),
-        next: BTreeMap::new(),
-        next_empty_borrows: BTreeMap::new(),
+        next: session.flows.clone(),
+        next_empty_borrows: session.empty_borrows.clone(),
+        empty_borrow_phase_entered: false,
         next_shapes: session.shapes.clone(),
         next_inventory: session.inventory.clone(),
         bound_plans: BTreeMap::new(),
@@ -349,7 +350,7 @@ fn failed_epoch_does_not_publish_partial_function_proofs_or_replace_bindings() {
     plan.functions[1].blocks[0].initialized_in.push(LocalId(0));
     plan.module_fingerprint = module.fingerprint();
     assert!(verify(&mut session, &module, &plan, &limits).is_err());
-    assert!(Arc::ptr_eq(&session.flows, &checkpoint.flows));
+    assert!(session.flows.ptr_eq(&checkpoint.flows));
     assert!(same_allocations(
         &session.verified.as_ref().unwrap().inputs,
         &checkpoint.verified.as_ref().unwrap().inputs,
