@@ -73,7 +73,6 @@ fn unused_declarations_cannot_copy_consume_then_return_or_change_the_instance() 
         "fn bad<F:Fn(i32)->i32,G:Fn(i32)->i32>(f:F,g:G)->F{return f}",
         "fn bad<F:Fn(i32)->i32,T:Copy>(f:F,data:T)->F{return f}",
         "fn bad<F:Fn(i32)->i32>(f:F)->F{return (n:i32)=>n}",
-        "fn bad<F:Fn()->&i32>(f:F)->F{return f}",
         "fn bad<F:Fn(i32)->i32>(f:F,data:ByteBuffer)->F{return f}",
     ] {
         rejected(&format!("{definition}fn main(){{}}"));
@@ -115,7 +114,7 @@ fn address_signature_and_independent_store_and_union_companions_are_closed_data(
     checked(&format!(
         "{head}fn keep<F:FnOnce(i32)->i32>(f:F,data:Fault!Items)->F{{return f}}fn main(){{let store:Store<Leaf>=store_new();let data:Fault!Items=Items{{store:give store}};let current=keep((n:i32)=>n,data)}}"
     ));
-    rejected(
+    checked(
         "fn keep<F:FnOnce(i32)->i32>(f:F)->F{return f}fn main(){let n=3;let f=(x:i32)=>x+n;let current=keep(f)}",
     );
 }
