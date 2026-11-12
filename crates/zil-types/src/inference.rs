@@ -4508,6 +4508,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     for (index, (argument, wanted)) in
                         arguments[1..].iter().zip(&signature.parameters).enumerate()
                     {
+                        self.budget
+                            .work(signature.callable.len().saturating_add(1), argument.span)?;
+                        if registration::environment(wanted).is_none()
+                            && let Some(bound) = signature
+                                .callable
+                                .iter()
+                                .find(|role| role.index as usize == index)
+                        {
+                            let id =
+                                self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            inputs.push(match helpers::parameter_mode(wanted, &bound.generic_name) {
+                                Some(Some(mutable)) => Term::ClosureAddress(id, mutable),
+                                Some(None) => Term::Closure(id),
+                                None => return Err(unsupported(argument.span,
+                                    "Task failure input requires its actual callable carrier mode")),
+                            });
+                            continue;
+                        }
                         let dynamic = signature
                             .callable
                             .iter()
@@ -4543,7 +4561,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         result: Rc::new(self.known_term(&task, span)?),
                     });
                 }
-                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                for (index, (argument, wanted)) in
+                    arguments[1..].iter().zip(&signature.parameters).enumerate()
+                {
+                    if !signature.callable.is_empty() {
+                        self.budget
+                            .work(signature.callable.len().saturating_add(1), argument.span)?;
+                        if let Some(bound) = signature
+                            .callable
+                            .iter()
+                            .find(|bound| bound.index as usize == index)
+                        {
+                            self.bind_callable_argument(argument, wanted, bound, depth + 1)?;
+                            continue;
+                        }
+                    }
                     let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
                     self.bind_term(&term, wanted, argument.span)?;
                 }

@@ -4185,7 +4185,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
                 let head = self.graph.fresh(VALUE, false);
                 let owner = if matches!(payload, Type::Task { .. }) {
-                    self.reserve_type(&payload, 0, span)?;
+                    self.graph.reserve_type(&payload, 0, span)?;
                     Type::Managed(Box::new(payload))
                 } else {
                     tasks::owner()
