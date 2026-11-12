@@ -118,6 +118,46 @@ pub(super) fn supported_element(ty: &Type) -> bool {
         || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
         || product_element(ty)
         || pod_element(ty)
+        || nested_element(ty)
+}
+
+/// The input tree is finite and paid by the caller's complete snapshot. A
+/// Managed resource is an owner here; a bare resource description is never an
+/// element and is not silently promoted by its enclosing Store.
+pub(super) fn nested_element(ty: &Type) -> bool {
+    fn owner(payload: &Type) -> bool {
+        match payload {
+            Type::ByteBuffer => true,
+            Type::Record { .. } => payload.is_copy_value() && has_storage(payload),
+            Type::OwnedStore { element } => supported_element(element),
+            _ => false,
+        }
+    }
+    fn inline(ty: &Type) -> bool {
+        match ty {
+            Type::Managed(payload) => owner(payload),
+            Type::Package { fields, .. } => {
+                !fields.is_empty()
+                    && fields
+                        .iter()
+                        .all(|(_, field)| field.is_copy_value() || inline(field))
+                    && fields.iter().any(|(_, field)| !field.is_copy_value())
+            }
+            _ => false,
+        }
+    }
+    fn nested(ty: &Type) -> bool {
+        match ty {
+            Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { .. }),
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| nested(field)),
+            _ => false,
+        }
+    }
+    match ty {
+        Type::Managed(payload) => owner(payload),
+        Type::Package { .. } if nested(ty) => inline(ty) && has_storage(ty),
+        _ => false,
+    }
 }
 
 pub(super) fn scalar_element(ty: &Type) -> bool {
@@ -510,6 +550,9 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
+    if matches!(element, Type::Managed(_)) {
+        return format!("@builtin:OwnedStore<owner:{}>", element.fingerprint());
+    }
     if matches!(element, Type::Tuple(_)) {
         return format!("@builtin:OwnedStore<tuple:{}>", element.fingerprint());
     }
@@ -599,6 +642,7 @@ pub(super) fn add_definitions(
                     if !legacy_element(element)
                         && !product_element(element)
                         && !pod_element(element)
+                        && !nested_element(element)
                     {
                         if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                             return Err(unsupported(
@@ -693,7 +737,11 @@ pub(super) fn add_definitions(
         work = work
             .checked_sub(cost.saturating_mul(2).saturating_add(2))
             .ok_or_else(exhausted)?;
-        if !legacy_element(element) && !product_element(element) && !pod_element(element) {
+        if !legacy_element(element)
+            && !product_element(element)
+            && !pod_element(element)
+            && !nested_element(element)
+        {
             if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                 return Err(unsupported(
                     *span,
@@ -732,6 +780,67 @@ pub(super) fn add_definitions(
                 .checked_sub(cost.saturating_add(1))
                 .ok_or_else(exhausted)?;
             found.insert(name, element.clone());
+        }
+    }
+    let mut nested_roots = Vec::new();
+    for element in found.values() {
+        if nested_element(element) {
+            let cost = inference::type_snapshot_work(element, Span::default(), limits)?;
+            work = work
+                .checked_sub(cost.saturating_mul(6))
+                .ok_or_else(exhausted)?;
+            nested_roots.push(element.clone());
+        }
+    }
+    while let Some(root) = nested_roots.pop() {
+        let mut pending = vec![&root];
+        while let Some(ty) = pending.pop() {
+            match ty {
+                Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                    let Type::OwnedStore { element } = payload.as_ref() else {
+                        unreachable!()
+                    };
+                    let cost = inference::type_snapshot_work(element, Span::default(), limits)?;
+                    work = work
+                        .checked_sub(cost.saturating_mul(6).saturating_add(1))
+                        .ok_or_else(exhausted)?;
+                    if !supported_element(element) {
+                        return Err(unsupported(
+                            Span::default(),
+                            "nested Store has an unsupported actual element",
+                        ));
+                    }
+                    if callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
+                        check_callback_captures(
+                            element,
+                            closures,
+                            &mut work,
+                            limits,
+                            Span::default(),
+                        )?;
+                    }
+                    let name = definition_name(element);
+                    work = work
+                        .checked_sub(found.len().saturating_mul(name.len().saturating_add(1)))
+                        .ok_or_else(exhausted)?;
+                    if let Some(previous) = found.get(&name) {
+                        if previous != element.as_ref() {
+                            return Err(error(
+                                "E-OWNED-STORE-TYPE",
+                                Span::default(),
+                                "nested Store canonical element layouts disagree",
+                            ));
+                        }
+                    } else {
+                        found.insert(name, element.as_ref().clone());
+                    }
+                    pending.push(element);
+                }
+                Type::Package { fields, .. } => {
+                    pending.extend(fields.iter().map(|(_, field)| field))
+                }
+                _ => {}
+            }
         }
     }
     for (name, element) in found {

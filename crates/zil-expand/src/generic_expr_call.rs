@@ -306,7 +306,10 @@ impl Engine<'_> {
             )
         }) {
             let name = name.to_owned();
-            if matches!(name.as_str(), "task_create" | "task_create_owned" | "task_await") {
+            if matches!(
+                name.as_str(),
+                "task_create" | "task_create_owned" | "task_await"
+            ) {
                 let Some(first) = arguments.first() else {
                     return Err(error(e.span, "task_create requires a static worker"));
                 };
@@ -417,15 +420,34 @@ impl Engine<'_> {
                 let mut result = TypeRef {
                     span: e.span,
                     kind: TypeKind::Error {
-                        error: Box::new(if name=="task_create_owned" {
-                            let mut inputs=vec![];
+                        error: Box::new(if name == "task_create_owned" {
+                            let mut inputs = vec![];
                             for parameter in &signature.params {
-                                let mut ty=parameter.ty.clone();
-                                if parameter.give {ty=TypeRef{span:e.span,kind:TypeKind::Named{path:vec!["Managed".into()],args:vec![GenericArg::Type(ty)]}};}
+                                let mut ty = parameter.ty.clone();
+                                if parameter.give {
+                                    ty = TypeRef {
+                                        span: e.span,
+                                        kind: TypeKind::Named {
+                                            path: vec!["Managed".into()],
+                                            args: vec![GenericArg::Type(ty)],
+                                        },
+                                    };
+                                }
                                 inputs.push(ty);
                             }
-                            TypeRef{span:e.span,kind:TypeKind::Named{path:vec!["TaskCreateFailure".into()],args:vec![GenericArg::Type(TypeRef{span:e.span,kind:TypeKind::Tuple(inputs)})]}}
-                        }else{named(options::TASK_CREATE_ERROR,e.span)}),
+                            TypeRef {
+                                span: e.span,
+                                kind: TypeKind::Named {
+                                    path: vec!["TaskCreateFailure".into()],
+                                    args: vec![GenericArg::Type(TypeRef {
+                                        span: e.span,
+                                        kind: TypeKind::Tuple(inputs),
+                                    })],
+                                },
+                            }
+                        } else {
+                            named(options::TASK_CREATE_ERROR, e.span)
+                        }),
                         result: Box::new(TypeRef {
                             span: e.span,
                             kind: TypeKind::Named {
@@ -445,12 +467,14 @@ impl Engine<'_> {
                 let mut task = &actual;
                 loop {
                     match &task.kind {
-                        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) => task=inner,
-                        TypeKind::Named { path,args } if path.as_slice()==["Managed"] => {
-                            let [GenericArg::Type(inner)]=args.as_slice() else {break};
-                            task=inner;
+                        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) => task = inner,
+                        TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+                            let [GenericArg::Type(inner)] = args.as_slice() else {
+                                break;
+                            };
+                            task = inner;
                         }
-                        _=>break,
+                        _ => break,
                     }
                 }
                 if let TypeKind::Named { path, args } = &task.kind
@@ -1078,7 +1102,7 @@ impl Engine<'_> {
             let store = self
                 .expr_expected(&mut arguments[0].value, env, None, depth + 1)?
                 .ok_or_else(|| error(span, "Store primitive requires a known Store type"))?;
-            stores::element(&store)
+            stores::described_element(&store)
                 .cloned()
                 .ok_or_else(|| error(span, "Store primitive requires a Store description"))?
         };
