@@ -922,12 +922,27 @@ fn access(
         _ => None,
     };
     if let Some(value) = address {
-        exclusive(state, &physical(f, holds, value, b)?, i, apart, b)?;
+        if f.values[value.0 as usize].is_exclusive_task_head_address() {
+            if matches!(i.kind, InstructionKind::WriteAddress { .. }) {
+                return Err(fail(
+                    i.span,
+                    "whole Task head replacement needs exact frame debt transport",
+                ));
+            }
+            // A Task-slot reborrow preserves its existing frame. Head windows
+            // have their own actual source/parent checker; it does not write
+            // the frame's retained data merely by borrowing the slot.
+        } else {
+            exclusive(state, &physical(f, holds, value, b)?, i, apart, b)?;
+        }
     }
     // Existing addresses can be used after Task construction. Checking only
     // BorrowLocalMut would miss writes through an earlier reference or helper.
     for value in resources::uses(&i.kind) {
         fee(b, 1)?;
+        if f.values[value.0 as usize].is_exclusive_task_head_address() {
+            continue;
+        }
         if matches!(
             &f.values[value.0 as usize],
             Type::Address { mutable: false, .. }
