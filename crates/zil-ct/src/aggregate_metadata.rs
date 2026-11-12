@@ -225,8 +225,9 @@ pub fn preflight_core_metadata(
         if bound.life.is_none() && bound.source_life.is_none() {
             continue;
         }
-        let work = callable_return_metadata_work(bound, limits.max_nodes, limits.max_call_depth, w.work)
-            .ok_or_else(|| quota(Some(function.span)))?;
+        let work =
+            callable_return_metadata_work(bound, limits.max_nodes, limits.max_call_depth, w.work)
+                .ok_or_else(|| quota(Some(function.span)))?;
         w.work = w
             .work
             .checked_sub(work)

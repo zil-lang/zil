@@ -1205,15 +1205,19 @@ pub(super) fn charge_returned_snapshot(
     Ok(())
 }
 fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
-    let work =
-        callable_return_metadata_work(bound, budget.limits.max_nodes, budget.limits.max_call_depth, budget.work)
-            .ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "callable return metadata exceeds bounds",
-                    Some(span),
-                )
-            })?;
+    let work = callable_return_metadata_work(
+        bound,
+        budget.limits.max_nodes,
+        budget.limits.max_call_depth,
+        budget.work,
+    )
+    .ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "callable return metadata exceeds bounds",
+            Some(span),
+        )
+    })?;
     budget.work(work, span)?;
     if let Some(context) = &bound.source_life {
         for formal in &context.parameters {
