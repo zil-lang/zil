@@ -1,0 +1,1734 @@
+{
+  "archive": {
+    "bytes": 10513562,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 10513562,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "462b571112647c2230741ac6471b15e3663e65bc4bf4286e2169d5e736eefa88"
+      }
+    ],
+    "sha256": "462b571112647c2230741ac6471b15e3663e65bc4bf4286e2169d5e736eefa88",
+    "tar_bytes": 44206080
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 931,
+        "mode": 384,
+        "path": "zil-push-main/out/binaries/3ec7e8a960ca69368cd9a90f1a15ac063fec5a02/build-receipt.json",
+        "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f"
+      },
+      {
+        "bytes": 23042160,
+        "mode": 448,
+        "path": "zil-push-main/out/binaries/3ec7e8a960ca69368cd9a90f1a15ac063fec5a02/zil",
+        "sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405"
+      },
+      {
+        "bytes": 113550,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/archive-index-before-dematerialization.original",
+        "sha256": "7023b23a23d43f5a7b1db5fe8b6d3b51e1f0cefeb3fcb55cdffd3ae93ba5ab4d"
+      },
+      {
+        "bytes": 18385,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/archive-materialized-parts-plan.json",
+        "sha256": "c2ee00bd359bb0e4f844fe3a18571968492a69e904f11566d2ec980e041aed6e"
+      },
+      {
+        "bytes": 41439,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/archive-parts-dematerialization.json",
+        "sha256": "c8246a1d9b5419b53be90bf53952ff62521d1fe621d9c10498ada96929102db0"
+      },
+      {
+        "bytes": 820,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/archive-parts-restore-and-fd-scope.json",
+        "sha256": "142f802294fc0536c208c3034a3cf70288f9b68ce32f0b80670dacd1a980a6da"
+      },
+      {
+        "bytes": 5242,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/archive-parts.paths.z",
+        "sha256": "8aa27d3fde6ce745392f13a483803e74e1c7e680faa8daf09fd5c34931513918"
+      },
+      {
+        "bytes": 19161,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/download-cache-retirement.json",
+        "sha256": "01888f9b60d243bbdf057ce3db42f448357f7bd04e59ef39c0d43223bc90c41b"
+      },
+      {
+        "bytes": 2234,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/checkpoint-cleanup-03/restore_archive_parts.py",
+        "sha256": "5712f7f1ade324fa80a9ec96913d83e8233a95c0d959ba9ee2761eb6be44a91b"
+      },
+      {
+        "bytes": 1494,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/archive-scope.json",
+        "sha256": "8281467eb236dea5605752e2a92bcbf63bf9ae8c45d0ebcc3f0a042878fc0f97"
+      },
+      {
+        "bytes": 27458,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/fixed-source-04a/crates/zil-llvm-api/src/native/products.rs",
+        "sha256": "e7c9478788c516602510f7b79f4efa04b0ac8f3ecb3b64c5eff6f355754d0955"
+      },
+      {
+        "bytes": 82712,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/ConstantRange.cpp",
+        "sha256": "7e1a386e7071e7c22f5174a49204807d410e8d0d250626058507b6dfc424c01b"
+      },
+      {
+        "bytes": 49534,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/CorrelatedValuePropagation.cpp",
+        "sha256": "fd5b3340c47231751ea816f6468888b28063eb59cc61a6c7054e627edbe7c8f5"
+      },
+      {
+        "bytes": 215231,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/InstCombineCalls.cpp",
+        "sha256": "6f8a9415dbde4400573b7236cd685c370eac387e3d8298484c583de905f25b96"
+      },
+      {
+        "bytes": 102550,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/InstCombineMulDivRem.cpp",
+        "sha256": "e7804436263828924b4b89d092d254885e63b3936208efc46a187dda3f6ecc88"
+      },
+      {
+        "bytes": 249354,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/InstructionCombining.cpp",
+        "sha256": "9df7af07a0cf705ad952e6364103103157e46870253e33bad437e38295da076e"
+      },
+      {
+        "bytes": 91791,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/LazyValueInfo.cpp",
+        "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7"
+      },
+      {
+        "bytes": 5407,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/README.md",
+        "sha256": "8e431d9716c0de92b0f3fe2c1f2f901804c9c5d68bf5da2ca95404ac7a337e21"
+      },
+      {
+        "bytes": 406573,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/ValueTracking.cpp",
+        "sha256": "30f10ffa118a63a512ae33633c92c946c0ff94c1dc23da2fca7feb3520d6ce19"
+      },
+      {
+        "bytes": 348529,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/closed-fn256.disassembly.txt",
+        "sha256": "a1c542d23382ba203c0a99fdd7cd9cb0fa1675f7c2449613f753dd871ae2e671"
+      },
+      {
+        "bytes": 348909,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/closed-fn361.disassembly.txt",
+        "sha256": "d8cc1b1e197a978207e4de021b28551c5607a256d2806a1bd57bcb7f8b8ad316"
+      },
+      {
+        "bytes": 6856735,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/closed.disassembly.txt",
+        "sha256": "f1b5e8f32c345ea1e88fa01723e0402d7ada6e58b2d3e9f7898e8954c24c9911"
+      },
+      {
+        "bytes": 59320,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/closed.function-inventory.json",
+        "sha256": "bc3fdc99fb83808463b33e998eb191a31f8e4d711b28a57c559d241b07c06c67"
+      },
+      {
+        "bytes": 7230169,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/default.disassembly.txt",
+        "sha256": "a9436849e3d51e3a2042ca178457e76771ad4a892cf9750c98ab6c2eb7cc1d08"
+      },
+      {
+        "bytes": 223285,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/default.function-inventory.json",
+        "sha256": "1d31997577ed3f2933fa61e7976dacd57dabc725f937b0e783eb55f8105a97be"
+      },
+      {
+        "bytes": 81346,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/existing-products.json",
+        "sha256": "f12dc701981520e0d9b45c1f634876fa7ee73aa8dcf762e99a3fa68386678058"
+      },
+      {
+        "bytes": 2345,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/inspect_existing.py",
+        "sha256": "f5fc061854531059dbb506fcf6ba737664875145e1d29f459fe0f6f1848573b6"
+      },
+      {
+        "bytes": 2268,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/manifest.json",
+        "sha256": "cd37115b829b087cadf273871c9f4fbed96ad15512659cdbc288155c1ca3d8a5"
+      },
+      {
+        "bytes": 245535,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/range-audit/repro-default.json",
+        "sha256": "342369ac1209d4a3f14f65882814069f9c4ced93b71227be8893732ba1dda658"
+      },
+      {
+        "bytes": 7481,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/review/astra-native-panorama-review.json",
+        "sha256": "0c76852217934b8365c649501dfb150733c8316a800812fe0b261578feeaf2e3"
+      },
+      {
+        "bytes": 17211,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/review/astra-native-panorama-review.md",
+        "sha256": "05c39c27e30dada16c337b9594266545849661766807366151396497e64fa8e8"
+      },
+      {
+        "bytes": 7844,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/review/full-push-spill-frame-pre-review.json",
+        "sha256": "7ce271eb44d483d224000597dc268fd51bc94f026d7a1b9b2cb57fba6834e4d1"
+      },
+      {
+        "bytes": 14075,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/review/full-push-spill-frame-review-addendum.json",
+        "sha256": "9008aadad714ba0824b429ba6f7f606406019156a9cbc4b98a45a7e42dbfc215"
+      },
+      {
+        "bytes": 1871,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/source-04a-feature-getters-fix.patch",
+        "sha256": "9ef2a917aa6b25f51898528e341076dbf86f1ee06af5da964274f7a6bb0b15c3"
+      },
+      {
+        "bytes": 1415,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/source-bindings.json",
+        "sha256": "9b34ec5045b529bdfe5f3613d79ed5a3625c9592a0a34e40cb6ad80cc8d79b25"
+      },
+      {
+        "bytes": 6357,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/full-push-checkpoint-07/staged-files.json",
+        "sha256": "c856fb512318e6438e9d40effe9c1f8d45144b54c532eadaabf3f818f6589e53"
+      },
+      {
+        "bytes": 2144,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/analysis-summary.json",
+        "sha256": "10c1a9e5beaaebeb32f21d1441432e0bd9f1aa9726f4ce3bc08b0becf48a1793"
+      },
+      {
+        "bytes": 5775,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/analyze_trace.py",
+        "sha256": "47ff2a77da93f074369bfe1fbf4adfe888473f9c42b4ef2cdbadf3c6840b6961"
+      },
+      {
+        "bytes": 715,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/followup-files.json",
+        "sha256": "cddbafac4c8454ed52b9b3a92b689de11f7d5ac112aba4510316fffdbc252a2a"
+      },
+      {
+        "bytes": 348,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/bazel.json",
+        "sha256": "b3c6fa3e92f15c5a26344607015a64d02af379d746d6aba4eb7877e0a59abd4a"
+      },
+      {
+        "bytes": 10048,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/bazel.source",
+        "sha256": "755549848a7b126331a9eb4123b0da0a665ab4b4452765deff23f02eae1f5908"
+      },
+      {
+        "bytes": 316,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/fsatrace.json",
+        "sha256": "b409c7656a9f1b85a2ed26878822a0dfacd8919788a383bad4297dbf4a022f6b"
+      },
+      {
+        "bytes": 2040,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/fsatrace.source",
+        "sha256": "ca273ff8899b81b51fec9d3659c6a3b26c2ba9213e57ab1edca8197c03950df6"
+      },
+      {
+        "bytes": 336,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/ninja.json",
+        "sha256": "a7b92f38486378aab2b062f144335185f5033c7b4016b5286e38e75ac806dfb9"
+      },
+      {
+        "bytes": 48695,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/industry/ninja.source",
+        "sha256": "899c7ad57db585e20b3761a3a87c9ccd0aef3f157fdabd13a90fdbc296b5516f"
+      },
+      {
+        "bytes": 11716,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/investigation-report.md",
+        "sha256": "b6d2a1c689529eca97405cbf581292948091e0525f6d6675fdb6976ec753c416"
+      },
+      {
+        "bytes": 38623,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/link_cache-measured-5bf.rs",
+        "sha256": "dd55b4e4a4a5ae069a3da1808c2b6bf5605d94c46474790c52c4e86eacfddb79"
+      },
+      {
+        "bytes": 339,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/post-trace-directory-snapshots.json",
+        "sha256": "bb7b27f8a553195cd8ef3538b44c940a93cf072e225ea3f072fddb7530f25790"
+      },
+      {
+        "bytes": 81107,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-0.analysis.json",
+        "sha256": "694c5f83ca3ddfdfbb45914d7646c60f764ae51d8562f7bd765af8bf1de60f2e"
+      },
+      {
+        "bytes": 2251,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-0.stderr",
+        "sha256": "d2ee4d0e903d2e7e41da71173a5f3365c806becb97d3e8968b8f3288fae422a9"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 174840,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-0.strace",
+        "sha256": "9cce48e9b8632066da9d201abd5aa4f5a9586f601a3bc8698f63130986891002"
+      },
+      {
+        "bytes": 20068,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-0.summary.json",
+        "sha256": "80ff3462cc44cef1c997692b18f1520743f8977316dad8057db02beef980d8fb"
+      },
+      {
+        "bytes": 34045,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-1.analysis.json",
+        "sha256": "9e4e0cb8b814dd881d4ad051608748d4455eb72e78497bc2d695fb6e22f8f891"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-1.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 441,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-1.stdout",
+        "sha256": "baa7a5880e29a4aa1979679330637d9e4863a4c5656e6a9535df468bd438fed7"
+      },
+      {
+        "bytes": 56531,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-1.strace",
+        "sha256": "9c1967fce4a38093088d577377c1d07a7725c669c83f1c42b363ff286b920653"
+      },
+      {
+        "bytes": 9075,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-1.summary.json",
+        "sha256": "2c3b15737005efc7c1af1709b253c7bd95c8e1e30b7851c8eeab273e4575f2c9"
+      },
+      {
+        "bytes": 26524,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-2.analysis.json",
+        "sha256": "5020cc144939d59bed44d9721fd9dea26dce2d85a6fe8b71f4d136a8406eebf7"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-2.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 613,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-2.stdout",
+        "sha256": "fbb8857a3c51fd447ba0685f899786931665518246bbde0e51c70a9144eb74f7"
+      },
+      {
+        "bytes": 54801,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-2.strace",
+        "sha256": "efbdd3864679f733d5838552dba319d2f0258841990d8628f8ad015664577105"
+      },
+      {
+        "bytes": 6913,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-2.summary.json",
+        "sha256": "4da6bcd75037ad748fd0352ad6250574f9c89eeca6506bb34c073b616b8d04e0"
+      },
+      {
+        "bytes": 12466,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-3.analysis.json",
+        "sha256": "a37fb8ce72150400e1e0417cd04e4cf7fe570ea44f90df8ded2078149afa1100"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 11386,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-3.stdout",
+        "sha256": "58ede3320d79404b65e9deb2f9c1efbe7ef9d5f65d83ec364b56ede03c425832"
+      },
+      {
+        "bytes": 11060,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-3.strace",
+        "sha256": "69918f57ae5deb7a63c13197e1d9f1c883c5375323422fb5af3920c1c8af9013"
+      },
+      {
+        "bytes": 3722,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/probe-3.summary.json",
+        "sha256": "ba8fc35ae27376fcb7003fd1f63e1e49bdfe6045c15a7db4a4f52985fbe8a2bc"
+      },
+      {
+        "bytes": 33031,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/receipt.json",
+        "sha256": "c429fae7004d3d4749fbfe0c2a23db29bc70d34db01ca92ceeb0f1b367f31e2b"
+      },
+      {
+        "bytes": 29552,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-0.o",
+        "sha256": "839dcb2d4d9a2e56bb2c7219cd0dd4a0461899a31f2979ee4008104bf4b67bda"
+      },
+      {
+        "bytes": 26864,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-1.o",
+        "sha256": "d77bc6d92e2504b36c24350290c21b047869dd87f259bfce97a67f017db6d6f2"
+      },
+      {
+        "bytes": 26672,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-10.o",
+        "sha256": "b9217ee476beacc082e5e2232d244f531687afb467ff09e2f65d505523f40917"
+      },
+      {
+        "bytes": 26656,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-11.o",
+        "sha256": "b54a79e3ee8a50a99d2ad15d425e67904bd1e2299711dfecc75aef790516d2d7"
+      },
+      {
+        "bytes": 26672,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-12.o",
+        "sha256": "2ae3d875e71b06dd5aa9fe352f35c0c00849ebba80d53f3487eed552bf17bd7a"
+      },
+      {
+        "bytes": 26672,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-13.o",
+        "sha256": "f162744407e09aa6be764368ca525aab3ef2bea2c2ac39a17b5845459abc7015"
+      },
+      {
+        "bytes": 26688,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-14.o",
+        "sha256": "bdd8c4a90adcdc8a89d0e6299cf48e67e3612a93e871eb7395f78d00285744bd"
+      },
+      {
+        "bytes": 26672,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-15.o",
+        "sha256": "78a19ef1a25af4ebbb39351b9b72ed630e3cd88e05c45f702f71fca07bf65023"
+      },
+      {
+        "bytes": 52744,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-2.o",
+        "sha256": "c20bdb786462ae5a7f820843d55624463e3a74611c34d6942c52530dd3919566"
+      },
+      {
+        "bytes": 52808,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-3.o",
+        "sha256": "3726eec835e7259c7153b2e982b6ff242c72fdca5183311e0ca228f08d0bf769"
+      },
+      {
+        "bytes": 52760,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-4.o",
+        "sha256": "0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef"
+      },
+      {
+        "bytes": 52776,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-5.o",
+        "sha256": "39b8411e293969621eaeafe18331e42f149bdc3599032047b8181bd8b1e0a588"
+      },
+      {
+        "bytes": 26680,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-6.o",
+        "sha256": "5345c4e92a48a2b39e81f9a560702ca1795ff01275448d998028f06e297608d9"
+      },
+      {
+        "bytes": 26656,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-7.o",
+        "sha256": "825d7544d55da5a2bfe7bb0d7792f01d37918522b4b34ce3499552a67decdef9"
+      },
+      {
+        "bytes": 26672,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-8.o",
+        "sha256": "9c5b9f71219efdfaeafb1abd99d9201f3c9c0326fcb3211fc38b2af55e52bcd8"
+      },
+      {
+        "bytes": 26656,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/slots/unit-9.o",
+        "sha256": "638117f013be0485bcdfbc36984a7209af7696313f792b69ad2757ffbf5b8ac2"
+      },
+      {
+        "bytes": 692,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/supplemental-identities.json",
+        "sha256": "da023aed1d22c473dc56636359307a611aba7b29a77428600e234c44b5e32ee7"
+      },
+      {
+        "bytes": 1622,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/test_trace.py",
+        "sha256": "ee888bba09bce6310dae6b48cb1d4626989aea633dc9b6c70d748733c2af78ee"
+      },
+      {
+        "bytes": 9474,
+        "mode": 384,
+        "path": "zil-push-main/out/evidence/link-probe-syscalls-01/trace_probes.py",
+        "sha256": "faae9b3d96f21f1e2d5934a90c6b232f7faf8d5c5d530cc57dbf6f8d60aca18f"
+      },
+      {
+        "bytes": 5762,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-https-restore-01.json",
+        "sha256": "c65c39194a622a0cabfaa1711c5b3433ac23585027420f56a8bd1198f08a4af0"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-pack-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 297,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-pack-01.log",
+        "sha256": "f7d3bb7aa1820156e0ddd0cadf59848fc915a26e8a6189b4a17f261376637c6f"
+      },
+      {
+        "bytes": 5583,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-pack-command-01.json",
+        "sha256": "89497b919c53c0e24f46b72e05ae8488631ddd70dab33f2f0de84af2165b9a39"
+      },
+      {
+        "bytes": 523,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-push-01.json",
+        "sha256": "3727b4f8576cf296fa1333740255634f1af4243da2b17205c208c4d91fb3d0c0"
+      },
+      {
+        "bytes": 1887,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-push-01.log",
+        "sha256": "6e071981563fb62c21fd1ab7793252eb99aa3bb20db8674618cd6c7d9fea33cc"
+      },
+      {
+        "bytes": 3493,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-archive-v10-recovery-01.json",
+        "sha256": "2b793d9a32c026f75aa25ecd772a06bfe04d40530c92674d9e005f729866bae4"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-03.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 217,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-03.json",
+        "sha256": "e74e808a3f97426458c0658b68c34aba114b85596580d0a6b6a3367beeb3a493"
+      },
+      {
+        "bytes": 2464,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-03.log",
+        "sha256": "995f9f05ed78422a7defb7170edc7b769c751d7cbd7e82b10e3e66093c9d40f2"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-04.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 579,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-04.log",
+        "sha256": "72807754cbcff1caedbc206389ddb6d028fe7a0ccec50e0bde9e8ffac57ac911"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-05.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-format-05.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-06.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 315,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-06.json",
+        "sha256": "9f43bea6dfae92335e4894c8184690ee463eaec200327b2e6a67876b3ac31d29"
+      },
+      {
+        "bytes": 663,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-06.log",
+        "sha256": "e0808f2b5c2e9d89cf6755538007aefaec982775b4ba25edc25dfeb64c7907a9"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-07.exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 346,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-07.json",
+        "sha256": "3bd02f694ab3872ea3ff64d76e6aefb09def51b8294081a56be469c398655fc4"
+      },
+      {
+        "bytes": 1610,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-clippy-07.log",
+        "sha256": "bc6a691475fb778c5aa36e9c15259279b3f13de0e780999b8046c28b634593c8"
+      },
+      {
+        "bytes": 501,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-recovered-summary.json",
+        "sha256": "57548f49280e18fbfcb7ce454d857d7200ceb93df5bd5d989d2de097af5f9400"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 2835,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01.log",
+        "sha256": "42c4fe4cbba3b91dad5f416e2ae39276f246fbe6773638eb1b6295b27dc9305f"
+      },
+      {
+        "bytes": 150,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-doc/command.json",
+        "sha256": "fde3cd5abcf62cc66ef8db1ea805368751a2416fc0313c8953edea135de326a1"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-doc/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 85,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-doc/stderr.log",
+        "sha256": "1edb3a61531631a592c244c9ccc94f00770d83b6999d71cee179cbf896f86671"
+      },
+      {
+        "bytes": 20281,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-doc/stdout.log",
+        "sha256": "ab853028dd4e99be1fbcbe930640b8c65b0256f27b787813127f5d999c7fe246"
+      },
+      {
+        "bytes": 635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-300/command.json",
+        "sha256": "3d407cfbc1a4cdf6095ab83a25c3b169df309e0edd95f3fa6367d948fb734c43"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-300/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1353,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-300/stderr.log",
+        "sha256": "a53656c17062713b1d83915dff39bc589493fa6564ada805602166df1245ad95"
+      },
+      {
+        "bytes": 36737,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-300/stdout.log",
+        "sha256": "e3c4aec879345a9fbea66f34edb9c31c0543e8f75287acf7615fea8c87f48545"
+      },
+      {
+        "bytes": 695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-312/command.json",
+        "sha256": "c64375321c59bdabf91e7e170a03c60e5b0f5960e4b5e13de8c6ccbfa04b1c6c"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-312/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1549,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-312/stderr.log",
+        "sha256": "1558f3e40f0a63193fab143e4874376ab2a11712e2d6979e317457fa7877e497"
+      },
+      {
+        "bytes": 43589,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-312/stdout.log",
+        "sha256": "11cd8bf0d2bcfa3bf318c9c9f5f7839295c73702e6c86fb8d3b6ca5dfddb7de8"
+      },
+      {
+        "bytes": 708,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-324/command.json",
+        "sha256": "88183026549071cf2a06e009a99720c3147c807240590258cc08dbce0f514563"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-324/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1575,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-324/stderr.log",
+        "sha256": "4ab6d3cc0ebb3eec550dee790cc8fb049a5ae8d456dc0f07e497f4840e050ac6"
+      },
+      {
+        "bytes": 36402,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-324/stdout.log",
+        "sha256": "9028cf7e61066d643e2ef15e5ecb5bba96ac0017632d7d213d4f7fbbb1f69650"
+      },
+      {
+        "bytes": 186,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-336/command.json",
+        "sha256": "4693462964d3c3c5568e17d3cd1968e54c8ee414263e8edc22b07511f1d7250e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-336/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 256,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-336/stderr.log",
+        "sha256": "b54ff3ab7669c3f35bf03e229e1fb9cbab02d4fadbff9ca40a49030fc2c98066"
+      },
+      {
+        "bytes": 25228,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/driver-integrations-336/stdout.log",
+        "sha256": "669208bd0ccbb007b95025745928652035524b3b96afafca89bda55049879a8f"
+      },
+      {
+        "bytes": 128888,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/plan.json",
+        "sha256": "d921ef3143dd0a8b9235385625f98bd50994d7a2eef7371d8ab8f3cf7a975a86"
+      },
+      {
+        "bytes": 248246,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/receipt.json",
+        "sha256": "971518eacafac5271efed2bc9f9a8ee4e4ef3fbdbeed52516af2f8fb51ee2847"
+      },
+      {
+        "bytes": 8798,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/workspace_tests.py",
+        "sha256": "f3d3310b5602469a046c785fd5596ddb9470a268684e3c8bb0e63cb39d2fed03"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      },
+      {
+        "bytes": 2902,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03.log",
+        "sha256": "ba26f0284f9d5e53633a5c38c34d6e896fe4a469270dd8136c1ed846ee7337b6"
+      },
+      {
+        "bytes": 169,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-examples/command.json",
+        "sha256": "6c07a5196397dce9099723d16510a7c8c52aa9aba4947a198fb596d7da48bbea"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-examples/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 137,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-examples/stderr.log",
+        "sha256": "0486a43b43ac815f8aa8331cfe84b5d2f9bb838a8f8360d9f9d4b603e3296f8a"
+      },
+      {
+        "bytes": 21628,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-examples/stdout.log",
+        "sha256": "b8825532a25bafd473d9205a0fd06b3b5d71dfd24b7cfbd187dfa3d82d8d907a"
+      },
+      {
+        "bytes": 658,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-000/command.json",
+        "sha256": "abe10ca3253ad9a270b27386a2d4863701715a0224ba0161e7bb934d0d1f97b2"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-000/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1475,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-000/stderr.log",
+        "sha256": "69afea599bf385196d7de7328505c7ca0f14059c992c071510fe26370f01d942"
+      },
+      {
+        "bytes": 74198,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-000/stdout.log",
+        "sha256": "02891c048b23bab57b855631a5fdec9ea97ad4420ac2dafb300b20fd67afbe49"
+      },
+      {
+        "bytes": 747,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-012/command.json",
+        "sha256": "4afe3fc8b6659944c07437087dd34bcfc9e6f3382bc6933a1ae835bc08c2f7a7"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-012/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1653,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-012/stderr.log",
+        "sha256": "007a25dabacb84f00972e9ca27b0891c80e731c06a5afe00a60ac06b05f226dc"
+      },
+      {
+        "bytes": 39033,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-012/stdout.log",
+        "sha256": "43f9b82db4aa75bc0a75cb897720f0eab4b55dff4e8f1d57c9d395786c88d425"
+      },
+      {
+        "bytes": 700,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-024/command.json",
+        "sha256": "e026e5c3f50c3be5d8b6ace485f6720306e40805dbe7c147c4bef93de13cc198"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-024/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1559,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-024/stderr.log",
+        "sha256": "22b2c023e0f81f617070c2c281d90100bf46280384ad381d3854d3996d88a7f5"
+      },
+      {
+        "bytes": 40863,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-024/stdout.log",
+        "sha256": "8f828b2a9d213da68789284269ac837c4d1fb491ec2ba425bca7bf6d72ca5015"
+      },
+      {
+        "bytes": 791,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-036/command.json",
+        "sha256": "50d52aa30e8fd3834bbb9cb499e11cfcad365bbc2aabc3a3a242f821221cf0ed"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-036/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1741,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-036/stderr.log",
+        "sha256": "91b93fbcdf196889e813b931707e21ff3ed5937eb56c782353b8d3b05bdbbc4c"
+      },
+      {
+        "bytes": 40224,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-036/stdout.log",
+        "sha256": "f65fa7749d03cf7a0c83db49e6eb58a7532767eb8fbd9d9f131f307d9067b486"
+      },
+      {
+        "bytes": 702,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-048/command.json",
+        "sha256": "6eb45500007f520768a44c29cb9198c2de5348f89226f7e88d7fe5f663077c75"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-048/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1563,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-048/stderr.log",
+        "sha256": "5571f8dfba39918ea50d120334dfcc7b32f8246207b3c76bfb449f4871171d8f"
+      },
+      {
+        "bytes": 49806,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-048/stdout.log",
+        "sha256": "670df2ac5bcbd1ff56cc90bbd492f198a48ae94b0cc94b11bc1c6212c757eb94"
+      },
+      {
+        "bytes": 696,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-060/command.json",
+        "sha256": "e8abf8131d3d7f38f72175a5cee3613d07f6903caf9e66f94ea04aefa59ebe9f"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-060/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1551,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-060/stderr.log",
+        "sha256": "f3b6b1d54ab8b09c27a59801ef9a3573b1ff3b9767e59fb1a195fba6e3604ee9"
+      },
+      {
+        "bytes": 41813,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-060/stdout.log",
+        "sha256": "7e7cf7173b35c697c60995fb367470704121ac49e699508c7fec071e6011569b"
+      },
+      {
+        "bytes": 713,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-072/command.json",
+        "sha256": "1b144a6fc6affa878090c695acf5fa1c3009946adecf8615a05f76d8dced2b23"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-072/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1585,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-072/stderr.log",
+        "sha256": "6eb33d7ad233ed3989054373b5290e8d460b9a2d32caa88055114ec77679b32b"
+      },
+      {
+        "bytes": 40019,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-072/stdout.log",
+        "sha256": "b74b98af6206ed6eb9a17c988de5437e1bbc819837250cf168f121028cd0a90a"
+      },
+      {
+        "bytes": 715,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-084/command.json",
+        "sha256": "4d78ee69d0047fa9666dd17481fed93a3155c49789fb22449c7712ce99a70b92"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-084/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1589,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-084/stderr.log",
+        "sha256": "41ae19cab75e2ad69f65492177a654db5b90e247ea3239bec63fe2f2e49662da"
+      },
+      {
+        "bytes": 36360,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-084/stdout.log",
+        "sha256": "794d46f9d3810132136f3b5db7bff440c82329bc656c2dfd2d4d0c63e4b2b0a5"
+      },
+      {
+        "bytes": 726,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-096/command.json",
+        "sha256": "ea13e01143275fabc27ae1d23ba253333aebf250719e7a691587666ffd12654e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-096/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1611,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-096/stderr.log",
+        "sha256": "03057d7edf1e249e560ffe7d43248a620d89ed73cf79bb7f9c75e204fbbface5"
+      },
+      {
+        "bytes": 35185,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-096/stdout.log",
+        "sha256": "689f962b396da4126c51dfde6b54efd6f4df6549f9b8366bb1ef0704aca3ccd8"
+      },
+      {
+        "bytes": 782,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-108/command.json",
+        "sha256": "8f7a25d83acefa53f3773e644727f25a5b40d52be6bb136048ca057122092ab9"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-108/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1723,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-108/stderr.log",
+        "sha256": "0fd44cfc86fce896c9bd08f35f547dc65dcdf09904968beb4a175dfea8154e07"
+      },
+      {
+        "bytes": 37513,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-108/stdout.log",
+        "sha256": "61b6caaaf9ac11080d099b2f850d9744da6401494586f5976bc8f4b8896383dd"
+      },
+      {
+        "bytes": 710,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-120/command.json",
+        "sha256": "86a1de3dc0c085be46b7d3c04e806fb553fc7bbc0fe701d7d89f31774f39f238"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-120/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1579,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-120/stderr.log",
+        "sha256": "ae6d2b0d11e31fab44b6edcb328c30baa9fbeef8ab49be3572451413baf532d6"
+      },
+      {
+        "bytes": 55980,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-120/stdout.log",
+        "sha256": "4af671ed96845328ccfbc61bc627305cd2377163f89e57aef1252272b3e82d4c"
+      },
+      {
+        "bytes": 655,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-132/command.json",
+        "sha256": "3b83d81cfd39387949c50184c409849289de784163ea3d0f93738eb4ba4e37d0"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-132/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1469,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-132/stderr.log",
+        "sha256": "4dde6bde1a23a7840d66d89fb9686e5bdc56dc6afada4aabcff554c273c73368"
+      },
+      {
+        "bytes": 40557,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-132/stdout.log",
+        "sha256": "8b20b82f96c998271275322cfbceb7bafa75936948484836329651a0b88452cf"
+      },
+      {
+        "bytes": 727,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-144/command.json",
+        "sha256": "0840eff5449b2afe6e258a35a04132bbbf34eaa5b01b86a9a015dbb38b04affd"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-144/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1613,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-144/stderr.log",
+        "sha256": "5625c8ae1e920847744133b4b2cd71fe6e85a9aac613b4f35d64fbf2f1970a7a"
+      },
+      {
+        "bytes": 39874,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-144/stdout.log",
+        "sha256": "3f7ca76939cadbb5bc1d7346700ad804f7401621fa16b42d8c3c41f76780aa7b"
+      },
+      {
+        "bytes": 739,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-156/command.json",
+        "sha256": "69a7cfec021f15474842a70adc91dbb8376b68b6b3a0f81915cc7ea24a4d4b87"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-156/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1637,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-156/stderr.log",
+        "sha256": "36f5d527d937116416d91373d5778f7bcd2f542abb24ebb03a20eec55beb50a9"
+      },
+      {
+        "bytes": 38899,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-156/stdout.log",
+        "sha256": "c62fe40d6dd5917b84d5ea9cd87c29bb0a40f22a28a940dff36d1ba26d8cd063"
+      },
+      {
+        "bytes": 685,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-168/command.json",
+        "sha256": "b28762be782a7174736bb9b3965c2584cbd335fb7f78d2795f7dfb6fe041be99"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-168/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1529,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-168/stderr.log",
+        "sha256": "9d031511cb9bce28d3d548048c41a5c95568929c6b5ecf68cdb118758e7e2574"
+      },
+      {
+        "bytes": 38695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-168/stdout.log",
+        "sha256": "223f9c2c66b28f5f065f9cdbe49a6b5815d0409cfcae5c0cd37cfdd7a108574a"
+      },
+      {
+        "bytes": 705,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-180/command.json",
+        "sha256": "aa2bd50e06f97000b4c0f802cb1a776d2ea506e9861afb228f1a6663349e8121"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-180/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1569,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-180/stderr.log",
+        "sha256": "a92b04bcdd970ce3a4b47dc98588d0c9fdfbac43c8b309f7b0660526aee00355"
+      },
+      {
+        "bytes": 61007,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-180/stdout.log",
+        "sha256": "53c822fb22a24c65d7fb21a5dd8446f15f2823e9c0d864fa169e77a2ae0bb3b1"
+      },
+      {
+        "bytes": 751,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-192/command.json",
+        "sha256": "b0d18b6b4f87bc7e193ec8f4a55e9af2a816c913c77202323db42f2988e3330b"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-192/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1661,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-192/stderr.log",
+        "sha256": "694291ea83c4971f137ba532634e52f41841ebf727674833d5d9ccf174f9a1cd"
+      },
+      {
+        "bytes": 40165,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-192/stdout.log",
+        "sha256": "be7b8b61eef99b5884757e243b04a7036e8c437f9f674e8fab61a53cc1da9d4c"
+      },
+      {
+        "bytes": 745,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-204/command.json",
+        "sha256": "aa96d0339480dd794428fe126df08841dcd6104050fa0ed8d910dfa4b5286a80"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-204/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1649,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-204/stderr.log",
+        "sha256": "4e15274cd96b7179484acdcab9fad8e0a4ad270ba6a6d446f695c3119ff1f5c5"
+      },
+      {
+        "bytes": 42400,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-204/stdout.log",
+        "sha256": "94f10aff93d61b412c3475b528d1fb218c66515a3daff44414a5f0711e95cceb"
+      },
+      {
+        "bytes": 716,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-216/command.json",
+        "sha256": "37b64e355a137b9386e704dd264e012bd7e2ede399989047f0f83ee88068617e"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-216/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1591,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-216/stderr.log",
+        "sha256": "b527ebd687d8f7b063801ec0a43761750e354bff37c4f20d6bc0a9463970c210"
+      },
+      {
+        "bytes": 37630,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-216/stdout.log",
+        "sha256": "f4f6369818e6c6931f8565fd26e3eab6f0b2610c7bb709d85af960f93274e0c3"
+      },
+      {
+        "bytes": 731,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-228/command.json",
+        "sha256": "c2a29b0b3502815eea450df0618da7bcffa600ad9ae3fc36a93d09bf906e3a4d"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-228/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1621,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-228/stderr.log",
+        "sha256": "19d172abd553c7f402d86a47d586d5ea5ab93afe498cac8dd6579307dd04c139"
+      },
+      {
+        "bytes": 37683,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-228/stdout.log",
+        "sha256": "29c7147637b4c4572b044f0907ef6636222d76418fe137ae35d17d2c7ff17a64"
+      },
+      {
+        "bytes": 773,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-240/command.json",
+        "sha256": "b8a89f03df4a4cb7002ce0b5804e75d78133a7754dacb0b42b0c7b7db7210d49"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-240/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1705,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-240/stderr.log",
+        "sha256": "2f5d58d5bae219f8ef7468418b99fbe7c6d8dbd1808866e783bb01c7c0b55a19"
+      },
+      {
+        "bytes": 41582,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-240/stdout.log",
+        "sha256": "359910dce6d2ceeda31963bf54255acc451265ba31fb978752fb4ab308938f81"
+      },
+      {
+        "bytes": 746,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-252/command.json",
+        "sha256": "468a40332dceaa51d8d9423c354d6639d22ee0dbcfe424324ec54f1773729504"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-252/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1651,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-252/stderr.log",
+        "sha256": "1e984e76b7e151e01cba98ebb3902c408deddae0ec6946f4fcb7c669f8ad5117"
+      },
+      {
+        "bytes": 35957,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-252/stdout.log",
+        "sha256": "ad713de31c514e9a66c891d736f1a207e4968fb30b0f136e4181d837fdd9f491"
+      },
+      {
+        "bytes": 668,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-264/command.json",
+        "sha256": "1404b5d5581c77718588dd53f408db2d024c8304e0abde0d645eb7a04e2ef8b8"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-264/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1495,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-264/stderr.log",
+        "sha256": "f77c85d9740429e6df4b6f9fc207fec572d7f13e234b620a81b5c40efa8980ad"
+      },
+      {
+        "bytes": 40578,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-264/stdout.log",
+        "sha256": "50af13fc47ae599d7a0f6bdf7cea125f41cba900e8be6b11f722355e6b80dfcc"
+      },
+      {
+        "bytes": 644,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-276/command.json",
+        "sha256": "fed28b334c5a4ada3c3848507f759e47bc7f3f80d0710fa6be5f2ba2c2bc5ace"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-276/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1447,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-276/stderr.log",
+        "sha256": "eaadc3e68aa5c5a8c746994158a9e1f68dbba0e8195326b3a10ad5042daf0e9d"
+      },
+      {
+        "bytes": 37924,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-276/stdout.log",
+        "sha256": "ea4d5828c7fb5fa28d06b1fec25928e2434e85bc33661ed8473fa10828206afc"
+      },
+      {
+        "bytes": 751,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-288/command.json",
+        "sha256": "334fd9fc0e7d6aef583021438c78e4f48c2d8fe9cd34dfc54ae03969401e88a7"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-288/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 1661,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-288/stderr.log",
+        "sha256": "856f75ba99f70559e707d5af87f0a29aa3566b5af8e3603e6a08b51639b137d6"
+      },
+      {
+        "bytes": 40296,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-288/stdout.log",
+        "sha256": "dca4e3e20de5b40977299e510b5c18270b308beb698356730c3b8e79c19e5941"
+      },
+      {
+        "bytes": 635,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-300/command.json",
+        "sha256": "3d407cfbc1a4cdf6095ab83a25c3b169df309e0edd95f3fa6367d948fb734c43"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-300/exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 1583,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-300/stderr.log",
+        "sha256": "99ee8574f36c5893fb885940e3b8ea6233e6a13b5ac3ac03e1fcf6d0d05b0e80"
+      },
+      {
+        "bytes": 41176,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-300/stdout.log",
+        "sha256": "2d9bec45475366ba6e285106ff3716dde7daf179ccf1998dabcafddd8d54ec80"
+      },
+      {
+        "bytes": 695,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-312/command.json",
+        "sha256": "c64375321c59bdabf91e7e170a03c60e5b0f5960e4b5e13de8c6ccbfa04b1c6c"
+      },
+      {
+        "bytes": 4,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-312/exit",
+        "sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c"
+      },
+      {
+        "bytes": 538,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-312/stderr.log",
+        "sha256": "77e9a789843b3c58a78d106460eee30db27d258c4ea0ae217a0259b02fb7ab45"
+      },
+      {
+        "bytes": 51020,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-integrations-312/stdout.log",
+        "sha256": "67d8fc0e2b0218dff52a0537b0a09f8426095c49f16dd8360bb4593b00ea7a9c"
+      },
+      {
+        "bytes": 150,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-library/command.json",
+        "sha256": "46a44ccf0518307df0f6b593496896d65e6d84da58d566a60399a42244e8b14a"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-library/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 220,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-library/stderr.log",
+        "sha256": "6d8e00f804e2621aecf35cdc3be3ed2314e5c5ac4ab0f695d5830e42a611241e"
+      },
+      {
+        "bytes": 44042,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/driver-library/stdout.log",
+        "sha256": "86fa23e351e454d005c7b22bd59b6997677a976590240d6e9a3cbb4f7aa380ed"
+      },
+      {
+        "bytes": 163,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/other-workspace/command.json",
+        "sha256": "08caf6bbb2b9a386a8a2a7639a0a2f08d46aa0de093346fabcdddeb4fd9b0411"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/other-workspace/exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 8974,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/other-workspace/stderr.log",
+        "sha256": "672b22ff62e17bc0e718c0542fe99686600c7458c5dcf281ec245aace95e31fc"
+      },
+      {
+        "bytes": 291778,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/other-workspace/stdout.log",
+        "sha256": "c4e16aac352c5986cab1e63f38b108ad30b426fb2ab51b3934533a6b4116f458"
+      },
+      {
+        "bytes": 128360,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/plan.json",
+        "sha256": "af0c7ccaaba14331ff34dd760101da049632be8461e3b74dc0be3c652a6c3441"
+      },
+      {
+        "bytes": 217957,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-workspace-batched-03/receipt.json",
+        "sha256": "262c1941000baf60b3a6338214ecba8065a09474334a2356b33b1ad2f222d6e1"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/main3ec7-release-binding-01.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 931,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/main3ec7-release-binding-01.json",
+        "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f"
+      },
+      {
+        "bytes": 1575,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/main3ec7-release-binding-01.log",
+        "sha256": "4fd6442a993de750f437bf544e645b777ce3fcf044df2ebb891386b76661f570"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-19.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 348,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-19.json",
+        "sha256": "46c375431c8bdc7d75a54e30f45d9e5722949d8903449cb255aedb1695acd0fd"
+      },
+      {
+        "bytes": 69267,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-19.log",
+        "sha256": "55789acecb0f65549e19d4f9678ed80ae453b8256acb5d06e0a923c7c3b7aaaa"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-20.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 271,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-20.json",
+        "sha256": "4fe3d45734c20247755ae09ae43842767052c3412d73115024bc4ed4dcdcb93d"
+      },
+      {
+        "bytes": 76833,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/native-products-full-tests-20.log",
+        "sha256": "bc62ab4236e9e8c167af795d8b9deece60fd46225d6ff5a3a97bda30527e7779"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/plain-ct-tests-04.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 233,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/plain-ct-tests-04.json",
+        "sha256": "5d02be7d92a5d614463792bffa817715ec9f5249259bafd254505bedb341d1e2"
+      },
+      {
+        "bytes": 6678,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/plain-ct-tests-04.log",
+        "sha256": "ae9aa43dac962b805bf0d5700433caccc0576ca90789e02e9dcdb2991775680c"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-08.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 347,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-08.json",
+        "sha256": "c38439c03fd16be03cc32991281da82f678d1abbe45fc00153b00baf25cd915d"
+      },
+      {
+        "bytes": 24751,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-backend-library-tests-08.log",
+        "sha256": "fc83adc1c7cadcd7e4080b722320d0e2ffba891191bf821ff0c3c958cac377e1"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-11.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 278,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-11.json",
+        "sha256": "269fd20b631b6022f82f67212f719256ea6e9aa9691121df5f5a46c7ba9fe3e2"
+      },
+      {
+        "bytes": 24434,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-11.log",
+        "sha256": "19b0cb92d69f2937226261f3ab197697097be679967610ba3fead7a646e56a70"
+      },
+      {
+        "bytes": 2,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-12.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      {
+        "bytes": 342,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-12.json",
+        "sha256": "f90406d899b376ec0638f90549e1900b933052885fe11c9e716abfa91f879e35"
+      },
+      {
+        "bytes": 24205,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/push-driver-library-tests-12.log",
+        "sha256": "283ea41b64761fafc7662ecb52c1b1bef96a6b59e85f530708056fb6c62fff07"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "Post-v10 schema3 gates atfc4; immutable unmeasured main3ec7 baseline release; complete default9daad workspace original ENOSPC failure plus exact-source28+5 recovery/33groups6375pass; all original failures retained. Frame55e native69/backend239/driver207 passed; strictClippy07 failed and04a feature-getter fix is source-only, with later retest/release reserved forv12. Cleanup03 fully bound download-cache retirement and reversible66part dematerialization/index/pathlist/restorehelper; actual four discovery-only syscall traces with same16ELFs; pinned range/static assembly and bounded Frame/Astra reviews of prior5bf/BD products. No new performance comparison, emitted candidate release or full LLVM incrementality acceptance. Profile07 remains5bf/c584 in parentv10; formal433 remains in parentv9.",
+    "source_commits": {
+      "baseline_release": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "feature_getters_fix_source_only": "04a637f6e85ec686b2b119cf70524119753a7b6c",
+      "frame_gate": "55e8667f2ea8a60e849436808cf3a65fd4b14186",
+      "goal": "ce6a326279a13bb02749fcf8e2f3b19921547326",
+      "schema3_gate": "fc4bba198410d24fe487a9b24dea019736fc1772",
+      "workspace03": "9daadfc539eeaab77425164ae86373ac694583d4"
+    }
+  },
+  "inventory_sha256": "6303495af02f0b371953678408e2bc5243373c51aec786e7ff922751a2c3c0e3",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/native-products-full-tests-19.*",
+    "zil-push-main/out/runs/plain-ct-tests-04.*",
+    "zil-push-main/out/runs/push-driver-library-tests-11.*",
+    "zil-push-main/out/runs/full-push-native-clippy-06.*",
+    "zil-push-main/out/runs/full-push-format-03.*",
+    "zil-push-main/out/runs/full-push-format-04.*",
+    "zil-push-main/out/runs/full-push-format-05.*",
+    "zil-push-main/out/runs/main3ec7-release-binding-01.*",
+    "zil-push-main/out/binaries/3ec7e8a960ca69368cd9a90f1a15ac063fec5a02/**",
+    "zil-push-main/out/runs/full-push-workspace-batched-03/**",
+    "zil-push-main/out/runs/full-push-workspace-batched-03.log",
+    "zil-push-main/out/runs/full-push-workspace-batched-03.exit",
+    "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01/**",
+    "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01.log",
+    "zil-push-main/out/runs/full-push-workspace-batched-03-resume-01.exit",
+    "zil-push-main/out/runs/full-push-workspace-batched-03-recovered-summary.json",
+    "zil-push-main/out/evidence/checkpoint-cleanup-03/**",
+    "zil-push-main/out/evidence/link-probe-syscalls-01/**",
+    "zil-push-main/out/evidence/full-push-checkpoint-07/**",
+    "zil-push-main/out/runs/full-push-archive-v10-*",
+    "zil-push-main/out/runs/native-products-full-tests-20.*",
+    "zil-push-main/out/runs/push-backend-library-tests-08.*",
+    "zil-push-main/out/runs/push-driver-library-tests-12.*",
+    "zil-push-main/out/runs/full-push-native-clippy-07.*"
+  ],
+  "source_root": "/workspace"
+}
