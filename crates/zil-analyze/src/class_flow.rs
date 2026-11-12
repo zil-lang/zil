@@ -1553,14 +1553,37 @@ fn check_with(
                         array_outer::transport(&mut e, out, parent, outer.as_ref(), b)?;
                     }
                 }
-                InstructionKind::StoreStoredBorrow { storage,path,value } => {
-                    let actual=shape(&f.values[storage.0 as usize]).ok_or_else(||bad("stored write lacks actual qualified class shape"))?;
-                    b.spend(actual.slots.len().saturating_mul(path.len().saturating_add(1)),"stored write exact declared slot class")?;
-                    let slot=actual.slots.iter().find(|slot|slot.path==*path).ok_or_else(||bad("stored write class selects absent physical slot"))?;
-                    if matches!(slot.mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress) {
-                        let expected=*values[storage.0 as usize].classes.get(slot.binder as usize).ok_or_else(||bad("stored write lacks actual carrier class"))?;
-                        let source=values[value.0 as usize].outer.ok_or_else(||bad("stored write replacement has no Address class"))?;
-                        array_outer::binding(&mut e,source,expected,outer.as_ref(),b)?;
+                InstructionKind::StoreStoredBorrow {
+                    storage,
+                    path,
+                    value,
+                } => {
+                    let actual = shape(&f.values[storage.0 as usize])
+                        .ok_or_else(|| bad("stored write lacks actual qualified class shape"))?;
+                    b.spend(
+                        actual
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                        "stored write exact declared slot class",
+                    )?;
+                    let slot = actual
+                        .slots
+                        .iter()
+                        .find(|slot| slot.path == *path)
+                        .ok_or_else(|| bad("stored write class selects absent physical slot"))?;
+                    if matches!(
+                        slot.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    ) {
+                        let expected = *values[storage.0 as usize]
+                            .classes
+                            .get(slot.binder as usize)
+                            .ok_or_else(|| bad("stored write lacks actual carrier class"))?;
+                        let source = values[value.0 as usize]
+                            .outer
+                            .ok_or_else(|| bad("stored write replacement has no Address class"))?;
+                        array_outer::binding(&mut e, source, expected, outer.as_ref(), b)?;
                     }
                     // Exact targets, retirement and parent loans are checked
                     // independently by stored-flow; a class supplies no loan.

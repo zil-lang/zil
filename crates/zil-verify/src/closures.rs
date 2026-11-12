@@ -48,6 +48,84 @@ pub(super) fn old_container_signature(
     Ok(())
 }
 
+/// Absence is never evidence that an actual captured nominal's domain is empty.
+/// Inspect descendants independently so erasing both child and parent headers
+/// cannot erase their persistent classes from the proof obligation.
+fn captured_domain(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<bool> {
+    b.spend(closure.captures.len())?;
+    let mut pending: Vec<_> = closure.captures.iter().map(|ty| (ty, 0usize)).collect();
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("captured class domain depth exceeded"));
+        }
+        match ty {
+            Type::BorrowedStorage { life, .. } if life.binder_count != 0 => return Ok(true),
+            Type::Closure(id) => {
+                let child = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| reject("E-VERIFY-CLOSURE", None, "captured child is absent"))?;
+                if child
+                    .storage_life
+                    .as_ref()
+                    .is_some_and(|life| life.fixed_binder_count != 0)
+                {
+                    return Ok(true);
+                }
+                b.spend(child.captures.len())?;
+                pending.extend(child.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Task { retained_life, .. } if retained_life.binder_count != 0 => return Ok(true),
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
+                b.spend(module.dyn_interfaces.len())?;
+                let actual = module
+                    .dyn_interfaces
+                    .iter()
+                    .find(|i| i.id == *interface)
+                    .ok_or_else(|| {
+                        reject("E-VERIFY-CLOSURE", None, "captured dyn interface is absent")
+                    })?;
+                if actual.retained_life.binder_count != 0 {
+                    return Ok(true);
+                }
+            }
+            Type::BorrowedStorage { storage: child, .. }
+            | Type::Address { inner: child, .. }
+            | Type::Managed(child)
+            | Type::Desc(child)
+            | Type::Array { element: child, .. }
+            | Type::OwnedStore { element: child }
+            | Type::Opaque { hidden: child, .. } => pending.push((child, depth + 1)),
+            Type::Tuple(children) => {
+                b.spend(children.len())?;
+                pending.extend(children.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn check_definitions(
     module: &TypedModule,
     limits: &Limits,
@@ -62,10 +140,18 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        if closure.storage_life.is_none() && captured_domain(module, closure, budget)? {
+            return Err(reject(
+                "E-VERIFY-CLOSURE",
+                None,
+                "qualified captured storage requires a complete environment class relation",
+            ));
+        }
         if let Some(life) = &closure.storage_life {
-            stored_callables::captured_profile(closure, budget)?;
+            stored_callables::captured_profile(module, closure, budget)?;
             signature_life::charge(life, budget)?;
             signature_life::closure_relation(
+                module,
                 &closure.parameters,
                 &closure.captures,
                 stored_callables::life_result(closure),

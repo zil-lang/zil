@@ -249,7 +249,11 @@ pub(super) fn shared_input(t: &Type) -> bool {
         t => t.is_address_pointee(),
     }
 }
-pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
+pub(super) fn captured_profile(
+    module: &TypedModule,
+    d: &ClosureDefinition,
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
@@ -264,7 +268,8 @@ pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<(
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !(shared_input(ty)
             || super::stored_owned::owner(ty)
-            || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty))
+            || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
+            || matches!(ty, Type::Closure(child) if finite(module, *child)))
         {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
@@ -338,7 +343,7 @@ pub(super) fn definitions(
             }
         }
         if let Some(c) = &d.storage_life {
-            captured_profile(d, b)?;
+            captured_profile(module, d, b)?;
             super::signature_life::charge(c, b)?;
             super::borrowed_fp::signature_work(&d.captures, &Type::Unit, b)?;
             if let Some(entry) = &f.storage_life {
@@ -350,6 +355,7 @@ pub(super) fn definitions(
                 ));
             }
             super::signature_life::closure_relation(
+                module,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
@@ -696,6 +702,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                     if let Some(definition) = &d.storage_life {
                         super::signature_life::charge(life, b)?;
                         super::signature_life::closure_relation(
+                            module,
                             &d.parameters,
                             &d.captures,
                             life_result(d),

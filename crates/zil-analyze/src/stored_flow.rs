@@ -5726,6 +5726,40 @@ fn windows(
                     | InstructionKind::UnpackTuple { local, .. }
                     | InstructionKind::DropTuple { local }
                     | InstructionKind::DropClosure { local } => {
+                        if matches!(i.kind, InstructionKind::UnpackTuple { .. })
+                            && failure_unpack(f, i, b)?
+                        {
+                            let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
+                            else {
+                                unreachable!()
+                            };
+                            let source = state
+                                .locals
+                                .get(local)
+                                .ok_or_else(|| failure("input view unpack has no live source"))?;
+                            fee(b, source.slots.len().saturating_add(life.slots.len()))?;
+                            if source.slots.len() != life.slots.len() {
+                                return Err(failure(
+                                    "input view unpack omits or duplicates actual permissions",
+                                ));
+                            }
+                            for slot in &life.slots {
+                                let permission = source.slots.get(&slot.path).ok_or_else(|| {
+                                    failure("input view unpack omits an original input")
+                                })?;
+                                if permission.targets.is_empty() {
+                                    return Err(failure(
+                                        "input view unpack has no original input target",
+                                    ));
+                                }
+                                access.check(
+                                    permission,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    apart,
+                                    b,
+                                )?;
+                            }
+                        }
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
                             fee(b, state.vacant.len())?;
                             if state
@@ -5792,38 +5826,6 @@ fn windows(
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
                         access.check(pointer(*address)?, write, apart, b)?;
-                    }
-                    InstructionKind::UnpackTuple { local, .. } if failure_unpack(f, i, b)? => {
-                        let Type::BorrowedStorage { life, .. } = &f.locals[local.0 as usize].ty
-                        else {
-                            unreachable!()
-                        };
-                        let source = state
-                            .locals
-                            .get(local)
-                            .ok_or_else(|| failure("input view unpack has no live source"))?;
-                        fee(b, source.slots.len().saturating_add(life.slots.len()))?;
-                        if source.slots.len() != life.slots.len() {
-                            return Err(failure(
-                                "input view unpack omits or duplicates actual permissions",
-                            ));
-                        }
-                        for slot in &life.slots {
-                            let permission = source.slots.get(&slot.path).ok_or_else(|| {
-                                failure("input view unpack omits an original input")
-                            })?;
-                            if permission.targets.is_empty() {
-                                return Err(failure(
-                                    "input view unpack has no original input target",
-                                ));
-                            }
-                            access.check(
-                                permission,
-                                slot.mode == StoredBorrowMode::ExclusiveAddress,
-                                apart,
-                                b,
-                            )?;
-                        }
                     }
                     InstructionKind::LoadStoredBorrow { storage, .. }
                         if failure_projection(f, i, b)?.is_some() =>

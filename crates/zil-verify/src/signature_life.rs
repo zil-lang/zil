@@ -292,6 +292,7 @@ fn function_relation_inner(
     )
 }
 pub(super) fn closure_relation(
+    module: &TypedModule,
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
@@ -303,9 +304,9 @@ pub(super) fn closure_relation(
         result,
         c,
         span,
-        false,
+        true,
         Some(captures),
-        None,
+        Some(module),
         false,
     )
 }

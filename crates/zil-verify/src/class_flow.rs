@@ -924,6 +924,7 @@ pub(super) fn check_role(
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
     if d.storage_life.is_some() {
         super::signature_life::closure_relation(
+            module,
             &d.parameters,
             &d.captures,
             super::stored_callables::life_result(d),
@@ -1403,6 +1404,22 @@ fn check_with(
                             e.equal(out.classes[result], input.classes[port], b)?;
                         }
                     }
+                    InstructionKind::BorrowCapture { index, .. } if !captures.is_empty() => {
+                        let source = captures
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("borrowed capture class index is absent"))?;
+                        let result = out.ok_or_else(|| bad("borrowed capture lacks result"))?;
+                        e.ground_address(result.outer, b)?;
+                        b.spend(source.classes.len().saturating_add(result.classes.len()))?;
+                        if source.classes.len() != result.classes.len() {
+                            return Err(bad(
+                                "borrowed capture changes its complete child class domain",
+                            ));
+                        }
+                        for (from, to) in source.classes.iter().zip(&result.classes) {
+                            e.equal(*from, *to, b)?;
+                        }
+                    }
                     InstructionKind::ReadCapture { index } if !captures.is_empty() => {
                         let source = captures
                             .get(*index as usize)
@@ -1619,8 +1636,33 @@ fn check_with(
                             array_outer::transport(&mut e, out, parent, outer.as_ref(), b)?;
                         }
                     }
-                    InstructionKind::StoreStoredBorrow { .. } => {
-                        // The private physical slot row records its actual expected class.
+                    InstructionKind::StoreStoredBorrow {
+                        storage,
+                        path,
+                        value,
+                    } => {
+                        let actual = shape(&f.values[storage.0 as usize]).ok_or_else(|| {
+                            bad("stored write lacks its complete actual class shape")
+                        })?;
+                        b.spend(
+                            actual
+                                .slots
+                                .len()
+                                .saturating_mul(path.len().saturating_add(1)),
+                        )?;
+                        let slot = actual
+                            .slots
+                            .iter()
+                            .find(|slot| slot.path == *path)
+                            .ok_or_else(|| bad("stored write selects no actual class slot"))?;
+                        let expected = *values[storage.0 as usize]
+                            .classes
+                            .get(slot.binder as usize)
+                            .ok_or_else(|| bad("stored write class variable is absent"))?;
+                        let source = values[value.0 as usize].outer.ok_or_else(|| {
+                            bad("stored write replacement lacks an actual address class")
+                        })?;
+                        array_outer::binding(&mut e, source, expected, outer.as_ref(), b)?;
                     }
                     InstructionKind::LoadStoredBorrow { storage, path, .. } => {
                         if !values[storage.0 as usize].array_elements.is_empty() {

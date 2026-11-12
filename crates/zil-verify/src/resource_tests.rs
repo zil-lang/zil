@@ -314,7 +314,26 @@ fn fresh_constructor_can_be_returned_and_wire_stays_untrusted() {
     let p = plan(&m);
     let bytes = zil_ir::wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
     verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+    // Ordinary affine values can return an owner without promising freshness.
     m.functions[0].result_mode = PassingMode::Infer;
+    let bytes = zil_ir::wire::encode_module_candidate(&m, &plan(&m), &Limits::default()).unwrap();
+    verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+    // Calling an ordinary value helper cannot manufacture a Create promise.
+    let mut wrapper = m.functions[0].clone();
+    wrapper.id = FunctionId(1);
+    wrapper.name = "create_from_ordinary".into();
+    wrapper.result_mode = PassingMode::Create;
+    wrapper.values = vec![owned()];
+    wrapper.blocks[0].instructions = vec![i(
+        Some(0),
+        InstructionKind::Call {
+            function: FunctionId(0),
+            arguments: Vec::new(),
+        },
+    )];
+    wrapper.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+    m.functions.push(wrapper);
+    assert!(verify(m.clone()).is_err());
     let bytes = zil_ir::wire::encode_module_candidate(&m, &plan(&m), &Limits::default()).unwrap();
     assert!(verify_module_bytes(&bytes, &m.target, &Limits::default()).is_err());
 }

@@ -1097,6 +1097,7 @@ pub(super) fn check_module(
                 if let Some(actual) = &definition.storage_life {
                     crate::signature_life::charge(actual, budget)?;
                     crate::signature_life::closure_relation(
+                        module,
                         &definition.parameters,
                         &definition.captures,
                         super::stored_callables::life_result(definition),

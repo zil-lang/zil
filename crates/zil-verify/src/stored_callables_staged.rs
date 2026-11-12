@@ -79,7 +79,7 @@ fn extended_profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget)
     for ty in &d.captures {
         super::super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
     }
-    super::captured_profile(d, b)?;
+    super::captured_profile(module, d, b)?;
     if d.storage_life.is_none()
         || !matches!(
             d.kind,

@@ -2060,8 +2060,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         if d.id != id || d.function != f.id || d.storage_life.as_ref() != Some(c) {
             return Err(err("captured Fixed entry and definition relation differ"));
         }
-        super::stored_callables::captured_profile(d, b)?;
+        super::stored_callables::captured_profile(module, d, b)?;
         return super::signature_life::closure_relation(
+            module,
             &parameters,
             &d.captures,
             super::stored_callables::life_result(d),
