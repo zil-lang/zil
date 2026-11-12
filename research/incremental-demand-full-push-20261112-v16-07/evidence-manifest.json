@@ -1,0 +1,68 @@
+{
+  "archive": {
+    "bytes": 354086,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 354086,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "80d30d3cc81423e4ba62cb0052daa97ecf717a658c45b3dc3633f1352bbf29ba"
+      }
+    ],
+    "sha256": "80d30d3cc81423e4ba62cb0052daa97ecf717a658c45b3dc3633f1352bbf29ba",
+    "tar_bytes": 69191680
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 13835449,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/6bcdd847b6040af79cb30d22a33b9be9e04b4e91fec29c704f320e202bf73a34.ll",
+        "sha256": "6bcdd847b6040af79cb30d22a33b9be9e04b4e91fec29c704f320e202bf73a34"
+      },
+      {
+        "bytes": 13834950,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/908d2e216a5bcf9a7f3187f16141d705ab15cd8955a6f19fb937a958d8afedab.ll",
+        "sha256": "908d2e216a5bcf9a7f3187f16141d705ab15cd8955a6f19fb937a958d8afedab"
+      },
+      {
+        "bytes": 13834950,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/be49c0b9f61662b64a1b02052d41879f7b8fff861eea99af7b9373362e75a0b8.ll",
+        "sha256": "be49c0b9f61662b64a1b02052d41879f7b8fff861eea99af7b9373362e75a0b8"
+      },
+      {
+        "bytes": 13834950,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/cae85cedf7bde6f24beb2d296d3c04ca448d2087d3602d144f934a0b11905caa.ll",
+        "sha256": "cae85cedf7bde6f24beb2d296d3c04ca448d2087d3602d144f934a0b11905caa"
+      },
+      {
+        "bytes": 13834952,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/db73ea35a166cceac2c94eb95700e68c40b6d472c6f7ab6c4c150eba79745449.ll",
+        "sha256": "db73ea35a166cceac2c94eb95700e68c40b6d472c6f7ab6c4c150eba79745449"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "8c57f16b5dc1883be8cd89f03be5d5a2d196d6d9cacc86a73a800d1586cb7af2",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/6bcdd847b6040af79cb30d22a33b9be9e04b4e91fec29c704f320e202bf73a34.ll",
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/908d2e216a5bcf9a7f3187f16141d705ab15cd8955a6f19fb937a958d8afedab.ll",
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/be49c0b9f61662b64a1b02052d41879f7b8fff861eea99af7b9373362e75a0b8.ll",
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/cae85cedf7bde6f24beb2d296d3c04ca448d2087d3602d144f934a0b11905caa.ll",
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/db73ea35a166cceac2c94eb95700e68c40b6d472c6f7ab6c4c150eba79745449.ll"
+  ],
+  "source_root": "/workspace"
+}
