@@ -254,3 +254,138 @@ fn anonymous_tuple_raw_wire_cannot_forge_modes_classes_or_drop_debt() {
         }
     }
 }
+
+#[test]
+fn anonymous_tuple_verification_has_exact_fresh_work_boundaries() {
+    for (label, text) in [
+        ("shared", SHARED),
+        ("owner", OWNED),
+        ("exclusive", EXCLUSIVE),
+    ] {
+        let (module, candidate) = prepare(text);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+        for decoded in [false, true] {
+            let run = |steps| {
+                let mut bounded = limits.clone();
+                bounded.max_analysis_steps = steps;
+                let result = if decoded {
+                    zil_verify::verify_module_bytes(&wire, &target, &bounded)
+                } else {
+                    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &bounded)
+                };
+                match result {
+                    Ok(_) => ResultCategory::Success,
+                    Err(errors) => {
+                        assert!(
+                            errors
+                                .iter()
+                                .all(|e| e.category == ResultCategory::ResourceLimit),
+                            "{label} Wire={decoded} steps={steps}: {errors:?}"
+                        );
+                        ResultCategory::ResourceLimit
+                    }
+                }
+            };
+            let (mut low, mut high) = (0, limits.max_analysis_steps);
+            assert_eq!(run(high), ResultCategory::Success);
+            while high - low > 1 {
+                let mid = low + (high - low) / 2;
+                if run(mid) == ResultCategory::Success {
+                    high = mid
+                } else {
+                    low = mid
+                }
+            }
+            assert_eq!(run(high), ResultCategory::Success);
+            assert_eq!(run(high - 1), ResultCategory::ResourceLimit);
+            assert_eq!(run(high), ResultCategory::Success);
+            let (fresh_module, fresh_candidate) = prepare(text);
+            let mut bounded = limits.clone();
+            bounded.max_analysis_steps = high;
+            if decoded {
+                let fresh =
+                    zil_ir::wire::encode_module_candidate(&fresh_module, &fresh_candidate, &limits)
+                        .unwrap();
+                zil_verify::verify_module_bytes(&fresh, &target, &bounded).unwrap();
+            } else {
+                zil_verify::verify_module(fresh_module, fresh_candidate, &target, &bounded)
+                    .unwrap();
+            }
+            eprintln!("anonymous {label} Wire={decoded} N={high}; N-1=ResourceLimit, freshN=Pass");
+        }
+    }
+}
+
+#[test]
+fn a_real_task_failure_family_does_not_authorize_copying_an_affine_tuple() {
+    use zil_ir::{InstructionKind as I, Type};
+    let combined = format!(
+        "{EXCLUSIVE}\n{}",
+        r#"
+fn dormant_worker<life p>(pointer:&'p i32)->i32 {task_yield();return *pointer}
+fn dormant_task<life p>(pointer:&'p i32)->i32 {
+ match task_create_owned(dormant_worker,pointer) {
+  .err(failure)=>{let inputs=failure.inputs;return *inputs.0},
+  .ok(created)=>{
+   var owner=give created
+   task_request_cancel(&mut owner)
+   loop {match task_poll_close(&mut owner){Poll.Pending()=>{continue},Poll.Ready(_)=>{break}}}
+   task_finish_destroy(give owner)
+   return 0
+  }
+ }
+}
+"#
+    );
+    let (module, candidate) = prepare(&combined);
+    assert!(
+        module
+            .life_declarations
+            .iter()
+            .any(|d| d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD
+                || d.id == zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE)
+    );
+    verify(module.clone(), candidate.clone());
+    let mut changed = module;
+    let mut replaced = false;
+    for f in &mut changed.functions {
+        for block in &mut f.blocks {
+            for i in &mut block.instructions {
+                let Some(result) = i.result else { continue };
+                if !matches!(&f.values[result.0 as usize],Type::BorrowedStorage {storage,life} if matches!(storage.as_ref(),Type::Tuple(_)) && life.slots.len()==2 && life.slots.iter().all(|s|s.mode==zil_ir::StoredBorrowMode::ExclusiveAddress))
+                {
+                    continue;
+                }
+                if let I::MakeOwnedTuple { fields } = &i.kind {
+                    i.kind = I::MakeAggregate {
+                        fields: fields.clone(),
+                    };
+                    replaced = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(replaced);
+    let mut forged = candidate;
+    forged.module_fingerprint = changed.fingerprint();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for decoded in [false, true] {
+        let (raw, plan) = if decoded {
+            let wire = zil_ir::wire::encode_module_candidate(&changed, &forged, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+        } else {
+            (changed.clone(), forged.clone())
+        };
+        let errors = zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject && e.message.contains("affine")),
+            "Wire={decoded}: {errors:?}"
+        );
+    }
+}

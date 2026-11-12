@@ -1019,6 +1019,7 @@ fn check_module(
                     && matches!(
                         instruction.kind,
                         InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                            | InstructionKind::MakeOwnedTuple { .. }
                     )
                     && let Some(result) = instruction.result
                     && let Some(Type::BorrowedStorage { life, .. }) =
