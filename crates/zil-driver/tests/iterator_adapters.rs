@@ -46,7 +46,7 @@ fn project(source: &str) -> ProjectSources {
         .into(),
     }
 }
-fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+fn typed(source: &str) -> zil_ir::TypedModule {
     let p = project(source);
     let asts = p
         .modules
@@ -104,6 +104,11 @@ fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let typed = zil_types::check_program(&core, &TargetProfile::host_llvm(), &limits)
         .unwrap()
         .module;
+    typed
+}
+fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+    let typed = typed(source);
+    let limits = Limits::default();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     if let Err(errors) =
         zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits)
@@ -877,4 +882,51 @@ fn store_element_entails_value_and_synchronous_cleanup_in_unused_definitions() {
         );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
+}
+
+#[test]
+fn all_original_owning_iterators_reconstruct_default_analysis_candidates() {
+    let cases = [
+        ("pipeline", OWNING),
+        ("borrowed", BORROWED),
+        ("callback", OWNED_CALLBACK),
+        ("fold", OWNED_FOLD),
+        ("lending", STORE_LENDING),
+        (
+            "value-items",
+            include_str!(
+                "../../../tests/language-readiness/iterator-adapters/ordinary-value-items.zil"
+            ),
+        ),
+        (
+            "nested-drain",
+            include_str!("../../../tests/language-readiness/iterator-adapters/nested-drain.zil"),
+        ),
+    ];
+    let limits = Limits::default();
+    let mut failures = vec![];
+    for (name, source) in cases {
+        let typed = typed(source);
+        let artifacts = std::env::var_os("ZIL_STDLIB_ANALYZE_ARTIFACTS")
+            .map(|path| std::path::PathBuf::from(path).join(name));
+        if let Some(path) = &artifacts {
+            fs::create_dir_all(path).unwrap();
+            fs::write(path.join("main.zil"), source).unwrap();
+            fs::write(path.join("typed.txt"), format!("{typed:#?}")).unwrap();
+        }
+        match zil_analyze::analyze(&typed, &limits) {
+            Ok(plan) => {
+                let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+                assert_eq!(
+                    zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+                    (typed, plan)
+                );
+                if let Some(path) = artifacts {
+                    fs::write(path.join("candidate.wire"), wire).unwrap();
+                }
+            }
+            Err(errors) => failures.push((name, errors)),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
 }
