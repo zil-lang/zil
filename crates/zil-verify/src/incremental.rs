@@ -7,6 +7,10 @@
 //! row (except diagnostic spans), target and every limit. Instruction proofs
 //! additionally bind every callee signature field they read. Unfactored contextual
 //! checks and global obligations still run before issuing a new module authority.
+//! Complete authority additionally binds Wire versus Product identity domains.
+//! Local semantic obligations do not read that domain and may cross it only
+//! under the same complete raw/dependency/target/limit bindings; the current
+//! entry always performs its own domain-specific candidate identity check.
 //! Empty-borrow receipts additionally bind complete closure definitions and the
 //! current independently established context. They prove only absent source and
 //! local loan obligations, with original stage fees replayed. A cached CFG or
@@ -44,6 +48,8 @@ pub struct VerifyStats {
     pub resource_inventory_functions_checked: usize,
     pub resource_inventory_functions_reused: usize,
     pub resource_inventory_ranges_reused: usize,
+    pub foreign_functions_selected: usize,
+    pub foreign_functions_not_visited: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -149,6 +155,7 @@ impl VerifySession {
             delta: None,
             previous_shape_tree: self.shape_tree.as_ref(),
             next_shape_tree: None,
+            current_shape_functions: None,
             previous_resource_inventory: self.resource_inventory.as_ref(),
             next_resource_inventory: None,
             next: BTreeMap::new(),
@@ -311,6 +318,7 @@ pub(super) struct Attempt<'a> {
     previous_resource_inventory: Option<&'a Arc<resource_inventory::Node>>,
     next_resource_inventory: Option<Arc<resource_inventory::Node>>,
     next_shape_tree: Option<Arc<raw_tree::Node>>,
+    current_shape_functions: Option<zil_ir::PersistentVec<TypedFunction>>,
     next: BTreeMap<FunctionId, Arc<FlowReceipt>>,
     next_empty_borrows: BTreeMap<FunctionId, borrows::EmptyContext>,
     next_shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,

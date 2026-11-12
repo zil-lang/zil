@@ -36,11 +36,28 @@ struct Receipt {
 pub(super) struct Node {
     len: usize,
     source_free: bool,
+    foreign_count: usize,
     receipt: Option<Receipt>,
     children: Option<(Arc<Node>, Arc<Node>)>,
 }
 
 impl Attempt<'_> {
+    pub(crate) fn foreign_indices(&mut self, module: &TypedModule) -> Option<Vec<usize>> {
+        if !self
+            .current_shape_functions
+            .as_ref()
+            .is_some_and(|inputs| inputs.ptr_eq(&module.functions))
+        {
+            return None;
+        }
+        let root = self.next_shape_tree.as_ref()?;
+        let mut rows = Vec::with_capacity(root.foreign_count);
+        root.foreign_indices(0, &mut rows);
+        self.stats.foreign_functions_selected += rows.len();
+        self.stats.foreign_functions_not_visited += module.functions.len() - rows.len();
+        Some(rows)
+    }
+
     pub(crate) fn check_shape_tree(
         &mut self,
         module: &TypedModule,
@@ -59,6 +76,7 @@ impl Attempt<'_> {
             limits,
         )?;
         self.next_shape_tree = Some(root);
+        self.current_shape_functions = Some(module.functions.clone());
         Ok(())
     }
     fn check_shape_range(
@@ -91,10 +109,14 @@ impl Attempt<'_> {
         // Insufficient total credit is never a new rejection point. Descending
         // preserves the earliest original error and its residual budget.
         let remaining = b.remaining;
-        let (source_free, children) = if len == 1 {
+        let (source_free, foreign_count, children) = if len == 1 {
             let function = &module.functions[start];
             check_function_raw_shapes(module, start, function, b, limits, Some(self))?;
-            (function.storage_life.is_none(), None)
+            (
+                function.storage_life.is_none(),
+                usize::from(function.foreign.is_some()),
+                None,
+            )
         } else {
             let split = if len.is_power_of_two() {
                 len / 2
@@ -118,7 +140,11 @@ impl Attempt<'_> {
                 b,
                 limits,
             )?;
-            (left.source_free && right.source_free, Some((left, right)))
+            (
+                left.source_free && right.source_free,
+                left.foreign_count + right.foreign_count,
+                Some((left, right)),
+            )
         };
         let receipt = if source_free {
             before.zip(Context::read(b)).map(|(before, after)| Receipt {
@@ -132,8 +158,23 @@ impl Attempt<'_> {
         Ok(Arc::new(Node {
             len,
             source_free,
+            foreign_count,
             receipt,
             children,
         }))
+    }
+}
+
+impl Node {
+    fn foreign_indices(&self, start: usize, rows: &mut Vec<usize>) {
+        if self.foreign_count == 0 {
+            return;
+        }
+        if let Some((left, right)) = &self.children {
+            left.foreign_indices(start, rows);
+            right.foreign_indices(start + left.len, rows);
+        } else {
+            rows.push(start);
+        }
     }
 }

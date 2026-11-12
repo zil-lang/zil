@@ -69,6 +69,7 @@ fn attempt<'a>(
         ),
         previous_shape_tree: session.shape_tree.as_ref(),
         next_shape_tree: None,
+        current_shape_functions: None,
         previous_resource_inventory: session.resource_inventory.as_ref(),
         next_resource_inventory: None,
         next: BTreeMap::new(),
@@ -426,7 +427,10 @@ fn resource_entry_raw_ownership_change_is_not_authorized_by_shared_candidate() {
     verify(&mut session, &module, &plan, &limits).unwrap();
     let mut changed = module.clone();
     changed.functions[0].locals[0].ty = Type::OwnedDyn {
-        interface: zil_ir::DynInterfaceId { module: zil_base::ModuleId(0), index: 0 },
+        interface: zil_ir::DynInterfaceId {
+            module: zil_base::ModuleId(0),
+            index: 0,
+        },
     };
     let current = VerifiedInputs::SharedModule {
         module: Arc::new(changed),
@@ -467,4 +471,93 @@ fn resource_entry_raw_ownership_change_is_not_authorized_by_shared_candidate() {
         Ok(false)
     );
     assert_eq!(restored.stats.resource_inventory_functions_reused, 2);
+}
+
+fn foreign_pair() -> (TypedModule, CandidatePlan) {
+    let (mut module, mut plan) = pair();
+    let f = &mut module.functions[1];
+    f.foreign = Some(ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "raw_foreign_entry".into(),
+        noescape_parameters: vec![],
+        static_callbacks: false,
+        scoped_callback: None,
+    });
+    f.locals.clear();
+    f.values.clear();
+    f.blocks.clear();
+    plan.functions[1].blocks.clear();
+    plan.functions[1].holds.clear();
+    plan.module_fingerprint = module.structural_fingerprint();
+    (module, plan)
+}
+
+#[test]
+fn foreign_selector_binds_current_raw_presence_and_keeps_symbol_checks_fresh() {
+    let (mut module, mut plan) = foreign_pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    product(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().foreign_functions_selected, 1);
+    assert_eq!(session.stats().foreign_functions_not_visited, 1);
+    module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(42));
+    plan.module_fingerprint = module.structural_fingerprint();
+    oracle(&mut session, &module, &plan, &limits);
+    assert_eq!(session.stats().foreign_functions_selected, 1);
+    let mut invalid = module.clone();
+    invalid.functions[0].foreign = module.functions[1].foreign.clone();
+    let mut stale = plan.clone();
+    stale.module_fingerprint = invalid.structural_fingerprint();
+    // The previously absent row is selected now, and its body is rejected by
+    // the unchanged complete declaration checker, before candidate CFG checks.
+    oracle(&mut session, &invalid, &stale, &limits);
+    assert!(product(&mut session, &invalid, &stale, &limits).is_err());
+    assert_eq!(session.stats().foreign_functions_selected, 2);
+    let mut duplicate = module.functions[1].clone();
+    duplicate.id = FunctionId(2);
+    duplicate.name = "third_foreign".into();
+    invalid = module.clone();
+    invalid.functions.push(duplicate);
+    let mut row = plan.functions[1].clone();
+    row.function = FunctionId(2);
+    stale = plan.clone();
+    stale.functions.push(row);
+    stale.module_fingerprint = invalid.structural_fingerprint();
+    oracle(&mut session, &invalid, &stale, &limits);
+    let rejected = product(&mut session, &invalid, &stale, &limits).unwrap_err();
+    assert_eq!(rejected[0].code, "E-VERIFY-FOREIGN");
+    assert!(rejected[0].message.contains("exactly one declaration"));
+    oracle(&mut session, &module, &plan, &limits);
+}
+
+#[test]
+fn foreign_selector_preserves_original_n_and_n_minus_one_declaration_fees() {
+    let (module, plan) = foreign_pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    product(&mut session, &module, &plan, &limits).unwrap();
+    let current = inputs(module.clone(), plan);
+    let mut measured = raw_budget(&limits, 2);
+    foreign::check_declarations(&module, &mut measured, None).unwrap();
+    let work = limits.max_analysis_steps - measured.remaining;
+    for available in [work, work - 1, 0] {
+        let mut call = attempt(&session, &current, &limits);
+        call.check_shape_tree(current.module(), &mut raw_budget(&limits, 2), &limits)
+            .unwrap();
+        let mut fresh = raw_budget(&limits, 2);
+        fresh.remaining = available;
+        let expected = foreign::check_declarations(&module, &mut fresh, None);
+        let mut warm = raw_budget(&limits, 2);
+        warm.remaining = available;
+        let actual = foreign::check_declarations(current.module(), &mut warm, Some(&mut call));
+        assert_eq!(expected, actual);
+        assert_eq!(fresh.remaining, warm.remaining);
+        assert_eq!(call.stats.foreign_functions_selected, 1);
+        assert_eq!(call.stats.foreign_functions_not_visited, 1);
+        // A different current raw root cannot use this attempt's selector.
+        let mut other = module.clone();
+        other.functions[0].foreign = module.functions[1].foreign.clone();
+        assert!(call.foreign_indices(&other).is_none());
+    }
 }

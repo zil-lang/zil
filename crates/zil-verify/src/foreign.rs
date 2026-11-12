@@ -3,90 +3,79 @@
 use super::*;
 use std::collections::BTreeMap;
 
-pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+pub(super) fn check_declarations(
+    module: &TypedModule,
+    budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<()> {
     let mut symbols = BTreeSet::new();
-    for function in &module.functions {
-        let Some(declaration) = &function.foreign else {
-            continue;
-        };
-        let span = Some(function.span);
-        if declaration.scoped_callback.is_some() {
-            scoped_callback::declaration(function, budget)?;
+    if let Some(rows) = reuse.and_then(|attempt| attempt.foreign_indices(module)) {
+        for index in rows {
+            check_declaration(module, &module.functions[index], &mut symbols, budget)?;
         }
-        if declaration.static_callbacks {
-            native_values::target(&module.target, span)?;
+    } else {
+        for function in &module.functions {
+            check_declaration(module, function, &mut symbols, budget)?;
         }
-        budget.spend(
-            declaration
-                .abi
-                .len()
-                .saturating_add(declaration.symbol.len())
-                .saturating_add(1),
-        )?;
-        let bad = |message| reject("E-VERIFY-FOREIGN", span, message);
-        let bytes = declaration.symbol.as_bytes();
-        if declaration.abi != "C"
-            || !bytes
-                .first()
-                .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
-            || !bytes
-                .iter()
-                .all(|b| b.is_ascii_alphanumeric() || *b == b'_')
-            || declaration.symbol == "main"
-        {
-            return Err(bad(
-                "foreign declarations require C ABI and an unreserved C identifier",
-            ));
-        }
-        budget.spend(symbols.len().saturating_add(1))?;
-        if !symbols.insert(&declaration.symbol) {
-            return Err(bad(
-                "a foreign symbol must have exactly one declaration in the module",
-            ));
-        }
-        if function.environment.is_some()
-            || !function.blocks.is_empty()
-            || !function.values.is_empty()
-            || function.entry != BlockId(0)
-            || function.parameters.len() != function.locals.len()
-            || !matches!(
-                function.return_type,
-                Type::Unit
-                    | Type::U8
-                    | Type::U16
-                    | Type::U32
-                    | Type::U64
-                    | Type::Usize
-                    | Type::I32
-                    | Type::I8
-                    | Type::I16
-                    | Type::Isize
-                    | Type::I64
-                    | Type::F32
-                    | Type::F64
-                    | Type::ForeignHandle
-            )
-        {
-            return Err(bad(
-                "foreign declarations have canonical parameter locals, no body/environment, and a C integer/handle/unit result",
-            ));
-        }
-        if declaration.noescape_parameters.len() > function.parameters.len() {
-            return Err(bad("noescape indices exceed the parameter count"));
-        }
-        budget.spend(declaration.noescape_parameters.len())?;
-        let mut noescape = declaration.noescape_parameters.iter();
-        budget.spend(function.parameters.len())?;
-        for (index, (parameter, local)) in
-            function.parameters.iter().zip(&function.locals).enumerate()
-        {
-            if parameter.0 as usize != index || local.id != *parameter || local.mutable {
-                return Err(bad(
-                    "foreign parameters must be canonical immutable parameter locals",
-                ));
-            }
-            match &local.ty {
-                Type::U8
+    }
+    Ok(())
+}
+
+// Row order, current symbol uniqueness and the complete raw declaration checks
+// remain fresh. Only known-absent raw rows are omitted by the private selector.
+fn check_declaration<'a>(
+    module: &TypedModule,
+    function: &'a TypedFunction,
+    symbols: &mut BTreeSet<&'a String>,
+    budget: &mut Budget,
+) -> Check<()> {
+    let Some(declaration) = &function.foreign else {
+        return Ok(());
+    };
+    let span = Some(function.span);
+    if declaration.scoped_callback.is_some() {
+        scoped_callback::declaration(function, budget)?;
+    }
+    if declaration.static_callbacks {
+        native_values::target(&module.target, span)?;
+    }
+    budget.spend(
+        declaration
+            .abi
+            .len()
+            .saturating_add(declaration.symbol.len())
+            .saturating_add(1),
+    )?;
+    let bad = |message| reject("E-VERIFY-FOREIGN", span, message);
+    let bytes = declaration.symbol.as_bytes();
+    if declaration.abi != "C"
+        || !bytes
+            .first()
+            .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
+        || !bytes
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        || declaration.symbol == "main"
+    {
+        return Err(bad(
+            "foreign declarations require C ABI and an unreserved C identifier",
+        ));
+    }
+    budget.spend(symbols.len().saturating_add(1))?;
+    if !symbols.insert(&declaration.symbol) {
+        return Err(bad(
+            "a foreign symbol must have exactly one declaration in the module",
+        ));
+    }
+    if function.environment.is_some()
+        || !function.blocks.is_empty()
+        || !function.values.is_empty()
+        || function.entry != BlockId(0)
+        || function.parameters.len() != function.locals.len()
+        || !matches!(
+            function.return_type,
+            Type::Unit
+                | Type::U8
                 | Type::U16
                 | Type::U32
                 | Type::U64
@@ -99,47 +88,79 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
                 | Type::F32
                 | Type::F64
                 | Type::ForeignHandle
-                | Type::CWideString => {}
-                Type::ForeignCallback { parameters, result } => {
-                    if !declaration.static_callbacks {
-                        return Err(bad("foreign callback parameters require static_callbacks"));
-                    }
-                    budget.spend(parameters.len().saturating_add(1))?;
-                    native_values::callback_signature(parameters, result, span)?;
+        )
+    {
+        return Err(bad(
+            "foreign declarations have canonical parameter locals, no body/environment, and a C integer/handle/unit result",
+        ));
+    }
+    if declaration.noescape_parameters.len() > function.parameters.len() {
+        return Err(bad("noescape indices exceed the parameter count"));
+    }
+    budget.spend(declaration.noescape_parameters.len())?;
+    let mut noescape = declaration.noescape_parameters.iter();
+    budget.spend(function.parameters.len())?;
+    for (index, (parameter, local)) in function.parameters.iter().zip(&function.locals).enumerate()
+    {
+        if parameter.0 as usize != index || local.id != *parameter || local.mutable {
+            return Err(bad(
+                "foreign parameters must be canonical immutable parameter locals",
+            ));
+        }
+        match &local.ty {
+            Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::Usize
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::ForeignHandle
+            | Type::CWideString => {}
+            Type::ForeignCallback { parameters, result } => {
+                if !declaration.static_callbacks {
+                    return Err(bad("foreign callback parameters require static_callbacks"));
                 }
-                Type::Address { inner, mutable } => {
-                    if noescape.next().copied() != Some(index as u32) {
-                        return Err(bad(
-                            "noescape indices must exactly cover address parameters in ascending order",
-                        ));
-                    }
-                    if c_layout::payload(
-                        inner,
-                        *mutable,
-                        declaration.static_callbacks,
-                        &module.target,
-                        span,
-                        budget,
-                    )?
-                    .is_none()
-                    {
-                        return Err(bad(
-                            "borrowed C targets require the nonempty C payload profile; mutable storage excludes static strings/callbacks and callbacks require static_callbacks",
-                        ));
-                    }
-                }
-                _ => {
+                budget.spend(parameters.len().saturating_add(1))?;
+                native_values::callback_signature(parameters, result, span)?;
+            }
+            Type::Address { inner, mutable } => {
+                if noescape.next().copied() != Some(index as u32) {
                     return Err(bad(
-                        "foreign value parameters require C integers/handles/static strings/callbacks; aggregates require a supported borrowed C target",
+                        "noescape indices must exactly cover address parameters in ascending order",
+                    ));
+                }
+                if c_layout::payload(
+                    inner,
+                    *mutable,
+                    declaration.static_callbacks,
+                    &module.target,
+                    span,
+                    budget,
+                )?
+                .is_none()
+                {
+                    return Err(bad(
+                        "borrowed C targets require the nonempty C payload profile; mutable storage excludes static strings/callbacks and callbacks require static_callbacks",
                     ));
                 }
             }
+            _ => {
+                return Err(bad(
+                    "foreign value parameters require C integers/handles/static strings/callbacks; aggregates require a supported borrowed C target",
+                ));
+            }
         }
-        if noescape.next().is_some() {
-            return Err(bad(
-                "noescape indices contain a duplicate, scalar, or absent parameter",
-            ));
-        }
+    }
+    if noescape.next().is_some() {
+        return Err(bad(
+            "noescape indices contain a duplicate, scalar, or absent parameter",
+        ));
     }
     Ok(())
 }
