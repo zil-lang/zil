@@ -1,0 +1,200 @@
+{
+  "archive": {
+    "bytes": 3938193,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 3938193,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "4969f3820f1ab9c0d5d7204fff0d6ae5adab9e06a14ecb7f447c9ebd0c36febd"
+      }
+    ],
+    "sha256": "4969f3820f1ab9c0d5d7204fff0d6ae5adab9e06a14ecb7f447c9ebd0c36febd",
+    "tar_bytes": 120811520
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 27184,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0089d9419d58bd20ebd774877571f674f1f45f11e6a3fb2082911d53d83fae75.o",
+        "sha256": "0089d9419d58bd20ebd774877571f674f1f45f11e6a3fb2082911d53d83fae75"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/008c69ddf1d36066f6cbc71964b04cb7f2ebd6e0eb11cff1dbf8da27f5505d62.zobj",
+        "sha256": "008c69ddf1d36066f6cbc71964b04cb7f2ebd6e0eb11cff1dbf8da27f5505d62"
+      },
+      {
+        "bytes": 13835449,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/00f3fdc19f05553b5ecfd946d2dd59747450f45fcd7007541418ff6a715ddf84.ll",
+        "sha256": "00f3fdc19f05553b5ecfd946d2dd59747450f45fcd7007541418ff6a715ddf84"
+      },
+      {
+        "bytes": 27008,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02989a554e40f9d8f0eaf7ea95ff47521e311510f92bb80e1872776db37949fe.o",
+        "sha256": "02989a554e40f9d8f0eaf7ea95ff47521e311510f92bb80e1872776db37949fe"
+      },
+      {
+        "bytes": 27072,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02b1256912e747aa5878dd2183da89733db7a449ddda2a70bb42534f8d8e78ef.zobj",
+        "sha256": "02b1256912e747aa5878dd2183da89733db7a449ddda2a70bb42534f8d8e78ef"
+      },
+      {
+        "bytes": 13835449,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02bebcc1b5fe5824292f5823613f4dbaf413cb6411c07c170168324029370791.ll",
+        "sha256": "02bebcc1b5fe5824292f5823613f4dbaf413cb6411c07c170168324029370791"
+      },
+      {
+        "bytes": 6701510,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/036660b67120d8ff8d696e518b41e2b9fa8a8a46b15d629910319cdd0590748c.incremental",
+        "sha256": "036660b67120d8ff8d696e518b41e2b9fa8a8a46b15d629910319cdd0590748c"
+      },
+      {
+        "bytes": 6702128,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/03b1be5646e35dbd0a61f73c6308a242fc98b179ddd63e9379dbc930267fd6a0.incremental",
+        "sha256": "03b1be5646e35dbd0a61f73c6308a242fc98b179ddd63e9379dbc930267fd6a0"
+      },
+      {
+        "bytes": 27088,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/03d56c578ecf48a1771d78c126da1fc80740f8dafbf24a4807bf0a5cfa120c77.zobj",
+        "sha256": "03d56c578ecf48a1771d78c126da1fc80740f8dafbf24a4807bf0a5cfa120c77"
+      },
+      {
+        "bytes": 13834951,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0453f477d6abe4c2cd9d1668cd9c5053649211e9ee329d408a53e9cf187871d8.ll",
+        "sha256": "0453f477d6abe4c2cd9d1668cd9c5053649211e9ee329d408a53e9cf187871d8"
+      },
+      {
+        "bytes": 13834954,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0483e5661290f964257438b14aca1d7bbdea0fec3098901363707451039ceb26.ll",
+        "sha256": "0483e5661290f964257438b14aca1d7bbdea0fec3098901363707451039ceb26"
+      },
+      {
+        "bytes": 1504912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/05453a43b2a2622ed86f1d9f791972ab53ee8fe231602a5a111162c697850011.incremental",
+        "sha256": "05453a43b2a2622ed86f1d9f791972ab53ee8fe231602a5a111162c697850011"
+      },
+      {
+        "bytes": 6701511,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/059ebac816d48a55f7ba82989ccb9101f9d0b64f530fa204e052334d3c89bbb4.incremental",
+        "sha256": "059ebac816d48a55f7ba82989ccb9101f9d0b64f530fa204e052334d3c89bbb4"
+      },
+      {
+        "bytes": 25256,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/072b4489b8aef83d5e558db68bc1e3d91a0f5394bffb03fdcc21c40206e16e00.o",
+        "sha256": "072b4489b8aef83d5e558db68bc1e3d91a0f5394bffb03fdcc21c40206e16e00"
+      },
+      {
+        "bytes": 52872,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/07bf4f1615b7e6dcca9b6b8fe08148d33942e107cbe58df29e11af145d6572c9.zobj",
+        "sha256": "07bf4f1615b7e6dcca9b6b8fe08148d33942e107cbe58df29e11af145d6572c9"
+      },
+      {
+        "bytes": 13834954,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/096055258d589e24795c65bf94fff8d3520886fad5c65a3da28e158d8375d6c9.ll",
+        "sha256": "096055258d589e24795c65bf94fff8d3520886fad5c65a3da28e158d8375d6c9"
+      },
+      {
+        "bytes": 12788,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0a0c91d9c9a598354dbf1a2a6ab876af1b5a8e6afcdd1675e6ebfeeab85fdab8.incremental",
+        "sha256": "0a0c91d9c9a598354dbf1a2a6ab876af1b5a8e6afcdd1675e6ebfeeab85fdab8"
+      },
+      {
+        "bytes": 1504912,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0a66a386318ce4738a41c3e8a327909c95eddb0336324e06b0266a9e2747388a.incremental",
+        "sha256": "0a66a386318ce4738a41c3e8a327909c95eddb0336324e06b0266a9e2747388a"
+      },
+      {
+        "bytes": 52760,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef.o",
+        "sha256": "0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef"
+      },
+      {
+        "bytes": 26752,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0bde016835fb3abdb78c8b26e62d1d14d19593eb3d8d2197fa4eedc1c285c6f6.zobj",
+        "sha256": "0bde016835fb3abdb78c8b26e62d1d14d19593eb3d8d2197fa4eedc1c285c6f6"
+      },
+      {
+        "bytes": 6702037,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0bf1f98bb4fd73e8345461bca82dc6e09308d9e84555b82a491549c5a843b800.incremental",
+        "sha256": "0bf1f98bb4fd73e8345461bca82dc6e09308d9e84555b82a491549c5a843b800"
+      },
+      {
+        "bytes": 921384,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0cb82b5bd37634c4100b68bcd0b02839ba60cf2f034b826461e44037c73b9025.elf",
+        "sha256": "0cb82b5bd37634c4100b68bcd0b02839ba60cf2f034b826461e44037c73b9025"
+      },
+      {
+        "bytes": 13834954,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0dbb2f0950c64bda45318a2dd787bf146844a31ca73c973d61594fe1f66c7304.ll",
+        "sha256": "0dbb2f0950c64bda45318a2dd787bf146844a31ca73c973d61594fe1f66c7304"
+      },
+      {
+        "bytes": 6701510,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0e9a41ab1d1ce7c030bec50c769cdb91f93f6de41b3b4276bdb6c74bf2b941e1.incremental",
+        "sha256": "0e9a41ab1d1ce7c030bec50c769cdb91f93f6de41b3b4276bdb6c74bf2b941e1"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V18 formal native O2-03 original storage shard. Frozen compiledsource328eb392d8d88148a75a743d899b43aebae73587/binarye7d8b194edad4dca5db8d1f2c3d38fa2c0ba18420bc6d7eb9e9e4b2f00c8dc5a, baseline3ec7e8a960ca69368cd9a90f1a15ac063fec5a02, fixed Rust58cf8f9c35b355199727627d07ae34a4e2846d67/directCargo. Original six balanced blocks/270rows/144measured126namedparents/2808native outcomes/479verifiedblobs, controller and matched_validate directly exit0. Full original master frozen before any payload retirement is exact-union authority. FreshHTTPS each shard fully restored/hash/size/mode verified before exact-master-matched original retirement. Whole assembled fresh validator rerun not claimed. Original workload/defaultbudgets/CGU16/O2/jobs1/no-profile/candidatepush-reuse unchanged; Rust language/check/partition/runtime boundaries remain as captured. First shard selected block-local non-LLVM/non-nm payload; later payload retirement requires root strictsummary completion.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "formal_native": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "1edc864506b563051418d650f462518d3c3f5a4fd31f578a700859e3182a2356",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0089d9419d58bd20ebd774877571f674f1f45f11e6a3fb2082911d53d83fae75.o",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/008c69ddf1d36066f6cbc71964b04cb7f2ebd6e0eb11cff1dbf8da27f5505d62.zobj",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/00f3fdc19f05553b5ecfd946d2dd59747450f45fcd7007541418ff6a715ddf84.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02989a554e40f9d8f0eaf7ea95ff47521e311510f92bb80e1872776db37949fe.o",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02b1256912e747aa5878dd2183da89733db7a449ddda2a70bb42534f8d8e78ef.zobj",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/02bebcc1b5fe5824292f5823613f4dbaf413cb6411c07c170168324029370791.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/036660b67120d8ff8d696e518b41e2b9fa8a8a46b15d629910319cdd0590748c.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/03b1be5646e35dbd0a61f73c6308a242fc98b179ddd63e9379dbc930267fd6a0.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/03d56c578ecf48a1771d78c126da1fc80740f8dafbf24a4807bf0a5cfa120c77.zobj",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0453f477d6abe4c2cd9d1668cd9c5053649211e9ee329d408a53e9cf187871d8.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0483e5661290f964257438b14aca1d7bbdea0fec3098901363707451039ceb26.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/05453a43b2a2622ed86f1d9f791972ab53ee8fe231602a5a111162c697850011.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/059ebac816d48a55f7ba82989ccb9101f9d0b64f530fa204e052334d3c89bbb4.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/072b4489b8aef83d5e558db68bc1e3d91a0f5394bffb03fdcc21c40206e16e00.o",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/07bf4f1615b7e6dcca9b6b8fe08148d33942e107cbe58df29e11af145d6572c9.zobj",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/096055258d589e24795c65bf94fff8d3520886fad5c65a3da28e158d8375d6c9.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0a0c91d9c9a598354dbf1a2a6ab876af1b5a8e6afcdd1675e6ebfeeab85fdab8.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0a66a386318ce4738a41c3e8a327909c95eddb0336324e06b0266a9e2747388a.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0b4fee1b7901bba03b3bdcf5b5e82d42d01f6c1fece1d4622d3655bd92fec5ef.o",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0bde016835fb3abdb78c8b26e62d1d14d19593eb3d8d2197fa4eedc1c285c6f6.zobj",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0bf1f98bb4fd73e8345461bca82dc6e09308d9e84555b82a491549c5a843b800.incremental",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0cb82b5bd37634c4100b68bcd0b02839ba60cf2f034b826461e44037c73b9025.elf",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0dbb2f0950c64bda45318a2dd787bf146844a31ca73c973d61594fe1f66c7304.ll",
+    "zil-push-main/out/runs/full-push-matched-o2-03/blobs/0e9a41ab1d1ce7c030bec50c769cdb91f93f6de41b3b4276bdb6c74bf2b941e1.incremental"
+  ],
+  "source_root": "/workspace"
+}
