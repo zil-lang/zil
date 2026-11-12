@@ -202,6 +202,10 @@ fn transfer(
             arguments,
             port_bindings,
             ..
+        } | InstructionKind::TaskCreateOwned {
+            arguments,
+            port_bindings,
+            ..
         } if output.is_some() => {
             let count = shape(&f.values[output.unwrap().0 as usize])
                 .unwrap()

@@ -268,7 +268,7 @@ fn returned_value(
         }
     }
     let origin = match found {
-        Some(InstructionKind::TaskCreate { worker, .. })
+        Some(InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. })
         | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
             unknown: false,
             workers: BTreeSet::from([*worker]),
@@ -495,7 +495,7 @@ fn require_origin(
                     continue;
                 }
                 let origin = match &i.kind {
-                    InstructionKind::TaskCreate { worker, .. }
+                    InstructionKind::TaskCreate { worker, .. } | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
@@ -671,6 +671,8 @@ fn require_workers(
                     | InstructionKind::FunctionRef { function }
                     | InstructionKind::ForeignFunctionRef { function }
                     | InstructionKind::TaskCreate {
+                        worker: function, ..
+                    } | InstructionKind::TaskCreateOwned {
                         worker: function, ..
                     }
                     | InstructionKind::TaskStart {

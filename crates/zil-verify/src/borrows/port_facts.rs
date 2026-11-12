@@ -472,6 +472,10 @@ fn produce(
             arguments,
             port_bindings,
             ..
+        } | InstructionKind::TaskCreateOwned {
+            arguments,
+            port_bindings,
+            ..
         } => {
             let mut result = Carrier {
                 success: true,
@@ -934,7 +938,7 @@ pub(super) fn owner_transfer(
                 }
             }
         }
-        InstructionKind::TaskCreate { arguments, .. } => {
+        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => {
             for argument in arguments {
                 if owned(&f.values[argument.0 as usize]) {
                     owners.remove(&Owner::Value(*argument));

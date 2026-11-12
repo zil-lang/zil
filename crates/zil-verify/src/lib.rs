@@ -2506,7 +2506,7 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::TaskStart { .. }
-        | InstructionKind::TaskCreate { .. }
+        | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
         | InstructionKind::TaskYield
         | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
@@ -4049,7 +4049,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
-        InstructionKind::TaskCreate { arguments, .. } => ([None, None], arguments),
+        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => ([None, None], arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }

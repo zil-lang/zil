@@ -1612,12 +1612,12 @@ impl Transfer<'_> {
                         );
                     }
                 }
-                InstructionKind::TaskCreate { arguments, .. } => {
+                InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len())?;
                     for &v in arguments {
-                        if validate && tasks::transfer::task_owner(&f.values[v.0 as usize]) { tasks::require_synchronous_value(self.module,f,v,budget,Some(span))?; }
+                        if validate && !matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) && tasks::transfer::task_owner(&f.values[v.0 as usize]) { tasks::require_synchronous_value(self.module,f,v,budget,Some(span))?; }
 
-                        if matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        if !matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) && matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                         {
                             return Err(bad(
                                 span,

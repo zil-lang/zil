@@ -70,7 +70,7 @@ fn old_consumers(kind: &InstructionKind, affine_values: bool) -> impl Iterator<I
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::SuspendCall { arguments, .. }
-        | InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
             if affine_values =>
         {
             (None, arguments)

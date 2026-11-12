@@ -2231,6 +2231,10 @@ fn infer_with_private(
                             arguments,
                             port_bindings,
                             ..
+                        } | InstructionKind::TaskCreateOwned {
+                            arguments,
+                            port_bindings,
+                            ..
                         } if instruction.result.is_some_and(|result| {
                             f.values
                                 .get(result.0 as usize)

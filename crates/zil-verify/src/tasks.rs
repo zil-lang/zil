@@ -395,6 +395,17 @@ fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> 
         }))),
     }
 }
+fn owned_create_type(result:&Type,retained:zil_ir::RetainedLifeShape,inputs:Vec<Type>)->Type {
+    let inputs=Type::Tuple(inputs);
+    let name=format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint());
+    let copy=inputs.is_copy_value();
+    let reason=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
+    let fields=vec![("reason".into(),reason),("inputs".into(),inputs)];
+    let failure=if copy {Type::Record{name,fields}}else{Type::Package{name,fields}};
+    let mut out=task_create_type(result,retained);
+    if let Type::ErrorUnion{error,..}=&mut out {*error=Box::new(failure);}
+    out
+}
 fn task_poll_type(result: &Type) -> Type {
     let storage = Type::Enum {
         name: format!("@std.task:v1:Poll:{}", result.fingerprint()),
@@ -505,6 +516,10 @@ pub(super) fn instruction(
             worker,
             ref arguments,
             ref port_bindings,
+        } | InstructionKind::TaskCreateOwned {
+            worker,
+            ref arguments,
+            ref port_bindings,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
             profile(module, worker, budget, span)?;
@@ -548,7 +563,10 @@ pub(super) fn instruction(
             }
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
-            let ty = task_create_type(&target.return_type, retained_life);
+            let ty = if matches!(i.kind,InstructionKind::TaskCreateOwned{..}) {
+                let mut inputs=vec![];for parameter in &target.parameters {let t=local_type(target,*parameter,span)?;resources::charge_payload(t,budget)?;resources::charge_payload(t,budget)?;inputs.push(t.clone());}
+                owned_create_type(&target.return_type,retained_life,inputs)
+            }else{task_create_type(&target.return_type, retained_life)};
             let Type::ErrorUnion { result, .. } = &ty else {
                 unreachable!()
             };

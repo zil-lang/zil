@@ -792,6 +792,10 @@ fn reconstruct(
                                 arguments,
                                 port_bindings,
                                 ..
+                            } | InstructionKind::TaskCreateOwned {
+                                arguments,
+                                port_bindings,
+                                ..
                             } if retained_task_value(&f.values[result.0 as usize]) => {
                                 for binding in port_bindings {
                                     let zil_ir::StorageBase::Parameter(index) = binding.source.base

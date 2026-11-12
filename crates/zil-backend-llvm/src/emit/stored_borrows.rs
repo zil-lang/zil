@@ -469,6 +469,10 @@ pub(super) fn reserve_binding(
                         arguments,
                         port_bindings,
                         ..
+                    } | InstructionKind::TaskCreateOwned {
+                        arguments,
+                        port_bindings,
+                        ..
                     } => {
                         pay(work, port_bindings.len())?;
                         for binding in port_bindings {

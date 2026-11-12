@@ -1122,7 +1122,7 @@ fn consumers(kind: &InstructionKind, affine_values: bool) -> impl Iterator<Item 
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::SuspendCall { arguments, .. }
-        | InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
             if affine_values =>
         {
             (None, arguments)
@@ -1504,7 +1504,7 @@ pub(super) fn check(
                 }
                 InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. }
-                | InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
@@ -1577,7 +1577,7 @@ pub(super) fn check(
                 // delegate only their own roots, never another capture's loan.
                 access.callback_arguments(arguments, facts, budget)?;
             }
-            if let InstructionKind::TaskCreate { arguments, .. } = &instruction.kind {
+            if let InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } = &instruction.kind {
                 check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
                 for argument in arguments {
                     if let Type::Address { mutable, .. } = f.values[argument.0 as usize] {
@@ -1986,7 +1986,7 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
-                | InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }

@@ -33,7 +33,7 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::TakeErrorUnion { .. }
             | InstructionKind::DropErrorUnion { .. }
             | InstructionKind::DropEnum { .. }
-            | InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
             | InstructionKind::TaskYield
             | InstructionKind::TaskValid { .. }
             | InstructionKind::TaskPoll { .. }
@@ -264,6 +264,10 @@ pub(super) fn transfer(
     let mut work_prepaid = false;
     match &i.kind {
         InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } | InstructionKind::TaskCreateOwned {
             worker,
             arguments,
             port_bindings,

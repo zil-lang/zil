@@ -160,7 +160,7 @@ impl crate::ct_selection::Visitor for Probe<'_> {
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
         self.present |= matches!(&e.kind, ExprKind::Name(name) if name=="Option");
         self.task_threads |= matches!(&e.kind,ExprKind::Name(name) if name=="thread_scope" || name=="TaskThreadScopeResult");
-        self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || name=="task_create");
+        self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || matches!(name.as_str(),"task_create"|"task_create_owned"));
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
         crate::ct_selection::walk_expression(self, e, depth)
     }

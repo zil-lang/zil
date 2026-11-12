@@ -4221,7 +4221,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
-            if matches!(name, "task_create" | "task_await") {
+            if matches!(name, "task_create" | "task_create_owned" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -4259,7 +4259,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &if name == "task_await" {
                         signature.result.clone()
                     } else {
-                        tasks::create_type(
+                        tasks::call_create_type(name,
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
@@ -4280,8 +4280,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                     })
                                     .as_ref(),
                                 &signature.result,
-                            ),
-                        )
+                            ), &signature.parameters)
                     },
                     span,
                 );
