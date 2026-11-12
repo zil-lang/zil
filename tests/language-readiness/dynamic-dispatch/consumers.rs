@@ -1162,6 +1162,79 @@ fn owned_raw_wire_rejects_forged_route_provider_and_loan() {
 }
 
 #[test]
+fn owned_dyn_capture_crosses_nested_factory_and_forwarding_boundaries() {
+    let source = "extern \"C\" fn putchar(code:i32)->i32;trait Read{fn read(self:&Self)->i32;}resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package A{manages mark:Token;pub n:i32}impl Read for A{fn read(self:&Self)->i32{return self.n}}fn consume(owner:OwnedDyn<dyn Read>)->i32{return owner.read()}fn make(owner:OwnedDyn<dyn Read>)->impl FnOnce()->i32{return move()->i32=>consume(owner)}fn relay<F:FnOnce()->i32>(f:F)->F{return f}fn run(call:bool)->DynCreateError!i32{let owner=owned_dyn::<dyn Read>(A{mark:Token{code:65},n:42})?;let outer=move()->i32=>{let child=make(owner);let forwarded=relay(child);return forwarded()};if call{return outer()}return 0}fn start()->DynCreateError!i32{return run(true)?+run(false)?}fn main()->i32{let r=start();match r{.ok(n)=>{return n},.err(_)=>{return 99}}}";
+    let (module, plan) = source_candidate_for(source);
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| {
+            f.callable_return_contract
+                .as_ref()
+                .is_some_and(|c| c.source == zil_ir::CallableReturnSource::Fresh)
+        })
+        .unwrap();
+    assert!(
+        !module.functions[factory]
+            .callable_return_contract
+            .as_ref()
+            .unwrap()
+            .cleanup
+            .is_empty()
+    );
+    let mut forged = module.clone();
+    forged.functions[factory]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .cleanup
+        .clear();
+    assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
+    let mut forged_plan = plan.clone();
+    forged_plan.module_fingerprint = forged.fingerprint();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&forged, &forged_plan, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(
+            forged.clone(),
+            forged_plan,
+            &forged.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err());
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("owned-nested-factory-capture");
+            let executable = dir.join("program");
+            let report = compile(
+                source,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"AA42\n");
+        }
+    }
+}
+
+#[test]
 fn moved_fnonce_dyn_capture_transfers_and_cleans_owner_once() {
     let source = "extern \"C\" fn putchar(code:i32)->i32;trait Read{fn read(self:&Self)->i32;}resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package A{manages mark:Token;pub n:i32}impl Read for A{fn read(self:&Self)->i32{return self.n}}fn consume(owner:OwnedDyn<dyn Read>)->i32{return owner.read()}fn invoke<F:FnOnce()->i32>(f:F)->i32{return f()}fn run(call:bool)->DynCreateError!i32{let owner=owned_dyn::<dyn Read>(A{mark:Token{code:65},n:42})?;let f=move()->i32=>consume(owner);if call{return invoke(f)}return 0}fn start()->DynCreateError!i32{return run(true)?+run(false)?}fn main()->i32{let r=start();match r{.ok(n)=>{return n},.err(_)=>{return 99}}}";
     for bad in [

@@ -77,6 +77,10 @@ pub(super) fn check_function(
             }
             continue;
         }
+        if let Type::OwnedDyn { interface } = ty {
+            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            continue;
+        }
         if ty.is_copy_value()
             || matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. })
@@ -112,6 +116,11 @@ pub(super) fn check_function(
     budget.spend(definition.captures.len(), "factory cleanup reconstruction")?;
     let mut cleanup = Vec::new();
     for (index, ty) in definition.captures.iter().enumerate() {
+        if let Type::OwnedDyn { interface } = ty {
+            crate::dyn_cleanup::owner_interface(module, *interface, budget)?;
+            cleanup.push(index as u32);
+            continue;
+        }
         if matches!(ty, Type::Managed(payload) if **payload == Type::ByteBuffer || payload.is_copy_value())
             || matches!(ty, Type::Package { .. } | Type::Closure(_))
         {

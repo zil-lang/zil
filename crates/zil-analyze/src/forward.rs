@@ -181,7 +181,7 @@ pub(super) fn envelope(
     for (index, ty) in definition.captures.iter().enumerate() {
         if matches!(
             ty,
-            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
         ) {
             budget.spend(1, "parameter return cleanup index")?;
             cleanup.push(index as u32);

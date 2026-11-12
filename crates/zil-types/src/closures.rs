@@ -3431,6 +3431,24 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         Ok(value)
     }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
+        if let Type::Opaque { hidden, .. } = ty {
+            let Type::FunctionPointer { .. } = hidden.as_ref() else {
+                return Err(unsupported(
+                    span,
+                    "opaque closure factory result lacks a complete callable signature",
+                ));
+            };
+            self.graph.reserve_type(hidden, 0, span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(1)
+                .ok_or_else(|| limit("opaque callback signature budget exceeded", span))?;
+            let index = self.nested_signatures.len();
+            self.nested_signatures.push(*hidden.clone());
+            // Only a private callable constraint. Builder resolves the actual
+            // factory ClosureId and enforces its concrete owning call mode.
+            return Ok(LocalType::Nested(index, None));
+        }
         if let Type::Closure(id) = ty {
             return Ok(LocalType::Closure(*id, None, None));
         }
@@ -5208,8 +5226,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
             {
                 let value = self.helper_argument(argument, bound, mode, depth + 1)?;
-                if matches!(value, LocalType::Nested(_, None))
-                    && mode.is_none()
+                if matches!(
+                    value,
+                    LocalType::Nested(_, None) | LocalType::Closure(_, None, _)
+                ) && mode.is_none()
                     && matches!(&signature.result, Type::Named(name) if name == &bound.generic_name)
                 {
                     nested_result = Some(value);

@@ -724,6 +724,9 @@ pub(super) fn self_contained(
                 pending.push(storage);
             }
             Type::Closure(child) => closures.push(*child),
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::type_owned(module, *interface, budget)?;
+            }
             Type::Managed(payload) => pending.push(payload),
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 budget.spend(fields.len())?;

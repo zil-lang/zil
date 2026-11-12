@@ -591,7 +591,7 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.parameters.iter().any(|parameter| {
             !(matches!(
                 parameter.ty,
-                Type::Address { .. } | Type::BorrowedStorage { .. }
+                Type::Address { .. } | Type::BorrowedStorage { .. } | Type::OwnedDyn { .. }
             ) || parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
                 || packages::capture_supported(&parameter.ty)
@@ -664,7 +664,8 @@ impl Builder<'_, '_> {
                 let capture = &self.closures.pending[id.0 as usize].captures[index];
                 (capture.stored_type(), capture.moved, capture.borrowed)
             };
-            if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
+            if (moved && !borrowed && matches!(ty, Type::OwnedDyn { .. }))
+                || matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::capture_supported(&ty)
                 || matches!(ty, Type::Closure(_))
                 || (moved
