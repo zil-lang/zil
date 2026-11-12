@@ -220,7 +220,9 @@ fn lower_view_with_budget(
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && qualified_capture_address(ty))
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
+                        || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
+                        || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
                     || ty.is_package_address()
