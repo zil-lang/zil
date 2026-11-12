@@ -3609,6 +3609,24 @@ fn step(
         out.store_description = permission;
     }
     if let Some(id) = i.result
+        && b.nested_store_windows
+        && matches!(i.kind, InstructionKind::Call { .. })
+        && option_address::shape(vt(f,id)?, &b.limits.clone(), b)?
+    {
+        // A returned Some is a new shared window at this actual call site,
+        // rather than the caller's possibly exclusive manager loan itself.
+        let row=&mut loans[id.0 as usize];
+        for ordinal in 0..out.leaves.len() {
+            b.spend(1)?;
+            let permission=out.leaves.permission_mut(ordinal);
+            add_sources(&mut row.sources,&permission.sources,b)?;
+            add_loans(&mut row.parents,&permission.loans,b)?;
+            b.spend(1)?;
+            permission.loans=vec![id.0 as usize];
+        }
+        row.exclusive=false;
+    }
+    if let Some(id) = i.result
         && b.static_utf8
         && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
     {
@@ -4145,6 +4163,9 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
+        if b.nested_store_windows {
+            loans.add(&payload.store_description.loans, b)?;
+        }
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
                 loans.add(&p.loans, b)?;
@@ -4209,6 +4230,9 @@ fn live_loans_main_fullscan(
             &state.locals[id - solution.values.len()]
         };
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
+        if b.nested_store_windows {
+            add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
+        }
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
                 add_loans_by_scan(&mut loans, &p.loans, b)?;

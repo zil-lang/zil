@@ -45,7 +45,8 @@ impl<'values> Sources<'values> {
         }
         for (id, payload) in values.iter().enumerate() {
             b.spend(3)?;
-            if !payload.leaves.is_empty() || !payload.task_ports.is_empty() {
+            if !payload.leaves.is_empty() || !payload.task_ports.is_empty()
+                || b.nested_store_windows && !payload.store_description.loans.is_empty() {
                 push(&mut ordinary, id, b)?;
                 b.spend(16)?;
                 if query_bound(members.len(), ordinary.len(), words) >= values.len() {
