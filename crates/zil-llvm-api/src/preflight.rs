@@ -1413,7 +1413,7 @@ mod signed_abi_attribute_tests {
     fn integer_extension_requires_an_integer_and_one_sign_policy() {
         assert!(attrs(&[Attr::SignExt], Some(&Ty::Int(8))).is_ok());
         assert!(attrs(&[Attr::SignExt], Some(&Ty::Int(16))).is_ok());
-        assert!(attrs(&[Attr::SignExt], Some(&Ty::Float(32))).is_err());
+        assert!(attrs(&[Attr::SignExt], Some(&Ty::F32)).is_err());
         assert!(attrs(&[Attr::SignExt], None).is_err());
         assert!(attrs(&[Attr::ZeroExt, Attr::SignExt], Some(&Ty::Int(8))).is_err());
     }
