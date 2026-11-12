@@ -76,6 +76,7 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         base: HoldRoot::Parameter(0),
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     };
     let rows = dyn_ports::Rows(vec![(
@@ -147,6 +148,7 @@ fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
         base: HoldRoot::Parameter(0),
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     };
     let task_source = Source {
