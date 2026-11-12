@@ -985,6 +985,8 @@ pub(super) fn check_resource_instruction(
                 budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
             if !(ty.is_copy_value()
                 || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
+                || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
+                    && *mutable && definition.kind == CallableKind::FnMut)
                 || inline_sum)
             {
                 return Err(reject(

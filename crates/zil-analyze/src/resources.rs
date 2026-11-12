@@ -2817,6 +2817,18 @@ impl Flow<'_> {
                     });
                 }
                 InstructionKind::BorrowCapture { index, mutable } => {
+                    if crate::stored_flow::task_capture_instruction(self.module, f, i, budget)? {
+                        let fact = copied(state, Place::Capture(*index), budget)?;
+                        if check && !exact(&fact, Life::Available) {
+                            return Err(error(
+                                "Task head borrow requires the original live capture",
+                            ));
+                        }
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::OwnedField(*index)]),
+                            ..Fact::default()
+                        });
+                    }
                     if let Some(definition) = f
                         .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))

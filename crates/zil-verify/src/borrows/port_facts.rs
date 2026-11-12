@@ -498,6 +498,7 @@ fn produce(
     match &instruction.kind {
         InstructionKind::TakeCapture { index }
         | InstructionKind::ReadCapture { index }
+        | InstructionKind::BorrowCapture { index, .. }
         | InstructionKind::DescribeCapture { index } => captures
             .get(*index as usize)
             .map_or(Ok(Carrier::default()), |row| copy(row, budget)),

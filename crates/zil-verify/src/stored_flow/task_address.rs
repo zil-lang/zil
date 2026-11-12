@@ -48,9 +48,13 @@ pub(super) fn capture_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    let (index, describe) = match i.kind {
-        InstructionKind::TakeCapture { index } => (index, false),
-        InstructionKind::DescribeCapture { index } => (index, true),
+    let (index, describe, borrowing) = match i.kind {
+        InstructionKind::TakeCapture { index } => (index, false, false),
+        InstructionKind::DescribeCapture { index } => (index, true, false),
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: true,
+        } => (index, false, true),
         _ => return Ok(false),
     };
     let Some(d) = f
@@ -70,6 +74,20 @@ pub(super) fn capture_instruction(
         .result
         .and_then(|value| f.values.get(value.0 as usize))
         .ok_or_else(|| err("consuming Task capture result absent"))?;
+    if borrowing {
+        if d.kind != CallableKind::FnMut
+            || !matches!(out, Type::Address { mutable: true, inner } if inner.as_ref() == actual)
+        {
+            return Err(err(
+                "exclusive Task capture view differs from its actual mutable entry",
+            ));
+        }
+        let Type::Managed(payload) = actual else {
+            unreachable!()
+        };
+        super::super::tasks::require_closed_context(payload, Some(i.span))?;
+        return Ok(true);
+    }
     if describe {
         let Type::Managed(payload) = actual else {
             unreachable!()
@@ -89,6 +107,28 @@ pub(super) fn capture_instruction(
         super::super::tasks::require_closed_context(payload, Some(i.span))?;
     }
     Ok(true)
+}
+
+pub(super) fn borrow_capture(index: u32, state: &Frame, b: &mut Budget) -> Check<Payload> {
+    let original = state
+        .captures
+        .get(index as usize)
+        .ok_or_else(|| err("actual captured Task payload is absent"))?;
+    let mut output = copy_payload(original, b)?;
+    b.spend(2)?;
+    output.address = Permission {
+        sources: vec![Source {
+            static_dependency: None,
+            retained_port: None,
+            base: HoldRoot::Capture(index),
+            leaf: vec![],
+            inline: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+        }],
+        loans: state.receiver.into_iter().collect(),
+    };
+    Ok(output)
 }
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(

@@ -1462,6 +1462,22 @@ fn check_with(
                     }
                 }
                 InstructionKind::BorrowCapture { index, .. }
+                    if super::stored_flow::task_capture_instruction(module, f, i, b)? =>
+                {
+                    let captured = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("Task head class has no actual capture"))?;
+                    let output = out.ok_or_else(|| bad("Task head class has no output"))?;
+                    array_outer::copy(&mut e, output, captured, outer.as_ref(), b)?;
+                    if let Some(head) = output.outer {
+                        if let Some(parent) = receiver_region {
+                            array_outer::transport(&mut e, head, parent, outer.as_ref(), b)?;
+                        } else {
+                            e.address_origin(head, b)?;
+                        }
+                    }
+                }
+                InstructionKind::BorrowCapture { index, .. }
                     if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
                 {
                     let out = out.unwrap();

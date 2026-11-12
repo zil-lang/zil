@@ -3473,6 +3473,11 @@ static_dependency: None,
                 b,
             )?;
         }
+        InstructionKind::BorrowCapture { index, mutable: true }
+            if task_address::capture_instruction(module, f, i, b)? =>
+        {
+            out = task_address::borrow_capture(*index, state, b)?;
+        }
         InstructionKind::BorrowCapture { index, .. }
             if returned_environment::borrowed_child(module, f, i, b)? =>
         {

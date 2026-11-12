@@ -198,7 +198,11 @@ fn transfer(
         .result
         .filter(|v| f.values.get(v.0 as usize).and_then(shape).is_some());
     let result = match &instruction.kind {
-        InstructionKind::DescribeCapture { index } if output.is_some() => {
+        InstructionKind::DescribeCapture { index }
+        | InstructionKind::BorrowCapture {
+            index,
+            mutable: true,
+        } if output.is_some() => {
             let d = f
                 .environment
                 .and_then(|id| module.closures.get(id.0 as usize))
@@ -211,10 +215,17 @@ fn transfer(
             let Type::Managed(payload) = actual else {
                 return Err(bad("Task capture description has no actual owning frame"));
             };
-            let Type::Desc(described) = &f.values[output.unwrap().0 as usize] else {
-                return Err(bad(
-                    "Task capture description changes its actual carrier mode",
-                ));
+            let output_type = &f.values[output.unwrap().0 as usize];
+            let corresponds = match (&instruction.kind, output_type) {
+                (InstructionKind::DescribeCapture { .. }, Type::Desc(inner)) => inner == payload,
+                (
+                    InstructionKind::BorrowCapture { mutable: true, .. },
+                    Type::Address {
+                        mutable: true,
+                        inner,
+                    },
+                ) => d.kind == zil_ir::CallableKind::FnMut && inner.as_ref() == actual,
+                _ => false,
             };
             b.type_work(
                 actual,
@@ -222,11 +233,11 @@ fn transfer(
                 "actual captured Task description correspondence",
             )?;
             b.type_work(
-                described,
+                output_type,
                 false,
                 "actual Task description payload correspondence",
             )?;
-            if payload != described {
+            if !corresponds {
                 return Err(bad(
                     "Task capture description changes its actual frame type",
                 ));

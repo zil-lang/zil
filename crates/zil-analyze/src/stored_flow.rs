@@ -123,6 +123,15 @@ pub(super) fn shared_enum_observation(
     )
 }
 
+pub(super) fn task_capture_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    Ok(b.task_sources() && task_address::capture_instruction(module, f, i, b)?)
+}
+
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
     // A plain address-returning helper can project the caller's actual stored
     // pointee even when its own signature contains no qualified carrier.
@@ -4701,6 +4710,11 @@ fn transfer(
                 }
             }
             out.creation_complete = Some(complete);
+        }
+        InstructionKind::BorrowCapture { index, mutable: true }
+            if task_address::capture_instruction(module, f, i, b)? =>
+        {
+            out = task_address::borrow_capture(*index, state, b)?;
         }
         InstructionKind::BorrowCapture { index, .. }
             if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))

@@ -92,9 +92,13 @@ pub(super) fn capture_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    let (index, describe) = match i.kind {
-        InstructionKind::TakeCapture { index } => (index, false),
-        InstructionKind::DescribeCapture { index } => (index, true),
+    let (index, describe, borrow) = match i.kind {
+        InstructionKind::TakeCapture { index } => (index, false, false),
+        InstructionKind::DescribeCapture { index } => (index, true, false),
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: true,
+        } => (index, false, true),
         _ => return Ok(false),
     };
     let Some(definition) = f
@@ -113,6 +117,18 @@ pub(super) fn capture_instruction(
         return Ok(false);
     }
     b.type_work(ty, false, "actual consuming Task capture type")?;
+    if borrow {
+        if definition.kind != zil_ir::CallableKind::FnMut
+            || !matches!(i.result.and_then(|v| f.values.get(v.0 as usize)),
+                Some(Type::Address { mutable: true, inner }) if inner.as_ref() == ty)
+        {
+            return Err(failure(
+                "Task head borrow requires the exact mutable environment slot",
+            ));
+        }
+        super::super::tasks::require_closed_context(payload)?;
+        return Ok(true);
+    }
     if describe {
         let valid = i
             .result
@@ -136,6 +152,29 @@ pub(super) fn capture_instruction(
     }
     super::super::tasks::require_closed_context(payload)?;
     Ok(true)
+}
+
+pub(super) fn borrow_capture(index: u32, state: &State, b: &mut Budget) -> CompileResult<Value> {
+    let actual = state
+        .captures
+        .get(&index)
+        .ok_or_else(|| failure("captured Task has no actual frame permissions"))?;
+    let mut out = snapshot(actual, b)?;
+    out.pointer = Permission::default();
+    fee(b, 1)?;
+    out.pointer.targets.insert(Target {
+        retained_port: None,
+        base: HoldRoot::Capture(index),
+        stored: vec![],
+        place: vec![],
+        heap_parents: vec![],
+        heap_element: None,
+    });
+    if let Some(parent) = state.receiver_loan {
+        fee(b, 1)?;
+        out.pointer.loans.insert(parent);
+    }
+    Ok(out)
 }
 pub(super) fn operation(kind: &InstructionKind) -> bool {
     matches!(
