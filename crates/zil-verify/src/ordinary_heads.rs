@@ -171,7 +171,6 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
     };
     if f.environment.is_some()
         || f.foreign.is_some()
-        || f.call_kind != CallKind::Direct
         || f.reference_return_bound.is_some()
         || c.fixed_binder_count != 0
         || !c.classes.is_empty()
@@ -292,6 +291,22 @@ mod tests {
         let mut unknown = f.clone();
         unknown.storage_life = None;
         assert!(!accepts(&module, &unknown));
+    }
+    #[test]
+    fn suspend_input_head_signature_does_not_qualify_a_retained_frame_as_zero() {
+        let (module, mut worker) = fixture(Type::I32);
+        worker.call_kind = CallKind::Suspend;
+        worker.return_type = Type::Managed(Box::new(Type::I32));
+        assert!(accepts(&module, &worker));
+        let (module, mut retained_frame) = fixture(Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: zil_ir::RetainedLifeShape {
+                binder_count: 1,
+                ..shape()
+            },
+        });
+        retained_frame.call_kind = CallKind::Suspend;
+        assert!(!accepts(&module, &retained_frame));
     }
     #[test]
     fn task_empty_ports_cannot_hide_phantom_or_borrowed_result_domain() {

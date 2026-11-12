@@ -901,15 +901,17 @@ fn check_module(
                     tasks::charge_result_selection(ty, &mut budget)?;
                 }
                 tasks::charge_result_selection(&function.return_type, &mut budget)?;
-                signature_life::charge(contract, &mut budget)?;
-                signature_life::function_relation(
-                    module,
-                    &parameters,
-                    &function.return_type,
-                    contract,
-                    Some(function.span),
-                    false,
-                )?;
+                if !ordinary_heads::check(module, function, &mut budget)? {
+                    signature_life::charge(contract, &mut budget)?;
+                    signature_life::function_relation(
+                        module,
+                        &parameters,
+                        &function.return_type,
+                        contract,
+                        Some(function.span),
+                        false,
+                    )?;
+                }
             } else if !ordinary_heads::check(module, function, &mut budget)?
                 && !tasks::borrowed_signature(module, function, &mut budget)?
             {
