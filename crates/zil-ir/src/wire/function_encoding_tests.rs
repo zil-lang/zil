@@ -577,3 +577,139 @@ fn shared_plan_columns_isolate_mutations_and_row_ids_still_bind_encoding_slots()
         encode_module_candidate(&module, &plan, &limits).unwrap()
     );
 }
+
+#[test]
+fn persistent_plan_slots_bind_exact_owners_without_rechecking_shared_rows() {
+    let (module, mut plan) = plans_fixture();
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let mut plans: PersistentVec<_> = vec![None, None, None].into();
+    let encode = |plan: &CandidatePlan,
+                  plans: &mut PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+                  limits: &Limits| {
+        let mut stats = FunctionPlanEncodingStats::default();
+        let bytes = encode_module_candidate_persistent_segments(
+            &module,
+            plan,
+            || module.functions.iter().zip(&functions),
+            plans,
+            limits,
+            &mut FunctionEncodingStats::default(),
+            &mut stats,
+        )
+        .map(|segments| {
+            segments
+                .iter()
+                .flat_map(|s| s.bytes.iter().copied())
+                .collect::<Vec<_>>()
+        });
+        (bytes, stats)
+    };
+    assert_eq!(
+        encode(&plan, &mut plans, &limits).0,
+        encode_module_candidate(&module, &plan, &limits)
+    );
+    let cold = plans.clone();
+    let (_, warm) = encode(&plan, &mut plans, &limits);
+    assert_eq!(
+        (warm.serialized_function_plans, warm.compared_function_plans),
+        (0, 0)
+    );
+    assert!(plans.ptr_eq(&cold));
+    let row = plan.functions[1].clone();
+    plan.functions.replace(1, row);
+    let (bytes, equal) = encode(&plan, &mut plans, &limits);
+    assert_eq!(bytes, encode_module_candidate(&module, &plan, &limits));
+    assert_eq!(
+        (
+            equal.serialized_function_plans,
+            equal.compared_function_plans
+        ),
+        (0, 1)
+    );
+    assert!(Arc::ptr_eq(
+        &cold[1].as_ref().unwrap().shared_bytes(),
+        &plans[1].as_ref().unwrap().shared_bytes()
+    ));
+    let rebound = plans.clone();
+    assert_eq!(
+        encode(&plan, &mut plans, &limits).1.compared_function_plans,
+        0
+    );
+    assert!(plans.ptr_eq(&rebound));
+    // A valid public fingerprint or same function ID never authorizes stale
+    // fact reuse. Complete raw inequality requires a new serialization.
+    plan.functions[1].blocks[0].initialized_out.pop();
+    let (bytes, changed) = encode(&plan, &mut plans, &limits);
+    assert_eq!(bytes, encode_module_candidate(&module, &plan, &limits));
+    assert_eq!(
+        (
+            changed.serialized_function_plans,
+            changed.compared_function_plans
+        ),
+        (1, 1)
+    );
+    assert!(Arc::ptr_eq(cold.owner(0).unwrap(), plans.owner(0).unwrap()));
+    assert!(Arc::ptr_eq(cold.owner(2).unwrap(), plans.owner(2).unwrap()));
+}
+
+#[test]
+fn persistent_plan_slots_preserve_exact_aggregate_wire_errors() {
+    let (module, plan) = plans_fixture();
+    let normal = Limits::default();
+    let mut writer = Writer::new(&normal);
+    writer.header(MODULE_MAGIC).unwrap();
+    writer.module(&module).unwrap();
+    writer.plan(&plan).unwrap();
+    let bytes = writer.output.len();
+    let nodes = normal.max_nodes - writer.nodes;
+    for limits in [
+        Limits {
+            max_source_bytes: bytes,
+            ..normal.clone()
+        },
+        Limits {
+            max_source_bytes: bytes - 1,
+            ..normal.clone()
+        },
+        Limits {
+            max_nodes: nodes,
+            ..normal.clone()
+        },
+        Limits {
+            max_nodes: nodes - 1,
+            ..normal.clone()
+        },
+    ] {
+        let functions = slots(&module, &normal);
+        let mut plans: PersistentVec<_> = vec![None, None, None].into();
+        // Warm under a different complete Limits value; it cannot license a
+        // shortcut under the exact N/N-1 boundary being tested.
+        encode_module_candidate_persistent_segments(
+            &module,
+            &plan,
+            || module.functions.iter().zip(&functions),
+            &mut plans,
+            &normal,
+            &mut FunctionEncodingStats::default(),
+            &mut FunctionPlanEncodingStats::default(),
+        )
+        .unwrap();
+        let actual = encode_module_candidate_persistent_segments(
+            &module,
+            &plan,
+            || module.functions.iter().zip(&functions),
+            &mut plans,
+            &limits,
+            &mut FunctionEncodingStats::default(),
+            &mut FunctionPlanEncodingStats::default(),
+        )
+        .map(|segments| {
+            segments
+                .iter()
+                .flat_map(|s| s.bytes.iter().copied())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(actual, encode_module_candidate(&module, &plan, &limits));
+    }
+}

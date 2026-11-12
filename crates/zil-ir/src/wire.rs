@@ -219,6 +219,7 @@ pub fn encode_module_candidate(
 /// A successful serialization of one raw function under exactly one set of
 /// limits. This is transport data, and carries no Verify authority. Keep its
 /// cache slot with the immutable function that produced it.
+#[derive(Clone)]
 pub struct RawFunctionEncoding {
     bytes: Arc<[u8]>,
     limits: Limits,
@@ -251,8 +252,29 @@ impl RawFunctionEncoding {
 /// Limits value. The owned row binds reuse without treating an Analyze digest
 /// or an enclosing program identity as evidence. This carries no Verify authority.
 pub struct RawFunctionPlanEncoding {
-    function: FunctionPlan,
+    function: Arc<FunctionPlan>,
     encoding: RawFunctionEncoding,
+}
+
+impl RawFunctionPlanEncoding {
+    /// The immutable raw transport fragment, with no Verify authority.
+    pub fn shared_bytes(&self) -> Arc<[u8]> {
+        self.encoding.shared_bytes()
+    }
+    /// Bind transport bytes to a replacement immutable raw owner only after
+    /// complete row equality. Neither this association nor the bytes certify
+    /// the candidate. The caller may skip this work for shared input subtrees.
+    pub fn bind_owner(self: &Arc<Self>, function: &Arc<FunctionPlan>) -> Option<Arc<Self>> {
+        if Arc::ptr_eq(&self.function, function) {
+            return Some(self.clone());
+        }
+        (self.function.as_ref() == function.as_ref()).then(|| {
+            Arc::new(Self {
+                function: function.clone(),
+                encoding: self.encoding.clone(),
+            })
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -261,6 +283,8 @@ pub struct FunctionPlanEncodingStats {
     pub reused_function_plans: usize,
     pub serialized_function_plan_bytes: usize,
     pub reused_function_plan_bytes: usize,
+    /// Full raw row comparisons, excluding immutable owner identity hits.
+    pub compared_function_plans: usize,
 }
 
 /// Encode one raw function fragment; the enclosing publication must separately
@@ -409,85 +433,171 @@ pub fn encode_module_candidate_plan_segments(
     stats: &mut FunctionEncodingStats,
     plan_stats: &mut FunctionPlanEncodingStats,
 ) -> CompileResult<Vec<WireSegment>> {
+    encode_candidate_plan_segments(
+        module,
+        plan,
+        || {
+            functions
+                .iter()
+                .map(|(function, cache)| (*function, *cache))
+        },
+        plans,
+        limits,
+        stats,
+        plan_stats,
+    )
+}
+
+/// The same ordinary Wire stream and quota/error ordering, with persistent
+/// caller-owned raw slots and a repeatable borrowing iterator. No flat function
+/// or plan-slot table is materialized. Slots must remain bound to their exact
+/// immutable function; publication of shared slots must be serialized.
+/// Every logical fragment still replays its aggregate nodes and byte charge.
+pub fn encode_module_candidate_persistent_segments<'f, I>(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    functions: impl Fn() -> I,
+    plans: &mut PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+    limits: &Limits,
+    stats: &mut FunctionEncodingStats,
+    plan_stats: &mut FunctionPlanEncodingStats,
+) -> CompileResult<Vec<WireSegment>>
+where
+    I: ExactSizeIterator<Item = (&'f TypedFunction, &'f OnceLock<RawFunctionEncoding>)>,
+{
+    encode_candidate_plan_segments(module, plan, functions, plans, limits, stats, plan_stats)
+}
+
+trait PlanEncodingSlots {
+    fn cached(&self, index: usize) -> Option<&Arc<RawFunctionPlanEncoding>>;
+    fn retained_bytes(&self) -> usize;
+    fn store(&mut self, index: usize, raw: Option<Arc<RawFunctionPlanEncoding>>);
+}
+impl PlanEncodingSlots for [Option<Arc<RawFunctionPlanEncoding>>] {
+    fn cached(&self, index: usize) -> Option<&Arc<RawFunctionPlanEncoding>> {
+        self.get(index).and_then(Option::as_ref)
+    }
+    fn retained_bytes(&self) -> usize {
+        self.iter()
+            .filter_map(Option::as_ref)
+            .map(|raw| raw.encoding.byte_len())
+            .fold(0, usize::saturating_add)
+    }
+    fn store(&mut self, index: usize, raw: Option<Arc<RawFunctionPlanEncoding>>) {
+        if let Some(slot) = self.get_mut(index) {
+            *slot = raw;
+        }
+    }
+}
+impl PlanEncodingSlots for PersistentVec<Option<Arc<RawFunctionPlanEncoding>>> {
+    fn cached(&self, index: usize) -> Option<&Arc<RawFunctionPlanEncoding>> {
+        self.get(index).and_then(Option::as_ref)
+    }
+    fn retained_bytes(&self) -> usize {
+        self.iter()
+            .filter_map(Option::as_ref)
+            .map(|raw| raw.encoding.byte_len())
+            .fold(0, usize::saturating_add)
+    }
+    fn store(&mut self, index: usize, raw: Option<Arc<RawFunctionPlanEncoding>>) {
+        if index < self.len() {
+            self.replace(index, raw);
+        }
+    }
+}
+
+fn encode_candidate_plan_segments<'f, I>(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    functions: impl Fn() -> I,
+    plans: &mut (impl PlanEncodingSlots + ?Sized),
+    limits: &Limits,
+    stats: &mut FunctionEncodingStats,
+    plan_stats: &mut FunctionPlanEncodingStats,
+) -> CompileResult<Vec<WireSegment>>
+where
+    I: ExactSizeIterator<Item = (&'f TypedFunction, &'f OnceLock<RawFunctionEncoding>)>,
+{
     public((|| {
         let mut writer = Writer::new(limits);
         writer.segments = Some(Vec::new());
         writer.header(MODULE_MAGIC)?;
-        let retained_bytes = functions
-            .iter()
-            .map(|(_, cache)| cache.get().map_or(0, RawFunctionEncoding::byte_len))
-            .chain(
-                plans
-                    .iter()
-                    .map(|slot| slot.as_ref().map_or(0, |raw| raw.encoding.byte_len())),
-            )
-            .fold(0usize, usize::saturating_add);
+        let retained_functions = || {
+            functions()
+                .map(|(_, cache)| cache.get().map_or(0, RawFunctionEncoding::byte_len))
+                .fold(0usize, usize::saturating_add)
+        };
+        let retained_bytes = retained_functions().saturating_add(plans.retained_bytes());
         let mut cache_bytes = limits.max_source_bytes.saturating_sub(retained_bytes);
         writer.module_with_functions(
             module,
-            functions
-                .iter()
-                .map(|(function, cache)| (*function, Some(*cache))),
+            functions().map(|(function, cache)| (function, Some(cache))),
             &mut cache_bytes,
             stats,
         )?;
-        let mut occupied = functions
-            .iter()
-            .map(|(_, cache)| cache.get().map_or(0, RawFunctionEncoding::byte_len))
-            .chain(
-                plans
-                    .iter()
-                    .map(|slot| slot.as_ref().map_or(0, |raw| raw.encoding.byte_len())),
-            )
-            .fold(0usize, usize::saturating_add);
+        let mut occupied = retained_functions().saturating_add(plans.retained_bytes());
         writer.flush_segment();
         writer.plan_header(plan)?;
         writer.flush_segment();
         for (index, function) in plan.functions.iter().enumerate() {
-            let slot = plans.get_mut(index);
-            if let Some(raw) = slot.as_deref().and_then(Option::as_ref)
-                && raw.function == *function
-                && raw.encoding.limits == *limits
-                && raw.encoding.nodes <= writer.nodes
-                && writer
-                    .total_len()
-                    .checked_add(raw.encoding.bytes.len())
-                    .is_some_and(|length| length <= limits.max_source_bytes)
-            {
+            let raw = plans.cached(index).filter(|raw| {
+                let same_owner = std::ptr::eq(raw.function.as_ref(), function);
+                if !same_owner {
+                    plan_stats.compared_function_plans += 1;
+                }
+                (same_owner || raw.function.as_ref() == function)
+                    && raw.encoding.limits == *limits
+                    && raw.encoding.nodes <= writer.nodes
+                    && writer
+                        .total_len()
+                        .checked_add(raw.encoding.bytes.len())
+                        .is_some_and(|length| length <= limits.max_source_bytes)
+            });
+            if let Some(raw) = raw {
                 writer.charge(raw.encoding.nodes)?;
                 writer.shared_fragment(&raw.encoding)?;
                 plan_stats.reused_function_plans += 1;
                 plan_stats.reused_function_plan_bytes += raw.encoding.byte_len();
+                // An equal replacement row stops byte propagation. Bind its
+                // actual owner once so the next epoch need not compare it again.
+                if !std::ptr::eq(raw.function.as_ref(), function) {
+                    let rebound = Arc::new(RawFunctionPlanEncoding {
+                        function: plan.functions.owner(index).unwrap().clone(),
+                        encoding: raw.encoding.clone(),
+                    });
+                    plans.store(index, Some(rebound));
+                }
             } else {
-                // Replaying a single total cannot reproduce which original
-                // collection/byte/node check fails first. Traverse the current
-                // row when either remaining aggregate allowance is too small.
+                // A total receipt cannot reproduce the first check that fails
+                // inside a row when aggregate allowance is insufficient.
                 let nodes = writer.nodes;
                 plan_stats.serialized_function_plans += 1;
                 writer.function_plan(function)?;
                 let length = writer.output.len();
                 plan_stats.serialized_function_plan_bytes += length;
                 writer.flush_segment();
-                if let Some(slot) = slot {
-                    if let Some(old) = slot.take() {
-                        occupied = occupied.saturating_sub(old.encoding.byte_len());
-                    }
-                    if occupied
-                        .checked_add(length)
-                        .is_some_and(|n| n <= limits.max_source_bytes)
-                    {
-                        let segment = writer.segments.as_ref().unwrap().last().unwrap();
-                        *slot = Some(Arc::new(RawFunctionPlanEncoding {
-                            function: function.clone(),
+                if let Some(old) = plans.cached(index) {
+                    occupied = occupied.saturating_sub(old.encoding.byte_len());
+                }
+                plans.store(index, None);
+                if occupied
+                    .checked_add(length)
+                    .is_some_and(|n| n <= limits.max_source_bytes)
+                {
+                    let segment = writer.segments.as_ref().unwrap().last().unwrap();
+                    plans.store(
+                        index,
+                        Some(Arc::new(RawFunctionPlanEncoding {
+                            function: plan.functions.owner(index).unwrap().clone(),
                             encoding: RawFunctionEncoding {
                                 bytes: segment.bytes.clone(),
                                 limits: limits.clone(),
                                 nodes: nodes - writer.nodes,
                                 fingerprint: OnceLock::from(segment.fingerprint),
                             },
-                        }));
-                        occupied += length;
-                    }
+                        })),
+                    );
+                    occupied += length;
                 }
             }
         }
