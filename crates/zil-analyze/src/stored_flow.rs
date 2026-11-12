@@ -4820,7 +4820,7 @@ fn transfer(
             union(&mut out.store_description, &get(*address)?.pointer, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if owned::owning_head_description(module, f, i, b)? => {
             // A weak description carries an actual header origin, but grants
             // no element permission until the checked Store borrow.
             union(&mut out.store_description, &get(*address)?.pointer, b)?;

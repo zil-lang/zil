@@ -140,14 +140,9 @@ fn borrowed_owned_definition(
         d.parameters.len(),
         "stored callback actual borrowed input inventory",
     )?;
-    if d.result.is_copy_value()
-        || !d
-            .parameters
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { .. }))
-    {
+    if d.result.is_copy_value() {
         return Err(bad(
-            "stored owning callback requires an actual borrowed input and closed owned result",
+            "stored owning callback requires an actual closed owned result",
         ));
     }
     closed_callback_data(&d.result, b)?;

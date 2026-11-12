@@ -95,6 +95,86 @@ fn complete_owning_hash_source_reconstructs_default_analyze_candidate() {
     }
 }
 
+#[test]
+fn qualified_ordinary_foreign_calls_require_real_noescape_and_disjoint_arguments() {
+    use zil_ir::InstructionKind;
+    let source = r#"
+struct View<life a>{value:&'a u8}
+extern "C" fn adjust(left:&mut u8,right:&mut u8)->i32 contract {provides(noescape(left),noescape(right));effects(ffi);};
+fn apply<life a,life b,life c>(left:&'a mut u8,right:&'b mut u8,watch:&'c u8)->i32{
+    let saved=View::<'c>{value:watch}
+    var result:i32=0
+    unsafe{result=adjust(left,right)}
+    return result+i32(*saved.value)
+}
+fn main()->i32{var left=1u8;var right=2u8;let watch=3u8;return apply(&mut left,&mut right,&watch)}
+"#;
+    let typed = typed_stdlib(&[("main", source)]);
+    let limits = zil_base::Limits::default();
+    zil_analyze::analyze(&typed, &limits).unwrap();
+    let mut missing = typed.clone();
+    let foreign = missing
+        .functions
+        .iter_mut()
+        .find_map(|f| f.foreign.as_mut())
+        .unwrap();
+    assert_eq!(foreign.noescape_parameters, [0, 1]);
+    foreign.noescape_parameters.pop();
+    assert!(zil_analyze::analyze(&missing, &limits).is_err());
+    let mut aliased = typed.clone();
+    let arguments = aliased
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| match &mut i.kind {
+            InstructionKind::ForeignCall { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(arguments.len(), 2);
+    arguments[1] = arguments[0];
+    assert!(zil_analyze::analyze(&aliased, &limits).is_err());
+    let mut unguarded = typed;
+    let mut removed = 0;
+    for block in unguarded.functions.iter_mut().flat_map(|f| &mut f.blocks) {
+        block.instructions.retain(|i| {
+            let keep = !matches!(i.kind, InstructionKind::UnsafeEnter { .. });
+            removed += usize::from(!keep);
+            keep
+        });
+    }
+    assert!(removed > 0);
+    assert!(zil_analyze::analyze(&unguarded, &limits).is_err());
+}
+
+#[test]
+fn borrowed_environment_termination_cannot_discard_an_actual_owning_capture() {
+    use zil_ir::InstructionKind;
+    let source = r#"
+resource Ticket{value:i32}
+impl Drop for Ticket{fn drop(self:Self){let observed=.value}}
+fn main()->i32{let ticket=Ticket{value:42};let read=move()=>ticket.value;return read()-42}
+"#;
+    let mut typed = typed_stdlib(&[("main", source)]);
+    let limits = zil_base::Limits::default();
+    assert!(typed.closures.iter().any(|definition| definition.captures.iter()
+        .any(|capture| matches!(capture, zil_ir::Type::Managed(_)))));
+    zil_analyze::analyze(&typed, &limits).unwrap();
+    let mut removed = 0;
+    for function in &mut typed.functions {
+        for block in &mut function.blocks {
+            block.instructions.retain(|i| {
+                let keep = !matches!(i.kind, InstructionKind::DropClosure { .. });
+                removed += usize::from(!keep);
+                keep
+            });
+        }
+    }
+    assert!(removed > 0);
+    assert!(zil_analyze::analyze(&typed, &limits).is_err());
+}
+
 fn run(source: &str, name: &str) {
     run_output(source, name, b"")
 }

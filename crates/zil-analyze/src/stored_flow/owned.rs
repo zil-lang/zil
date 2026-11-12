@@ -477,6 +477,36 @@ pub(super) fn scalar_description(
     Ok(true)
 }
 
+pub(super) fn owning_head_description(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::DescribeAddress { address } = i.kind else {
+        return Ok(false);
+    };
+    let Some(result) = i.result else {
+        return Err(failure("head description has no result"));
+    };
+    let actual = value_type(f, result)?;
+    let Type::Desc(payload) = actual else {
+        return Ok(false);
+    };
+    if !matches!(payload.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }) {
+        return Ok(false);
+    }
+    b.type_work(payload, false, "actual addressed owning head description")?;
+    if !matches!(value_type(f,address)?, Type::Address { inner, .. }
+        if matches!(inner.as_ref(),Type::Managed(owner) if owner == payload))
+    {
+        return Err(failure(
+            "head description changes its actual addressed owner type",
+        ));
+    }
+    ordinary_value(module, actual, b)
+}
+
 pub(super) fn instruction(
     module: &TypedModule,
     f: &TypedFunction,
