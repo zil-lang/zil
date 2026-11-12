@@ -15,14 +15,16 @@
     "task/language-integration"
   ],
   "tests_this_dispatch": 0,
-  "integration_checkpoint": "a3689c175887f735f8e08af91ef583783a0d0058",
+  "integration_checkpoint": "7b228e896",
   "integration_remote": "task/language-integration",
   "observations": {
-    "numeric": "12 targeted tests passed with 84 actual native executions on numeric candidate; extended regressions pending; not accepted",
-    "public_identity": "14 identity controls passed before codec extension; added codec case first failed on test fixture missing contract, fixture corrected, rerun pending",
-    "abi": "ordinary opaque owning callback first consumer passed all four native configurations; generic borrowed-helper consumer exposed old rejection, Types/Analyze/Verify extension implemented, rerun pending",
-    "independent_schema_review": "async reviewer withheld acceptance for prehash metadata budget and CT version; capture preflight and CT8 fixed in root, dyn implementing independent owner cleanup inventory",
-    "other_lanes": "owned hash/float/buffer/graph, Task aggregate and generic/lending/retained closure composition implementation and validation continue"
+    "numeric": "PR85 draft at84ea429ca; 1585 lib tests and 16 targeted/144 native reported on candidate; full CI first failures in old LIR layout/suffix fixtures fixed by root, focused6+13 pass; latest remote full CI pending; not merged",
+    "joint_integration": "All six implementation lanes now present in one integration worktree; five-lane all-target check passed before async/stdlib; subsequent full workspace checks exposed old test constructors and historical oracle opcode exhaustiveness, fixed incrementally; full joint execution and exact-source acceptance pending",
+    "borrowed_environments": "Independent Verify4639da669:606 lib and11 raw/Wire source/loop/loan/budget controls pass. Ownership reports nested/wrapped/loop/multiple actual environments native pass; whole qualified owning holder capture reveals cleanup extension under implementation by Astra Verify independently from ownership Types/Analyze",
+    "iteration": "Value and SyncDrop independent obligations; lazy adapters/source-root conflict controls implemented; qualified Source lifetime specialization and recursively nested Store provenance still being completed, not accepted",
+    "async": "Task input/result aggregates, actual frame migration, provider driver-transfer promises, TaskCreateOwned151 implemented as WIP; real threaded controls run, remaining retained failure/helper composition still open",
+    "stdlib": "Owning hash Map/Set, numeric text, buffered I/O, bounded graph reuse integrated as candidates; actual original full owning hash consumer still above default10M budget; private immutable fact/tag work reduces real computation without limit increase; not accepted",
+    "dynamic": "Common effects, large snapshots, whole-owner cleanup and repeated Fn/FnMut capture implemented; borrowed Context provider/storage/result/source contracts being completed"
   },
-  "source_acceptance": "No complete candidate independently accepted or merged yet; implementation and test failures remain open"
+  "source_acceptance": "No complete-language candidate accepted or merged; all unresolved capabilities remain open. Existing main stays99035931d. Raw logs persist per-worktree out/runs."
 }
