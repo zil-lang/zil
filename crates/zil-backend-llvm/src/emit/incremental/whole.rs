@@ -111,7 +111,7 @@ struct LowerEpoch {
     context: Option<Arc<Context>>,
     entries: EntryTable,
     context_identity: Arc<()>,
-    products: Arc<Vec<(Arc<()>, Arc<()>)>>,
+    products: crate::incremental::ScalarProducts,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
 }
 
@@ -213,6 +213,7 @@ impl Session {
             self.entries = product.epoch.entries.clone();
             self.context_identity = product.epoch.context_identity.clone();
             self.products = product.epoch.products.clone();
+            self.product_count = self.products.len();
             self.admitted = product.epoch.admitted.clone();
             self.eligible = true;
             self.machine_history.remove(index);
@@ -237,7 +238,7 @@ impl Session {
         before: usize,
         output: &(m::Module, bool, usize),
     ) {
-        if !self.eligible || reference_planner() || !checked_scalar_domain(verified) {
+        if self.identity().is_none() || reference_planner() || !checked_scalar_domain(verified) {
             return;
         }
         let Some(spent) = before.checked_sub(output.2) else {
