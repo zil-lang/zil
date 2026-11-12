@@ -154,17 +154,46 @@ PassStep describeUsage(llvm::Pass &P, bool Machine, const llvm::AnalysisUsage &A
   for (ID D : AU.getPreservedSet()) S.dependencies.push_back(D);
   return S;
 }
-PassStep describe(llvm::Pass &P, bool Machine) {
-  // Borrow the CURRENT scheduler's complete per-instance AU, not a PM-address
-  // cache or a PassID guess. Fixed7a LegacyPassManager.cpp619-649 keys this by
-  // exact P; scheduling1057, initializeAnalysisImpl1076 and invalidation869/903
-  // consume the same object. Immediately copy only values/DSO-static IDs.
+template<class Consumer>
+auto currentUsage(llvm::Pass &P, Consumer Consume) {
+  // CURRENT exact-P scheduler authority; no PM/Pass owner escapes this call.
   if (auto *Resolver = P.getResolver())
     if (auto *Top = Resolver->getPMDataManager().getTopLevelManager())
-      if (const auto *AU = Top->findAnalysisUsage(&P)) return describeUsage(P, Machine, *AU);
+      if (const auto *AU = Top->findAnalysisUsage(&P)) return Consume(*AU);
   llvm::AnalysisUsage AU;
-  P.getAnalysisUsage(AU); // Unmanaged/unsupported current context keeps old path.
-  return describeUsage(P, Machine, AU);
+  P.getAnalysisUsage(AU);
+  return Consume(AU);
+}
+PassStep describe(llvm::Pass &P, bool Machine) {
+  return currentUsage(P, [&](const llvm::AnalysisUsage &AU) { return describeUsage(P, Machine, AU); });
+}
+bool matchesUsage(llvm::Pass &P, bool Machine, const PassStep &Expected) {
+  if (P.getPassID() != Expected.id || Machine != Expected.machine) return false;
+  return currentUsage(P, [&](const llvm::AnalysisUsage &AU) {
+    if (AU.getPreservesAll() != Expected.preservesAll ||
+        AU.getRequiredSet().size() != Expected.requiredCount ||
+        AU.getRequiredTransitiveSet().size() != Expected.transitiveCount ||
+        AU.getUsedSet().size() != Expected.usedCount ||
+        size_t(Expected.requiredCount) + Expected.transitiveCount + Expected.usedCount +
+            AU.getPreservedSet().size() != Expected.dependencies.size()) return false;
+    auto Next = Expected.dependencies.begin();
+    auto Column = [&](const llvm::AnalysisUsage::VectorType &Values) {
+      const bool Same = std::equal(Values.begin(), Values.end(), Next);
+      Next += Values.size(); return Same;
+    };
+    return Column(AU.getRequiredSet()) && Column(AU.getRequiredTransitiveSet()) &&
+           Column(AU.getUsedSet()) && Column(AU.getPreservedSet());
+  });
+}
+using PassPipeline = std::vector<PassStep>;
+struct PassOccurrence {
+  uint32_t ordinal;
+  bool machine;
+};
+static_assert(sizeof(PassOccurrence) == 8, "observed passes must not duplicate AU vectors");
+bool samePipeline(const std::shared_ptr<const PassPipeline> &A,
+                  const std::shared_ptr<const PassPipeline> &B) {
+  return A && B && (A == B || *A == *B);
 }
 struct BlockEmissionState {
   unsigned maxAlignmentBytes;
@@ -275,10 +304,47 @@ struct Snapshot {
   unsigned blockIDCapacity = 0, nextAnalysisNumber = 0, analysisEpoch = 0;
   std::vector<unsigned> blockNumbers, analysisNumbers;
   std::vector<BlockEmissionState> blockEmission;
-  std::vector<PassStep> pipeline, sequence;
+  std::shared_ptr<const PassPipeline> pipeline;
+  std::vector<PassOccurrence> sequence;
   size_t firstMachine = 0;
   std::set<ID> emissionProviders;
 };
+
+// The sealed pipeline carries complete values; the observed trace is a proved
+// contiguous suffix. Ordinals alone NEVER authorize a current callback.
+bool completeSequence(const Snapshot &S) {
+  if (!S.pipeline || S.sequence.empty() || S.firstMachine >= S.pipeline->size() ||
+      S.sequence.size() != S.pipeline->size() - S.firstMachine) return false;
+  for (size_t I = 0; I != S.sequence.size(); ++I)
+    if (S.sequence[I].ordinal != S.firstMachine + I ||
+        (*S.pipeline)[S.sequence[I].ordinal].machine) return false;
+  return true;
+}
+bool currentSlot(llvm::Pass &P, size_t Ordinal) {
+  auto *Resolver = P.getResolver();
+  if (!Resolver) return false;
+  auto &PM = Resolver->getPMDataManager();
+  if (PM.getPassManagerType() != llvm::PMT_FunctionPassManager) return false;
+  auto &FPM = static_cast<llvm::FPPassManager &>(PM);
+  return Ordinal < FPM.getNumContainedPasses() && FPM.getContainedPass(Ordinal) == &P;
+}
+bool matchesOccurrence(const Snapshot &S, size_t Position, llvm::Pass &P, bool Machine) {
+  if (!S.pipeline || Position >= S.sequence.size() || S.firstMachine > S.pipeline->size() ||
+      Position >= S.pipeline->size() - S.firstMachine) return false;
+  const auto &O = S.sequence[Position];
+  return O.ordinal == S.firstMachine + Position && O.machine == Machine &&
+         currentSlot(P, O.ordinal) &&
+         matchesUsage(P, false, (*S.pipeline)[O.ordinal]);
+}
+bool recordOccurrence(const Snapshot &S, std::vector<PassOccurrence> &Trace,
+                      llvm::Pass &P, bool Machine) {
+  if (!S.pipeline || S.firstMachine > S.pipeline->size() ||
+      Trace.size() >= S.pipeline->size() - S.firstMachine) return false;
+  const size_t Position = S.firstMachine + Trace.size();
+  if (!currentSlot(P, Position) || !matchesUsage(P, false, (*S.pipeline)[Position])) return false;
+  Trace.push_back({static_cast<uint32_t>(Position), Machine});
+  return true;
+}
 
 // Optional cache capacity is independent of every compilation/work budget.
 // This measures logical retained payload, not allocator capacity or process RSS.
@@ -338,34 +404,49 @@ size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
     N = boundedAdd(N, sizeof(BlockEmissionState));
     for (unsigned Pred : Block.predecessors) { (void)Pred; N = boundedAdd(N, sizeof(unsigned)); }
   }
-  N = boundedAdd(N, stepsPayload(S.pipeline));
-  N = boundedAdd(N, stepsPayload(S.sequence));
+  N = boundedAdd(N, S.sequence.size() * sizeof(PassOccurrence));
   for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
   return N;
 }
+size_t pipelinePayload(const std::shared_ptr<const PassPipeline> &P) {
+  return P ? boundedAdd(sizeof(PassPipeline), stepsPayload(*P)) : 0;
+}
+// Per-function reservation conservatively includes the entire shared owner.
+// This cannot weaken the existing 64MiB request cap; final retained accounting
+// counts each immutable owner once across the actually published functions.
+size_t snapshotReservation(const Snapshot &S, size_t NameBytes) {
+  return boundedAdd(snapshotPayload(S, NameBytes), pipelinePayload(S.pipeline));
+}
 size_t recordingReservation(const Snapshot &S, size_t NameBytes) {
-  // Until the function finishes, reserve its full remaining trace and the
-  // largest possible dependency closure, before accumulating either of them.
-  size_t N = boundedAdd(snapshotPayload(S, NameBytes), stepsPayload(S.pipeline));
-  for (const auto &Step : S.pipeline)
+  size_t N = snapshotReservation(S, NameBytes);
+  if (!S.pipeline || S.firstMachine > S.pipeline->size()) return MaxMachinePayload + 1;
+  N = boundedAdd(N, (S.pipeline->size() - S.firstMachine) * sizeof(PassOccurrence));
+  for (const auto &Step : *S.pipeline)
     for (ID Dependency : Step.inputDependencies()) { (void)Dependency; N = boundedAdd(N, sizeof(ID)); }
   return N;
 }
 
-// Inspect the actual current legacy container before touching current MIR.
-// IDs name fixed-DSO passes; no Pass/PM instance pointer is retained.
-bool bindPipeline(llvm::Pass &P, Snapshot &S) {
+// Inspect every CURRENT slot/value before sharing an immutable candidate.
+// A retained owner pointer is bookkeeping, never current-pipeline authority.
+bool bindPipeline(llvm::Pass &P, Snapshot &S, std::shared_ptr<const PassPipeline> Candidate = {}) {
   if (!P.getResolver()) return false;
   auto &PM = P.getResolver()->getPMDataManager();
   if (PM.getPassManagerType() != llvm::PMT_FunctionPassManager) return false;
   auto &FPM = static_cast<llvm::FPPassManager &>(PM);
-  bool Found = false;
-  for (unsigned I = 0; I < FPM.getNumContainedPasses(); ++I) {
+  const unsigned Count = FPM.getNumContainedPasses();
+  bool Found = false, Same = Candidate && Candidate->size() == Count;
+  for (unsigned I = 0; I < Count; ++I) {
     auto *Current = FPM.getContainedPass(I);
     if (Current == &P) { S.firstMachine = I; Found = true; }
-    S.pipeline.push_back(describe(*Current, false));
+    if (Same && !matchesUsage(*Current, false, (*Candidate)[I])) Same = false;
   }
-  return Found;
+  if (!Found) return false;
+  if (Same) { S.pipeline = std::move(Candidate); return true; }
+  auto Pipeline = std::make_shared<PassPipeline>();
+  Pipeline->reserve(Count);
+  for (unsigned I = 0; I < Count; ++I) Pipeline->push_back(describe(*FPM.getContainedPass(I), false));
+  S.pipeline = std::move(Pipeline);
+  return true;
 }
 
 bool inputDomain(const llvm::Function &F) {
@@ -898,12 +979,57 @@ bool testCanonicalUsage() {
   // would conservatively (and incorrectly) reject this otherwise valid set.
   Snapshot Closure;
   auto Consumer = PreservedF; Consumer.machine = false;
-  Closure.sequence = {Consumer,
-      PassStep{&UsageTestPass::A, {}, 0, 0, 0, true, true},
-      PassStep{&UsageTestPass::F, {}, 0, 0, 0, true, false}};
+  Closure.pipeline = std::make_shared<const PassPipeline>(PassPipeline{Consumer,
+      PassStep{&UsageTestPass::A, {}, 0, 0, 0, false, true},
+      PassStep{&UsageTestPass::F, {}, 0, 0, 0, false, false}});
+  Closure.sequence = {{0, false}, {1, true}, {2, true}};
   if (!providers(Closure) || Closure.emissionProviders.size() != 1 ||
       !Closure.emissionProviders.count(&UsageTestPass::A) ||
       Closure.emissionProviders.count(&UsageTestPass::F)) return false;
+  // A trace may share full AU values ONLY after actual-current value equality.
+  // The ordinals preserve instance positions even when two slots share a typeID.
+  UsageTestManager PipelineManager;
+  auto *OwnedA = new UsageTestPass(0), *OwnedB = new UsageTestPass(1);
+  PipelineManager.data().add(OwnedA, false); // manager owns these, no analyses run
+  PipelineManager.data().add(OwnedB, false);
+  Snapshot BoundA, BoundB;
+  if (!bindPipeline(*OwnedA, BoundA) || !bindPipeline(*OwnedB, BoundB, BoundA.pipeline) ||
+      BoundA.pipeline != BoundB.pipeline || BoundA.firstMachine != 0 || BoundB.firstMachine != 1 ||
+      OwnedA->queries != 1 || OwnedB->queries != 1) return false;
+  auto Wrong = std::make_shared<PassPipeline>(*BoundA.pipeline);
+  --(*Wrong)[0].requiredCount; ++(*Wrong)[0].usedCount; // same concatenated IDs
+  Snapshot Rebound;
+  if (!bindPipeline(*OwnedA, Rebound, Wrong) || Rebound.pipeline == Wrong ||
+      !samePipeline(Rebound.pipeline, BoundA.pipeline) ||
+      OwnedA->queries != 1 || OwnedB->queries != 1) return false;
+  UsageTestPass Unlisted(0);
+  Unlisted.setResolver(new llvm::AnalysisResolver(PipelineManager.data()));
+  std::vector<PassOccurrence> UnlistedTrace;
+  if (!matchesUsage(Unlisted, false, (*BoundA.pipeline)[0]) ||
+      recordOccurrence(BoundA, UnlistedTrace, Unlisted, true) || !UnlistedTrace.empty()) return false;
+  std::vector<PassOccurrence> Trace;
+  if (!recordOccurrence(BoundA, Trace, *OwnedA, true) ||
+      recordOccurrence(BoundA, Trace, *OwnedA, false) || Trace.size() != 1 ||
+      !recordOccurrence(BoundA, Trace, *OwnedB, false)) return false;
+  BoundA.sequence = Trace;
+  if (!completeSequence(BoundA) || !matchesOccurrence(BoundA, 0, *OwnedA, true) ||
+      matchesOccurrence(BoundA, 0, Unlisted, true) ||
+      matchesOccurrence(BoundA, 0, *OwnedA, false) ||
+      matchesOccurrence(BoundA, 0, *OwnedB, true) ||
+      !matchesOccurrence(BoundA, 1, *OwnedB, false) ||
+      recordOccurrence(BoundA, Trace, *OwnedB, false)) return false;
+  auto Malformed = BoundA; Malformed.sequence[1].ordinal = 0;
+  if (completeSequence(Malformed) || matchesOccurrence(Malformed, 1, *OwnedA, false)) return false;
+  Malformed = BoundA; Malformed.sequence[0].ordinal = std::numeric_limits<uint32_t>::max();
+  if (completeSequence(Malformed) || matchesOccurrence(Malformed, 0, *OwnedA, true)) return false;
+  Malformed = BoundA; Malformed.sequence.pop_back();
+  if (completeSequence(Malformed)) return false;
+  Malformed = BoundB; Malformed.sequence = {{1, true}};
+  if (!completeSequence(Malformed) || !matchesOccurrence(Malformed, 0, *OwnedB, true)) return false;
+  const auto BaseBytes = snapshotPayload(BoundB, 0);
+  BoundB.sequence.push_back({1, true});
+  if (snapshotPayload(BoundB, 0) != BaseBytes + sizeof(PassOccurrence) ||
+      snapshotReservation(BoundB, 0) != snapshotPayload(BoundB, 0) + pipelinePayload(BoundB.pipeline)) return false;
   UsageTestPass Orphan(0);
   const auto NoResolver = describe(Orphan, true);
   Orphan.mode = 1;
@@ -1350,25 +1476,24 @@ void testMachineNumbering(llvm::MachineFunction &Current,
 }
 
 bool providers(Snapshot &S) {
+  if (!completeSequence(S)) return false;
   std::vector<ID> Pending;
-  for (const auto &Step : S.sequence)
-    if (!Step.machine || Step.id == targetInfoAPI().printerID()) {
+  for (const auto &Occurrence : S.sequence) {
+    const auto &Step = (*S.pipeline)[Occurrence.ordinal];
+    if (!Occurrence.machine || Step.id == targetInfoAPI().printerID()) {
       auto Inputs = Step.inputDependencies();
       Pending.insert(Pending.end(), Inputs.begin(), Inputs.end());
     }
+  }
   while (!Pending.empty()) {
-    ID Current = Pending.back();
-    Pending.pop_back();
+    ID Current = Pending.back(); Pending.pop_back();
     if (!S.emissionProviders.insert(Current).second) continue;
-    for (const auto &Step : S.sequence) {
+    for (const auto &Occurrence : S.sequence) {
+      const auto &Step = (*S.pipeline)[Occurrence.ordinal];
       if (Step.id != Current) continue;
-      // Required providers run on restored final MIR. Only genuinely
-      // non-transforming providers are admissible, not registry analysis tags.
-      if (Step.machine && !Step.preservesAll) return false;
-      {
-        auto Inputs = Step.inputDependencies();
-        Pending.insert(Pending.end(), Inputs.begin(), Inputs.end());
-      }
+      if (Occurrence.machine && !Step.preservesAll) return false;
+      auto Inputs = Step.inputDependencies();
+      Pending.insert(Pending.end(), Inputs.begin(), Inputs.end());
     }
   }
   return true;
@@ -1383,7 +1508,7 @@ struct MachineRequest {
   struct Current {
     std::shared_ptr<Snapshot> recording;
     std::shared_ptr<const Snapshot> replay;
-    std::vector<PassStep> sequence;
+    std::vector<PassOccurrence> sequence;
     llvm::Pass *pendingMachine = nullptr;
     llvm::Pass *skipped = nullptr;
     bool emitted = false;
@@ -1401,6 +1526,7 @@ struct MachineRequest {
   std::map<const llvm::Function *, Current> current;
   size_t reservedBytes = 0;
   size_t reservedSlots = 0;
+  std::weak_ptr<const PassPipeline> pipelineCandidate;
 
   bool reserve(Current &C, size_t Bytes) {
     const size_t Other = reservedBytes - C.reservation;
@@ -1414,7 +1540,7 @@ struct MachineRequest {
   }
   void discardRecording(Current &C) {
     C.recording.reset();
-    std::vector<PassStep>().swap(C.sequence);
+    std::vector<PassOccurrence>().swap(C.sequence);
     reservedBytes -= C.reservation;
     if (C.reservation) --reservedSlots;
     C.reservation = 0;
@@ -1436,7 +1562,7 @@ std::unique_ptr<MachineRequest, void (*)(MachineRequest *)> createMachine(
     return {nullptr, [](MachineRequest *R) { delete R; }};
   const size_t ConfigBytes = BoundConfig.size();
   return {new MachineRequest{M, TM, std::move(BoundConfig), std::move(Prior), Stats, Failed,
-                             MachineAlignmentTestMax, {}, ConfigBytes, 0},
+                             MachineAlignmentTestMax, {}, ConfigBytes, 0, {}},
           [](MachineRequest *R) { delete R; }};
 }
 
@@ -1458,7 +1584,13 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         R.reservedSlots < MaxMachineSlots && R.reservedBytes < MaxMachinePayload &&
         inputDomain(F)) {
       C.recording = std::make_shared<Snapshot>();
-      if (!bindPipeline(P, *C.recording)) C.recording.reset();
+      auto Candidate = R.pipelineCandidate.lock();
+      if (!Candidate && R.prior) {
+        auto Old = R.prior->functions.find(F.getName().str());
+        if (Old != R.prior->functions.end()) Candidate = Old->second->pipeline;
+      }
+      if (!bindPipeline(P, *C.recording, std::move(Candidate))) C.recording.reset();
+      else R.pipelineCandidate = C.recording->pipeline;
     }
     if (C.recording) {
       C.recording->input = functionText(F);
@@ -1479,7 +1611,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
           if (Old->second->world != C.recording->world)
             diagnoseDifference(F, Old->second->world, C.recording->world,
                                "machine-world-key-difference");
-          if (Old->second->pipeline != C.recording->pipeline ||
+          if (!samePipeline(Old->second->pipeline, C.recording->pipeline) ||
               Old->second->firstMachine != C.recording->firstMachine)
             diagnose(F, "machine-pipeline-key-difference");
         }
@@ -1487,12 +1619,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         if (Old != R.prior->functions.end() &&
             Old->second->input == C.recording->input &&
             Old->second->world == C.recording->world &&
-            Old->second->pipeline == C.recording->pipeline &&
+            samePipeline(Old->second->pipeline, C.recording->pipeline) &&
             Old->second->firstMachine == C.recording->firstMachine &&
             !Old->second->sequence.empty() &&
-            Old->second->sequence.front() == describe(P, true) &&
+            matchesOccurrence(*Old->second, 0, P, true) &&
             !MMI.getMachineFunction(F) &&
-            R.reserve(C, snapshotPayload(*Old->second, F.getName().size()))) {
+            R.reserve(C, snapshotReservation(*Old->second, F.getName().size()))) {
           C.replay = Old->second;
           // Current keys have proved the complete binding. Retain the shared
           // sealed snapshot, not a second copy of its identical input/world.
@@ -1578,9 +1710,7 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
     if (!KeyRecorded) R.stats.mir_key_ns += elapsedNS(KeyStart);
     if (!C.replay) ++R.stats.machine_function_executions;
   }
-  if (C.replay &&
-      (C.position() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.position()] == describe(P, true)))) {
+  if (C.replay && !matchesOccurrence(*C.replay, C.position(), P, true)) {
     diagnose(F, "before-machine-pass-sequence", P.getPassName());
     R.fail();
   }
@@ -1682,28 +1812,11 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   // Unsupported current functions execute the original pipeline without
   // allocating a duplicate per-pass dependency trace that cannot be reused.
   if (!C.recording && !C.replay) return Skipped;
-  auto Step = describe(P, Machine);
-  if (C.replay &&
-      (C.position() >= C.replay->sequence.size() ||
-       !(C.replay->sequence[C.position()] == Step))) {
-    diagnose(F, "after-legacy-pass-sequence", P.getPassName());
-    R.fail();
+  if (C.replay && !matchesOccurrence(*C.replay, C.position(), P, Machine)) {
+    diagnose(F, "after-legacy-pass-sequence", P.getPassName()); R.fail();
   }
-  if (C.replay) {
-    ++C.replayPosition;
-  } else {
-    // An unplanned nested/extra pass cannot issue a cold receipt. Stop its
-    // optional trace immediately instead of growing past the reserved bound.
-    const size_t Position = C.recording->firstMachine + C.sequence.size();
-    auto ContainerStep = Step;
-    ContainerStep.machine = false;
-    if (Position >= C.recording->pipeline.size() ||
-        !(ContainerStep == C.recording->pipeline[Position])) {
-      R.discardRecording(C);
-    } else {
-      C.sequence.push_back(std::move(Step));
-    }
-  }
+  if (C.replay) ++C.replayPosition;
+  else if (!recordOccurrence(*C.recording, C.sequence, P, Machine)) R.discardRecording(C);
   return Skipped;
 }
 
@@ -1711,6 +1824,7 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
   auto Next = std::make_shared<MachineProducts>();
   Next->config = R.config;
   R.stats.retained_bytes += R.config.size();
+  std::set<const PassPipeline *> CountedPipelines;
   for (auto &[F, C] : R.current) {
     std::shared_ptr<const Snapshot> S;
     if (C.replay) {
@@ -1720,17 +1834,12 @@ std::shared_ptr<const MachineProducts> finishMachine(MachineRequest &R) {
     } else if (C.recording && C.emitted && C.recording->targetInfo) {
       ScopedNS CaptureTime(R.stats.mir_capture_ns);
       C.recording->sequence = std::move(C.sequence);
-      bool Complete = C.recording->firstMachine + C.recording->sequence.size() ==
-                      C.recording->pipeline.size();
-      for (size_t I = 0; Complete && I < C.recording->sequence.size(); ++I) {
-        auto Step = C.recording->sequence[I];
-        Step.machine = false;
-        Complete = Step == C.recording->pipeline[C.recording->firstMachine + I];
-      }
-      if (Complete && providers(*C.recording)) S = std::move(C.recording);
+      if (completeSequence(*C.recording) && providers(*C.recording)) S = std::move(C.recording);
     }
     if (S) {
       R.stats.retained_bytes += snapshotPayload(*S, F->getName().size());
+      if (S->pipeline && CountedPipelines.insert(S->pipeline.get()).second)
+        R.stats.retained_bytes += pipelinePayload(S->pipeline);
       Next->functions.emplace(F->getName().str(), std::move(S));
     }
   }
