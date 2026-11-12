@@ -1091,8 +1091,8 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "ee5e84e053e5c3c49277e01680edace3c795aec5",
-        "source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+        "read_goal": "e6eef4a13d29896da87c6fe6994ef61efa81b803",
+        "source": "e11777565e89523ef25131aeb9687faef456cf2b",
         "measured_source": "328eb392d8d88148a75a743d899b43aebae73587",
         "measured_binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
@@ -1117,7 +1117,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "Default-off explicit late-closed-executable no-ZIL-exports contract, originalO2 complete then eligibleuse-empty definitions DCE; allCGU references/address/ABI/metadata closure/currentpolicy+keys and independentretainedmachinequalitygate underconstruction. Driver/CLI677+807+bc827 toolsWIP inindependenttree; no compiler gate/perfclaim. NativeRegion/JITLink/inotify alternatives haveboundednegativeclosure receipts, no unprovedfastpath.",
+        "active_construction": "MIRheader actualduplicatebodytext removal now uniformgates; separatebackend PVec identities/inverseCGU index actualconsumer slice starting, no centralReactiveGraphglobalclaim. WholeTyped/Analyzequeryhashonlykey/deps, actualTypes/Analyze/Verify/Lower alreadypersistentchanged_indices; reentry mustnotbe mislabeledfullstage recomputation.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1202,7 +1202,7 @@
           "parts": 7,
           "status": "Fullcheck02/finalgates/binaries freshHTTPSallfilebytes+modeverified; capturedactualvalidator270/144/126/117 rerunidentical. checksummary20fileprojection separately fullmanifestverified. O2 originalfullvalidatorpassed but archivev15inprogress, notyetdurableclaim."
         },
-        "delivery_source": "5046fa84a4fb7b193a95016414e144a6595c3229",
+        "delivery_source": "e11777565e89523ef25131aeb9687faef456cf2b",
         "current_readme": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-03b.md",
         "current_profile_328": {
           "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.json",
@@ -1410,7 +1410,47 @@
           "gates": "1453native72/backend242/mixed3/strictClippy/release14 pass; subsequent onlyExpand3 files,03bExpand105/fulldriver210/strictClippy/fmt/release15 pass; no currentfullworkspace or summingoverlaps",
           "actual_removed_work": "Three lookup-only capture scratch std::map allocations/lookups replaced byDenseMap, preservingproducer/MRIorder; actualNormalize/Restore borrow Arc successfuldeclarationInventory, no fullnames/table reconstruction oncompatibleprivate edits. Currentpreflight/environment/ledger/firsterror/complete-success publication retained."
         },
-        "raw_current_v19": "Complete original profile13 496files/415587451B, immutable1453+03b binaries, both gate batches/full source snapshots and exact7c13 metadata are fixed archive/source-history@60b8b494911e85e1eb387f6c387d402c5f6e02d0. Four storage pieces and index freshly recovered via HTTPS, all file hashes/modes and exact original-master disjoint union verified. Original local qualifier passed before retirement; no whole assembled fresh qualifier/native rerun claim. Receipt:full-push-recovery-v19.json"
+        "raw_current_v19": "Complete original profile13 496files/415587451B, immutable1453+03b binaries, both gate batches/full source snapshots and exact7c13 metadata are fixed archive/source-history@60b8b494911e85e1eb387f6c387d402c5f6e02d0. Four storage pieces and index freshly recovered via HTTPS, all file hashes/modes and exact original-master disjoint union verified. Original local qualifier passed before retirement; no whole assembled fresh qualifier/native rerun claim. Receipt:full-push-recovery-v19.json",
+        "late_closed_negative": {
+          "source": "be64d90860353d05b60c8abb399b3e1602fd9e2a",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-late-closed-negative-be64.json",
+          "rows": 4,
+          "native": 24,
+          "eligible": 0,
+          "removed": 0,
+          "globaldce_runs": 0,
+          "remaining_users_refusals": 402,
+          "actual_value_helper_calls": 400,
+          "original_controller_exit": 1,
+          "original_custom_quality_valid": false,
+          "old_ELF_byte_identity": true,
+          "scope": "Only cold measured+parent; customzero-size marker rejected. Actualcallsmeanlate deletion yieldsno realworkreduction; no fullmatrix/speedacceptance or row/exitrewrite."
+        },
+        "raw_current_v20": {
+          "fixed_ref": "ee233ee95142263cf6777f10f381a9a0d64220c8",
+          "receipt": "/tmp/full-push-recovery-v20.json",
+          "scope": "248originalfailedfiles/232189571B exact masterunion +fourpieces/index freshHTTPS allfile/modes,archivecomplete≠measurementpassed; g06Clippy101/g07success/immutablebe64/source/reviews preserved",
+          "original_failure_preserved": true
+        },
+        "mir_header_component": {
+          "authors": [
+            "259367229",
+            "4bba3ec0e9b8c6911ce14c648e2feb5a19cdac9f"
+          ],
+          "integrated_source": "e11777565e89523ef25131aeb9687faef456cf2b",
+          "SDK_build_source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+          "SDK_build_observed_exit": 0,
+          "SDK_llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+          "SDK_patch_sha256": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+          "SDK_DSO": {
+            "path": "/workspace/.zil-environment/llvm-function-products-v16/lib/libLLVM.so.23.1",
+            "sha256": "3930f308e6d9dd80dbe32fa05713335f518b883b1b24c8008d027722712c153b"
+          },
+          "review": "research/full-push-native:tools/research/incremental-demand/full-push-astra-mir-header-component-review.json",
+          "actual_change": "Complete typed/frame/CFI body proof pluscurrentblocknumber/table/epoch/predreadback andfullheader/verifier preserve; remove duplicate fullMIRbodyformat/storage/recomparison instrictdomain. MissingcaporiginalfullMIR. SDK15 unchanged.",
+          "gates": "Source404 firstnative28 compilefailed beforetest due test-only missingreexport; e117fix unmodifiedproduction: native76/backend244/driver210/strictClippy18/fmt16passed, release17inprogress. No currentcompleteworkspaceclaim, noperformanceclaim.",
+          "next": "Finishrelease17 then original425 main/candidate oldstrictELF diagnostic onSDK16, allparents/errors; fullRustcomparisonremains328."
+        }
       }
     }
   }
