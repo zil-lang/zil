@@ -348,7 +348,7 @@ impl Engine<'_> {
 mod tests {
     use super::*;
     use crate::source_context::{DeclarationPlacement, SourceIdentityContext};
-    use zil_base::{FileId, SourceUnit, TargetProfile};
+    use zil_base::{FileId, ModuleId, SourceUnit, TargetProfile};
 
     fn core(text: &str) -> CompileResult<CoreModule> {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "callable-return-source.zil", text);
