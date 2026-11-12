@@ -3,6 +3,9 @@
 use super::*;
 
 mod sources;
+pub(super) fn check_sources(module:&TypedModule,function:&TypedFunction,budget:&mut Budget)->CompileResult<()> {
+    sources::check(module,function,budget)
+}
 
 #[path = "owning_factory.rs"]
 mod owning_factory;

@@ -50,6 +50,8 @@ pub(super) fn envelope(
         f.parameters.len().saturating_add(claim.roles.len()),
         "callable forwarding signature envelope",
     )?;
+    let external = c.capture_sources.as_ref().is_some_and(|rows|!rows.is_empty())
+        || definition.captures.iter().any(|ty|matches!(ty,Type::Address{..}|Type::Desc(_)|Type::BorrowedStorage{..}));
     if f.environment.is_some()
         || f.foreign.is_some()
         || f.result_mode != PassingMode::Infer
@@ -61,14 +63,12 @@ pub(super) fn envelope(
         || claim.roles[0].kind != c.kind
         || claim.roles[0].cleanup != CallableCleanup::Returned
         || !compatible(definition.kind, c.kind)
-        || !c.hold.is_empty()
-        || !c.call.is_empty()
-        || !c.writes.is_empty()
+        || c.hold != claim.roles[0].hold
+        || c.call != claim.roles[0].call
+        || c.writes != claim.roles[0].writes
         || !c.lending_captures.is_empty()
         || !definition.lending_captures.is_empty()
-        || !claim.roles[0].hold.is_empty()
-        || !claim.roles[0].call.is_empty()
-        || !claim.roles[0].writes.is_empty()
+
     {
         return Err(bad(
             "parameter return must match one by-value Returned role and its declared bound",
@@ -81,7 +81,16 @@ pub(super) fn envelope(
     }
     // This checks the actual capture graph, including child environments and
     // Store captures, independently of the empty public Hold/Call claims.
-    super::callable_fields::self_contained(module, c.closure, budget)?;
+    if external {
+        super::retained::check_sources(module,f,budget)?;
+        let mut expected=std::collections::BTreeSet::new();
+        for row in c.capture_sources.as_ref().ok_or_else(||bad("forward source relation unknown"))? {
+            let StorageBase::Capture(index)=row.position.base else {return Err(bad("forward leaf is not an actual capture"));};
+            expected.insert(index);
+        }
+        let expected=expected.into_iter().collect::<Vec<_>>();
+        if c.hold!=expected || c.call!=expected {return Err(bad("forward Hold/Call differs from actual external capture leaves"));}
+    } else {super::callable_fields::self_contained(module, c.closure, budget)?;}
     budget.spend(
         module.closures.len().saturating_add(1),
         "forward capture graph tables",
@@ -182,7 +191,7 @@ pub(super) fn envelope(
         if matches!(
             ty,
             Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
-        ) {
+        ) || matches!(ty,Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Package{..})) {
             budget.spend(1, "parameter return cleanup index")?;
             cleanup.push(index as u32);
         } else if budget.ordinary_store_sum_capture(definition.id, ty)? {

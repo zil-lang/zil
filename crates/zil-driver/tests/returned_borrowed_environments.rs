@@ -462,3 +462,29 @@ fn mutable_qualified_owner_publishes_actual_environment_slot_epoch() {
     let module=typed_source(source);
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }
+
+#[test]
+fn mutable_environment_release_tracks_actual_old_and_new_targets() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/mutable-whole.zil");
+    let head=source.split("fn main").next().unwrap();
+    for (body,accepted) in [
+        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();a=21;let second=f();return first+second+a-63}",true),
+        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);a=21;let first=f();return first-21}",false),
+        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();b=23;let second=f();return first+second-43}",false),
+        ("fn main()->i32{var a=20;var b=22;var f=make(wrap(&a),&b);let first=f();let second=f();b=23;return first+second+b-65}",true),
+        ("fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();a=1;let old=g();let next=f();let last=g();return first+old+next+last-62}",true),
+        ("fn main()->i32{var a=10;var b=11;var c=20;var d=21;var f=make(wrap(&a),&b);var g=make(wrap(&c),&d);let first=f();c=1;let old=g();return first+old-11}",false),
+    ] {
+        let text=format!("{head}{body}");
+        let module=typed_source(&text);
+        let result=zil_analyze::analyze(&module,&Limits::default());
+        assert_eq!(result.is_ok(),accepted,"{body}: {result:?}");
+    }
+}
+
+#[test]
+fn ordinary_parameter_forwarding_keeps_each_actual_external_environment() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-borrowed.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
