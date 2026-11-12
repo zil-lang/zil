@@ -1,6 +1,8 @@
 //! Producer proposals from complete Typed CFGs. Neither safety kernel consumes
 //! this solver's internal state; they must reconstruct actual target relations.
 use super::*;
+#[path = "helper_classes.rs"]
+mod helper_classes;
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Origins {
@@ -609,7 +611,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
             })
             .collect();
     }
-    populate_creator_fixed(module, left)?;
+    if populate_creator_fixed(module, left)? { helper_classes::populate(module,left,limits)?; }
     Ok(())
 }
 
@@ -676,7 +678,7 @@ fn captured_parameter(f: &TypedFunction, closure: ClosureId, capture: usize, lef
     }
     parameter.ok_or_else(||unsupported(f.span, "capture class has no actual construction"))
 }
-fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
+fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool> {
     let mut updates = Vec::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else { continue; };
@@ -736,6 +738,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
         result_classes.sort_by_key(|row|row.position.class);
         updates.push((definition.id,definition.function,f.id,proposed,result_classes));
     }
+    let changed=!updates.is_empty();
     for (id,function,creator,proposal,result_classes) in updates {
         spend(left,borrowed_fp::metadata_work(&proposal).saturating_mul(2),module.functions[function.0 as usize].span)?;
         module.closures[id.0 as usize].storage_life=Some(proposal.clone());
@@ -749,5 +752,5 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<()> {
         }
         header.classes.extend(result_classes);
     }
-    Ok(())
+    Ok(changed)
 }

@@ -542,3 +542,10 @@ fn forwarded_lending_buffer_environments_preserve_real_lending_indices() {
     }
     zil_analyze::analyze(&module,&Limits::default()).unwrap();
 }
+
+#[test]
+fn qualified_owner_forwarding_preserves_late_actual_free_classes() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/forward-qualified.zil");
+    let module=typed_source(source);
+    zil_analyze::analyze(&module,&Limits::default()).unwrap();
+}
