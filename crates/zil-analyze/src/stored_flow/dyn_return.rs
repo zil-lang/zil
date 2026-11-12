@@ -364,7 +364,8 @@ fn contract(
             rows[0].sources.as_slice()
         };
         let mut allowed = Vec::new();
-        for source in sources {
+        for atom in sources {
+            let source = crate::exact_storage_source(atom)?;
             fee(
                 b,
                 inputs
