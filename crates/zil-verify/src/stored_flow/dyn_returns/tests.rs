@@ -217,6 +217,30 @@ fn dyn_result_unknown_missing_and_empty_are_distinct() {
     actual.0[0].1.known = true;
     assert!(checked(&module, &claim, &actual));
 }
+
+#[test]
+fn static_target_is_not_an_empty_or_unrelated_parameter_upper() {
+    let (module, mut f, mut rows) = boundary();
+    rows.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    assert!(
+        !checked(&module, &f, &rows),
+        "a real static target is not covered by a parameter source"
+    );
+    f.retained_return_sources.as_mut().unwrap()[0]
+        .sources
+        .clear();
+    assert!(
+        !checked(&module, &f, &rows),
+        "an explicit empty row cannot hide a real static target"
+    );
+    f.retained_return_sources = Some(vec![]);
+    assert!(
+        !checked(&module, &f, &rows),
+        "a whole empty proposal cannot hide a real static target"
+    );
+    rows.0[0].1.permission.sources.clear();
+    assert!(checked(&module, &f, &rows));
+}
 #[test]
 fn dyn_port_namespace_and_complete_carrier_are_never_task_or_head_roots() {
     let path = vec![

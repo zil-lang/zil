@@ -290,14 +290,10 @@ pub(super) fn validate(
         }
         for source in &actual.permission.sources {
             source_work(std::slice::from_ref(source), b)?;
-            if source.base == HoldRoot::Static
-                && source.retained_port.is_none()
-                && source.leaf.is_empty()
-                && source.inline.is_empty()
-                && source.heap_element.is_none()
-            {
-                continue;
-            }
+            // Static is still a real target. The legacy position-only upper
+            // has no typed static atom and therefore cannot certify it. The
+            // explicit source protocol must prove that atom independently;
+            // neither an empty row nor an unrelated input is its substitute.
             if !matches!(source.base, HoldRoot::Parameter(_)) {
                 return Err(bad("returned Dyn retains activation or capture storage"));
             }

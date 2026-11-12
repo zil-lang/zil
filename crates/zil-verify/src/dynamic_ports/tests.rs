@@ -76,6 +76,30 @@ fn actual_context_read_candidate_reaches_independent_memory_kernel() {
 }
 
 #[test]
+fn actual_explicit_error_context_factory_has_no_inactive_success_targets() {
+    let limits = Limits::default();
+    let (module, plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("../../tests/fixtures/dyn-context/context-error-only.candidate.wire"),
+        &limits,
+    )
+    .unwrap();
+    let target = module.target.clone();
+    for wire in [false, true] {
+        let (module, plan) = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+        } else {
+            (module.clone(), plan.clone())
+        };
+        let result = crate::verify_module(module, plan, &target, &limits);
+        assert!(
+            result.is_ok(),
+            "explicit error return (Wire={wire}): {result:?}"
+        );
+    }
+}
+
+#[test]
 fn actual_context_factory_candidate_proves_error_success_class_path_and_result_sources() {
     let limits = Limits::default();
     let (module, plan) = zil_ir::wire::decode_module_candidate(
