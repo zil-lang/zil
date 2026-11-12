@@ -357,6 +357,7 @@ class PushReceiptTests(unittest.TestCase):
 
     def test_explicit_baseline_pins_cannot_be_substituted(self):
         pc.baseline_pin(pc.MAIN, pc.MAIN)
+        pc.baseline_pin(pc.PREVIOUS_MAIN, pc.PREVIOUS_MAIN)
         pc.baseline_pin(pc.LEGACY_MAIN, pc.LEGACY_MAIN)
         with self.assertRaises(ValueError):
             pc.baseline_pin(pc.LEGACY_MAIN, pc.MAIN)

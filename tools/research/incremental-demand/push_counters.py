@@ -13,9 +13,10 @@ import re
 from pathlib import Path
 
 # Explicit experiment pins, not evidence of the remote branch's current head.
-MAIN = '42f0396f36b2a36860ecb55371d436e4327877a4'
+MAIN = '3ec7e8a960ca69368cd9a90f1a15ac063fec5a02'
+PREVIOUS_MAIN = '42f0396f36b2a36860ecb55371d436e4327877a4'
 LEGACY_MAIN = '99035931d358add0eaed6d4535035c38413701dd'
-BASELINE_PINS = (MAIN, LEGACY_MAIN)
+BASELINE_PINS = (MAIN, PREVIOUS_MAIN, LEGACY_MAIN)
 LLVM_RAW = 'complete diagnostic LLVM bytes'
 LLVM_PUSH = 'complete diagnostic LLVM bytes except the strict second-line verified-fingerprint hex64 value; raw bytes and hashes retained'
 CANDIDATE_FLAGS = frozenset(('--producer-reuse', '--reactive-queries', '--push-reuse'))

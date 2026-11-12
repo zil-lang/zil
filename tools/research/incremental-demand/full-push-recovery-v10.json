@@ -1,0 +1,55 @@
+{
+  "archive_bytes": 129609325,
+  "files": 1232,
+  "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "parts": 6,
+  "raw_bytes": 868625542,
+  "restore_dir": "/tmp/zil-full-push-v10-restored",
+  "scope": "Post-v9 default workspace c18 gate; retention/native/CT/driver initial failure and final successful gates; closed-BD diagnostics and complete LLCAS/inventory negative evidence; complete real425 diagnostic profile07 measured5bf/c584+SDK15. Later d66 CT71/driver207 is test-only and is not the measured binary. F14 findings and static function-byte proof remain bounded reviews. Four prior433/c35 materializations retired only after exact verified-v9/f541 inventory proof; all prior raw remains completely fixed-remote recoverable. No new formal speed/Rust acceptance or full LLVM incrementality claim.",
+  "sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
+  "source_commits": {
+    "closed_BD": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "initial_gate": "0d1345029e153d6acfc2c3bb521dd146e2683b06",
+    "post_CTdelta": "d66f0745636214484dd6d4e13fa249b8064fb842",
+    "profile07": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
+    "retention_gate": "c341e742b41039efad49a28cd25facc4f3edd9ce",
+    "workspace_gate": "c18dd8efdf3061521c81d2b7590f79681930e8e9"
+  },
+  "status": "verified",
+  "remote_commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v10",
+  "manifest_sha256": "ee247cdaa91853e5a418467ef72df7bbad4e96723c33ef1eda8a02873a06dc25",
+  "retrieval": "Fresh fixed-complete-commit HTTPS manifest/verifier/all6parts. All archive/restored file bytes verified twice, followed by exact restored regular-file set/size/mode checks.",
+  "mode_checks": 1232,
+  "restored_diagnostic_record_checks": [
+    {
+      "name": "full-push-native-closed-profile-01",
+      "source": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+      "rows": 34,
+      "qualified_successful_pairs": 15,
+      "recomputed_saved_native_oracles": 180,
+      "new_native_compiler_execution": false
+    },
+    {
+      "name": "full-push-native-profile-07",
+      "source": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
+      "rows": 34,
+      "qualified_successful_pairs": 15,
+      "recomputed_saved_native_oracles": 180,
+      "new_native_compiler_execution": false
+    }
+  ],
+  "retired_local_prior_data": "Four exact verified-v9 materializations are intentionally retired locally; complete bytes remain in fixed archivef5413f8c2fdcee1d5f903624ac954ef106592789 with full recovery/tombstone/inventory in v10. v9 compressed parts and all manifests/receipts preserved.",
+  "new_source_boundaries": "Profile07 is5bf/c584+SDK15 and closed01 isBD/11347. d66 is later CT71/driver207 test source, not a measured release. Subsequent source/schema3 timers are outside this snapshot.",
+  "limits": "Archive custody and recorded pure-oracle checks are not new benchmark/native execution or general incrementality/speed acceptance. Negative measurements and original driver failure remain present.",
+  "restored_copy_disposal": {
+    "path": "/tmp/zil-full-push-v10-restored",
+    "raw_bytes": 868625542,
+    "status": "removed_after_full_verification",
+    "authorized_by": "root only this newly restored pure duplicate",
+    "remote_download_parts_kept": "/tmp/zil-full-push-v10-remote",
+    "original_closed01_profile07_untouched": true
+  },
+  "free_bytes_after_cleanup": 5142421504
+}

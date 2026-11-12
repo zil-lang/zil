@@ -1,0 +1,63 @@
+{
+  "schema": "download-cache-retirement-summary-v1",
+  "full_receipt_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-03/download-cache-retirement.json",
+  "full_receipt_sha256": "01888f9b60d243bbdf057ce3db42f448357f7bd04e59ef39c0d43223bc90c41b",
+  "scope": "Only four explicitly authorized /tmp/zil-full-push-v{7,8,9,10}-remote download duplicates; original raw, archive Git objects/materialized parts and other receipts untouched.",
+  "started_utc": "2026-11-12T15:40:49.236116+00:00",
+  "completed_utc": "2026-11-12T15:40:53.605073+00:00",
+  "removed_files": 46,
+  "removed_bytes": 909230579,
+  "free_bytes_before": 0,
+  "free_bytes_after": 907665408,
+  "versions": [
+    {
+      "version": 7,
+      "path": "/tmp/zil-full-push-v7-remote",
+      "fixed_remote_commit": "c04b7a9adc7d2c53d1c64f18145c6eb371dc8638",
+      "archive_path": "research/incremental-demand-full-push-20261112-v7",
+      "manifest_sha256": "1436ff43977358543d765676458f1d75e1e498e74110e0a170949be9f6d14ac9",
+      "archive_sha256": "87d7c8ad657638e7fad759d36a383161a600d3ab7e97ff8fa03ec57deb0a9297",
+      "file_count": 7,
+      "bytes": 134681663,
+      "unique_extras": [],
+      "restore_command": "git -C /workspace/zil-demand-archive archive c04b7a9adc7d2c53d1c64f18145c6eb371dc8638 research/incremental-demand-full-push-20261112-v7 | tar -x -C NEW_EMPTY_DIRECTORY"
+    },
+    {
+      "version": 8,
+      "path": "/tmp/zil-full-push-v8-remote",
+      "fixed_remote_commit": "7f069c9122af50168a4bf07442756f1538bd6319",
+      "archive_path": "research/incremental-demand-full-push-20261112-v8",
+      "manifest_sha256": "2c49d208d7a2b42a3ee812d3f4a2194d1d402c80ce7cfdaf4b007cf11158d7d8",
+      "archive_sha256": "bbb865ae3b869acd7d8b912133fd9382b8a058ba20ccfadcaf53ebf497c5d915",
+      "file_count": 6,
+      "bytes": 110668093,
+      "unique_extras": [],
+      "restore_command": "git -C /workspace/zil-demand-archive archive 7f069c9122af50168a4bf07442756f1538bd6319 research/incremental-demand-full-push-20261112-v8 | tar -x -C NEW_EMPTY_DIRECTORY"
+    },
+    {
+      "version": 9,
+      "path": "/tmp/zil-full-push-v9-remote",
+      "fixed_remote_commit": "f5413f8c2fdcee1d5f903624ac954ef106592789",
+      "archive_path": "research/incremental-demand-full-push-20261112-v9",
+      "manifest_sha256": "58445ecb8c861ac40813ebbb662cd0668f437660344661a7da4cd60819373b84",
+      "archive_sha256": "8855e150f970883640b6cc977043f059a60cac6aebcdf8d780831f2b5c437945",
+      "file_count": 24,
+      "bytes": 533906235,
+      "unique_extras": [],
+      "restore_command": "git -C /workspace/zil-demand-archive archive f5413f8c2fdcee1d5f903624ac954ef106592789 research/incremental-demand-full-push-20261112-v9 | tar -x -C NEW_EMPTY_DIRECTORY"
+    },
+    {
+      "version": 10,
+      "path": "/tmp/zil-full-push-v10-remote",
+      "fixed_remote_commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
+      "archive_path": "research/incremental-demand-full-push-20261112-v10",
+      "manifest_sha256": "ee247cdaa91853e5a418467ef72df7bbad4e96723c33ef1eda8a02873a06dc25",
+      "archive_sha256": "5a2ffaa71bb016f48a3cfb936f34d6783591086f7ca62397e951aef29008838a",
+      "file_count": 9,
+      "bytes": 129974588,
+      "unique_extras": [],
+      "restore_command": "git -C /workspace/zil-demand-archive archive 520d2c7396ab62e1a87daa2551cd9b2c25347351 research/incremental-demand-full-push-20261112-v10 | tar -x -C NEW_EMPTY_DIRECTORY"
+    }
+  ],
+  "emergency_note": "At0available bytes sandbox could not start. Only after full verification, one duplicatev7part was unlinked to allocate/fsync the receipt; rest removed after receipt saved. Original evidence/Git objects unchanged."
+}

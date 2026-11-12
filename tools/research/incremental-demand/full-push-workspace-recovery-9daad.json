@@ -1,0 +1,12 @@
+{
+  "source": "9daadfc539eeaab77425164ae86373ac694583d4",
+  "completed_scope_groups": 33,
+  "inherited_exact_source_success_groups": 28,
+  "fresh_recovery_groups": 5,
+  "summaries": 432,
+  "passed": 6375,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "scope": "Complete original default workspace target scope recovered from exact-source successful28groups plus freshly executed5; original ENOSPC group failures and mkdir failure remain unmodified. Not a claim that the original run succeeded."
+}

@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/astra_architecture",
+  "method": "read-only source and existing raw evidence; no compiler builds, native execution, timing, production edits or commits",
+  "source_commit": "368ea509b6c8227f0c45fd68ffbde5b82e6b1fd5",
+  "initial_root_commit": "9daadfc539eeaab77425164ae86373ac694583d4",
+  "frame_commit": "2dd8a991ffd492cc63741ae241ff200cc3a55cae",
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "later_root_changes": "c356 and later not independently reviewed or accepted by this receipt",
+  "status": "architecture_recommendations_and_bounded_static_frame_review; native acceptance and performance remain pending",
+  "report": "/tmp/astra-native-panorama-review.md",
+  "report_sha256": "05c39c27e30dada16c337b9594266545849661766807366151396497e64fa8e8",
+  "highest_disagreement": "Expanding per-FPM group admission before proving replay and capture economics; hit counts cannot offset cold and broad regressions.",
+  "top_three": [
+    {
+      "rank": 1,
+      "slice": "Finish existing Frame at real unchanged spill-function AsmPrinter consumers",
+      "delete_work": "original machine passes for unchanged real fn361; acceptance conditional on actual product and byte-identical same-policy ordinary output",
+      "claim": "ready implementation opportunity, no new speed claim"
+    },
+    {
+      "rank": 2,
+      "slice": "Separate entry selector from packed Stage payload",
+      "files": [
+        "crates/zil-llvm-api/native/work_products.cpp",
+        "crates/zil-llvm-api/native/packed_stage.h",
+        "crates/zil-llvm-api/native/packed_stage.cpp"
+      ],
+      "delete_work": "full output/bitcode/declaration decode on prior-slot entry mismatch; then exact-intern duplicate immutable key storage/packing",
+      "authorization": "selector inequality may reject; selector equality never authorizes; unchanged complete current comparisons remain"
+    },
+    {
+      "rank": 3,
+      "slice": "After schema3 profile, decline unprofitable optional FPM captures/replays at whole-group granularity",
+      "delete_work": "snapshot, codec and replay work for groups cheaper to execute fresh",
+      "constraint": "all original O2 passes still execute on decline; general policy, no fixture identities; economic stop-loss does not complete full push"
+    }
+  ],
+  "architectural_choices": {
+    "existing_whole_optimized_cgu": "already covered by existing object/product boundary; dirty CGU42 cannot hit whole-input cache",
+    "whole_function_across_O2": "not soundly authorized by current local-stage input/world; requires true module/CGSCC/inlining/read closure",
+    "stable_finer_cgu": "changes optimization partition and import/inlining opportunities; separate quality experiment, not a free incremental shortcut",
+    "function_backend_products": "most concrete near-term boundary with real unchanged product; leaves optimizer and MC packaging"
+  },
+  "frame": {
+    "new_blocking_static_findings": [],
+    "scope": "owner-free fixed frame/spill/CFI/current stack MMO only",
+    "critical_consumers": [
+      "post-PEI maps must remain empty in production",
+      "all-slot Alloca owner rejection including dead slots",
+      "current PSV manager identity and full current FI table",
+      "MBB-before-frame-before-MI restoration",
+      "CFI current function policy and MI order, actual nonempty .eh_frame",
+      "current target info, verifier, full typed/MIR/object equality and failed-attempt fresh fallback"
+    ]
+  },
+  "raw_observations": {
+    "0-cold": {
+      "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-07/block-0-candidate/0-cold.response.json",
+      "sha256": "d86b2bb371e84a343d5e1a4d4f368dc4a6f835b5dc4e94a68bc25277ca63ccff",
+      "native_units": 16,
+      "observer_schemas": [
+        2
+      ],
+      "ir_scoped_timing_available": false,
+      "totals": {
+        "optimizer_function_stage_reuses": 0,
+        "optimizer_function_stage_executions": 3816,
+        "analysis_reconstructions": 0,
+        "ir_key_bytes": 52974230,
+        "ir_snapshot_bytes": 22936810,
+        "ir_replay_bytes": 0,
+        "machine_function_reuses": 0,
+        "machine_function_executions": 424,
+        "mir_key_ns": 154020770,
+        "mir_parse_ns": 0,
+        "mir_restore_validate_ns": 0,
+        "mir_capture_ns": 332824867
+      }
+    },
+    "2-private": {
+      "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-07/block-0-candidate/2-private.response.json",
+      "sha256": "90f9ad80a6cd352112960bc3f1be950b61d407799cd0eaa5cab686d51824a6c3",
+      "native_units": 1,
+      "observer_schemas": [
+        2
+      ],
+      "ir_scoped_timing_available": false,
+      "totals": {
+        "optimizer_function_stage_reuses": 78,
+        "optimizer_function_stage_executions": 300,
+        "analysis_reconstructions": 507,
+        "ir_key_bytes": 5382232,
+        "ir_snapshot_bytes": 57079,
+        "ir_replay_bytes": 460040,
+        "machine_function_reuses": 39,
+        "machine_function_executions": 3,
+        "mir_key_ns": 15191313,
+        "mir_parse_ns": 19956070,
+        "mir_restore_validate_ns": 23846166,
+        "mir_capture_ns": 752999
+      }
+    },
+    "4-broad": {
+      "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-07/block-0-candidate/4-broad.response.json",
+      "sha256": "a3832ddb8c4a8ba70bad352c162a4bfbffdd795c2a7c70d161df662a1d7a24c7",
+      "native_units": 16,
+      "observer_schemas": [
+        2
+      ],
+      "ir_scoped_timing_available": false,
+      "totals": {
+        "optimizer_function_stage_reuses": 0,
+        "optimizer_function_stage_executions": 3816,
+        "analysis_reconstructions": 0,
+        "ir_key_bytes": 52976768,
+        "ir_snapshot_bytes": 22976379,
+        "ir_replay_bytes": 0,
+        "machine_function_reuses": 0,
+        "machine_function_executions": 424,
+        "mir_key_ns": 171398425,
+        "mir_parse_ns": 0,
+        "mir_restore_validate_ns": 0,
+        "mir_capture_ns": 341499670
+      }
+    },
+    "7-recovery": {
+      "raw": "/workspace/zil-push-main/out/runs/full-push-native-profile-07/block-0-candidate/7-recovery.response.json",
+      "sha256": "3771daa2795db2ba65c4de34f3e643410711b02d517bf67d6d0fd9ef202f2faa",
+      "native_units": 1,
+      "observer_schemas": [
+        2
+      ],
+      "ir_scoped_timing_available": false,
+      "totals": {
+        "optimizer_function_stage_reuses": 78,
+        "optimizer_function_stage_executions": 300,
+        "analysis_reconstructions": 507,
+        "ir_key_bytes": 5382179,
+        "ir_snapshot_bytes": 57383,
+        "ir_replay_bytes": 460040,
+        "machine_function_reuses": 39,
+        "machine_function_executions": 3,
+        "mir_key_ns": 19501544,
+        "mir_parse_ns": 19209956,
+        "mir_restore_validate_ns": 27976079,
+        "mir_capture_ns": 1131627
+      }
+    }
+  },
+  "not_proved": [
+    "IR parse/replay is principal source of236ms optimizer time; schema2 has no IR scope timers",
+    "new Frame native success or speedup",
+    "global or substantial Rust win",
+    "general frame/call/EH or whole language incremental domain",
+    "safe arbitrary FAM clearing or world memo keyed by LLVM pointers"
+  ],
+  "constraints": [
+    "independent Verify",
+    "default budgets",
+    "original O2",
+    "full strong output oracle",
+    "unknown fresh fallback",
+    "research flags default off",
+    "no main merge",
+    "one unified validation after complete slice"
+  ]
+}

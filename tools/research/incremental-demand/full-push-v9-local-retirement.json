@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "status": "retired_verified_remote_recoverable_materializations",
+  "fixed_archive_commit": "f5413f8c2fdcee1d5f903624ac954ef106592789",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v9",
+  "archive_sha256": "8855e150f970883640b6cc977043f059a60cac6aebcdf8d780831f2b5c437945",
+  "manifest_sha256": "58445ecb8c861ac40813ebbb662cd0668f437660344661a7da4cd60819373b84",
+  "inventory_sha256": "c7e4867893b8fe93b19c6b4fab9d99bfeb418888522326918d5c4010836a2eef",
+  "fresh_full_restore_receipt": "/workspace/zil-push-main/out/runs/full-push-archive-v9-recovery-01.json",
+  "started_utc": "2026-11-12T14:59:31.194024+00:00",
+  "free_bytes_before": 2050654208,
+  "runs": [
+    {
+      "original_path": "/workspace/zil-push-main/out/runs/full-push-matched-o2-01",
+      "original_manifest_sha256": "6241ce7de1a01a5e5ad9313adde4fdffd20550c5065d95c1f2ce4c99dd4df88b",
+      "source_identity": {
+        "baseline": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "candidate": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0"
+      },
+      "mode": "o2",
+      "file_count": 21683,
+      "raw_bytes": 2313237170,
+      "subset_inventory_sha256": "e655d6fc1dd7e52416a16a28c0d85aab1abc2440b782c1768141232c55a6b6bb",
+      "extra": [],
+      "missing": [],
+      "all_bytes_hashes_modes_match_verified_v9": true,
+      "active_users": [],
+      "restored_run_relative_path": "zil-push-main/out/runs/full-push-matched-o2-01",
+      "status": "retired_local_materialization",
+      "deleted_utc": "2026-11-12T14:59:47.304685+00:00"
+    },
+    {
+      "original_path": "/workspace/zil-push-main/out/runs/full-push-matched-check-01",
+      "original_manifest_sha256": "35b4135d036190da99a631a3eb81c57866c8c28c64ccd2d068a51385100a1e41",
+      "source_identity": {
+        "baseline": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "candidate": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0"
+      },
+      "mode": "check",
+      "file_count": 3068,
+      "raw_bytes": 727685151,
+      "subset_inventory_sha256": "81dbf99ea4c037473c78a8d97464d0f2114c0aa4f4a638b2fcdd03a9f5f6818c",
+      "extra": [],
+      "missing": [],
+      "all_bytes_hashes_modes_match_verified_v9": true,
+      "active_users": [],
+      "restored_run_relative_path": "zil-push-main/out/runs/full-push-matched-check-01",
+      "status": "retired_local_materialization",
+      "deleted_utc": "2026-11-12T14:59:48.249623+00:00"
+    },
+    {
+      "original_path": "/workspace/zil-push-main/out/runs/full-push-native-profile-05",
+      "original_manifest_sha256": "44a4fc0054a122c984eb15085893e8165f00e6af2e59bd95eea688f5967da6c1",
+      "source_identity": {
+        "baseline": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "candidate": "c35e4c3815a1c25a4975b19b95c5022726c8f5f6"
+      },
+      "mode": "O2",
+      "file_count": 481,
+      "raw_bytes": 249457030,
+      "subset_inventory_sha256": "e773808dde2f74dcad328f9a3059388e42b4587ec86370a8c9c594c7a48e54af",
+      "extra": [],
+      "missing": [],
+      "all_bytes_hashes_modes_match_verified_v9": true,
+      "active_users": [],
+      "restored_run_relative_path": "zil-push-main/out/runs/full-push-native-profile-05",
+      "status": "retired_local_materialization",
+      "deleted_utc": "2026-11-12T14:59:48.293014+00:00"
+    },
+    {
+      "original_path": "/workspace/zil-push-main/out/runs/full-push-native-profile-06",
+      "original_manifest_sha256": "ff2940b03e5b4e1b30c47568bcdebc2360669f8149666104a090b2d5e395ba9f",
+      "source_identity": {
+        "baseline": "42f0396f36b2a36860ecb55371d436e4327877a4",
+        "candidate": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0"
+      },
+      "mode": "O2",
+      "file_count": 480,
+      "raw_bytes": 249536357,
+      "subset_inventory_sha256": "dee2b1e1bbe8497ed1b78b4a1483b1387b561a4048db6b89a3dd79732cf7c549",
+      "extra": [],
+      "missing": [],
+      "all_bytes_hashes_modes_match_verified_v9": true,
+      "active_users": [],
+      "restored_run_relative_path": "zil-push-main/out/runs/full-push-native-profile-06",
+      "status": "retired_local_materialization",
+      "deleted_utc": "2026-11-12T14:59:48.323420+00:00"
+    }
+  ],
+  "original_remote_objects_parts_receipts_results_untouched": true,
+  "authority": "root explicitly authorized exactly four fully verified-v9 local materializations; later changes/extras must be preserved first.",
+  "finished_utc": "2026-11-12T14:59:48.323798+00:00",
+  "free_bytes_after": 5534871552,
+  "restore": {
+    "bootstrap_url": "https://raw.githubusercontent.com/zil-lang/zil/f5413f8c2fdcee1d5f903624ac954ef106592789/research/incremental-demand-full-push-20261112-v9/restore_https.py",
+    "command": [
+      "python3",
+      "<freshly downloaded fixed-commit restore_https.py>",
+      "f5413f8c2fdcee1d5f903624ac954ef106592789",
+      "--download-dir",
+      "<new-download-dir>",
+      "--restore-dir",
+      "<new-restore-dir>",
+      "--receipt",
+      "<new-receipt.json>"
+    ],
+    "then": "Each complete run is under <new-restore-dir>/zil-push-main/out/runs/<name>. Do not silently reuse an old path. The verifier checks all archive/file hashes and permission modes. Original recorded inode/mtime observations remain in the raw JSON, not the recreated inode identities."
+  }
+}

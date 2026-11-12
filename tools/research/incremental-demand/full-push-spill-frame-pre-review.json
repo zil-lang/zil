@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "5715faff455649481617c1c8ed4791d9e351df4e",
+  "source_tree": "a91d81c8e1521c5d4bba9dfd5ad33abaddb70d50",
+  "base_commit": "5bf55f35ccdad6ca9eee3200a063115602d575ea",
+  "status": "static_bounded_accepted_native_tests_pending",
+  "scope": "Owner-free spill frame, stack MMO, scalar FI/CFI indices and current-owner native reconstruction; no general memory/call/EH domain expansion accepted",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/machine_frame_products.h": "764c36eb8060ee34d8a795af8769d4b42610e6e55cab7b4636f741092a37126b",
+    "crates/zil-llvm-api/native/machine_products.cpp": "e9013aca002a94c7aec92aa524118cf3267446f4691ea5a1f3056aaf066e0b0f",
+    "crates/zil-llvm-api/native/machine_products.h": "20059fb61933cbc50c61b5f166a48fe9f57dc40fb1a9ec160eca38481f13d17b",
+    "crates/zil-llvm-api/build.rs": "4d20ee8fead45865a39c5909e4025ab83779b39a60440531e6a29e43e267fe9a",
+    "crates/zil-llvm-api/src/native.rs": "a084eeab78f57b021ea3d1ecb5ed4910e8f9e27f68a959a56efb2b24230a96ba",
+    "crates/zil-llvm-api/src/native/spill_tests.rs": "117c8ea012bcc3d2636d248ca48431b37e2ed88889607f972573385e454e387c"
+  },
+  "official_source": {
+    "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+    "headers": [
+      {
+        "path": "llvm/include/llvm/CodeGen/MachineFrameInfo.h",
+        "bytes": 38149,
+        "sha256": "823e195126a95076d2f666142f18721e28eff422256e1ba714d87c534340c886",
+        "sdk_exact_equal": true
+      },
+      {
+        "path": "llvm/include/llvm/MC/MCDwarf.h",
+        "bytes": 32016,
+        "sha256": "eb3f49b608438bb0fc18ebb73031b7ccdd795a959dab21ea553c18e32d0271b0",
+        "sdk_exact_equal": true
+      },
+      {
+        "path": "llvm/include/llvm/CodeGen/MachineMemOperand.h",
+        "bytes": 14822,
+        "sha256": "dabfaa406aa34eb32a5fc2e7e0922cfdf3c1cdb2d7f53100ddee30af7737db95",
+        "sdk_exact_equal": true
+      },
+      {
+        "path": "llvm/include/llvm/CodeGen/PseudoSourceValue.h",
+        "bytes": 4864,
+        "sha256": "8ffa5b197a12152c5bc8e4782a36862e35a50dcbb1643d167a8a9792a2a37761",
+        "sdk_exact_equal": true
+      },
+      {
+        "path": "llvm/include/llvm/CodeGen/MIRYamlMapping.h",
+        "bytes": 35531,
+        "sha256": "f9c9e2950383cb5948f7aa62ce9fcd17aa5a6adab8fde1bb135f6cb75247d2c3",
+        "sdk_exact_equal": true
+      }
+    ]
+  },
+  "method": "Read full new helper, production diff and actual reconstruction/capture consumers, fixed LLVM private field declarations and original addFrameInst/AsmPrinter/frame uses. No compiler/Cargo/native execution, SDK changes, relinking, production edits or commits. Author-reported first clang++ syntax-only pass is not a native test and was not independently executed.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "complete frame value and owners",
+      "conclusion": "Pinned MachineFrameInfo private declarations contain value scalars/vectors plus StackObject.Alloca and SaveRestorePoints MBB pointer keys. All object allocation pointers, including dead slots, must be null. Complete public copy assignment preserves private frame policy/flags/object offsets/IDs/holes/CSI/local layout; snapshot clears both BB-key maps and separately stores layout ordinals with complete scalar CSI. Restore validates ordinal bounds, installs full values and rebinds maps to current MBBs. No old LLVM owner is transported by these fields."
+    },
+    {
+      "topic": "CFI closure",
+      "conclusion": "All pinned OpType values and seven active variant alternatives inspected. Non-null outer Label, valid SMLoc and OpLabel are excluded. Full value copy owns Escape bytes/comment and vector-register fields; dynamic bytes charged. Common and specialized field equality includes all active fields. Original MachineFunction.addFrameInst simply appends, so exact saved ordered CFI indices are retained; bounds checked for all typed CFI operands."
+    },
+    {
+      "topic": "MMO closure",
+      "conclusion": "MachineMemOperand copy retains complete LLT, raw flags, base alignment, offset/address-space/StackID and atomic scalar state; its PSV pointer is cleared before retention. IR values, metadata/AA/ranges, volatile and atomic inputs are excluded. Only exact current PSV-manager Stack or FixedStack identities are admitted, with valid nondead FI. Restore obtains a new current PSV and reconstructs all defined MMO fields using LLT overload. Foreign PSV negative uses the same valid current FI, so rejection tests identity rather than accidental index invalidity."
+    },
+    {
+      "topic": "restoration sequence and failures",
+      "conclusion": "Official tiny header parser creates current MF/MRI. Typed body creates current MBBs first, then full frame/CFI/map restore, then MI operands and current MMOs. Existing X86 MFI, sparse numbering and emission-state restoration follow. Typed recapture equality, snapshot domain, MachineVerifier and full MIR output equality all remain before reuse success. A reconstruction failure invokes existing failed-attempt protocol and fresh-context original compilation, rather than continuing a partially mutated MF."
+    },
+    {
+      "topic": "tiny header",
+      "conclusion": "When save/restore maps exist, official MIR YAML model parses and reserializes the tiny header with only those two BB maps removed; full original frame value is restored separately. Parser failure declines the optional cold recording. It is not treated as evidence that MIR text preserves every private MFI field."
+    },
+    {
+      "topic": "capacity",
+      "conclusion": "Logical snapshot payload now includes frame state, conservatively one sizeof(MachineFrameInfo) per stack object, CSI/local-frame rows, save/restore rows and CSI values, CFI objects and active dynamic bytes, plus per-MMO values in body ledger. Existing checked snapshot/request reservation and optional slot caps remain; failure discards recording or aborts replay. This does not bound allocator capacities, map buckets, current transient allocations, checkpoint retention or process RSS."
+    },
+    {
+      "topic": "closed extension",
+      "conclusion": "Implicit no-MMO load/store allowance is limited to exact current generated X86 PUSH64r/POP64r descriptors. Other memory instructions require admitted stack MMOs, traps retain original closed exception. Calls, inline asm, owner-bearing operands and previous unsupported frame/EH/metadata domains remain excluded."
+    }
+  ],
+  "test_review": {
+    "status": "new tests authored, execution pending at review; no new native pass claim",
+    "scratch": "Expected 255 frame mask covers complete hidden frame fields/dead and negative FI/CFI payload, current BB/PSV rebinding after original source destruction, invalid FI/CFI/map/cap and old-owner/IR/volatile/CFI-symbol-location exclusions. Original masks are retained.",
+    "actual_fixture": "42-definition 1.38MB source is a separate pressure fixture, not replacement of original 425-function measured workload. Two O2 roots must cold-execute2, warm-reuse2, private-edit reuse1/execute1, then reuse2. Every successful stage requires 0 fallback and original object-byte oracle; changed source and changed object bytes asserted. Second fixture adds uwtable to both roots.",
+    "limits": "These Rust tests compare emitted object bytes; they do not themselves link or run generated code, and do not add a numeric stdout execution oracle. One reported syntax-only pass is not a runtime or full warning-clean gate."
+  },
+  "not_claimed": [
+    "executed native spill tests",
+    "new full workspace pass",
+    "real 425 performance improvement",
+    "general frame/memory codegen support",
+    "cross-process serialization or portable LLVM ABI",
+    "RSS bound or all-analysis/full-pipeline minimality"
+  ]
+}

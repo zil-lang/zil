@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "status": "accepted_bounded_source_and_targeted_native_tests",
+  "source_commit": "55e8667f2ea8a60e849436808cf3a65fd4b14186",
+  "source_tree": "d706517cdbb1119ede6d83a713f42d08e1507f17",
+  "prior_receipt": {
+    "path": "/tmp/full-push-spill-frame-pre-review.json",
+    "sha256": "7ce271eb44d483d224000597dc268fd51bc94f026d7a1b9b2cb57fba6834e4d1",
+    "preserved": true
+  },
+  "scope": [
+    "Complete owner-free MFI/stack MMO/CFI transport and scalar FI/CFI current-owner reconstruction as previously reviewed",
+    "Final production empty Save/Restore guard",
+    "Root FFI pure test getters, Product Send/Sync owner explanation, real spill/CFI observations and emitted unwind-section assertions"
+  ],
+  "method": "Read exact root delta against reviewed 5715 source and actual current consumers. Read completed raw native20 log and exact command/source/exit receipts. No compile, Cargo/native execution, measurements, production writes or commits by reviewer. Root executed the validation.",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/machine_frame_products.h": "764c36eb8060ee34d8a795af8769d4b42610e6e55cab7b4636f741092a37126b",
+    "crates/zil-llvm-api/native/machine_products.cpp": "f4b218de9bfe69beff2c85ac66cc0ac4460b643e6e9dd8b71a5c40ef8b2c338c",
+    "crates/zil-llvm-api/native/machine_products.h": "20059fb61933cbc50c61b5f166a48fe9f57dc40fb1a9ec160eca38481f13d17b",
+    "crates/zil-llvm-api/src/native/products.rs": "5e21f4da5ae6d8d726904f8c67672beff33eb1f8b328914f88898b4e72db5e4d",
+    "crates/zil-llvm-api/src/native/spill_tests.rs": "90fcf96ff410cd1ce26b512d6ad1680658d24c0f5458afee40c8b3f940f4b4a7",
+    "crates/zil-llvm-api/src/native.rs": "a084eeab78f57b021ea3d1ecb5ed4910e8f9e27f68a959a56efb2b24230a96ba",
+    "crates/zil-llvm-api/build.rs": "4d20ee8fead45865a39c5909e4025ab83779b39a60440531e6a29e43e267fe9a",
+    "crates/zil-llvm-api/native/work_products.h": "6f048cfd0e58354b2d7dfde8a69b2bed39e0ce5ee5b61c51cf670cf576f4472d"
+  },
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "final Save/Restore maps",
+      "conclusion": "Production snapshotDomain now explicitly rejects both nonempty maps. This closes the concern that ordinal/value rebinding does not preserve DenseMap bucket iteration. Pinned PEI347-348 clears the normal completed maps. Helper supports isolated value/owner rebinding tests but cannot grant native qualification; scratch bit128 checks refusal followed by admission after clearing only the maps."
+    },
+    {
+      "topic": "native owner boundary",
+      "conclusion": "New Product Send/Sync documentation matches actual checked owner closure: complete frame pure values, all Alloca null, cleared pointer maps, stack MMO PSV cleared and rebound current, owner-free copied CFI variants. New FFI getters only return same-thread completed test/observation u32 masks under Rust cfg(test); no LLVM pointer or reuse authority escapes."
+    },
+    {
+      "topic": "actual pressure observations",
+      "conclusion": "First cold compile is followed immediately by scratch255 and actual AsmPrinter-entry frame-object/MMO/CSI observation requirements, plus CFI for uwtable. This prevents a vacuous passing cache test with no frame data. The separate 42-definition pressure fixture preserves full-O2 ordinary object oracle and strict cold/warm/private MF counts, zero failed replay/fallback, changed source and changed object output assertions."
+    },
+    {
+      "topic": "unwind emission",
+      "conclusion": "ELF64 little-endian fixture object section table must contain a nonempty .eh_frame section in the uwtable case. Original complete object-byte equality against ordinary pipeline covers emitted unwind bytes on cold/warm/private. This assertion is a test of trusted emitted objects, not a new general external ELF parser or numeric execution oracle."
+    },
+    {
+      "topic": "retained validation",
+      "conclusion": "Original domain, target/config/input/world/pipeline binding, full typed recapture, current owner reconstruction, MachineVerifier and complete MIR output equality remain intact. Actual AsmPrinter/MC final emission and independent current verification are retained. Earlier failure-abort/fresh original fallback and logical payload limits remain as recorded in pre-review."
+    }
+  ],
+  "test_evidence": {
+    ".log": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-20.log",
+      "sha256": "bc62ab4236e9e8c167af795d8b9deece60fd46225d6ff5a3a97bda30527e7779",
+      "bytes": 76833
+    },
+    "results": [
+      "test native::spill_tests::actual_closed_workload_spills_reuse_current_frames_and_match_full_o2 ... closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 258, optimizer_function_stage_reuses: 0, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 0, ir_key_bytes: 3299685, ir_snapshot_bytes: 1865953, ir_replay_bytes: 0, machine_function_executions: 2, machine_function_reuses: 0, machine_pass_skips: 0, asm_printer_runs: 2, mir_key_bytes: 357205, mir_snapshot_bytes: 1143929, mir_replay_bytes: 0, mir_key_ns: 29122914, mir_parse_ns: 0, mir_restore_validate_ns: 0, mir_capture_ns: 139334186, retained_bytes: 5271181, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 84, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 229219119, ir_unpack_ns: 0, ir_replay_ns: 0, ir_parse_ns: 0, ir_capture_ns: 216841210, ir_pack_ns: 19150713 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 218, optimizer_function_stage_reuses: 40, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 200, ir_key_bytes: 3299685, ir_snapshot_bytes: 0, ir_replay_bytes: 308216, machine_function_executions: 0, machine_function_reuses: 2, machine_pass_skips: 250, asm_printer_runs: 2, mir_key_bytes: 357205, mir_snapshot_bytes: 0, mir_replay_bytes: 1143929, mir_key_ns: 19786293, mir_parse_ns: 62254242, mir_restore_validate_ns: 126297087, mir_capture_ns: 0, retained_bytes: 5271181, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 42, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 216628162, ir_unpack_ns: 11148376, ir_replay_ns: 159656864, ir_parse_ns: 13562850, ir_capture_ns: 48712, ir_pack_ns: 0 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 219, optimizer_function_stage_reuses: 39, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 195, ir_key_bytes: 3299685, ir_snapshot_bytes: 46683, ir_replay_bytes: 300516, machine_function_executions: 1, machine_function_reuses: 1, machine_pass_skips: 125, asm_printer_runs: 2, mir_key_bytes: 357405, mir_snapshot_bytes: 572227, mir_replay_bytes: 571846, mir_key_ns: 20151421, mir_parse_ns: 28443957, mir_restore_validate_ns: 62047492, mir_capture_ns: 57288856, retained_bytes: 5271937, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 44, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 274488422, ir_unpack_ns: 21789428, ir_replay_ns: 207998341, ir_parse_ns: 43704966, ir_capture_ns: 7071172, ir_pack_ns: 467772 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 218, optimizer_function_stage_reuses: 40, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 200, ir_key_bytes: 3299685, ir_snapshot_bytes: 0, ir_replay_bytes: 308228, machine_function_executions: 0, machine_function_reuses: 2, machine_pass_skips: 250, asm_printer_runs: 2, mir_key_bytes: 357405, mir_snapshot_bytes: 0, mir_replay_bytes: 1144073, mir_key_ns: 21195517, mir_parse_ns: 64203206, mir_restore_validate_ns: 378374759, mir_capture_ns: 0, retained_bytes: 5271937, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 42, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 216799768, ir_unpack_ns: 9033739, ir_replay_ns: 151219841, ir_parse_ns: 13333159, ir_capture_ns: 49790, ir_pack_ns: 0 }",
+      "test native::spill_tests::actual_spill_bodies_with_unwind_tables_replay_current_cfi ... closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 258, optimizer_function_stage_reuses: 0, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 0, ir_key_bytes: 3305325, ir_snapshot_bytes: 1865953, ir_replay_bytes: 0, machine_function_executions: 2, machine_function_reuses: 0, machine_pass_skips: 0, asm_printer_runs: 2, mir_key_bytes: 357285, mir_snapshot_bytes: 1145671, mir_replay_bytes: 0, mir_key_ns: 19635710, mir_parse_ns: 0, mir_restore_validate_ns: 0, mir_capture_ns: 115235253, retained_bytes: 5280231, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 84, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 213406019, ir_unpack_ns: 0, ir_replay_ns: 0, ir_parse_ns: 0, ir_capture_ns: 214382365, ir_pack_ns: 24434707 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 218, optimizer_function_stage_reuses: 40, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 200, ir_key_bytes: 3305325, ir_snapshot_bytes: 0, ir_replay_bytes: 308216, machine_function_executions: 0, machine_function_reuses: 2, machine_pass_skips: 250, asm_printer_runs: 2, mir_key_bytes: 357285, mir_snapshot_bytes: 0, mir_replay_bytes: 1145671, mir_key_ns: 22493807, mir_parse_ns: 57268559, mir_restore_validate_ns: 116093246, mir_capture_ns: 0, retained_bytes: 5280231, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 42, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 245507037, ir_unpack_ns: 11438685, ir_replay_ns: 192312132, ir_parse_ns: 20929685, ir_capture_ns: 61970, ir_pack_ns: 0 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 219, optimizer_function_stage_reuses: 39, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 195, ir_key_bytes: 3305325, ir_snapshot_bytes: 46683, ir_replay_bytes: 300516, machine_function_executions: 1, machine_function_reuses: 1, machine_pass_skips: 125, asm_printer_runs: 2, mir_key_bytes: 357485, mir_snapshot_bytes: 573098, mir_replay_bytes: 572717, mir_key_ns: 21500591, mir_parse_ns: 29158839, mir_restore_validate_ns: 56668961, mir_capture_ns: 59685025, retained_bytes: 5281005, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 44, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 200274005, ir_unpack_ns: 10118841, ir_replay_ns: 139784673, ir_parse_ns: 11682109, ir_capture_ns: 5553987, ir_pack_ns: 408852 }",
+      "closed spill work: NativeProductStats { available: 1, optimizer_function_stage_executions: 218, optimizer_function_stage_reuses: 40, optimizer_module_pass_executions: 33, optimizer_cgscc_pass_executions: 336, analysis_reconstructions: 200, ir_key_bytes: 3305325, ir_snapshot_bytes: 0, ir_replay_bytes: 308228, machine_function_executions: 0, machine_function_reuses: 2, machine_pass_skips: 250, asm_printer_runs: 2, mir_key_bytes: 357485, mir_snapshot_bytes: 0, mir_replay_bytes: 1145815, mir_key_ns: 22757221, mir_parse_ns: 59015504, mir_restore_validate_ns: 126578284, mir_capture_ns: 0, retained_bytes: 5281005, failed_replays: 0, fresh_context_fallbacks: 0, fallback_ns: 0, world_projection_direct: 42, world_projection_fallback: 0, tli_projection_builds: 1, tli_projection_reuses: 47, ir_key_ns: 290084928, ir_unpack_ns: 13309293, ir_replay_ns: 200823293, ir_parse_ns: 31659049, ir_capture_ns: 57200, ir_pack_ns: 0 }",
+      "test result: ok. 69 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.50s"
+    ],
+    ".exit": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-20.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "explicit_exit": "0",
+    ".json": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-20.json",
+      "sha256": "4fe3d45734c20247755ae09ae43842767052c3412d73115024bc4ed4dcdcb93d",
+      "bytes": 271
+    },
+    "command_receipt": {
+      "source": "55e8667f2ea8a60e849436808cf3a65fd4b14186",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    }
+  },
+  "validation_summary": "native20 command receipt binds source 55e8667f2; separate explicit exit0; 69 passed /0 failed /0 ignored. Includes new actual spill and unwind replay fixture tests plus existing strict native tests. Command receipt has no source_after field; current checkout was read clean at this exact commit, not claimed as a recorded post-run source assertion.",
+  "outside_scope": [
+    "Independent audit of the simultaneous six IR timing-field implementation; C/Rust appended wire positions were read but not a blanket timing-attribution proof",
+    "New full workspace or strict Clippy/fmt gates for this source unless separately recorded",
+    "Original 425-workload performance, actual numeric executable execution, balanced comparison or net speedup",
+    "General memory/call/EH/target domains or a portable cross-process LLVM product",
+    "Process RSS, allocator capacity and checkpoint memory bound"
+  ]
+}
