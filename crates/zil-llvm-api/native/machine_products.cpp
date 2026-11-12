@@ -969,11 +969,18 @@ void testFrameProducts(llvm::MachineFunction &Current) {
   HasOwner->getFrameInfo().clearObjectAllocation(0);
   HasOwner->getFrameInfo().setHasStackMap(true);
   OwnersRejected &= !frame::capture(*HasOwner, NoOwner, MaxMachinePayload);
-  auto Foreign = Make(); Foreign->getFrameInfo().CreateSpillStackObject(16, llvm::Align(16));
-  llvm::MachinePointerInfo ForeignPtr(Foreign->getPSVManager().getFixedStack(0));
+  auto Foreign = Make();
+  Foreign->getFrameInfo().CreateSpillStackObject(16, llvm::Align(16));
+  Foreign->getFrameInfo().CreateSpillStackObject(16, llvm::Align(16));
+  // The foreign PSV carries the SAME valid current FI, not an out-of-range
+  // index: only the exact current-owner identity check can reject it.
+  llvm::MachinePointerInfo ForeignPtr(Foreign->getPSVManager().getFixedStack(Slot));
   auto *ForeignMMO = Restored->getMachineMemOperand(ForeignPtr, llvm::MachineMemOperand::MOLoad,
       llvm::LLT::scalar(32), llvm::Align(4));
   OwnersRejected &= !frame::captureMemory(*Restored, *ForeignMMO);
+  auto *IRMemory = Restored->getMachineMemOperand(llvm::MachinePointerInfo(Allocation.get()),
+      llvm::MachineMemOperand::MOLoad, llvm::LLT::scalar(32), llvm::Align(4));
+  OwnersRejected &= !frame::captureMemory(*Restored, *IRMemory);
   llvm::MachinePointerInfo CurrentStack(Restored->getPSVManager().getStack(), 13, 7);
   auto *Volatile = Restored->getMachineMemOperand(CurrentStack, llvm::MachineMemOperand::MOLoad |
       llvm::MachineMemOperand::MOVolatile, llvm::LLT::scalar(32), llvm::Align(4));
