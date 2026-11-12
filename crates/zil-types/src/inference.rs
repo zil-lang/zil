@@ -1725,6 +1725,10 @@ enum Term {
         error: Rc<Term>,
         result: Rc<Term>,
     },
+    /// Inference-only original input products before concrete ClosureIds exist.
+    /// Ordinary Types and both kernels still prove their actual owned shape.
+    InputTuple(Rc<Vec<Term>>),
+    CreateFailure(Rc<Vec<Term>>),
     Function(Rc<Signature>),
     /// Nominal receiver already constrained; only valid immediately as a callee.
     Method(Rc<Signature>),
@@ -1921,7 +1925,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     this.budget.work(1, parameter.span)?;
                     this.state_modes.insert(id, bound.kind);
                 }
-                if registration::borrowed_environment(&parameter.ty).is_some() {
+                if registration::environment(&parameter.ty).is_some()
+                    && matches!(parameter.ty, Type::Managed(_))
+                {
+                    Term::Registration(Rc::new(Term::Closure(id)), true, true)
+                } else if registration::borrowed_environment(&parameter.ty).is_some() {
                     Term::ValueAddress(
                         Rc::new(Term::Registration(Rc::new(Term::Closure(id)), true, true)),
                         true,
@@ -2690,6 +2698,47 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    fn input_pattern(
+        &mut self,
+        pattern: &CorePattern,
+        term: &Term,
+        mutable: bool,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(depth, pattern.span)?;
+        match (&pattern.kind, term) {
+            (CorePatternKind::Name(name), _) => {
+                self.insert(name, term.clone(), mutable, pattern.span)
+            }
+            (CorePatternKind::Wildcard, _) => Ok(()),
+            (CorePatternKind::Tuple(patterns), Term::InputTuple(fields))
+                if patterns.len() == fields.len() =>
+            {
+                self.budget.work(fields.len(), pattern.span)?;
+                for (pattern, field) in patterns.iter().zip(fields.iter()) {
+                    self.input_pattern(pattern, field, mutable, depth + 1)?;
+                }
+                Ok(())
+            }
+            (
+                CorePatternKind::ErrorArm { is_error, pattern },
+                Term::ValueUnion { error, result },
+            ) => self.input_pattern(
+                pattern,
+                if *is_error { error } else { result },
+                mutable,
+                depth + 1,
+            ),
+            _ => {
+                let variable = self.scalar(term, pattern.span)?;
+                for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                    let term = self.pattern_term(variable, span)?;
+                    self.insert(&name, term, mutable, span)?;
+                }
+                Ok(())
+            }
+        }
+    }
     fn pattern_term(&mut self, variable: Variable, span: Span) -> R<Term> {
         if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
             return Ok(Term::Address(inner, mutable));
@@ -2973,6 +3022,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 | Term::ValueStore(..)
                 | Term::ValueAddress(..)
                 | Term::ValueUnion { .. }
+                | Term::InputTuple(_)
+                | Term::CreateFailure(_)
                 | Term::ClosureAddress(..)
         ) {
             return Err(unsupported(
@@ -3216,6 +3267,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     if let Some(ty) = ty {
                         self.bind_term(&value, ty, statement.span)?;
                     }
+                    if matches!(value, Term::InputTuple(_)) {
+                        self.input_pattern(pattern, &value, *mutable, depth + 1)?;
+                        self.binding_types.insert(index, value);
+                        continue;
+                    }
                     let variable = self.scalar(&value, statement.span)?;
                     self.binding_types.insert(index, value.clone());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
@@ -3443,6 +3499,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 CoreStatementKind::Match { value, arms } => {
                     let value_type = self.expr(value, depth + 1, false)?;
+                    if matches!(value_type, Term::ValueUnion { .. }) {
+                        for arm in arms {
+                            self.scopes.push(BTreeMap::new());
+                            self.input_pattern(&arm.pattern, &value_type, false, depth + 1)?;
+                            self.block(&arm.body, depth + 1)?;
+                            self.scopes.pop();
+                        }
+                        continue;
+                    }
                     let variable = self.scalar(&value_type, value.span)?;
                     for arm in arms {
                         self.scopes.push(BTreeMap::new());
@@ -4179,6 +4244,46 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         "task_create actual input count mismatch",
                     ));
                 }
+                if name == "task_create_owned" && !signature.callable.is_empty() {
+                    let mut inputs = vec![];
+                    for (index, (argument, wanted)) in
+                        arguments[1..].iter().zip(&signature.parameters).enumerate()
+                    {
+                        let dynamic = signature
+                            .callable
+                            .iter()
+                            .any(|role| role.index as usize == index)
+                            && registration::environment(wanted).is_some();
+                        let term = self.expr_expected(
+                            argument,
+                            if dynamic { None } else { Some(wanted) },
+                            depth + 1,
+                            false,
+                        )?;
+                        if !dynamic {
+                            self.bind_term(&term, wanted, argument.span)?;
+                        } else if !matches!(term, Term::Registration(_, true, true)) {
+                            return Err(error(
+                                "E-TYPE-MISMATCH",
+                                argument.span,
+                                "Task worker requires a complete actual owning registration input",
+                            ));
+                        }
+                        inputs.push(term);
+                    }
+                    let task = Type::Managed(Box::new(Type::Task {
+                        result: Box::new(signature.result.clone()),
+                        retained_life: tasks::borrowed_context_with_life(
+                            &signature.parameters,
+                            signature.life.as_ref(),
+                            &signature.result,
+                        ),
+                    }));
+                    return Ok(Term::ValueUnion {
+                        error: Rc::new(Term::CreateFailure(Rc::new(inputs))),
+                        result: Rc::new(self.known_term(&task, span)?),
+                    });
+                }
                 for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
                     let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
                     self.bind_term(&term, wanted, argument.span)?;
@@ -4195,7 +4300,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &if name == "task_await" {
                         signature.result.clone()
                     } else {
-                        tasks::call_create_type(name,
+                        tasks::call_create_type(
+                            name,
                             &signature.result,
                             tasks::borrowed_context_with_life(
                                 &signature.parameters,
@@ -4216,7 +4322,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                     })
                                     .as_ref(),
                                 &signature.result,
-                            ), &signature.parameters)
+                            ),
+                            &signature.parameters,
+                        )
                     },
                     span,
                 );
@@ -5245,6 +5353,32 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         };
         let object_type = self.projected_base(object, depth + 1, write && !resource_field)?;
         self.owner_term(&object_type, owner.as_ref(), span)?;
+        if let Term::CreateFailure(inputs) = &object_type {
+            self.budget.work(inputs.len().saturating_add(1), span)?;
+            return match member.as_str() {
+                "inputs" => Ok(Term::InputTuple(inputs.clone())),
+                "reason" => self.known_term(&tasks::create_error(), span),
+                _ => Err(error(
+                    "E-UNKNOWN-FIELD",
+                    span,
+                    "TaskCreateFailure field absent",
+                )),
+            };
+        }
+        if let Term::InputTuple(inputs) = &object_type {
+            self.budget.work(inputs.len().saturating_add(1), span)?;
+            let index = member.parse::<usize>().map_err(|_| {
+                error(
+                    "E-TUPLE-FIELD",
+                    span,
+                    "original input Tuple requires a numeric field",
+                )
+            })?;
+            return inputs
+                .get(index)
+                .cloned()
+                .ok_or_else(|| error("E-TUPLE-FIELD", span, "original input Tuple field absent"));
+        }
         if let Term::ValueAddress(inner, mutable) = &object_type {
             let (shape, field_sources, one) = match inner.as_ref() {
                 Term::StatePackage { shape, fields } => (shape, Some(fields), None),

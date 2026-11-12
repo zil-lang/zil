@@ -118,6 +118,13 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
+                let owning_failure = matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
+                    && matches!(e.as_ref(),Type::Package{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs"));
+                if owning_failure {
+                    let (a, ao) = walk(module, e, budget)?;
+                    let (b, bo) = walk(module, result, budget)?;
+                    return Ok((a || b, ao || bo));
+                }
                 // Direct Managed success keeps its existing Copy-error rule.
                 // Other owning slots are complete Products/Enums; an owning
                 // ErrorUnion is not itself a permitted ErrorUnion slot.
@@ -172,6 +179,112 @@ enum Node {
     Sum(BTreeMap<u32, Vec<Arc<Tree>>>),
 }
 impl Tree {
+    fn live_async(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(1, "actual asynchronous aggregate cleanup leaf")?;
+        if self.missing {
+            return Ok(false);
+        }
+        match (&self.node, ty) {
+            (Node::Leaf(_), Type::Managed(t)) => {
+                Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
+            }
+            (Node::Product(children), Type::Tuple(fields)) => {
+                for (child, ty) in children.iter().zip(fields) {
+                    if child.live_async(ty, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (Node::Product(children), Type::Package { fields, .. }) => {
+                for (child, (_, ty)) in children.iter().zip(fields) {
+                    if child.live_async(ty, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (
+                Node::Sum(variants),
+                Type::Enum {
+                    variants: types, ..
+                },
+            ) => {
+                for (index, children) in variants {
+                    for (child, ty) in children.iter().zip(&types[*index as usize].1) {
+                        if child.live_async(ty, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            (Node::Sum(variants), Type::ErrorUnion { error, result }) => {
+                for (index, children) in variants {
+                    if let Some(child) = children.first()
+                        && child.live_async(if *index == 0 { result } else { error }, b)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn live_task(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(1, "actual Task aggregate cleanup leaf")?;
+        if self.missing {
+            return Ok(false);
+        }
+        match (&self.node, ty) {
+            (Node::Leaf(_), Type::Managed(_)) => Ok(true),
+            (Node::Product(children), Type::Tuple(fields)) => {
+                for (child, ty) in children.iter().zip(fields) {
+                    if child.live_task(ty, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (Node::Product(children), Type::Package { fields, .. }) => {
+                for (child, (_, ty)) in children.iter().zip(fields) {
+                    if child.live_task(ty, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            (
+                Node::Sum(variants),
+                Type::Enum {
+                    variants: types, ..
+                },
+            ) => {
+                for (index, children) in variants {
+                    for (child, ty) in children.iter().zip(&types[*index as usize].1) {
+                        if child.live_task(ty, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            (Node::Sum(variants), Type::ErrorUnion { error, result }) => {
+                for (index, children) in variants {
+                    if let Some(child) = children.first()
+                        && child.live_task(if *index == 0 { result } else { error }, b)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            // Opaque owner/closure storage is outside the selected Sum proof.
+            // Preserve the existing full actual-origin cleanup obligation.
+            _ => Ok(!ty.is_copy_value()),
+        }
+    }
     fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
         let node = match ty {
@@ -750,6 +863,18 @@ impl Facts {
             return Err(error("repeatable Sum capture is incomplete"));
         }
         Ok(())
+    }
+    pub(super) fn may_live_task(
+        &self,
+        local: LocalId,
+        ty: &Type,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        budget.lookup(self.locals.len(), "actual Task cleanup local lookup")?;
+        match self.locals.get(&local) {
+            Some(tree) => tree.live_task(ty, budget),
+            None => Ok(true),
+        }
     }
     pub(super) fn no_live_owner(&self, local: LocalId, budget: &mut Budget) -> CompileResult<bool> {
         budget.lookup(self.locals.len(), "Sum discharged local lookup")?;
@@ -1444,6 +1569,23 @@ impl Plan {
                 )?;
             }
         }
+        if check && f.call_kind == CallKind::Direct {
+            let dropped = match i.kind {
+                InstructionKind::DropPackage { local }
+                | InstructionKind::DropTuple { local }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::DropErrorUnion { local } => Some(local),
+                _ => None,
+            };
+            if let Some(local) = dropped
+                && let Some(tree) = facts.locals.get(&local)
+                && tree.live_async(&f.locals[local.0 as usize].ty, budget)?
+            {
+                return Err(error(
+                    "Direct aggregate cleanup retains a live asynchronous owner; unpack and explicitly close it",
+                ));
+            }
+        }
         let mut output = None;
         if check
             && self.partial.is_some()
@@ -1605,12 +1747,35 @@ impl Plan {
                 }));
             }
             InstructionKind::TaskCreateOwned { arguments, .. } => {
-                budget.spend(arguments.len().saturating_add(12),"Task allocation failure original input tree")?;
-                let inputs=Arc::new(Tree{missing:false,node:Node::Product(arguments.iter().map(|v|facts.value(*v,budget)).collect::<CompileResult<_>>()?)});
-                let reason=Arc::new(Tree{missing:false,node:Node::Copy});
-                let failure=Arc::new(Tree{missing:false,node:Node::Product(vec![reason,inputs])});
-                let head=Arc::new(Tree{missing:false,node:Node::Leaf(BTreeSet::from([Birth::Created]))});
-                output=Some(Arc::new(Tree{missing:false,node:Node::Sum(BTreeMap::from([(0,vec![head]),(1,vec![failure])]))}));
+                budget.spend(
+                    arguments.len().saturating_add(12),
+                    "Task allocation failure original input tree",
+                )?;
+                let inputs = Arc::new(Tree {
+                    missing: false,
+                    node: Node::Product(
+                        arguments
+                            .iter()
+                            .map(|v| facts.value(*v, budget))
+                            .collect::<CompileResult<_>>()?,
+                    ),
+                });
+                let reason = Arc::new(Tree {
+                    missing: false,
+                    node: Node::Copy,
+                });
+                let failure = Arc::new(Tree {
+                    missing: false,
+                    node: Node::Product(vec![reason, inputs]),
+                });
+                let head = Arc::new(Tree {
+                    missing: false,
+                    node: Node::Leaf(BTreeSet::from([Birth::Created])),
+                });
+                output = Some(Arc::new(Tree {
+                    missing: false,
+                    node: Node::Sum(BTreeMap::from([(0, vec![head]), (1, vec![failure])])),
+                }));
             }
             InstructionKind::WithScopedThread { argument, .. }
                 if crate::tasks::transfer::task_owner(&f.values[argument.0 as usize]) =>
@@ -2017,8 +2182,10 @@ impl Plan {
                 Some(t) => t,
                 None => Tree::unknown(&f.values[v.0 as usize], budget)?,
             };
-            if matches!(i.kind, InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. })
-                || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
+            if matches!(
+                i.kind,
+                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            ) || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
             {
                 match &mut edit(&mut tree, budget)?.node {
                     Node::Leaf(s) => *s = BTreeSet::from([Birth::Created]),

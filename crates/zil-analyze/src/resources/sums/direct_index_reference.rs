@@ -694,8 +694,10 @@ impl<'a> OldPlan<'a> {
                 Some(t) => t,
                 None => Tree::unknown(&f.values[v.0 as usize], budget)?,
             };
-            if matches!(i.kind, InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. })
-                || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
+            if matches!(
+                i.kind,
+                InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. }
+            ) || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
             {
                 match &mut edit(&mut tree, budget)?.node {
                     Node::Leaf(s) => *s = BTreeSet::from([Birth::Created]),

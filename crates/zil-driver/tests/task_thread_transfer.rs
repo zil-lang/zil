@@ -374,7 +374,7 @@ fn actual_provider_contract_raw_wire_mutations_are_independently_rejected() {
 
 #[test]
 fn explicit_finish_through_owned_helper_and_borrowed_alias() {
-    let helper = "fn finish<F:FnMut(i32)->i32 + ClosedEnvironment>(give input:AsyncRegistration<F>) contract{requires(state(input,Closed));}{async_registration_finish_destroy_checked(give input);}\n";
+    let helper = "fn finish<F:FnMut(i32)->i32 + ClosedEnvironment>(give input:AsyncRegistration<F>) contract{requires(state(input,Closed));provides(retired(input));}{async_registration_finish_destroy_checked(give input);}\n";
     let with_helper = THREADED
         .replacen("fn compute", &format!("{helper}fn compute"), 1)
         .replace(
@@ -403,5 +403,62 @@ fn explicit_finish_through_owned_helper_and_borrowed_alias() {
             "{name}: {}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn c_callback_never_erases_a_suspend_execution_root() {
+    for worker in [
+        "fn worker(seed:i32)->i32 {task_yield();return seed;}",
+        "fn worker(seed:i32)->i32 contract{resume(transfer)} {return seed;}",
+    ] {
+        let text = format!("{worker}fn main(){{let callback=c_callback(worker);}}");
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let input = source(
+        "fn worker(seed:i32)->i32{return seed+1;}fn main(){let callback=c_callback(worker);}",
+    );
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for wire in [false, true] {
+        let mut forged = typed.clone();
+        forged
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "worker")
+            .unwrap()
+            .call_kind = zil_ir::CallKind::Suspend;
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        assert!(zil_analyze::analyze(&forged, &limits).is_err());
+        let result = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits)
+        } else {
+            zil_verify::verify_module(forged, claim, &target, &limits)
+        };
+        assert!(result.is_err(), "Suspend callback wire={wire}");
     }
 }

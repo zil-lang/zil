@@ -925,7 +925,9 @@ impl Builder<'_, '_> {
         } else {
             signature.result.clone()
         };
-        if let Some(expected) = expected {
+        if task.is_none()
+            && let Some(expected) = expected
+        {
             self.same(&result, expected, span)?;
         }
         let values = self.commit_arguments(staged, span)?;

@@ -342,9 +342,9 @@ pub(crate) fn borrowed_registration(ty: &TypeRef, name: &str) -> bool {
         if matches!(&grouped(inner).kind, TypeKind::Named { path, .. } if path.as_slice() == ["AsyncRegistration"])
         && registration_environment(inner).is_some_and(|t| parameter_mode(t, name) == Some(None)))
 }
-pub(crate) fn owned_registration(ty:&TypeRef,name:&str)->bool {
+pub(crate) fn owned_registration(ty: &TypeRef, name: &str) -> bool {
     matches!(&grouped(ty).kind,TypeKind::Named{path,..} if path.as_slice()==["AsyncRegistration"])
-        && registration_environment(ty).is_some_and(|t|parameter_mode(t,name)==Some(None))
+        && registration_environment(ty).is_some_and(|t| parameter_mode(t, name) == Some(None))
 }
 pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ClosedEnvironment"] && args.is_empty())
@@ -779,12 +779,14 @@ fn template_with_state(
             if !refers(&input.ty, &parameter.name) && !is_state(&input.ty, &parameter.name, dual) {
                 continue;
             }
-            let owned_registration_input=input.give && owned_registration(&input.ty,&parameter.name);
-            let registration_input = borrowed_registration(&input.ty, &parameter.name) || owned_registration_input;
+            let owned_registration_input =
+                input.give && owned_registration(&input.ty, &parameter.name);
+            let registration_input =
+                borrowed_registration(&input.ty, &parameter.name) || owned_registration_input;
             if registration_input
                 && (callables.len() != 1
                     || function.generics.len() != 1
-                    || (!owned_registration_input && function.params.len()!=1)
+                    || (!owned_registration_input && function.params.len() != 1)
                     || !closed_environment
                     || kind != CallableKind::FnMut
                     || life.is_some()
@@ -848,7 +850,11 @@ fn template_with_state(
             }
             match (kind, mode) {
                 (CallableKind::FnMut, None)
-                    if !owning && !owned_factory && !forwarded && !retained_registration && !owned_registration_input =>
+                    if !owning
+                        && !owned_factory
+                        && !forwarded
+                        && !retained_registration
+                        && !owned_registration_input =>
                 {
                     return Err(unsupported(
                         input.span,

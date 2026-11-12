@@ -713,7 +713,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),
         InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
-        InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => (None, None, arguments),
+        InstructionKind::TaskCreate { arguments, .. }
+        | InstructionKind::TaskCreateOwned { arguments, .. } => (None, None, arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }
@@ -1912,12 +1913,25 @@ impl Flow<'_> {
                         ]),
                     });
                 }
-                InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => {
+                InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len(), "task transferred inputs")?;
                     for &v in arguments {
-                        if check && !matches!(i.kind,InstructionKind::TaskCreateOwned{..}) && tasks::transfer::task_owner(&f.values[v.0 as usize]) { tasks::require_synchronous_value(self.module,f,v,budget,Some(i.span))?; }
+                        if check
+                            && !matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
+                            && tasks::transfer::task_owner(&f.values[v.0 as usize])
+                        {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                v,
+                                budget,
+                                Some(i.span),
+                            )?;
+                        }
 
-                        if !matches!(i.kind,InstructionKind::TaskCreateOwned{..}) && matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        if !matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
+                            && matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                         {
                             return Err(error(
                                 "live pollable TaskCreate input cannot be cleaned synchronously on allocation failure",
@@ -3071,6 +3085,11 @@ impl Flow<'_> {
                     if check
                         && f.call_kind == CallKind::Direct
                         && fact.life.contains(&Life::Available)
+                        && state.sums.may_live_task(
+                            *local,
+                            &f.locals[local.0 as usize].ty,
+                            budget,
+                        )?
                     {
                         tasks::require_synchronous_drop(
                             self.module,

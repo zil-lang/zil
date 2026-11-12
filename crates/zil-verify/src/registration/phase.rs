@@ -1,6 +1,7 @@
 //! Independent verifier proof for the finite pollable registration phase relation.
 //! Runtime drain remains mandatory; these facts never establish ownership.
 use super::*;
+mod fields;
 use std::collections::VecDeque;
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
@@ -43,7 +44,10 @@ fn shape(f: &TypedFunction, c: &FunctionProtocolContract, budget: &mut Budget) -
     let Some(role) = f.locals.get(local.0 as usize) else {
         return Err(invalid(f, "protocol parameter local is absent"));
     };
-    if f.foreign.is_some() || f.environment.is_some() || f.call_kind != CallKind::Direct {
+    if f.foreign.is_some()
+        || f.environment.is_some()
+        || (f.call_kind != CallKind::Direct && !is_owner(&role.ty))
+    {
         return Err(invalid(
             f,
             "protocol relation requires an actual ordinary body",
@@ -58,7 +62,7 @@ fn shape(f: &TypedFunction, c: &FunctionProtocolContract, budget: &mut Budget) -
         }
         _ => exit == ProtocolExit::Return,
     };
-    if !is_borrow(&role.ty)
+    if !(is_borrow(&role.ty) || (is_owner(&role.ty) && f.return_type.is_copy_value()))
         || f.parameters.iter().enumerate().any(|(i, l)| {
             i != c.parameter as usize
                 && f.locals
@@ -75,7 +79,7 @@ fn shape(f: &TypedFunction, c: &FunctionProtocolContract, budget: &mut Budget) -
         budget.spend(row.output.len().saturating_add(1))?;
         if !allowed_exit(row.exit)
             || !c.entry.contains(&row.input)
-            || row.output.is_empty()
+            || (row.output.is_empty() && !is_owner(&role.ty))
             || row.output.windows(2).any(|p| p[0] >= p[1])
         {
             return Err(invalid(f, "invalid protocol transition row"));
@@ -101,6 +105,7 @@ struct ResultOrigin {
 }
 #[derive(Clone, PartialEq, Eq)]
 struct Flow {
+    fields: Option<fields::Fields>,
     phases: Vec<u8>,
     generations: Vec<u32>,
     aliases: Vec<Option<usize>>,
@@ -142,6 +147,15 @@ impl Flow {
         let n = f.locals.len();
         let v = f.values.len();
         let mut s = Self {
+            fields: f
+                .blocks
+                .iter()
+                .any(|b| {
+                    b.instructions
+                        .iter()
+                        .any(|i| matches!(i.kind, InstructionKind::TaskCreateOwned { .. }))
+                })
+                .then(fields::Fields::default),
             phases: vec![0; n],
             generations: vec![0; n],
             aliases: vec![None; n],
@@ -159,7 +173,7 @@ impl Flow {
             return_tags: vec![None; v],
         };
         for (i, l) in f.parameters.iter().enumerate() {
-            if is_borrow(&f.locals[l.0 as usize].ty) {
+            if is_borrow(&f.locals[l.0 as usize].ty) || is_owner(&f.locals[l.0 as usize].ty) {
                 s.aliases[l.0 as usize] = Some(l.0 as usize);
                 if entry.map(|(j, _)| j) == Some(i) {
                     s.phases[l.0 as usize] = entry.unwrap().1;
@@ -172,6 +186,9 @@ impl Flow {
     }
     fn merge(&mut self, other: &Self) -> bool {
         let old = self.clone();
+        if let (Some(to), Some(from)) = (&mut self.fields, &other.fields) {
+            to.join(from);
+        }
         for (a, b) in self.phases.iter_mut().zip(&other.phases) {
             *a |= *b;
         }
@@ -446,7 +463,13 @@ fn effect(
                     .get(c.parameter as usize)
                     .ok_or_else(|| invalid(f, "protocol call role absent"))?;
                 let r = root(s, arg, f)?;
-                let before = s.phases[r];
+                let owned =
+                    is_owner(&callee.locals[callee.parameters[c.parameter as usize].0 as usize].ty);
+                let before = if owned {
+                    s.values[arg.0 as usize]
+                } else {
+                    s.phases[r]
+                };
                 if before == 0
                     || arguments.iter().enumerate().any(|(i, v)| {
                         i != c.parameter as usize && s.value_aliases[v.0 as usize] == Some(r)
@@ -492,11 +515,11 @@ fn effect(
                     }
                 }
                 let all = low | high | plain;
-                if all == 0 {
+                if all == 0 && !owned {
                     return Err(invalid(f, "protocol call has no published result relation"));
                 }
                 s.invalidate(r, b)?;
-                s.phases[r] = all;
+                s.phases[r] = if owned { 0 } else { all };
                 s.generations[r] = s.generations[r].saturating_add(1);
                 if let Some(o) = out {
                     s.results[o] = Some(ResultOrigin {
@@ -540,6 +563,7 @@ fn effect(
         }
         _ => {}
     }
+    fields::step(s, i, f, m, b)?;
     Ok(())
 }
 fn run(
@@ -580,6 +604,12 @@ fn run(
                     .saturating_mul(16)
                     .saturating_add(1),
             )?;
+            b.spend(
+                states[index]
+                    .as_ref()
+                    .and_then(|s| s.fields.as_ref())
+                    .map_or(0, |p| p.cost()),
+            )?;
             let mut state = states[index]
                 .clone()
                 .ok_or_else(|| invalid(f, "missing queued protocol state"))?;
@@ -600,9 +630,16 @@ fn run(
                         .saturating_mul(32)
                         .saturating_add(1),
                 )?;
+                b.spend(next.fields.as_ref().map_or(0, |p| p.cost()))?;
                 let next = next.clone();
                 let slot = &mut states[target];
                 if let Some(old) = slot {
+                    b.spend(
+                        old.fields
+                            .as_ref()
+                            .map_or(0, |p| p.cost())
+                            .saturating_add(next.fields.as_ref().map_or(0, |p| p.cost())),
+                    )?;
                     if old.merge(&next) && !queued[target] {
                         queue.push_back(target);
                         queued[target] = true;
@@ -789,7 +826,7 @@ pub(super) fn check(m: &TypedModule, b: &mut Budget) -> Check<()> {
         )?;
         let active = f.protocol_contract.is_some()
             || f.blocks.iter().flat_map(|x| &x.instructions).any(|i| {
-                matches!(i.kind, InstructionKind::AsyncRegistrationFinishDestroyChecked { .. })
+                matches!(i.kind, InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } | InstructionKind::TaskCreateOwned{..})
                     || matches!(i.kind, InstructionKind::Call { function, .. }
                         if m.functions.get(function.0 as usize).is_some_and(|callee| callee.protocol_contract.is_some()))
             });

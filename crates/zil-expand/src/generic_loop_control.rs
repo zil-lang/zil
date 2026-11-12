@@ -59,6 +59,37 @@ impl Check<'_, '_, '_> {
         Ok(())
     }
 
+    pub(super) fn unconditional_loop_body(
+        &mut self,
+        body: &Block,
+        state: &mut State,
+        mut iteration: State,
+        span: Span,
+        aliases: state_aliases::LoopMark,
+    ) -> R<BlockFlow> {
+        self.budget.node(span, self.loops.len().saturating_add(1))?;
+        self.loops.push(LoopFrame::default());
+        let flow = self.block(body, &mut iteration);
+        let frame = self.loops.pop().expect("actual unconditional loop frame");
+        let flow = flow?;
+        for continuation in &frame.continues {
+            self.alias_loop_invariant(state, continuation, aliases, body.span)?;
+            self.loop_invariant(state, continuation, body.span)?;
+        }
+        if flow.fallthrough {
+            self.alias_loop_invariant(state, &iteration, aliases, body.span)?;
+            self.loop_invariant(state, &iteration, body.span)?;
+        }
+        self.budget.node(span, frame.breaks.len())?;
+        if !frame.breaks.is_empty() {
+            let exits = frame.breaks.iter().collect::<Vec<_>>();
+            self.join_states(state, &exits, span)?;
+        }
+        Ok(BlockFlow {
+            fallthrough: !frame.breaks.is_empty(),
+            returns: flow.returns,
+        })
+    }
     pub(super) fn loop_body(
         &mut self,
         body: &Block,

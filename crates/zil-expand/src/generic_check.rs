@@ -490,6 +490,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             ));
         } else if parameter.give
             && (stores::explicit_task_result(&parameter.ty)
+                || check.owned_registration_type(&parameter.ty)
                 || check.two_input_state_constructor()
                 || check
                     .callable
@@ -1636,7 +1637,17 @@ impl Check<'_, '_, '_> {
             Err(_) => Ok(false),
         }
     }
+    fn owned_registration_type(&self, ty: &TypeRef) -> bool {
+        self.callable.as_ref().is_some_and(|bounds| {
+            bounds.roles.iter().any(|role| {
+                role.closed_environment && callable::owned_registration(ty, &role.generic_name)
+            })
+        })
+    }
     fn concrete_helper_resource(&self, ty: &TypeRef) -> bool {
+        if self.owned_registration_type(ty) {
+            return true;
+        }
         if self.callable.is_none() || dependent(ty, &self.variables) {
             return false;
         }
@@ -4779,6 +4790,15 @@ impl Check<'_, '_, '_> {
 
     #[inline(never)]
     fn expr_call_foreign_special(&mut self, e: &Expr, state: &mut State) -> R<Option<TypeRef>> {
+        if let ExprKind::Call { callee, arguments } = &e.kind
+            && matches!(&callee.kind,ExprKind::Name(name) if name=="task_yield" && !state.locals.contains_key(name))
+        {
+            self.tick(e.span)?;
+            if !arguments.is_empty() {
+                return Err(error(e.span, "task_yield requires zero arguments"));
+            }
+            return Ok(Some(unit(e.span)));
+        }
         let ExprKind::Call { callee, arguments } = &e.kind else {
             unreachable!("special call dispatcher")
         };
@@ -6548,6 +6568,19 @@ impl Check<'_, '_, '_> {
                     let matched = self.enum_match(value, arms, state)?;
                     flow.fallthrough = matched.fallthrough;
                     flow.returns |= matched.returns;
+                }
+                StmtKind::Loop(body) => {
+                    let aliases = self.alias_mark_loop();
+                    let iteration = self.clone_loop_state(state, body.span)?;
+                    let checked = self.unconditional_loop_body(
+                        body,
+                        state,
+                        iteration,
+                        statement.span,
+                        aliases,
+                    )?;
+                    flow.returns |= checked.returns;
+                    flow.fallthrough = checked.fallthrough;
                 }
                 StmtKind::While {
                     condition: Condition::Expression(condition),

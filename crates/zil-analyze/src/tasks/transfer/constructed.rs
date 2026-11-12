@@ -1,10 +1,12 @@
 //! Forward construction provenance for migration. Facts retain actual allocation
 //! sites and caller substitutions, including already-active input registrations.
 use super::*;
+use std::collections::BTreeMap;
+type Path = Vec<zil_ir::PlaceProjection>;
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Fact {
     unknown: bool,
-    sites: BTreeSet<(usize, ValueId)>,
+    sites: BTreeMap<Path, BTreeSet<(usize, ValueId)>>,
 }
 impl Fact {
     fn join(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
@@ -17,8 +19,50 @@ impl Fact {
         )?;
         let old = self.clone();
         self.unknown |= other.unknown;
-        self.sites.extend(other.sites.iter().copied());
+        for (path, sites) in &other.sites {
+            b.spend(
+                path.len().saturating_add(sites.len()),
+                "Task origin path merge",
+            )?;
+            self.sites.entry(path.clone()).or_default().extend(sites);
+        }
         Ok(*self != old)
+    }
+    fn prefix(&self, prefix: &[zil_ir::PlaceProjection], b: &mut Budget) -> CompileResult<Self> {
+        let mut result = Self {
+            unknown: self.unknown,
+            ..Self::default()
+        };
+        for (path, sites) in &self.sites {
+            b.spend(
+                path.len()
+                    .saturating_add(prefix.len())
+                    .saturating_add(sites.len()),
+                "Task origin path construction",
+            )?;
+            let mut key = prefix.to_vec();
+            key.extend_from_slice(path);
+            result.sites.insert(key, sites.clone());
+        }
+        Ok(result)
+    }
+    fn select(&self, prefix: &[zil_ir::PlaceProjection], b: &mut Budget) -> CompileResult<Self> {
+        let mut result = Self {
+            unknown: self.unknown,
+            ..Self::default()
+        };
+        for (path, sites) in &self.sites {
+            b.spend(
+                path.len()
+                    .saturating_add(prefix.len())
+                    .saturating_add(sites.len()),
+                "Task origin selected path",
+            )?;
+            if let Some(tail) = path.strip_prefix(prefix) {
+                result.sites.insert(tail.to_vec(), sites.clone());
+            }
+        }
+        Ok(result)
     }
 }
 struct Activation {
@@ -135,23 +179,55 @@ impl Proof<'_> {
                     self.budget
                         .spend(1, "Task migration forward construction")?;
                     match &i.kind {
-                        InstructionKind::Store { local, value }
-                        | InstructionKind::StorePackageField { local, value, .. } => {
+                        InstructionKind::Store { local, value } => {
                             let source = self.activations[index].values[value.0 as usize].clone();
+                            changed |= self.activations[index].locals[local.0 as usize]
+                                .join(&source, self.budget)?;
+                        }
+                        InstructionKind::StorePackageField {
+                            local,
+                            index: field,
+                            value,
+                        } => {
+                            let source = self.activations[index].values[value.0 as usize]
+                                .prefix(&[zil_ir::PlaceProjection::Field(*field)], self.budget)?;
                             changed |= self.activations[index].locals[local.0 as usize]
                                 .join(&source, self.budget)?;
                         }
                         InstructionKind::UnpackTuple { local, fields }
                         | InstructionKind::UnpackVariant { local, fields, .. } => {
                             let source = self.activations[index].locals[local.0 as usize].clone();
-                            for field in fields {
+                            for (position, field) in fields.iter().enumerate() {
                                 if relevant(
                                     self.module,
                                     &f.locals[field.0 as usize].ty,
                                     self.budget,
                                 )? {
                                     changed |= self.activations[index].locals[field.0 as usize]
-                                        .join(&source, self.budget)?;
+                                        .join(
+                                            &source.select(
+                                                &[
+                                                    if let InstructionKind::UnpackVariant {
+                                                        variant,
+                                                        ..
+                                                    } = i.kind
+                                                    {
+                                                        zil_ir::PlaceProjection::Variant(
+                                                            zil_ir::VariantProjection {
+                                                                variant,
+                                                                index: position as u32,
+                                                            },
+                                                        )
+                                                    } else {
+                                                        zil_ir::PlaceProjection::Field(
+                                                            position as u32,
+                                                        )
+                                                    },
+                                                ],
+                                                self.budget,
+                                            )?,
+                                            self.budget,
+                                        )?;
                                 }
                             }
                         }
@@ -166,33 +242,97 @@ impl Proof<'_> {
                     let mut fact = Fact::default();
                     match &i.kind {
                         InstructionKind::TaskCreate { .. }
-                        | InstructionKind::TaskCreateOwned { .. }
-                        | InstructionKind::AsyncRegistrationStart { .. } => {
-                            fact.sites.insert((index, out));
+                        | InstructionKind::TaskCreateOwned { .. } => {
+                            fact.sites.insert(
+                                vec![zil_ir::PlaceProjection::ErrorArm(false)],
+                                BTreeSet::from([(index, out)]),
+                            );
+                            if let InstructionKind::TaskCreateOwned { arguments, .. } = &i.kind {
+                                for (position, v) in arguments.iter().enumerate() {
+                                    let original = self.activations[index].values[v.0 as usize]
+                                        .prefix(
+                                            &[
+                                                zil_ir::PlaceProjection::ErrorArm(true),
+                                                zil_ir::PlaceProjection::Field(1),
+                                                zil_ir::PlaceProjection::Field(position as u32),
+                                            ],
+                                            self.budget,
+                                        )?;
+                                    fact.join(&original, self.budget)?;
+                                }
+                            }
+                        }
+                        InstructionKind::AsyncRegistrationStart { .. } => {
+                            fact.sites.insert(vec![], BTreeSet::from([(index, out)]));
                         }
                         InstructionKind::Load(local)
                         | InstructionKind::TakeLocal { local }
                         | InstructionKind::BorrowLocal { local }
                         | InstructionKind::BorrowLocalMut { local }
-                        | InstructionKind::DescribeLocal { local }
-                        | InstructionKind::TakeTupleField { local, .. }
-                        | InstructionKind::TakeVariantField { local, .. }
-                        | InstructionKind::TakePackageField { local, .. } => {
+                        | InstructionKind::DescribeLocal { local } => {
                             fact = self.activations[index].locals[local.0 as usize].clone()
                         }
-                        InstructionKind::TakeErrorUnion { value, .. }
-                        | InstructionKind::ReadErrorUnion { value, .. }
-                        | InstructionKind::MakeErrorUnion { value, .. }
-                        | InstructionKind::ReadVariant { value, .. }
-                        | InstructionKind::ReborrowAddress { address: value, .. }
+                        InstructionKind::TakeTupleField { local, path }
+                        | InstructionKind::TakeVariantField { local, path } => {
+                            fact = self.activations[index].locals[local.0 as usize]
+                                .select(path, self.budget)?;
+                        }
+                        InstructionKind::TakePackageField {
+                            local,
+                            index: field,
+                        } => {
+                            fact = self.activations[index].locals[local.0 as usize]
+                                .select(&[zil_ir::PlaceProjection::Field(*field)], self.budget)?;
+                        }
+                        InstructionKind::TakeErrorUnion { value, is_error }
+                        | InstructionKind::ReadErrorUnion { value, is_error } => {
+                            fact = self.activations[index].values[value.0 as usize].select(
+                                &[zil_ir::PlaceProjection::ErrorArm(*is_error)],
+                                self.budget,
+                            )?;
+                        }
+                        InstructionKind::MakeErrorUnion { value, is_error } => {
+                            fact = self.activations[index].values[value.0 as usize].prefix(
+                                &[zil_ir::PlaceProjection::ErrorArm(*is_error)],
+                                self.budget,
+                            )?;
+                        }
+                        InstructionKind::ReadVariant {
+                            value,
+                            variant,
+                            index: field,
+                        } => {
+                            fact = self.activations[index].values[value.0 as usize].select(
+                                &[zil_ir::PlaceProjection::Variant(
+                                    zil_ir::VariantProjection {
+                                        variant: *variant,
+                                        index: *field,
+                                    },
+                                )],
+                                self.budget,
+                            )?;
+                        }
+                        InstructionKind::ReborrowAddress { address: value, .. }
                         | InstructionKind::DescribeAddress { address: value } => {
                             fact = self.activations[index].values[value.0 as usize].clone()
                         }
                         InstructionKind::WithScopedThread { argument, .. } => {
-                            fact = self.activations[index].values[argument.0 as usize].clone()
+                            fact = self.activations[index].values[argument.0 as usize].prefix(
+                                &[zil_ir::PlaceProjection::Variant(
+                                    zil_ir::VariantProjection {
+                                        variant: 0,
+                                        index: 0,
+                                    },
+                                )],
+                                self.budget,
+                            )?;
                         }
-                        InstructionKind::ExtractField { aggregate, .. } => {
-                            fact = self.activations[index].values[aggregate.0 as usize].clone()
+                        InstructionKind::ExtractField {
+                            aggregate,
+                            index: field,
+                        } => {
+                            fact = self.activations[index].values[aggregate.0 as usize]
+                                .select(&[zil_ir::PlaceProjection::Field(*field)], self.budget)?;
                         }
                         InstructionKind::MakeAggregate { fields }
                         | InstructionKind::MakeOwnedTuple { fields }
@@ -202,11 +342,20 @@ impl Proof<'_> {
                         | InstructionKind::MakeClosure {
                             captures: fields, ..
                         } => {
-                            for field in fields {
-                                fact.join(
-                                    &self.activations[index].values[field.0 as usize],
-                                    self.budget,
-                                )?;
+                            for (position, field) in fields.iter().enumerate() {
+                                let part = if let InstructionKind::MakeVariant { variant, .. } =
+                                    i.kind
+                                {
+                                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
+                                        variant,
+                                        index: position as u32,
+                                    })
+                                } else {
+                                    zil_ir::PlaceProjection::Field(position as u32)
+                                };
+                                let child = self.activations[index].values[field.0 as usize]
+                                    .prefix(&[part], self.budget)?;
+                                fact.join(&child, self.budget)?;
                             }
                         }
                         InstructionKind::Call {
@@ -256,7 +405,7 @@ impl Proof<'_> {
                 "Task migration retains an unresolved actual constructor",
             ));
         }
-        for (activation, value) in fact.sites {
+        for (activation, value) in fact.sites.into_values().flatten().collect::<BTreeSet<_>>() {
             self.budget.spend(
                 self.checking.len().saturating_add(1),
                 "Task migration retained frame graph",

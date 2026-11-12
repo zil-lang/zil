@@ -1598,12 +1598,25 @@ impl Transfer<'_> {
                         );
                     }
                 }
-                InstructionKind::TaskCreate { arguments, .. } | InstructionKind::TaskCreateOwned { arguments, .. } => {
+                InstructionKind::TaskCreate { arguments, .. }
+                | InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len())?;
                     for &v in arguments {
-                        if validate && !matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) && tasks::transfer::task_owner(&f.values[v.0 as usize]) { tasks::require_synchronous_value(self.module,f,v,budget,Some(span))?; }
+                        if validate
+                            && !matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. })
+                            && tasks::transfer::task_owner(&f.values[v.0 as usize])
+                        {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                v,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
 
-                        if !matches!(instruction.kind,InstructionKind::TaskCreateOwned{..}) && matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        if !matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. })
+                            && matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                         {
                             return Err(bad(
                                 span,
@@ -2327,7 +2340,15 @@ impl Transfer<'_> {
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
-                    if validate && f.call_kind == CallKind::Direct && state.debt[index] & LIVE != 0
+                    if validate
+                        && f.call_kind == CallKind::Direct
+                        && state.debt[index] & LIVE != 0
+                        && self
+                            .sum_rows
+                            .and_then(|rows| rows.get(b))
+                            .and_then(|row| row.get(i))
+                            .and_then(|bridge| bridge.task_cleanup)
+                            != Some(false)
                     {
                         tasks::require_synchronous_drop(
                             self.module,

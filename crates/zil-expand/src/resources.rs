@@ -87,7 +87,7 @@ impl Expander<'_> {
                 [x] if x == "on_err" => ProtocolExit::ErrorErr,
                 [x] if x == "on_pending" => ProtocolExit::PollPending,
                 [x] if x == "on_ready" => ProtocolExit::PollReady,
-                [x] if x == "state" => ProtocolExit::Return,
+                [x] if x == "state" || x == "retired" => ProtocolExit::Return,
                 _ => {
                     self.diagnostics.push(invalid());
                     return None;
@@ -103,7 +103,16 @@ impl Expander<'_> {
                 };
                 inner
             };
-            let Some(output) = phase_term(phase, name) else {
+            let retired = phase.path.as_slice() == ["retired"]
+                && phase.type_args.is_empty()
+                && phase.index.is_none()
+                && matches!(phase.arguments.as_slice(),[term] if term.path.as_slice()==[name.as_str()] && term.arguments.is_empty() && term.type_args.is_empty() && term.index.is_none());
+            let output = if retired && f.params[parameter].give {
+                Some(vec![])
+            } else {
+                phase_term(phase, name)
+            };
+            let Some(output) = output else {
                 self.diagnostics.push(invalid());
                 return None;
             };

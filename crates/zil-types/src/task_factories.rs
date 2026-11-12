@@ -129,7 +129,9 @@ impl<'a> Scan<'a, '_> {
                 ty.map(|ty| self.snapshot(ty, e.span)).transpose()
             }
             CoreExprKind::Call { callee, arguments } => {
-                if matches!(&callee.kind, CoreExprKind::Name(name) if name == "task_create" && !locals.contains_key(name))
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && matches!(name.as_str(), "task_create" | "task_create_owned")
+                    && !locals.contains_key(name)
                 {
                     let worker = arguments
                         .first()
@@ -150,7 +152,8 @@ impl<'a> Scan<'a, '_> {
                             "nested Task factory results require their complete dependency profile",
                         ));
                     }
-                    return Ok(Some(tasks::create_type(
+                    return Ok(Some(tasks::call_create_type(
+                        name,
                         &result,
                         tasks::borrowed_context_with_life(
                             &parameters,
@@ -170,6 +173,7 @@ impl<'a> Scan<'a, '_> {
                                 .as_ref(),
                             &result,
                         ),
+                        &parameters,
                     )));
                 }
                 let Some(signature) = self.callee(callee, locals) else {

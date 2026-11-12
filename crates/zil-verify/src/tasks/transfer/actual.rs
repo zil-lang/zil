@@ -256,11 +256,47 @@ impl Proof<'_> {
                     | InstructionKind::TaskCreateOwned {
                         worker, arguments, ..
                     } => {
-                        // Only the success arm contains a frame; failure is an empty debt.
                         if matches!(
                             e.path.first(),
                             Some(zil_ir::PlaceProjection::ErrorArm(true))
                         ) {
+                            // The old constructor's error is Copy. Owned creation instead
+                            // returns the very same ordered inputs, including live protocols
+                            // and child frames; reconstruct their executable origins.
+                            if matches!(i.kind, InstructionKind::TaskCreateOwned { .. }) {
+                                let tail = &e.path[1..];
+                                let input_path = match tail.first() {
+                                    None => &[][..],
+                                    Some(zil_ir::PlaceProjection::Field(0)) => return Ok(()),
+                                    Some(zil_ir::PlaceProjection::Field(1)) => &tail[1..],
+                                    _ => {
+                                        return Err(bad(
+                                            i.span,
+                                            "owned Task failure has an invalid payload path",
+                                        ));
+                                    }
+                                };
+                                if let Some(zil_ir::PlaceProjection::Field(index)) =
+                                    input_path.first()
+                                {
+                                    let actual =
+                                        arguments.get(*index as usize).ok_or_else(|| {
+                                            bad(i.span, "owned Task failure input is absent")
+                                        })?;
+                                    let mut original = Endpoint::value(&e.activation, *actual);
+                                    original.path.extend_from_slice(&input_path[1..]);
+                                    self.obligation(original)?;
+                                } else if input_path.is_empty() {
+                                    for actual in arguments {
+                                        self.obligation(Endpoint::value(&e.activation, *actual))?;
+                                    }
+                                } else {
+                                    return Err(bad(
+                                        i.span,
+                                        "owned Task failure input tuple has an invalid path",
+                                    ));
+                                }
+                            }
                             return Ok(());
                         }
                         let activation = Rc::new(Activation {
