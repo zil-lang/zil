@@ -223,6 +223,19 @@ impl<'a> Budget<'a> {
     /// neither derives nor grants stored target permissions.
     pub(super) fn borrowed(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
         match ty {
+            Type::ErrorUnion { error, result }
+                if matches!(error.as_ref(),Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{name,..}|Type::Package{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:")))
+                    && matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..})) =>
+            {
+                // Representation after immutable independent Verify: failure
+                // and success keep the ordinary tagged physical ABI. This
+                // walk pays every original qualified input and Task port.
+                self.pay(ty, depth)?;
+                self.borrowed(error, depth + 1)?;
+                self.pay(result, depth + 1)?;
+                self.copy_work(result, depth + 2)?;
+                Ok(true)
+            }
             Type::ErrorUnion { error, result } if shared_sum(ty) => {
                 self.pay(ty, depth)?;
                 for arm in [error.as_ref(), result.as_ref()] {

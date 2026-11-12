@@ -9,6 +9,11 @@ pub(super) fn owned(ty: &Type) -> bool {
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     (matches!(ty, Type::ErrorUnion { .. }) && stored_borrows::shared_sum(ty))
+        || matches!(ty,Type::ErrorUnion{error,result}
+            if matches!(error.as_ref(),Type::BorrowedStorage{storage,..} if matches!(storage.as_ref(),Type::Record{name,..}|Type::Package{name,..} if name.starts_with("@std.task:v1:TaskCreateFailure:")))
+                && stored_borrows::representation_type(error)
+                && matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
+                && resources::supported_type(result,resources))
         || matches!(ty, Type::ErrorUnion { error, result }
         if ((error.is_copy_value() || packages::supported_type(error, resources))
             && (result.is_copy_value() || packages::supported_type(result, resources)))

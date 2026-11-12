@@ -15,6 +15,11 @@ pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResu
         out: &mut Vec<Leaf>,
     ) -> CompileResult<()> {
         match ty {
+            // Verified borrowed leaves have pointer bytes and no destructor.
+            // Unwrap only for machine recipes; permissions remain in the two
+            // independent kernels and no owner flag is assigned to an address.
+            Type::BorrowedStorage { storage, .. } => visit(storage, path, resources, out)?,
+            Type::Address { .. } | Type::Desc(_) => {}
             Type::Managed(_) => {
                 let drops = packages::teardown_paths(ty, resources)?;
                 if drops.len() > 1 || drops.first().is_some_and(|(p, _)| !p.is_empty()) {
@@ -36,7 +41,7 @@ pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResu
                     path.pop();
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 for (i, (_, t)) in fields.iter().enumerate() {
                     path.push(PlaceProjection::Field(i as u32));
                     visit(t, path, resources, out)?;
@@ -100,13 +105,14 @@ pub(super) fn prepay(
             Ok(())
         };
         match ty {
+            Type::BorrowedStorage { storage, .. } => child(storage)?,
             Type::Managed(_) => return Ok((1, depth)),
             Type::Tuple(fs) => {
                 for t in fs {
                     child(t)?;
                 }
             }
-            Type::Package { fields, .. } => {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 for (_, t) in fields {
                     child(t)?;
                 }
@@ -203,9 +209,15 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(out.map(m::name), op)));
     }
     fn field_pointer(&mut self, ty: &Type, ptr: &str, index: u32) -> CompileResult<(Type, String)> {
-        let next = match ty {
+        let physical = match ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            other => other,
+        };
+        let next = match physical {
             Type::Tuple(fs) => fs.get(index as usize),
-            Type::Package { fields, .. } => fields.get(index as usize).map(|(_, t)| t),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                fields.get(index as usize).map(|(_, t)| t)
+            }
             _ => None,
         }
         .ok_or_else(|| {

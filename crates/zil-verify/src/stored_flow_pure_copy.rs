@@ -27,7 +27,7 @@ pub(super) fn ordinary_owned_union(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if !b.store_option_results {
+    if !b.masked_stored_tasks() {
         return Ok(false);
     }
     let union = match &i.kind {
@@ -50,6 +50,7 @@ pub(super) fn ordinary_owned_union(
         }
         InstructionKind::ErrorTag { value } => vt(f, *value)?,
         InstructionKind::TakeErrorUnion { value, .. } => vt(f, *value)?,
+        InstructionKind::ReadErrorUnion { value, .. } if b.task_failure_carriers => vt(f, *value)?,
         InstructionKind::MakeErrorUnion { .. } => vt(
             f,
             i.result
@@ -60,6 +61,9 @@ pub(super) fn ordinary_owned_union(
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
     };
+    if matches!(i.kind, InstructionKind::ReadErrorUnion { .. }) && !union.is_copy_value() {
+        return Ok(false);
+    }
     if !ordinary_union_shape(union, b)? {
         return Ok(false);
     }
@@ -99,7 +103,9 @@ pub(super) fn ordinary_owned_union(
     {
         return Err(err("ordinary owning union tag result differs"));
     }
-    if let InstructionKind::TakeErrorUnion { is_error, .. } = i.kind {
+    if let InstructionKind::TakeErrorUnion { is_error, .. }
+    | InstructionKind::ReadErrorUnion { is_error, .. } = i.kind
+    {
         let arm = if is_error {
             error.as_ref()
         } else {
@@ -580,7 +586,7 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
         return Ok(false);
     };
     super::type_work(union, &b.limits.clone(), b)?;
-    if union.is_copy_value() {
+    if union.is_copy_value() && !b.task_failure_carriers {
         return Ok(false);
     }
     b.spend(2)?;

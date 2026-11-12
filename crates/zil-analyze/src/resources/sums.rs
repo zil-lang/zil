@@ -1603,6 +1603,29 @@ impl Plan {
         budget.large_tag_layout = f.locals.len().saturating_add(f.values.len()) >= 64;
         budget.spend(1, "Sum instruction facts")?;
         if crate::stored_flow::failure_unpack(f, i, budget)? {
+            let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
+                unreachable!()
+            };
+            if check && !facts.local(*local, budget)?.complete(budget)? {
+                return Err(error("borrow-only input view is not initialized"));
+            }
+            for target in fields {
+                if check && facts.locals.get(target).is_some_and(|t| !t.missing) {
+                    return Err(error("input view unpack destination is initialized"));
+                }
+                let tree = Tree::unknown(&f.locals[target.0 as usize].ty, budget)?;
+                facts.invalidate(*target, self, budget)?;
+                facts.locals.set(*target, tree)?;
+            }
+            edit(
+                facts
+                    .locals
+                    .get_mut(local)
+                    .ok_or_else(|| error("input view source absent"))?,
+                budget,
+            )?
+            .missing = true;
+            facts.invalidate(*local, self, budget)?;
             return Ok(None);
         }
         // Only this bounded set has no remaining implicit tree search. In

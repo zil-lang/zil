@@ -138,6 +138,11 @@ pub(super) fn check_type_for(
         {
             continue;
         }
+        if stored_flow::failure_shape(ty, budget)? {
+            // This finite borrow-only carrier contributes no owning debt.
+            // Its actual permissions remain in Verify's separate stored flow.
+            continue;
+        }
         match ty {
             Type::Managed(_) => resources::check_type_for(module, ty, span, budget)?,
             Type::Tuple(fields) => {
@@ -199,6 +204,12 @@ pub(super) fn check_type_for(
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
                 if errors::direct_owner_failure(ty) {
+                    pending.extend([error.as_ref(), result.as_ref()]);
+                    continue;
+                }
+                if matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
+                    && stored_flow::failure_shape(error, budget)?
+                {
                     pending.extend([error.as_ref(), result.as_ref()]);
                     continue;
                 }
@@ -2347,8 +2358,6 @@ impl Flow<'_> {
                             .insert(instruction.result.expect("typed tag"));
                     }
                 }
-                InstructionKind::UnpackTuple { .. }
-                    if crate::stored_flow::failure_unpack(self.f, instruction, budget)? => {}
                 InstructionKind::UnpackVariant {
                     local,
                     variant: _,
