@@ -223,10 +223,8 @@ fn retained_class(
     let mut actual = None;
     for row in &life.retained {
         fuel.pay(row.path.len().saturating_add(path.len()).saturating_add(1))?;
-        if row.path == path && row.class == class {
-            if actual.replace(row.binder).is_some() {
-                return Err(ProjectionError::Invalid);
-            }
+        if row.path == path && row.class == class && actual.replace(row.binder).is_some() {
+            return Err(ProjectionError::Invalid);
         }
     }
     let actual = actual.ok_or(ProjectionError::UnknownScope)?;
@@ -243,10 +241,8 @@ fn slot_class(
     let mut actual = None;
     for row in &life.slots {
         fuel.pay(row.path.len().saturating_add(path.len()).saturating_add(1))?;
-        if row.path == path {
-            if actual.replace(row.binder).is_some() {
-                return Err(ProjectionError::Invalid);
-            }
+        if row.path == path && actual.replace(row.binder).is_some() {
+            return Err(ProjectionError::Invalid);
         }
     }
     let actual = actual.ok_or(ProjectionError::UnknownScope)?;
