@@ -417,10 +417,12 @@ pub(super) fn summarize(
     };
     for (path, sources) in upper {
         ordered(b, value.dyn_ports.len(), path.len())?;
-        let actual = value
-            .dyn_ports
-            .get(&path)
-            .ok_or_else(|| failure("actual returned Context port is Unknown"))?;
+        let Some(actual) = value.dyn_ports.get(&path) else {
+            // This solver iteration has not established a producer yet.
+            // Keep it Unknown; a public upper cannot bootstrap a real row.
+            facts.dyn_return_complete = false;
+            continue;
+        };
         fee(
             b,
             actual
@@ -440,11 +442,26 @@ pub(super) fn summarize(
             }
         }
         ordered(b, facts.returned_dyn_ports.len(), path.len())?;
-        facts.returned_dyn_ports.insert(path, sources);
+        fee(b, path.len())?;
+        let returned = facts.returned_dyn_ports.entry(path.clone()).or_default();
+        for target in &actual.targets {
+            fee(
+                b,
+                target_width(target)
+                    .saturating_mul(returned.len().saturating_add(1))
+                    .saturating_add(1),
+            )?;
+            if !returned.contains(target) {
+                returned.push(target.clone());
+            }
+        }
+        ordered(b, facts.declared_dyn_return_upper.len(), path.len())?;
+        facts.declared_dyn_return_upper.insert(path, sources);
     }
     Ok(())
 }
 pub(super) fn call(
+    callee: &TypedFunction,
     summary: &Facts,
     args: &[ValueId],
     values: &[Value],
@@ -452,10 +469,14 @@ pub(super) fn call(
     out: &mut Value,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.dyn_contexts {
+    if !b.dyn_contexts || callee.retained_return_sources.is_none() {
         return Ok(());
     }
-    for (path, sources) in &summary.returned_dyn_ports {
+    if !summary.complete {
+        out.creation_complete = Some(false);
+        return Ok(());
+    }
+    for (path, sources) in &summary.declared_dyn_return_upper {
         let mut permission = Permission::default();
         for source in sources {
             union(
