@@ -6282,9 +6282,20 @@ fn windows(
                         address,
                         mutable: false,
                     } => access.check(pointer(*address)?, false, apart, b)?,
+                    InstructionKind::AddressField { .. } => {
+                        // The actual transfer appends this field to every
+                        // concrete target and preserves all head/parent loans.
+                        // Checking the whole aggregate here would forbid a
+                        // disjoint sibling while a retained child is live.
+                        let output = i
+                            .result
+                            .ok_or_else(|| failure("field projection lacks its actual result"))?;
+                        let write =
+                            matches!(value_type(f, output)?, Type::Address { mutable: true, .. });
+                        access.check(pointer(output)?, write, apart, b)?;
+                    }
                     InstructionKind::AddressIndex { address, .. }
-                    | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressField { address, .. } => {
+                    | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
