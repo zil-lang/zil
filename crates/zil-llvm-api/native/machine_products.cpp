@@ -60,6 +60,7 @@ thread_local bool MachineNumberingTestsRan = false;
 thread_local uint32_t MachineNumberingTestBits = 0;
 thread_local uint32_t MachineBundleTestBits = 0;
 thread_local uint32_t MachineTypedBodyTestBits = 0;
+thread_local uint32_t MachineFrameTestBits = 0;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -847,6 +848,140 @@ void testTypedBody(llvm::MachineFunction &Current) {
   if (!captureBody(*ExtraVReg, Ignored)) MachineTypedBodyTestBits |= 128;
 }
 
+// Complete frame values and current owners are tested separately from the
+// official MIR text oracle: several private MFI flags/CFI comments are not
+// printed there. These MFs never enter MMI or native emission.
+void testFrameProducts(llvm::MachineFunction &Current) {
+  auto Make = [&]() {
+    auto MF = std::make_unique<llvm::MachineFunction>(Current.getFunction(), Current.getTarget(),
+        Current.getSubtarget(), Current.getContext(), 93);
+    MF->initTargetMachineFunctionInfo(Current.getSubtarget());
+    MF->getRegInfo().freezeReservedRegs();
+    return MF;
+  };
+  auto Source = Make();
+  auto *A = Source->CreateMachineBasicBlock(), *B = Source->CreateMachineBasicBlock();
+  Source->push_back(A); Source->push_back(B); A->addSuccessor(B);
+  auto &F = Source->getFrameInfo();
+  const int Fixed = F.CreateFixedObject(8, 24, true);
+  const int OtherFixed = F.CreateFixedSpillStackObject(8, -16, false);
+  const int Dead = F.CreateSpillStackObject(8, llvm::Align(8)); F.RemoveStackObject(Dead);
+  const int Slot = F.CreateSpillStackObject(16, llvm::Align(16));
+  F.setObjectOffset(Slot, -48); F.setStackSize(80);
+  F.setOffsetAdjustment(-0x123456789LL); F.setAdjustsStack(true);
+  F.setHasCopyImplyingStackAdjustment(true); F.setCVBytesOfCalleeSavedRegisters(16);
+  F.setMaxCallFrameSize(0); F.mapLocalFrameObject(Slot, -32);
+  F.setLocalFrameSize(32); F.setLocalFrameMaxAlign(llvm::Align(16));
+  F.setUseLocalStackAllocationBlock(true);
+  F.setIsCalleeSavedObjectIndex(OtherFixed, true);
+  llvm::CalleeSavedInfo CSI(llvm::MCRegister::from(1), OtherFixed); CSI.setRestored(false);
+  F.setCalleeSavedInfo({CSI}); F.setCalleeSavedInfoValid(true);
+  llvm::SaveRestorePoints Saves, Restores;
+  Saves.try_emplace(A, std::vector<llvm::CalleeSavedInfo>{CSI});
+  Restores.try_emplace(B, std::vector<llvm::CalleeSavedInfo>{CSI});
+  F.setSavePoints(std::move(Saves)); F.setRestorePoints(std::move(Restores));
+  using CFI = llvm::MCCFIInstruction;
+  if (Source->addFrameInst(CFI::cfiDefCfa(nullptr, 7, 80)) != 0 ||
+      Source->addFrameInst(CFI::createOffset(nullptr, 6, -16)) != 1 ||
+      Source->addFrameInst(CFI::createRememberState(nullptr)) != 2 ||
+      Source->addFrameInst(CFI::createRestoreState(nullptr)) != 3 ||
+      Source->addFrameInst(CFI::createEscape(nullptr, llvm::StringRef("\x0a\x0b", 2), {}, "owned comment")) != 4) return;
+  frame::State Saved;
+  if (!frame::capture(*Source, Saved, MaxMachinePayload) ||
+      !Saved.values->getSavePoints().empty() || !Saved.values->getRestorePoints().empty()) return;
+  MachineFrameTestBits |= 1;
+
+  auto *MI = Source->CreateMachineInstr(Source->getSubtarget().getInstrInfo()->get(
+      llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  A->push_back(MI);
+  MI->addOperand(*Source, llvm::MachineOperand::CreateFI(Fixed));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateFI(Slot));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateCFIIndex(4));
+  llvm::MachinePointerInfo Ptr(Source->getPSVManager().getFixedStack(Slot), -3, 9);
+  auto *MMO = Source->getMachineMemOperand(Ptr, llvm::MachineMemOperand::MOLoad |
+      llvm::MachineMemOperand::MOInvariant | llvm::MachineMemOperand::MODereferenceable,
+      llvm::LLT::scalar(64), llvm::Align(16));
+  llvm::MachinePointerInfo Stack(Source->getPSVManager().getStack(), 13, 7);
+  auto *StackMMO = Source->getMachineMemOperand(Stack, llvm::MachineMemOperand::MOStore,
+      llvm::LLT::scalar(32), llvm::Align(8));
+  llvm::MachineMemOperand *Refs[] = {MMO, StackMMO}; MI->setMemRefs(*Source, Refs);
+  BodyState Body;
+  if (!captureBody(*Source, Body)) return;
+  auto Restored = Make();
+  BodyState Again;
+  if (!restoreBody(*Restored, Body, &Saved) || !captureBody(*Restored, Again) || !(Body == Again)) return;
+  MachineFrameTestBits |= 2;
+  // Dispose every original MachineFunction, BB, MI and PSV before inspecting
+  // the current maps/memory. Stored frame and body may not keep one alive.
+  Source.reset();
+  const auto &R = Restored->getFrameInfo();
+  if (R.getObjectIndexBegin() == -2 && R.getObjectIndexEnd() == 2 && R.isDeadObjectIndex(Dead) &&
+      R.getObjectOffset(Fixed) == 24 && R.getObjectOffset(Slot) == -48 && R.getStackSize() == 80 &&
+      R.getOffsetAdjustment() == -0x123456789LL && R.adjustsStack() &&
+      R.hasCopyImplyingStackAdjustment() && R.getCVBytesOfCalleeSavedRegisters() == 16 &&
+      R.isMaxCallFrameSizeComputed() && R.getMaxCallFrameSize() == 0 &&
+      R.getLocalFrameObjectCount() == 1 && R.getLocalFrameObjectMap(0) == std::make_pair(Slot, int64_t(-32)) &&
+      R.getLocalFrameSize() == 32 && R.getLocalFrameMaxAlign() == llvm::Align(16) &&
+      R.getUseLocalStackAllocationBlock() && R.isCalleeSavedObjectIndex(OtherFixed) &&
+      R.isCalleeSavedInfoValid() && !R.getCalleeSavedInfo().front().isRestored()) MachineFrameTestBits |= 4;
+  if (R.getSavePoints().size() == 1 && R.getRestorePoints().size() == 1 &&
+      R.getSavePoints().count(&Restored->front()) && R.getRestorePoints().count(&Restored->back()) &&
+      R.getSavePoints().lookup(&Restored->front()).front().getFrameIdx() == OtherFixed)
+    MachineFrameTestBits |= 8;
+  bool EqualCFI = Restored->getFrameInstructions().size() == Saved.cfi.size();
+  for (size_t I = 0; EqualCFI && I != Saved.cfi.size(); ++I)
+    EqualCFI = frame::sameCFI(Restored->getFrameInstructions()[I], Saved.cfi[I]);
+  const auto &NewMI = Restored->front().front();
+  if (EqualCFI && NewMI.getOperand(0).getIndex() == Fixed && NewMI.getOperand(1).getIndex() == Slot &&
+      NewMI.getOperand(2).getCFIIndex() == 4 && Saved.cfi.back().getExtraFields<CFI::EscapeFields>().Comment == "owned comment")
+    MachineFrameTestBits |= 16;
+  std::vector<frame::Memory> NewMemory;
+  bool CurrentMemory = true;
+  for (const auto *M : NewMI.memoperands()) CurrentMemory &= frame::captureMemory(*Restored, *M, &NewMemory);
+  const auto &OldMemory = Body.blocks.front().instructions.front().memory;
+  if (CurrentMemory && NewMemory == OldMemory && NewMemory.size() == 2 &&
+      NewMI.memoperands()[0]->getPseudoValue() == Restored->getPSVManager().getFixedStack(Slot) &&
+      NewMI.memoperands()[1]->getPseudoValue() == Restored->getPSVManager().getStack() &&
+      NewMI.memoperands()[0]->getPointerInfo().StackID == 9 &&
+      NewMI.memoperands()[0]->getPointerInfo().Offset == -3 && NewMI.memoperands()[0]->getBaseAlign() == llvm::Align(16))
+    MachineFrameTestBits |= 32;
+  auto BadBody = Body; BadBody.blocks.front().instructions.front().operands[0].setImmediate(99);
+  auto InvalidFI = Make();
+  bool Rejected = !restoreBody(*InvalidFI, BadBody, &Saved);
+  BadBody = Body; BadBody.blocks.front().instructions.front().operands[2].payload = Saved.cfi.size();
+  auto InvalidCFI = Make(); Rejected &= !restoreBody(*InvalidCFI, BadBody, &Saved);
+  auto BadFrame = Saved; BadFrame.saves.clear(); BadFrame.saves.emplace(2, std::vector<llvm::CalleeSavedInfo>{CSI});
+  auto InvalidPoints = Make();
+  for (unsigned I = 0; I != Saved.blocks; ++I) InvalidPoints->push_back(InvalidPoints->CreateMachineBasicBlock());
+  Rejected &= !frame::restore(*InvalidPoints, BadFrame, MaxMachinePayload) &&
+      InvalidPoints->getFrameInfo().getNumObjects() == 0;
+  frame::State Uncharged;
+  Rejected &= !frame::capture(*Restored, Uncharged, 1);
+  if (Rejected) MachineFrameTestBits |= 64;
+
+  auto HasOwner = Make();
+  auto Allocation = std::make_unique<llvm::AllocaInst>(llvm::Type::getInt32Ty(Current.getFunction().getContext()),
+      0, nullptr, llvm::Align(4));
+  HasOwner->getFrameInfo().CreateStackObject(4, llvm::Align(4), true, Allocation.get());
+  frame::State NoOwner;
+  bool OwnersRejected = !frame::capture(*HasOwner, NoOwner, MaxMachinePayload);
+  HasOwner->getFrameInfo().clearObjectAllocation(0);
+  HasOwner->getFrameInfo().setHasStackMap(true);
+  OwnersRejected &= !frame::capture(*HasOwner, NoOwner, MaxMachinePayload);
+  auto Foreign = Make(); Foreign->getFrameInfo().CreateSpillStackObject(16, llvm::Align(16));
+  llvm::MachinePointerInfo ForeignPtr(Foreign->getPSVManager().getFixedStack(0));
+  auto *ForeignMMO = Restored->getMachineMemOperand(ForeignPtr, llvm::MachineMemOperand::MOLoad,
+      llvm::LLT::scalar(32), llvm::Align(4));
+  OwnersRejected &= !frame::captureMemory(*Restored, *ForeignMMO);
+  llvm::MachinePointerInfo CurrentStack(Restored->getPSVManager().getStack(), 13, 7);
+  auto *Volatile = Restored->getMachineMemOperand(CurrentStack, llvm::MachineMemOperand::MOLoad |
+      llvm::MachineMemOperand::MOVolatile, llvm::LLT::scalar(32), llvm::Align(4));
+  OwnersRejected &= !frame::captureMemory(*Restored, *Volatile);
+  OwnersRejected &= !frame::ownerFreeCFI(CFI::createLabel(nullptr, nullptr, {})) &&
+      !frame::ownerFreeCFI(CFI::cfiDefCfa(nullptr, 7, 8, llvm::SMLoc::getFromPointer("location")));
+  if (OwnersRejected) MachineFrameTestBits |= 128;
+}
+
 // Invoked only by an explicit test scope. The scratch MF is never registered
 // with current MMI, and none of its blocks enter the actual emitted function.
 void testMachineNumbering(llvm::MachineFunction &Current,
@@ -854,6 +989,7 @@ void testMachineNumbering(llvm::MachineFunction &Current,
   if (!MachineNumberingTests || MachineNumberingTestsRan) return;
   MachineNumberingTestsRan = true;
   testTypedBody(Current);
+  testFrameProducts(Current);
   llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
                            Current.getSubtarget(), Current.getContext(), 37);
   // Match MachineModuleInfo's construction contract: the constructor creates
@@ -1337,6 +1473,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
     zil::MachineNumberingTestBits = 0;
     zil::MachineBundleTestBits = 0;
     zil::MachineTypedBodyTestBits = 0;
+    zil::MachineFrameTestBits = 0;
   }
   return Old;
 }
@@ -1357,4 +1494,7 @@ extern "C" uint32_t ZilNativeProductsMachineBundleTestResults() {
 
 extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults() {
   return zil::MachineTypedBodyTestBits;
+}
+extern "C" uint32_t ZilNativeProductsMachineFrameTestResults() {
+  return zil::MachineFrameTestBits;
 }
