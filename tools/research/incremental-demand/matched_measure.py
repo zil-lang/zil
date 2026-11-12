@@ -504,14 +504,9 @@ def main():
                             continue
                         work = directory/arm
                         work.mkdir()
-                        command = [str(getattr(args,arm)),'check' if args.mode=='check' else 'build',str(source/'main.zil'),
-                                   '--json','--resident','--resident-capacity','256','--resident-reset-after','4096',
-                                   '--semantic-cache',str(work/'semantic')]
-                        if args.mode=='o2':
-                            command += ['--backend','llvm-api','--opt','O2','--codegen-units','16','--codegen-jobs','1',
-                                        '--object-cache',str(work/'objects'),'-o',str(work/'program')]
-                        if arm=='candidate':
-                            command += args.candidate_extra_arg
+                        command = pc.zil_command(binary=getattr(args,arm), mode=args.mode,
+                                                 source=source/'main.zil', work=work, arm=arm,
+                                                 extras=args.candidate_extra_arg)
                         workers[arm] = Worker(command,work,args.timeout,args.sample_ms,native)
                     for index,label in enumerate(rc.LABELS):
                         parent = rc.parent(label)

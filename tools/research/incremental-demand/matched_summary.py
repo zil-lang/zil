@@ -215,6 +215,7 @@ def load_run(mode, run, validation, args):
         if tool['actual_sha256'] != manifest['tools_after_sha256'][name]:
             fail(f'{mode}: {name} tool changed within window')
     extras = pc.candidate_flags(manifest['arguments'].get('candidate_extra_arg', []))
+    pc.inspect_commands(run, manifest)
     for row in rows:
         if row['arm'] == 'candidate' and '--push-reuse' in extras:
             pc.inspect_report(row['resident']['report'], mode=mode, cold=row['request'] == 'cold' and row['measured'])

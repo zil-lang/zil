@@ -75,6 +75,7 @@ def audit(out):
     push = '--push-reuse' in extras
     require(manifest.get('llvm_comparison_policy', pc.LLVM_RAW) == (pc.LLVM_PUSH if push else pc.LLVM_RAW), 'LLVM comparison policy differs from research flags')
     require(manifest['sources']['candidate']['commit'] == manifest['arguments']['candidate_source'], 'candidate differs from explicit source pin')
+    pc.inspect_commands(out, manifest)
     for name,tool in manifest['tools'].items():
         require(manifest['tools_after_sha256'][name]==tool['actual_sha256'], 'tool changed during run')
     require('58cf8f9c35b355199727627d07ae34a4e2846d67' in (out/'rustc-version'/'stdout.bin').read_text(), 'wrong rustc commit')
@@ -93,13 +94,6 @@ def audit(out):
                 expected += [(index,name,measured)]*3
         require([(r['request_index'],r['request'],r['measured']) for r in current]==expected, 'named parent request order mismatch')
         require(len(current)==45, 'block row count differs')
-        for arm in ['baseline','candidate']:
-            command=json.loads((out/f'block-{block:02d}'/arm/'command.json').read_text())['argv']
-            require(command[0]==manifest['binaries'][arm]['path'] and command[1]==('check' if mode=='check' else 'build'), 'Zil binary or mode differs')
-            require(command[command.index('--resident-capacity')+1]=='256' and command[command.index('--resident-reset-after')+1]=='4096' and '--semantic-cache' in command, 'resident cache/history changed')
-            pc.command_flags(command, arm, extras)
-            if mode=='o2':
-                require(all(command[command.index(key)+1]==value for key,value in [('--backend','llvm-api'),('--opt','O2'),('--codegen-units','16'),('--codegen-jobs','1')]) and '--object-cache' in command, 'native settings differ')
         project=out/f'block-{block:02d}'/'rust-project'
         require((project/'Cargo.toml').read_text()==rc.manifest_text(16) and (project/'Cargo.lock').read_text()==rc.lock_text(), 'actual Cargo profile or lock changed')
         for offset in range(0,len(current),3):

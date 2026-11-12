@@ -169,16 +169,75 @@ class PushReceiptTests(unittest.TestCase):
         self.assertEqual(mm.MAIN, pc.MAIN)
 
     def test_only_declared_candidate_flags_enter_formal_command(self):
-        pc.candidate_flags(['--push-reuse'])
-        pc.command_flags(['zil', 'check', '--push-reuse'], 'candidate', ['--push-reuse'])
+        context = {'binary': '/compiler/zil', 'mode': 'check',
+                   'source': '/original run/block-00/source/main.zil',
+                   'work': '/original run/block-00/candidate'}
+        command = ['/compiler/zil', 'check', '/original run/block-00/source/main.zil',
+                   '--json', '--resident', '--resident-capacity', '256',
+                   '--resident-reset-after', '4096', '--semantic-cache',
+                   '/original run/block-00/candidate/semantic', '--push-reuse']
+        self.assertEqual(pc.zil_command(arm='candidate', extras=['--push-reuse'], **context), command)
+        pc.command_flags(command, 'candidate', ['--push-reuse'], **context)
         for extras in [['--profile-compilation'], ['--codegen-units=1'], ['--push-reuse'] * 2, ['--opt=O0']]:
             with self.subTest(extras=extras), self.assertRaises(ValueError):
                 pc.candidate_flags(extras)
-        for command, arm, flags in [(['zil', '--push-reuse'], 'baseline', []),
-                                    (['zil'], 'candidate', ['--push-reuse']),
-                                    (['zil', '--profile-compilation'], 'candidate', [])]:
-            with self.subTest(command=command), self.assertRaises(ValueError):
-                pc.command_flags(command, arm, flags)
+        for extra in [['--max-nodes', '0'], ['--max-analysis-steps=1'], ['--closed-executable'],
+                      ['--opt=O0'], ['--codegen-units=1'], ['--profile-compilation'],
+                      ['--incremental-o2'], ['--push-reuse'], ['--resident'], ['unexpected.zil']]:
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                pc.command_flags(command + extra, 'candidate', ['--push-reuse'], **context)
+        for index, value in [(0, '/other/zil'), (2, '/other/main.zil'),
+                             (6, '128'), (10, '/other/cache')]:
+            changed = command.copy()
+            changed[index] = value
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                pc.command_flags(changed, 'candidate', ['--push-reuse'], **context)
+        for changed, arm in [(command, 'baseline'), (command[:-1], 'candidate'),
+                             ([], 'candidate'), (None, 'candidate')]:
+            with self.subTest(changed=changed, arm=arm), self.assertRaises(ValueError):
+                pc.command_flags(changed, arm, ['--push-reuse'], **context)
+
+    def test_native_argv_binds_every_flag_and_both_artifact_paths(self):
+        context = {'binary': '/compiler/zil', 'mode': 'o2', 'source': '/run/source/main.zil',
+                   'work': '/run/candidate'}
+        command = pc.zil_command(arm='candidate', extras=['--push-reuse'], **context)
+        self.assertEqual(command[11:], ['--backend', 'llvm-api', '--opt', 'O2',
+                                       '--codegen-units', '16', '--codegen-jobs', '1',
+                                       '--object-cache', '/run/candidate/objects',
+                                       '-o', '/run/candidate/program', '--push-reuse'])
+        for flag, replacement in [('--backend', 'clang'), ('--opt', 'O0'),
+                                  ('--codegen-units', '1'), ('--codegen-jobs', '4'),
+                                  ('--object-cache', '/other/objects'), ('-o', '/other/program')]:
+            changed = command.copy()
+            changed[changed.index(flag) + 1] = replacement
+            with self.subTest(flag=flag), self.assertRaises(ValueError):
+                pc.command_flags(changed, 'candidate', ['--push-reuse'], **context)
+        with self.assertRaises(ValueError):
+            pc.command_flags(command + ['--opt', 'O0'], 'candidate', ['--push-reuse'], **context)
+
+    def test_posthoc_argv_is_bound_after_archive_relocation_without_original_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            restored = Path(temporary) / 'restored archive'
+            original = Path('/original unavailable archive')
+            manifest = {'arguments': {'out': str(original), 'mode': 'o2',
+                                      'candidate_extra_arg': ['--push-reuse']},
+                        'binaries': {arm: {'path': '/compiler/' + arm} for arm in ('baseline', 'candidate')}}
+            for block in range(6):
+                for arm in ('baseline', 'candidate'):
+                    directory = restored / f'block-{block:02d}' / arm
+                    directory.mkdir(parents=True)
+                    command = pc.zil_command(binary=manifest['binaries'][arm]['path'], mode='o2',
+                                             source=original / f'block-{block:02d}' / 'source/main.zil',
+                                             work=original / f'block-{block:02d}' / arm, arm=arm,
+                                             extras=['--push-reuse'])
+                    (directory / 'command.json').write_text(json.dumps({'argv': command}))
+            pc.inspect_commands(restored, manifest)
+            path = restored / 'block-04/baseline/command.json'
+            record = json.loads(path.read_text())
+            record['argv'] += ['--max-values', '1']
+            path.write_text(json.dumps(record))
+            with self.assertRaises(ValueError):
+                pc.inspect_commands(restored, manifest)
 
     def test_actual_cold_execution_is_required_not_just_fields(self):
         for mode in ('check', 'o2'):
