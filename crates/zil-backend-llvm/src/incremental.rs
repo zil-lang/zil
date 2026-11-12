@@ -104,15 +104,27 @@ struct DiagnosticItem {
     item: zil_llvm_api::model::Item,
     text: Arc<String>,
 }
-pub(crate) type ScalarIdentity = (Arc<()>, Vec<(Arc<()>, Arc<()>)>);
+/// Private identities minted only after complete current machine/source output
+/// equality. They are raw scheduling evidence, never checker capabilities.
+#[derive(Clone, Debug)]
+pub(crate) struct FunctionProductIdentity(pub(crate) Arc<()>, pub(crate) Arc<()>);
+impl PartialEq for FunctionProductIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) && Arc::ptr_eq(&self.1, &other.1)
+    }
+}
+impl Eq for FunctionProductIdentity {}
+pub(crate) type ScalarProducts = zil_ir::PersistentVec<FunctionProductIdentity>;
+pub(crate) type ScalarIdentity = (Arc<()>, ScalarProducts);
 pub(crate) fn same_identity(left: &ScalarIdentity, right: &ScalarIdentity) -> bool {
-    Arc::ptr_eq(&left.0, &right.0)
-        && left.1.len() == right.1.len()
+    Arc::ptr_eq(&left.0, &right.0) && same_products(&left.1, &right.1)
+}
+fn same_products(left: &ScalarProducts, right: &ScalarProducts) -> bool {
+    left.len() == right.len()
         && left
-            .1
-            .iter()
-            .zip(&right.1)
-            .all(|((lm, ls), (rm, rs))| Arc::ptr_eq(lm, rm) && Arc::ptr_eq(ls, rs))
+            .changed_indices(right)
+            .into_iter()
+            .all(|index| left[index] == right[index])
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TransformProduct {
@@ -192,12 +204,7 @@ impl PartialEq for PartitionInput {
         }
         match (&self.scalar, &other.scalar) {
             (Some((left_context, left)), Some((right_context, right))) => {
-                Arc::ptr_eq(left_context, right_context)
-                    && left.len() == right.len()
-                    && left
-                        .iter()
-                        .zip(right)
-                        .all(|((lm, ls), (rm, rs))| Arc::ptr_eq(lm, rm) && Arc::ptr_eq(ls, rs))
+                Arc::ptr_eq(left_context, right_context) && same_products(left, right)
             }
             (None, None) => self.raw == other.raw && self.machine == other.machine,
             _ => false,

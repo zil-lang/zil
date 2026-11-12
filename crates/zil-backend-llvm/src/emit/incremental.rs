@@ -20,7 +20,8 @@ pub(crate) struct Session {
     pub(crate) source_projection_instruction_visits: usize,
     pub(crate) source_projection_reuses: usize,
     context_identity: Arc<()>,
-    pub(crate) products: Arc<Vec<(Arc<()>, Arc<()>)>>,
+    pub(crate) products: crate::incremental::ScalarProducts,
+    product_count: usize,
     pub(crate) eligible: bool,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
     machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
@@ -269,7 +270,7 @@ impl Session {
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;
         self.eligible = false;
-        self.products = Arc::new(Vec::new());
+        self.product_count = 0;
         // The source fingerprint is diagnostic identity; the function consumer
         // reads the exact CFG plus the following complete current inventories.
         // Exhaustive matching makes new module domains require a new audit.
@@ -350,6 +351,7 @@ impl Session {
             },
         };
         if self.context.as_deref() != Some(&context) {
+            self.products.clear();
             self.entries = EntryTable::for_functions(lir.functions);
             self.context = Some(Arc::new(context));
             self.context_identity = Arc::new(());
@@ -420,12 +422,21 @@ impl Session {
         !self.admitted.is_empty()
     }
     pub(crate) fn identity(&self) -> Option<crate::incremental::ScalarIdentity> {
-        self.eligible.then(|| {
-            (
-                self.context_identity.clone(),
-                self.products.as_ref().clone(),
-            )
-        })
+        (self.eligible
+            && self.product_count == self.products.len()
+            && self.product_count == self.admitted.len())
+        .then(|| (self.context_identity.clone(), self.products.clone()))
+    }
+    fn publish_product(&mut self, machine: Arc<()>, source: Arc<()>) {
+        let value = crate::incremental::FunctionProductIdentity(machine, source);
+        if let Some(previous) = self.products.get(self.product_count) {
+            if previous != &value {
+                self.products.replace(self.product_count, value);
+            }
+        } else {
+            self.products.push_owner(Arc::new(value));
+        }
+        self.product_count += 1;
     }
     pub(super) fn lower<F, R>(
         &mut self,
@@ -510,9 +521,9 @@ impl Session {
             // even though this function itself has no task operations.
             reserve_current()?;
             self.hits += 1;
-            Arc::make_mut(&mut self.products)
-                .push((entry.output_identity.clone(), entry.source_identity.clone()));
-            return Ok(entry.output.as_ref().clone());
+            let output = entry.output.as_ref().clone();
+            self.publish_product(entry.output_identity.clone(), entry.source_identity.clone());
+            return Ok(output);
         }
         let output = lower()?;
         self.misses += 1;
@@ -532,7 +543,7 @@ impl Session {
                 _ => false,
             })
             .map_or_else(|| Arc::new(()), |old| old.source_identity.clone());
-        Arc::make_mut(&mut self.products).push((output_identity.clone(), source_identity.clone()));
+        self.publish_product(output_identity.clone(), source_identity.clone());
         self.entries.insert(
             function.id,
             Arc::new(Entry {

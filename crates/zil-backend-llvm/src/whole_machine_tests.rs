@@ -789,3 +789,58 @@ fn whole_machine_native_history_restore_and_next_private_edit_match_fresh_output
         assert!(run.stderr.is_empty());
     }
 }
+
+#[test]
+fn machine_product_push_keeps_equal_root_and_patches_only_changed_result_leaves() {
+    let limits = Limits::default();
+    let original = fixture(42, TargetProfile::host_llvm(), &limits);
+    let mut session = crate::emit::incremental::Session::default();
+    let run = |verified: &VerifiedModule, session: &mut crate::emit::incremental::Session| {
+        let raw = lir(verified);
+        let actual = lower(
+            verified,
+            &raw,
+            EntryPoint::None,
+            false,
+            false,
+            1,
+            Some(session),
+        )
+        .unwrap();
+        let fresh = lower(verified, &raw, EntryPoint::None, false, false, 1, None).unwrap();
+        assert_eq!(actual, fresh);
+        zil_llvm_api::validate_module(&actual.0).unwrap();
+        session.identity().unwrap()
+    };
+    let first = run(&original, &mut session);
+    let mut module = original.module().clone();
+    module.source_fingerprint = Fingerprint::of(b"same machine, new current source");
+    module.functions[0].span = Span::new(module.functions[0].span.file, 1, 3);
+    let relocated = recheck(module, &limits);
+    let equal = run(&relocated, &mut session);
+    assert!(
+        !session.reused_machine_module,
+        "actual function consumers must run"
+    );
+    assert_eq!((session.hits, session.misses), (2, 0));
+    assert!(
+        first.1.ptr_eq(&equal.1),
+        "equal machine/source outputs keep the complete root"
+    );
+    let mut module = relocated.module().clone();
+    module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I64(43));
+    let changed = recheck(module, &limits);
+    let update = run(&changed, &mut session);
+    assert_eq!((session.hits, session.misses), (1, 1));
+    assert_eq!(update.1.changed_indices(&equal.1), vec![0]);
+    assert!(!crate::incremental::same_identity(&equal, &update));
+    assert!(std::sync::Arc::ptr_eq(
+        equal.1.owner(1).unwrap(),
+        update.1.owner(1).unwrap()
+    ));
+    // A retained parent restores both values and the exact downstream roots.
+    let restored = run(&original, &mut session);
+    assert!(session.reused_machine_module);
+    assert!(first.1.ptr_eq(&restored.1));
+}
