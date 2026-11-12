@@ -6877,7 +6877,7 @@ fn derive_cfg(
             // an executed move from an absent Task. The new failure carrier
             // composes loops in both arms, so defer only genuinely unseeded
             // blocks. Final access/resource passes still require live inputs.
-            let mut seeded = if b.task_failure_carriers || b.task_retained_environments {
+            let mut seeded = if b.task_sources() {
                 fee(b, f.blocks.len())?;
                 vec![false; f.blocks.len()]
             } else {
@@ -6890,7 +6890,7 @@ fn derive_cfg(
                     if !reachable[bi] {
                         continue;
                     }
-                    if (b.task_failure_carriers || b.task_retained_environments)
+                    if b.task_sources()
                         && bi != f.entry.0 as usize
                     {
                         fee(b, preds[bi].len().saturating_add(1))?;
@@ -6931,7 +6931,7 @@ fn derive_cfg(
                         outputs[bi] = state;
                         local_changed = true;
                     }
-                    if (b.task_failure_carriers || b.task_retained_environments) && !seeded[bi] {
+                    if b.task_sources() && !seeded[bi] {
                         seeded[bi] = true;
                         local_changed = true;
                     }
@@ -7749,6 +7749,7 @@ pub(super) fn infer(
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
+                || b.task_sources() && crate::tasks::input_scope::registration_value(ty, b)?
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())

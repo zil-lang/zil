@@ -361,6 +361,43 @@ pub(crate) fn registration_operation(
     Ok(domain(actual, b)? == Domain::Known(0))
 }
 
+/// A source-free registration subtree contributes no stored-target row. This
+/// shape dispatch never retires an owner or closes any protocol role.
+pub(crate) fn registration_value(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let mut pending = vec![ty];
+    let mut registration = false;
+    while let Some(ty) = pending.pop() {
+        b.spend(1, "actual registration value domain")?;
+        match ty {
+            Type::Address { inner, .. } | Type::Desc(inner) if matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. })) => {
+                pending.push(inner)
+            }
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::AsyncRegistration { .. }) =>
+            {
+                if domain(ty, b)? != Domain::Known(0) {
+                    return Ok(false);
+                }
+                registration = true;
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len(), "registration tuple value fields")?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len(), "registration product value fields")?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            other if other.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(registration)
+}
+
 pub(crate) fn provider(
     module: &TypedModule,
     candidate: &TypedFunction,
