@@ -113,9 +113,6 @@ impl<'a> Budget<'a> {
     pub(crate) fn note_shared_enum_addresses(&mut self) {
         self.shared_enum_addresses = true;
     }
-    pub(crate) fn has_generic_methods(&self) -> bool {
-        self.generic_methods
-    }
     pub(crate) fn remaining_limits(&self) -> Limits {
         Limits {
             max_nodes: self.nodes,
