@@ -145,8 +145,11 @@
 +  }
 --- a/llvm/lib/IR/PassManager.cpp
 +++ b/llvm/lib/IR/PassManager.cpp
-@@ -9,0 +10,10 @@
+@@ -9,0 +10,13 @@
 +#include "llvm/Analysis/BasicAliasAnalysis.h"
++#include "llvm/Analysis/GlobalsModRef.h"
++#include "llvm/Analysis/ProfileSummaryInfo.h"
++#include "llvm/Analysis/ScopedNoAliasAA.h"
 +#include "llvm/IR/Dominators.h"
 +#include "llvm/Analysis/LastRunTrackingAnalysis.h"
 +#include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -156,9 +159,9 @@
 +#include "llvm/Analysis/AssumptionCache.h"
 +#include "llvm/Analysis/TargetTransformInfo.h"
 +#include "llvm/IR/IntrinsicInst.h"
-@@ -15,0 +26 @@
+@@ -15,0 +29 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +177,107 @@
+@@ -165,0 +180,147 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -266,6 +269,46 @@
 +  auto *Info = AM.getCachedResult<llvm::OptimizationRemarkEmitterAnalysis>(F);
 +  return Info && Info->zilDisabledProductState(&F);
 +}
++
++extern "C" LLVM_ABI int ZilLLVMModuleProxyProductState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &M = *F.getParent();
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *P = AM.getCachedResult<llvm::ModuleAnalysisManagerFunctionProxy>(F);
++  if (!P || !P->getOuterInvalidations().empty()) return -1;
++  const auto &MAM = P->zilProductOuterManager();
++  auto *FP = MAM.getCachedResult<llvm::FunctionAnalysisManagerModuleProxy>(M);
++  if (!FP || &FP->getManager() != &AM) return -1;
++  auto *PSI = MAM.getCachedResult<llvm::ProfileSummaryAnalysis>(M);
++  if (PSI && PSI->hasProfileSummary()) return -1;
++  struct State { unsigned Code = 1; bool Valid = true; } S;
++  MAM.zilVisitCachedAnalysisIDs(M, [](void *Context, const void *Key) {
++    auto &S = *static_cast<State *>(Context);
++    unsigned Tag = 0;
++    if (Key == llvm::PassInstrumentationAnalysis::ID()) Tag = 1;
++    else if (Key == llvm::FunctionAnalysisManagerModuleProxy::ID()) Tag = 2;
++    else if (Key == llvm::ProfileSummaryAnalysis::ID()) Tag = 3;
++    else S.Valid = false;
++    if (Tag) S.Code = (S.Code << 2) | Tag;
++  }, &S);
++  return S.Valid ? int(S.Code) : -1;
++}
++extern "C" LLVM_ABI int ZilLLVMLocalAAAggregateProductState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  const auto *Factory = AM.zilRegisteredAnalysisPass<llvm::AAManager>();
++  auto *R = AM.getCachedResult<llvm::AAManager>(F);
++  if (!Factory || !R ||
++      !Factory->zilDefaultProductShape<llvm::BasicAA, llvm::ScopedNoAliasAA,
++                                     llvm::TypeBasedAA, llvm::GlobalsAA>() ||
++      ZilLLVMModuleProxyProductState(Manager, IR) < 0) return 0;
++  llvm::AnalysisKey *Dependencies[] = {llvm::BasicAA::ID(),
++      llvm::ScopedNoAliasAA::ID(), llvm::TypeBasedAA::ID()};
++  return AM.getCachedResult<llvm::BasicAA>(F) &&
++         AM.getCachedResult<llvm::ScopedNoAliasAA>(F) &&
++         AM.getCachedResult<llvm::TypeBasedAA>(F) &&
++         R->zilLocalProductShape(AM.getCachedResult<llvm::TargetLibraryAnalysis>(F), Dependencies);
++}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
 @@ -9,0 +10 @@
@@ -300,9 +343,15 @@
 +
 --- a/llvm/include/llvm/IR/PassManager.h
 +++ b/llvm/include/llvm/IR/PassManager.h
-@@ -467,0 +468,26 @@
+@@ -467,0 +468,32 @@
 +  // Fixed-adapter introspection: IDs refer only to registered static analysis
 +  // keys, never an IR owner. Rebuild always runs factories on CURRENT IR/AM.
++  template <typename PassT> const PassT *zilRegisteredAnalysisPass() const {
++    auto It = AnalysisPasses.find(PassT::ID());
++    if (It == AnalysisPasses.end()) return nullptr;
++    using Model = detail::AnalysisPassModel<IRUnitT, PassT, Invalidator, ExtraArgTs...>;
++    return &static_cast<const Model *>(It->second.get())->Pass;
++  }
 +  StringRef zilAnalysisName(const void *ID) const {
 +    auto It = AnalysisPasses.find(const_cast<AnalysisKey *>(
 +        static_cast<const AnalysisKey *>(ID)));
@@ -326,6 +375,9 @@
 +    (void)getResultImpl(const_cast<AnalysisKey *>(
 +        static_cast<const AnalysisKey *>(ID)), IR, ExtraArgs...);
 +  }
++
+@@ -803,0 +836,2 @@
++    const AnalysisManagerT &zilProductOuterManager() const { return *OuterAM; }
 +
 --- a/llvm/include/llvm/IR/Function.h
 +++ b/llvm/include/llvm/IR/Function.h
@@ -455,4 +507,26 @@
 +           !PrefetchTargets.empty();
 +  }
 +private:
++
+--- a/llvm/include/llvm/Analysis/AliasAnalysis.h
++++ b/llvm/include/llvm/Analysis/AliasAnalysis.h
+@@ -318,0 +319,9 @@
++  // Used only after proving the actual registered AAManager construction
++  // recipe below. No inspection/cast or vtable change of opaque AA models.
++  bool zilLocalProductShape(const TargetLibraryInfo *Current,
++                           ArrayRef<AnalysisKey *> Dependencies) const {
++    if (&TLI != Current || AAs.size() != 3 || AADeps.size() != Dependencies.size()) return false;
++    for (unsigned I = 0; I != AADeps.size(); ++I)
++      if (AADeps[I] != Dependencies[I]) return false;
++    return true;
++  }
+@@ -1015,0 +1025,9 @@
++  template <typename B, typename S, typename T, typename G>
++  bool zilDefaultProductShape() const {
++    return ResultGetters.size() == 4 &&
++           ResultGetters[0] == &getFunctionAAResultImpl<B> &&
++           ResultGetters[1] == &getFunctionAAResultImpl<S> &&
++           ResultGetters[2] == &getFunctionAAResultImpl<T> &&
++           ResultGetters[3] == &getModuleAAResultImpl<G>;
++  }
 +
