@@ -145,3 +145,50 @@ including local life shapes and their actual class maps; equal layouts do not
 suffice. ConstEqual independently evaluates both original recipes in its exact
 substituted carrier and compares the complete canonical value and bits. A method
 that never mentions Item or COUNT does not discharge these original premises.
+
+Instantiation scopes and anonymous declaration lifetimes
+
+A DynInstantiationScope owns its own Fixed and Invocation namespaces. A complete
+implementation witness interprets its receiver, application, ordered impl
+actuals and associated values in that lexical domain. Its to_context rows map
+each lexical binder exactly once into the actual enclosing proof context.
+Matching the original Self and trait occurrences precedes this map; repeated
+Context images do not identify or erase the lexical receiver's local classes or
+nominal argument occurrences. Associated values and query keys are constructed
+in the matched lexical domain before applying the outer map.
+
+A function-instance scope is independent of its runtime header. Its
+header_embedding has exactly one row for each actual header binder; from names
+the header binder and to names the lexical binder. Original signature and
+specialization substitution must independently prove every row. Lexical impl
+lifetimes that have no header occurrence remain in the full specialization and
+need no header row. A formal anchored by Trait<a> therefore survives even when
+Self and runtime parameters do not mention a. A formal appearing only in an
+associated RHS cannot be freely chosen to manufacture a valid instance.
+
+Desc has a scoped outer description occurrence in addition to all inner domains.
+A complete Desc recipe provides Some(lifetime). This occurrence remains weak:
+its type-class identity does not create a Hold or Pin or replace actual epoch
+and retirement checks. A Slice is an unsized pointee, with its element domains;
+only an enclosing Address supplies an outer reference occurrence.
+
+An elided lifetime in an impl Self or application is not an explicit generic
+formal. ImplicitDeclaration(i) refers to row i of implicit_lifetimes. None is
+Unknown. Each row records its complete nonempty occurrence set, including the
+Address, Description or LifetimeArgument kind. Occurrence roots select the
+actual Self pattern, implemented trait, direct-super row, requirement row,
+associated definition row, method recipe row or method definition row. Within
+a root, a path selects record fields or active enum-variant fields by their
+versioned public grammar order; Vec contributes an element index and Box/Option
+are transparent. It selects the exact DynLifePattern token and its actual
+parent kind, never a physical memory path. The complete recipe traversal must
+reconstruct exactly this table, with no duplicates, missing uses or invented
+positions. Method elision instead proposes its actual Invocation identity.
+
+Unary.ty and Binary.ty identify the operation's operand carrier. Comparison
+results are Bool even when that carrier is an integer or float. Convert.ty is
+the target carrier. Original conversions remain explicit subtrees. Untyped
+literals are evaluated under the real substituted carrier; an integer suffix
+must agree with the original scalar typing rules. Negate handles the signed
+minimum magnitude under that carrier without a premature positive-value
+conversion or an implicit i32 default.
