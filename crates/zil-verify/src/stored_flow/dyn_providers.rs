@@ -27,6 +27,7 @@ fn record(
     }
     Ok(())
 }
+
 pub(super) fn work(summary: &Summary, b: &mut Budget) -> Check<()> {
     b.spend(
         summary
@@ -71,17 +72,115 @@ pub(super) fn observe(
             }),
             b,
         )?,
-        InstructionKind::LoadStoredBorrow { storage, mode, .. } => record(
-            rows,
-            pointer(*storage)?,
-            matches!(
-                mode,
-                StoredBorrowLoad::Take | StoredBorrowLoad::Reborrow { mutable: true }
-            ),
-            b,
-        )?,
-        InstructionKind::StoreStoredBorrow { storage, .. } => {
-            record(rows, pointer(*storage)?, true, b)?
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode,
+        } => {
+            record(
+                rows,
+                pointer(*storage)?,
+                matches!(
+                    mode,
+                    StoredBorrowLoad::Take | StoredBorrowLoad::Reborrow { mutable: true }
+                ),
+                b,
+            )?;
+            let write = match mode {
+                StoredBorrowLoad::Take => i.result.is_some_and(|id| {
+                    matches!(f.values[id.0 as usize], Type::Address { mutable: true, .. })
+                }),
+                StoredBorrowLoad::Reborrow { mutable } => *mutable,
+                _ => false,
+            };
+            record(
+                rows,
+                &super::select(state, pointer(*storage)?, path, b)?,
+                write,
+                b,
+            )?;
+        }
+        InstructionKind::StoreStoredBorrow {
+            storage,
+            path,
+            value,
+        } => {
+            record(rows, pointer(*storage)?, true, b)?;
+            let exclusive = matches!(vt(f, *value)?, Type::Address { mutable: true, .. });
+            record(
+                rows,
+                &super::select(state, pointer(*storage)?, path, b)?,
+                exclusive,
+                b,
+            )?;
+            record(rows, pointer(*value)?, exclusive, b)?;
+        }
+        InstructionKind::BorrowDynOwned { local, mutable } => {
+            record(rows, &dyn_closed::head(f, *local, state, b)?, *mutable, b)?;
+        }
+        InstructionKind::MakeDynOwned { vtable, source, .. } => {
+            b.spend(module.dyn_vtables.len())?;
+            let table = module
+                .dyn_vtables
+                .iter()
+                .find(|table| table.id == *vtable)
+                .ok_or_else(|| bad("actual constructor access table is absent"))?;
+            let interface = crate::dynamic_ports::interface(module, table.interface, b)?;
+            let actual = values
+                .get(source.0 as usize)
+                .ok_or_else(|| bad("actual constructor input is absent"))?;
+            for row in &table.ports {
+                let port = interface
+                    .retained_life
+                    .ports
+                    .get(row.port as usize)
+                    .ok_or_else(|| bad("constructor access port is absent"))?;
+                for position in &row.sources {
+                    let path = crate::dynamic_ports::source_places(position, b)?;
+                    let permission = leaf(actual, &path, b)?
+                        .ok_or_else(|| bad("constructor access source leaf is absent"))?;
+                    record(
+                        rows,
+                        permission,
+                        matches!(
+                            port.mode,
+                            StoredBorrowMode::ExclusiveAddress
+                                | StoredBorrowMode::WritableDescription
+                        ),
+                        b,
+                    )?;
+                }
+            }
+        }
+        InstructionKind::DropDynOwned { local } if dyn_ports::operation(module, f, i, b)? => {
+            if !dyn_ports::moved_owner(state, *local, b)? {
+                let Type::OwnedDyn { interface } = f.locals[local.0 as usize].ty else {
+                    return Err(bad("cleanup access local has no actual owner type"));
+                };
+                let item = crate::dynamic_ports::interface(module, interface, b)?;
+                let cleanup = item
+                    .owning_cleanup
+                    .as_ref()
+                    .ok_or_else(|| bad("actual cleanup access is Unknown"))?;
+                for (write, positions) in [
+                    (false, &cleanup.access.reads),
+                    (true, &cleanup.access.writes),
+                ] {
+                    for position in positions {
+                        let Some((ContractProjection::RetainedPort(port), carrier)) =
+                            position.path.split_last()
+                        else {
+                            return Err(bad("cleanup access has no actual typed port"));
+                        };
+                        record(
+                            rows,
+                            &dyn_ports::select(&state.locals[local.0 as usize], carrier, *port, b)?,
+                            write,
+                            b,
+                        )?;
+                    }
+                }
+            }
         }
         InstructionKind::ReadPackageField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, false, b)?
@@ -509,4 +608,82 @@ fn cleanup_proof(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod access_tests {
+    use super::*;
+    #[test]
+    fn stored_pointer_access_observes_the_target_instead_of_the_pointer_slot() {
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../../tests/fixtures/dyn-context/context-read.typed.wire"),
+            &Limits::default(),
+        )
+        .unwrap();
+        let (f, instruction) = module
+            .functions
+            .iter()
+            .find_map(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::LoadStoredBorrow { .. }))
+                    .map(|i| (f, i))
+            })
+            .unwrap();
+        let InstructionKind::LoadStoredBorrow { storage, path, .. } = &instruction.kind else {
+            unreachable!()
+        };
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        let head = Source {
+            base: HoldRoot::Parameter(0),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+        };
+        let target = Source {
+            leaf: path.clone(),
+            ..head.clone()
+        };
+        let slot = Source {
+            inline: path.clone(),
+            ..head.clone()
+        };
+        let mut values = vec![Payload::default(); f.values.len()];
+        values[storage.0 as usize].address = Permission {
+            sources: vec![head.clone()],
+            loans: vec![],
+        };
+        let mut state = Frame {
+            external: vec![Payload::default()],
+            ..Frame::default()
+        };
+        add_leaf(
+            &mut state.external[0],
+            path,
+            &Permission {
+                sources: vec![target.clone()],
+                loans: vec![],
+            },
+            &mut b,
+        )
+        .unwrap();
+        let mut rows = Vec::new();
+        observe(
+            &module,
+            f,
+            instruction,
+            &state,
+            &values,
+            &[],
+            &mut rows,
+            &mut b,
+        )
+        .unwrap();
+        assert!(rows.contains(&(head, false)));
+        assert!(rows.contains(&(target, false)));
+        assert!(!rows.iter().any(|(source, _)| *source == slot));
+    }
 }

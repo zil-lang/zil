@@ -181,6 +181,30 @@ pub(super) fn shape(
                     pending.push((child, p));
                 }
             }
+            Type::Array { element: child, .. }
+            | Type::Managed(child)
+            | Type::Desc(child)
+            | Type::OwnedStore { element: child }
+            | Type::Mutex { payload: child }
+            | Type::MutexGuard { payload: child, .. }
+            | Type::Registration { environment: child }
+            | Type::AsyncRegistration { environment: child }
+            | Type::Opaque { hidden: child, .. } => {
+                if crate::dynamic_ports::has_context(module, child, b)? {
+                    return Err(unsupported(
+                        "Context carrier requires a complete actual container/heap port ledger",
+                        None,
+                    ));
+                }
+            }
+            // Retained Task pointers keep their separate namespace and parent
+            // proof. An owning result cannot disappear as an empty Dyn row.
+            Type::Task { result, .. } if crate::dynamic_ports::has_context(module, result, b)? => {
+                return Err(unsupported(
+                    "Task Context result requires its actual ownership and port transport",
+                    None,
+                ));
+            }
             _ => {}
         }
         if pending.len().saturating_add(rows.len()) > b.limits.max_nodes {
@@ -294,7 +318,7 @@ pub(super) fn vacate_owner(
     Ok(())
 }
 
-fn moved_owner(state: &Frame, local: LocalId, b: &mut Budget) -> Check<bool> {
+pub(super) fn moved_owner(state: &Frame, local: LocalId, b: &mut Budget) -> Check<bool> {
     b.spend(state.vacant.len().saturating_add(1))?;
     Ok(state
         .locals
@@ -1528,6 +1552,51 @@ pub(super) fn wrapper(
 #[cfg(test)]
 mod empty_tests {
     use super::*;
+    #[test]
+    fn untransported_context_wrappers_are_unknown_instead_of_empty_source_envelopes() {
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../../tests/fixtures/dyn-context/context-read.typed.wire"),
+            &Limits::default(),
+        )
+        .unwrap();
+        let interface = module
+            .dyn_interfaces
+            .iter()
+            .find(|i| i.context.is_some())
+            .unwrap()
+            .id;
+        let owner = Type::OwnedDyn { interface };
+        for ty in [
+            Type::Managed(Box::new(owner.clone())),
+            Type::Desc(Box::new(owner.clone())),
+            Type::OwnedStore {
+                element: Box::new(owner.clone()),
+            },
+            Type::Array {
+                element: Box::new(owner.clone()),
+                length: 2,
+            },
+            Type::Task {
+                result: Box::new(owner.clone()),
+                retained_life: RetainedLifeShape {
+                    binder_count: 0,
+                    ports: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            },
+            Type::Opaque {
+                identity: zil_base::NodeId(99),
+                hidden: Box::new(owner),
+            },
+        ] {
+            let mut b = Budget::new(&Limits::default());
+            b.dyn_contexts = true;
+            let failure = shape(&module, &ty, &mut b).unwrap_err();
+            assert_eq!(failure.category, zil_base::ResultCategory::Unsupported);
+        }
+    }
+
     #[test]
     fn conditional_cleanup_never_confuses_a_joined_live_row_with_a_moved_slot() {
         let mut b = Budget::new(&Limits::default());
