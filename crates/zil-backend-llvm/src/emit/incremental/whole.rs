@@ -11,24 +11,6 @@ pub(in crate::emit) struct WholeOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum FunctionInput {
-    // Existing successful function consumers already own complete immutable
-    // inputs. Reuse those owners rather than clone all function headers again.
-    Entry(Arc<Entry>),
-    // Per-function native equality excludes diagnostic spans; a current full
-    // input with different spans therefore needs its own exact snapshot.
-    Current(Arc<TypedFunction>),
-}
-impl FunctionInput {
-    fn get(&self) -> &TypedFunction {
-        match self {
-            Self::Entry(entry) => &entry.input,
-            Self::Current(input) => input,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 struct ModuleInput {
     dyn_declarations: Vec<zil_ir::DynDeclaration>,
     dyn_interfaces: Vec<zil_ir::DynInterface>,
@@ -110,7 +92,7 @@ impl ModuleInput {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MachineProduct {
     module: ModuleInput,
-    functions: Vec<FunctionInput>,
+    functions: zil_ir::PersistentVec<TypedFunction>,
     layouts: Vec<ScalarLayout>,
     limits: zil_base::Limits,
     options: WholeOptions,
@@ -181,10 +163,12 @@ impl Session {
         {
             return None;
         }
-        for (previous, current) in product.functions.iter().zip(lir.functions) {
-            self.whole_machine_input_functions_compared += 1;
-            if previous.get() != current {
-                return None;
+        if !product.functions.ptr_eq(lir.functions) {
+            for (previous, current) in product.functions.iter().zip(lir.functions) {
+                self.whole_machine_input_functions_compared += 1;
+                if previous != current {
+                    return None;
+                }
             }
         }
         // Exact current initial ledger and full limits, not a renewed budget.
@@ -215,23 +199,9 @@ impl Session {
         let Some(spent) = before.checked_sub(output.2) else {
             return;
         };
-        let functions = lir
-            .functions
-            .iter()
-            .map(|function| {
-                match self
-                    .entries
-                    .get(&function.id)
-                    .filter(|entry| entry.input == *function)
-                {
-                    Some(entry) => FunctionInput::Entry(entry.clone()),
-                    None => FunctionInput::Current(Arc::new(function.clone())),
-                }
-            })
-            .collect();
         self.whole_machine = Some(Arc::new(MachineProduct {
             module: ModuleInput::new(verified.module()),
-            functions,
+            functions: lir.functions.clone(),
             layouts: lir.layouts.to_vec(),
             limits: verified.limits().clone(),
             options,

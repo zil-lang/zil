@@ -196,7 +196,7 @@ fn model() -> (m::Module, LirModule) {
         module_id: zil_base::ModuleId(0),
         verified_fingerprint: zil_base::Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![parent, worker, body, observer],
+        functions: vec![parent, worker, body, observer].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             id: closure,

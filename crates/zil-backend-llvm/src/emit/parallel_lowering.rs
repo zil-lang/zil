@@ -37,15 +37,54 @@ impl RemainingWork {
     }
 }
 
-pub(super) fn ordered_batches<T, U, F>(input: &[T], jobs: usize, emit: F) -> CompileResult<Vec<U>>
+pub(super) struct Batch<'a, T> {
+    input: &'a zil_ir::PersistentVec<T>,
+    start: usize,
+    end: usize,
+}
+impl<'a, T> Batch<'a, T> {
+    pub(super) fn len(&self) -> usize {
+        self.end - self.start
+    }
+    pub(super) fn iter(&self) -> impl ExactSizeIterator<Item = &T> {
+        self.input.range(self.start..self.end)
+    }
+}
+impl<T> std::ops::Index<usize> for Batch<'_, T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        assert!(index < self.len());
+        &self.input[self.start + index]
+    }
+}
+#[cfg(test)]
+impl<T: Clone> Batch<'_, T> {
+    fn to_vec(&self) -> Vec<T> {
+        self.iter().cloned().collect()
+    }
+}
+
+pub(super) fn ordered_batches<T, U, F>(
+    input: &zil_ir::PersistentVec<T>,
+    jobs: usize,
+    emit: F,
+) -> CompileResult<Vec<U>>
 where
     T: Sync,
     U: Send,
-    F: Fn(usize, &[T]) -> CompileResult<U> + Sync,
+    F: Fn(usize, Batch<'_, T>) -> CompileResult<U> + Sync,
 {
     let jobs = jobs.clamp(1, 64);
     if jobs == 1 || input.len() < MIN_PARALLEL_FUNCTIONS {
-        return emit(0, input).map(|batch| vec![batch]);
+        return emit(
+            0,
+            Batch {
+                input,
+                start: 0,
+                end: input.len(),
+            },
+        )
+        .map(|batch| vec![batch]);
     }
     let count = input.len().div_ceil(BATCH_SIZE);
     let next = AtomicUsize::new(0);
@@ -64,7 +103,7 @@ where
                     }
                     let start = id * BATCH_SIZE;
                     let end = (start + BATCH_SIZE).min(input.len());
-                    batches.push((id, emit(start, &input[start..end])));
+                    batches.push((id, emit(start, Batch { input, start, end })));
                 }
                 batches
             }) {
@@ -137,7 +176,7 @@ mod tests {
 
     #[test]
     fn source_order_survives_reversed_batch_completion() {
-        let input = (0..128).collect::<Vec<usize>>();
+        let input = (0..128).collect::<zil_ir::PersistentVec<usize>>();
         let (sent, received) = mpsc::channel();
         let received = Mutex::new(received);
         let output = ordered_batches(&input, 2, |start, batch| {
@@ -154,7 +193,10 @@ mod tests {
             Ok(batch.to_vec())
         })
         .unwrap();
-        assert_eq!(output.into_iter().flatten().collect::<Vec<_>>(), input);
+        assert_eq!(
+            output.into_iter().flatten().collect::<Vec<_>>(),
+            input.to_vec()
+        );
 
         let (sent, received) = mpsc::channel();
         let received = Mutex::new(received);
@@ -182,7 +224,7 @@ mod tests {
 
     #[test]
     fn panic_joins_other_workers_and_never_returns_partial_success() {
-        let input = (0..128).collect::<Vec<usize>>();
+        let input = (0..128).collect::<zil_ir::PersistentVec<usize>>();
         let finished = AtomicUsize::new(0);
         let error = ordered_batches(&input, 2, |start, batch| {
             assert_eq!(start, batch[0]);
@@ -200,7 +242,7 @@ mod tests {
     fn small_input_or_one_job_remains_on_the_calling_thread() {
         let current = std::thread::current().id();
         for (count, jobs) in [(0, 64), (127, 2), (128, 1), (256, 0)] {
-            let input = vec![(); count];
+            let input: zil_ir::PersistentVec<_> = vec![(); count].into();
             assert_eq!(
                 ordered_batches(&input, jobs, |start, batch| {
                     assert_eq!(start, 0);

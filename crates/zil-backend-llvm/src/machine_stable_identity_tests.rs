@@ -30,7 +30,7 @@ fn fixture(order: &[String]) -> (Module, LirModule, Vec<(FunctionId, String)>) {
         module_id: ModuleId(0),
         verified_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![],
+        functions: vec![].into(),
         closures: vec![],
         resources: vec![],
         layouts: vec![],

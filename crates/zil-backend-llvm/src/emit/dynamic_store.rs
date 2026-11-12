@@ -1455,7 +1455,7 @@ mod pod_tests {
             module_id: ModuleId(0),
             verified_fingerprint: Fingerprint::ZERO,
             target,
-            functions: &[],
+            functions: &zil_ir::PersistentVec::new(),
             closures: &[],
             resources,
             layouts: std::borrow::Cow::Borrowed(&[]),

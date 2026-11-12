@@ -983,7 +983,8 @@ mod owned_sum_drop_plan_tests {
                 protocol_contract: None,
                 callable_return_contract: None,
                 result_mode: zil_ir::PassingMode::Infer,
-            }],
+            }]
+            .into(),
         }
     }
     #[test]
