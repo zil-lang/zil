@@ -13,6 +13,7 @@
 拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
 
 普通整数包括 `u8/u16/u32/u64/usize/i8/i16/i32/i64/isize`；同型运算、checked 转换、显式 wrapping、目标位宽 CT、泛型 const 和聚合保留精确类型；新增四域也进入已核 C ABI。`isize` 与 `i64`、`usize` 与 `u64` 在 x64 上各同宽而类型不同。真实输入见[整数消费者](../../tests/integers/complete-domains.zil)及[C ABI消费者](../../tests/integers/ffi.zil)。
+普通拥有迭代支持 `std.iter` 的惰性 `map`/`filter`、可增长 `collect`、拥有 fold 和每次调用借入的 callback 消费者；source/callback 的 `Value` 与同步 `SyncDrop` 义务独立于真正 StoreElement，见[普通值与同步迭代合同](../../spec/ordinary-values-and-cleanup.md)。
 
 ## 支持矩阵
 

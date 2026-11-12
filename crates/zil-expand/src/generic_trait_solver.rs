@@ -297,6 +297,11 @@ impl<'a> Index<'a> {
             return copy::require(subject, &self.nominals, available, variables, budget)
                 .map(|_| None);
         }
+        if let Some(capability) = value::bound(bound) {
+            return self
+                .value_bound(subject, &capability, available, variables, budget)
+                .map(|_| None);
+        }
         if stores::is_bound(bound) {
             return self
                 .store_element(
@@ -1060,6 +1065,8 @@ impl Index<'_> {
                 bounds.push(Bound::Copy);
             } else if stores::is_bound(bound) {
                 bounds.push(Bound::StoreElement);
+            } else if let Some(capability) = value::bound(bound) {
+                bounds.push(capability);
             } else {
                 let reference = self.pattern_reference(bound, budget)?;
                 self.reference_arguments(&reference, available, variables, budget)?;

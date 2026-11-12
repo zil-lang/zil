@@ -244,6 +244,14 @@ impl<'a> Engine<'a> {
                                 &variables,
                                 &mut self.budget,
                             )?;
+                        } else if let Some(capability) = trait_bounds::value::bound(&bound) {
+                            self.traits.value_bound(
+                                value,
+                                &capability,
+                                &bounds,
+                                &variables,
+                                &mut self.budget,
+                            )?;
                         } else if stores::is_bound(&bound) {
                             self.traits.store_element(
                                 value,
@@ -641,6 +649,13 @@ impl<'a> Engine<'a> {
         for (ordinal, member) in implementation.members.iter().enumerate() {
             self.budget.node(member.span, 0)?;
             if let Some(calls) = self.impl_calls.get(&(recipe, ordinal)) {
+                let normalized = self.traits.normalize_call_targets(
+                    calls,
+                    &substitution,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                let calls = normalized.as_ref();
                 result.insert(
                     ordinal,
                     trait_instances::resolve_generic_calls(
@@ -741,6 +756,13 @@ impl<'a> Engine<'a> {
             };
             let mut anchors = None;
             if let Some(calls) = self.impl_calls.get(&(witness.recipe, ordinal)) {
+                let normalized = self.traits.normalize_call_targets(
+                    calls,
+                    &witness.substitutions,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                let calls = normalized.as_ref();
                 if self.traits.has_generic_methods {
                     let resolved = trait_instances::resolve_generic_calls(
                         calls,
@@ -864,24 +886,71 @@ impl<'a> Engine<'a> {
         parameters: &[GenericParam],
         found: &BTreeMap<String, TypeRef>,
         span: Span,
+        retained: Option<&callable::CallableTemplates>,
     ) -> R<()> {
         if self.traits.recipes.is_empty() {
             return Ok(());
         }
         for parameter in parameters {
+            if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
+                continue;
+            }
             let GenericParamKind::Type(bounds) = &parameter.kind else {
                 continue;
             };
             for bound in bounds {
-                if copy::is_bound(bound) || stores::is_bound(bound) {
+                if copy::is_bound(bound)
+                    || stores::is_bound(bound)
+                    || trait_bounds::value::is_bound(bound)
+                {
                     continue;
                 }
+                let qualified;
+                let bound = if self.traits.has_associated {
+                    let mut variables = BTreeSet::new();
+                    for parameter in parameters {
+                        self.budget.text(&parameter.name, parameter.span)?;
+                        variables.insert(parameter.name.as_str());
+                    }
+                    if trait_bounds::mentions_any(bound, &variables, &mut self.budget)?.1 {
+                        let lexical = self.traits.parameter_bounds_except(
+                            parameters,
+                            &mut self.budget,
+                            retained,
+                        )?;
+                        let names =
+                            self.traits
+                                .projection_names(&lexical, &mut self.budget, bound.span)?;
+                        self.budget.substituted_type(bound, &names)?;
+                        let mut value = bound.clone();
+                        Substitution {
+                            substitutions: &names,
+                        }
+                        .ty(&mut value);
+                        qualified = value;
+                        &qualified
+                    } else {
+                        bound
+                    }
+                } else {
+                    bound
+                };
                 self.budget.substituted_type(bound, found)?;
                 let mut application = bound.clone();
                 Substitution {
                     substitutions: found,
                 }
                 .ty(&mut application);
+                let application = if self.traits.has_associated {
+                    self.traits.normalize_associated(
+                        &application,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?
+                } else {
+                    application
+                };
                 let reference = self
                     .traits
                     .pattern_reference(&application, &mut self.budget)?;

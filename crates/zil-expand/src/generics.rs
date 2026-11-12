@@ -252,10 +252,11 @@ fn specialize_products_prepared<'a>(
             has_defaults |= !declaration.bounds.is_empty();
         }
         if let ItemKind::Impl(implementation) = &item.kind
-            && implementation
-                .trait_type
-                .as_ref()
-                .is_some_and(|bound| stores::is_bound(bound) || callable::closed_bound(bound))
+            && implementation.trait_type.as_ref().is_some_and(|bound| {
+                stores::is_bound(bound)
+                    || trait_bounds::value::is_bound(bound)
+                    || callable::closed_bound(bound)
+            })
         {
             return Err(vec![error(
                 item.span,
@@ -1062,6 +1063,25 @@ impl<'a> Engine<'a> {
                     }
                 }
                 for field in &a.fields {
+                    if a.kind == AggregateKind::Package
+                        && !field.manages
+                        && bounds.values().flatten().any(|bound| {
+                            matches!(
+                                bound,
+                                trait_bounds::Bound::Value
+                                    | trait_bounds::Bound::SyncDrop
+                                    | trait_bounds::Bound::Nominal(_)
+                            )
+                        })
+                    {
+                        engine.traits.value_bound(
+                            &field.ty,
+                            &trait_bounds::Bound::Value,
+                            &bounds,
+                            &variables,
+                            &mut engine.budget,
+                        )?;
+                    }
                     if field.manages
                         && stores::element(&field.ty).is_none()
                         && variables
@@ -1510,7 +1530,7 @@ impl<'a> Engine<'a> {
                     &mut engine.budget,
                 )?;
             }
-            engine.realize_bounds(params(item), &substitution, span)?;
+            engine.realize_bounds(params(item), &substitution, span, retained.as_ref())?;
             Ok(())
         })?;
         self.budget.substituted_item(item, &substitution)?;
@@ -1559,6 +1579,10 @@ impl<'a> Engine<'a> {
         if let ItemKind::Function(function) = &item.kind
             && let Some(calls) = self.trait_calls.get(&function.name)
         {
+            let normalized =
+                self.traits
+                    .normalize_call_targets(calls, &substitution, &mut self.budget, span)?;
+            let calls = normalized.as_ref();
             if self.traits.has_generic_methods {
                 let resolved = trait_instances::resolve_generic_calls(
                     calls,

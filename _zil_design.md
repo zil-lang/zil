@@ -461,6 +461,8 @@ Lower/机器生成新增形状的预付使用本次Verify实际请求的Limits�
 
 ### 8.2 泛型 Store 元素资格
 
+普通完整内联值另用保留结构约束 `Value`，同步清理另用 `SyncDrop`；两者不得由普通 trait 或将来的某个具体实例补证。`Value` 不授 Copy、StoreElement、同步 Drop、空 Context、Transfer 或 Share。未用定义的真实清理边必须逐项核 SyncDrop；仅转交值不增加清理义务。普通迭代适配器以 Value 字段拥有 source/callback，实际 Store 元素仍独立核 StoreElement，见[普通值与同步迭代合同](spec/ordinary-values-and-cleanup.md)。
+
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
 
 泛型定义必须依据声明的约束检查，未实例化模板也不能把无约束 T、用户空 trait 或同布局类型视为合格。该约束不授予 Copy、Managed、给出权限或公开字段访问；实例化保持实际名义身份，Types、Analyze、Verify继续独立核实际责任及操作。`Store<T>` 普通参数仍是 Desc；只有真实工厂 create、拥有位置或 `give` 参数建立实际载体。

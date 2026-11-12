@@ -48,7 +48,7 @@ pub(super) fn parameters(aggregate: &Aggregate) -> Option<&[GenericParam]> {
         && !aggregate.generics.is_empty()
         && aggregate.generics.iter().all(|parameter| {
             matches!(&parameter.kind, GenericParamKind::Type(bounds)
-                if bounds.len() == 1 && stores::is_bound(&bounds[0]))
+                if bounds.len() == 1 && (stores::is_bound(&bounds[0]) || trait_bounds::plain(&bounds[0])==Some("Value")))
         }))
     .then_some(&aggregate.generics)
 }
@@ -420,7 +420,14 @@ impl Products {
                         .map(|(index, formal)| CoreTypeParameter {
                             index: index as u32,
                             name: formal.name.clone(),
-                            bound: CoreTypeBound::StoreElement,
+                            bound: match &formal.kind {
+                                GenericParamKind::Type(bounds)
+                                    if trait_bounds::plain(&bounds[0]) == Some("Value") =>
+                                {
+                                    CoreTypeBound::Value
+                                }
+                                _ => CoreTypeBound::StoreElement,
+                            },
                         })
                         .collect(),
                     fields,

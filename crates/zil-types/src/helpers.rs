@@ -283,10 +283,12 @@ pub(super) fn validate_template(
         for (index, parameter) in function.parameters.iter().enumerate() {
             if index != bounds[0].index as usize {
                 prepay(&parameter.ty, parameter.span)?;
+                let borrowed_companion =
+                    borrowed_owned || borrowed_environment && parameter.ty.is_package_address();
                 if !matches!(
                     parameter.mode,
                     PassingMode::Infer | PassingMode::Copy | PassingMode::Move
-                ) && !(borrowed_owned
+                ) && !(borrowed_companion
                     && matches!(
                         (&parameter.ty, parameter.mode),
                         (Type::Address { mutable: false, .. }, PassingMode::Borrow)
@@ -294,7 +296,8 @@ pub(super) fn validate_template(
                     ))
                     || (parameter.mode == PassingMode::Copy && !parameter.ty.is_copy_value())
                     || !(closures::owned_signature_value(&parameter.ty)
-                        || (borrowed_owned && closures::borrowed_owned_parameter(&parameter.ty)))
+                        || (borrowed_companion
+                            && closures::borrowed_owned_parameter(&parameter.ty)))
                 {
                     return Err(reject());
                 }

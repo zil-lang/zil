@@ -782,11 +782,12 @@ fn owned_dispatch(
         if matches!(actual, Type::Address { .. }) {
             budget.spend(definition.parameters.len())?;
             resources::charge_payload(&definition.result, budget)?;
-            if !owned_callbacks::root(&definition.result)
-                || !definition
-                    .parameters
-                    .iter()
-                    .any(|ty| matches!(ty, Type::Address { .. }))
+            if !(borrowed_environment && actual.is_package_address())
+                && (!owned_callbacks::root(&definition.result)
+                    || !definition
+                        .parameters
+                        .iter()
+                        .any(|ty| matches!(ty, Type::Address { .. })))
             {
                 return Err(bad(
                     function,

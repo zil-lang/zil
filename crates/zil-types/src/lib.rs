@@ -317,6 +317,89 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
+        // Generic Product applications retain a canonical family/argument
+        // identity after type resolution. Index methods by that actual
+        // receiver too; the source specialization name is only a function
+        // symbol and cannot recover the receiver's nominal identity.
+        if f.callable_parameters.is_empty()
+            && f.type_parameters.is_empty()
+            && f.state_parameters.is_empty()
+            && let Some(receiver) = &f.receiver
+            && let Some((source_host, member)) = f.name.rsplit_once('.')
+        {
+            let host = match &receiver.ty {
+                Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                    inner.as_ref()
+                }
+                other => other,
+            };
+            if let Type::Package { name, .. } = host
+                && let Some((_, nominal)) = name.split_once(':')
+                && nominal != source_host
+            {
+                inference::charge_type_snapshot(&receiver.ty, f.span, limits, &mut foreign_work, 1)
+                    .map_err(|e| vec![e])?;
+                inference::charge_type_snapshot(
+                    &f.return_type,
+                    f.span,
+                    limits,
+                    &mut foreign_work,
+                    1,
+                )
+                .map_err(|e| vec![e])?;
+                for p in &f.parameters {
+                    inference::charge_type_snapshot(&p.ty, p.span, limits, &mut foreign_work, 1)
+                        .map_err(|e| vec![e])?;
+                }
+                foreign_work = foreign_work
+                    .checked_sub(name.len().saturating_add(f.name.len()).saturating_add(1))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Types,
+                            "canonical receiver method index budget exceeded",
+                            Some(f.span),
+                        )]
+                    })?;
+                let signature = &signatures[&f.name];
+                if let Some(life) = &signature.life {
+                    foreign_work = foreign_work
+                        .checked_sub(life.parameter_lives.len().saturating_add(1))
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Types,
+                                "canonical receiver relation budget exceeded",
+                                Some(f.span),
+                            )]
+                        })?;
+                }
+                if let Some(life) = &signature.storage_life {
+                    borrowed_fp::charge_contract(
+                        life,
+                        |work| {
+                            foreign_work = foreign_work.checked_sub(work).ok_or_else(|| {
+                                Diagnostic::limit(
+                                    Phase::Types,
+                                    "canonical receiver storage relation budget exceeded",
+                                    Some(f.span),
+                                )
+                            })?;
+                            Ok(())
+                        },
+                        1,
+                    )
+                    .map_err(|e| vec![e])?;
+                }
+                let key = format!("{nominal}.{member}");
+                let signature = signature.clone();
+                if signatures.insert(key, signature).is_some() {
+                    errors.push(error(
+                        "E-NAME-DUPLICATE",
+                        f.span,
+                        "duplicate method for the actual generic Product receiver",
+                    ));
+                }
+            }
+        }
     }
     if !errors.is_empty() {
         return Err(errors);

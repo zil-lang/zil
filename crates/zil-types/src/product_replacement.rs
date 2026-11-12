@@ -168,23 +168,37 @@ impl Builder<'_, '_> {
                 }
                 _ => false,
             };
-            if !direct {
-                return Err(unsupported(
-                    rhs.span,
-                    "Product self replacement requires an ordinary static function",
-                ));
-            }
-            let signature = self.resolve_callee(static_callee)?;
-            if signature.foreign
-                || signature.cleanup
-                || signature.receiver.is_some()
-                || !signature.callable.is_empty()
-                || signature.state_parameter.is_some()
-            {
-                return Err(unsupported(
-                    rhs.span,
-                    "Product self replacement requires an ordinary static function without callable or State roles",
-                ));
+            if direct {
+                let signature = self.resolve_callee(static_callee)?;
+                if signature.foreign
+                    || signature.cleanup
+                    || signature.receiver.is_some()
+                    || !signature.callable.is_empty()
+                    || signature.state_parameter.is_some()
+                {
+                    return Err(unsupported(
+                        rhs.span,
+                        "Product self replacement requires an ordinary static function without callable or State roles",
+                    ));
+                }
+            } else {
+                // An already resolved ordinary closure consumes the rebuilt
+                // target through the normal closure-call dispatcher. Its mode,
+                // captures, arguments, effects and result ownership are all
+                // checked there and independently by both CFG kernels.
+                let closure = self
+                    .known_type_ref(static_callee)
+                    .is_some_and(|ty| match ty {
+                        Type::Closure(_) => true,
+                        Type::Address { inner, .. } => matches!(inner.as_ref(), Type::Closure(_)),
+                        _ => false,
+                    });
+                if !closure {
+                    return Err(unsupported(
+                        rhs.span,
+                        "Product self replacement requires an ordinary static function or resolved closure",
+                    ));
+                }
             }
             let mut position = None;
             for (index, argument) in arguments.iter().enumerate() {

@@ -910,6 +910,8 @@ pub(super) fn extend_bounds(
             entries.push(match bound {
                 trait_bounds::Bound::Copy => trait_bounds::Bound::Copy,
                 trait_bounds::Bound::StoreElement => trait_bounds::Bound::StoreElement,
+                trait_bounds::Bound::Value => trait_bounds::Bound::Value,
+                trait_bounds::Bound::SyncDrop => trait_bounds::Bound::SyncDrop,
                 trait_bounds::Bound::Nominal(reference) => {
                     let key = trait_instances::copy_key(&reference.key, budget, span)?;
                     let mut arguments = Vec::new();

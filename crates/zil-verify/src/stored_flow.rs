@@ -211,6 +211,50 @@ fn whole_package_source(f: &TypedFunction, source: &Source, b: &mut Budget) -> C
     })
 }
 
+fn ordinary_inline_package_source(
+    f: &TypedFunction,
+    source: &Source,
+    expected: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    source_work(std::slice::from_ref(source), b)?;
+    if source.retained_port.is_some() || !source.leaf.is_empty() || source.heap_element.is_some() {
+        return Ok(false);
+    }
+    let root = match source.base {
+        HoldRoot::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+        HoldRoot::Parameter(index) => f
+            .parameters
+            .get(index as usize)
+            .and_then(|local| f.locals.get(local.0 as usize))
+            .and_then(|local| {
+                if let Type::Address { inner, .. } = &local.ty {
+                    Some(inner.as_ref())
+                } else {
+                    None
+                }
+            }),
+        _ => None,
+    };
+    let Some(mut actual) = root else {
+        return Ok(false);
+    };
+    b.spend(source.inline.len())?;
+    for projection in &source.inline {
+        let (PlaceProjection::Field(index), Type::Package { fields, .. }) = (projection, actual)
+        else {
+            return Ok(false);
+        };
+        let Some((_, child)) = fields.get(*index as usize) else {
+            return Ok(false);
+        };
+        actual = child;
+    }
+    type_work(actual, &b.limits.clone(), b)?;
+    type_work(expected, &b.limits.clone(), b)?;
+    Ok(matches!(actual, Type::Package { .. }) && actual == expected)
+}
+
 fn package_return_candidates(
     module: &TypedModule,
     f: &TypedFunction,
@@ -5323,7 +5367,7 @@ fn check_with_mask(
             super::stored_owned::module(module, b)?;
         }
         if !b.returned_environment_sources {
-            super::stored_callables::definitions(module, b)?;
+            super::stored_callables::definitions(module, mask, b)?;
         }
     }
     for (index, f) in module.functions.iter().enumerate() {
@@ -5739,12 +5783,20 @@ fn solve_check(
                         .address
                         .sources;
                     source_work(sources, b)?;
-                    if sources.is_empty()
-                        || sources.iter().any(|source| source.heap_element.is_none())
-                    {
-                        return Err(err(
-                            "owning Store field address lacks an actual element window",
-                        ));
+                    if sources.is_empty() {
+                        return Err(err("owning Store field address lacks an actual source"));
+                    }
+                    let Type::Address { inner, .. } = vt(f, result)? else {
+                        unreachable!()
+                    };
+                    for source in sources {
+                        if source.heap_element.is_none()
+                            && !ordinary_inline_package_source(f, source, inner, b)?
+                        {
+                            return Err(err(
+                                "owning Store field address lacks an actual element or inline Package source",
+                            ));
+                        }
                     }
                 }
             }

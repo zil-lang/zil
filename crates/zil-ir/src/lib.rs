@@ -850,6 +850,10 @@ pub struct CoreModule {
 /// A compiler-reserved source bound. This raw declaration grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoreTypeBound {
+    /// Complete ordinary inline value; no Copy, Store or cleanup authority.
+    Value,
+    /// Separate synchronous cleanup premise; never implied by Value.
+    SyncDrop,
     StoreElement,
 }
 

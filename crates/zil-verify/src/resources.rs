@@ -468,45 +468,39 @@ fn option_store_origin(
             ));
         }
     };
-    let ty = if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    {
+    let mut head = if let Type::Address { inner, .. } = ty {
         inner.as_ref()
     } else {
         ty
     };
-    let (head, root) = match source.inline.as_slice() {
-        [] => (ty, root),
-        [zil_ir::PlaceProjection::Field(index)] => {
-            let Type::Package { fields, .. } = ty else {
-                return Err(bad(
-                    f.span,
-                    "Option Store header is not an actual Package field",
-                ));
-            };
-            budget.spend(fields.len())?;
-            let field = &fields
-                .get(*index as usize)
-                .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
-                .1;
-            let root = match root {
-                Root::Local(local) => Root::PackageField {
-                    local,
-                    index: *index,
-                },
-                other => other,
-            };
-            (field, root)
-        }
-        _ => {
+    let mut root = root;
+    for (depth, projection) in source.inline.iter().enumerate() {
+        let zil_ir::PlaceProjection::Field(index) = projection else {
             return Err(bad(
                 f.span,
-                "nested Option Store header is outside this profile",
+                "Option Store header path is not an actual inline field",
             ));
+        };
+        let Type::Package { fields, .. } = head else {
+            return Err(bad(
+                f.span,
+                "Option Store header is not an actual Package field",
+            ));
+        };
+        budget.spend(fields.len().saturating_add(1))?;
+        head = &fields
+            .get(*index as usize)
+            .ok_or_else(|| bad(f.span, "Option Store header field is absent"))?
+            .1;
+        if depth == 0
+            && let Root::Local(local) = root
+        {
+            root = Root::PackageField {
+                local,
+                index: *index,
+            };
         }
-    };
+    }
     if !matches!(head, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
     {
         return Err(bad(

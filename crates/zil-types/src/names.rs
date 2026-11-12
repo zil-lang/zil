@@ -56,6 +56,8 @@ fn primitive_name(name: &str) -> bool {
             | "c_callback"
             | "Store"
             | "StoreElement"
+            | "Value"
+            | "SyncDrop"
             | "store_new"
             | "store_reserve"
             | "store_push"
