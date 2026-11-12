@@ -163,6 +163,10 @@ pub(crate) fn capture_leaves<'a>(
                     None,
                 ));
             }
+            Type::OwnedDyn { interface } => {
+                // An erased owning shell cannot hide an external source leaf.
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+            }
             _ => {}
         }
     }
@@ -808,6 +812,10 @@ fn borrowed_envelope(
                 cleanup.push(index as u32);
             }
             Type::Managed(_) | Type::Closure(_) => cleanup.push(index as u32),
+            Type::OwnedDyn { interface } => {
+                dynamic_dispatch::closed_owned(module, *interface, budget)?;
+                cleanup.push(index as u32);
+            }
             ty if budget.inline_store_root(ty)?
                 && dynamic_store::inline_sum_capture(ty, budget)? =>
             {

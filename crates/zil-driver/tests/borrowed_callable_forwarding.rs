@@ -148,6 +148,19 @@ fn lending_forwarding_runs_distinct_buffer_owners_in_both_backends() {
 }
 
 fn run_native(source: &str, name: &str) {
+    run_native_output(source, name, b"");
+}
+
+#[test]
+fn borrowed_forwarding_composes_with_a_whole_erased_owner() {
+    run_native_output(
+        include_str!("../../../tests/fixtures/returned-owning-holders/forward-owned-dyn.zil"),
+        "owned-dyn",
+        b"A",
+    );
+}
+
+fn run_native_output(source: &str, name: &str, expected: &[u8]) {
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
         backends.push(NativeBackend::LlvmApi);
@@ -183,7 +196,7 @@ fn run_native(source: &str, name: &str) {
                 .output()
                 .unwrap();
             assert!(result.status.success(), "{result:?}");
-            assert!(result.stdout.is_empty());
+            assert_eq!(result.stdout, expected);
         }
     }
 }

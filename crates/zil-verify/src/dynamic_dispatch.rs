@@ -876,6 +876,22 @@ pub(super) fn type_address(
     Ok(())
 }
 
+pub(super) fn closed_owned(
+    module: &TypedModule,
+    id: DynInterfaceId,
+    budget: &mut Budget,
+) -> Check<()> {
+    type_owned(module, id, budget)?;
+    let actual = interface(module, id)?;
+    if actual.retained_life.binder_count != 0 || !actual.retained_life.ports.is_empty() {
+        return Err(bad(
+            "self-contained owner retains an external context",
+            None,
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn type_owned(
     module: &TypedModule,
     interface_id: DynInterfaceId,
