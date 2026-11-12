@@ -106,6 +106,12 @@ pub(super) fn check_type_for(
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. })) {
+            // Borrowing the allocation outcome for tag inspection uses the
+            // same exact erased-owner route as the owning value itself.
+            errors::check_type_for(module, ty, span, budget)?;
+            continue;
+        }
         if owning_container {
             dynamic_store::check_owner_field(ty, span)?;
         }
