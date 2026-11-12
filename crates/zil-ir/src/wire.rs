@@ -3532,7 +3532,7 @@ impl<'a> Reader<'a> {
                     let mut bindings = Vec::with_capacity(count);
                     for _ in 0..count {
                         let position = self.storage_position()?;
-                        let count = self.count(self.limits.max_nodes, 9)?;
+                        let count = self.count(self.limits.max_nodes, 5)?;
                         let mut sources = Vec::with_capacity(count);
                         for _ in 0..count {
                             sources.push(self.storage_position()?);

@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/identity_reference_v34.rs"]
+#[path = "support/identity_reference_v48.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {

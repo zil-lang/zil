@@ -1933,5 +1933,20 @@
     "machine": "Threaded site uses atomic combined admission/invocation gate and a driver covering provider calls and final cleanup; publication and invocation/cleanup use acquire/release. Same-thread sites retain their original non-atomic path.",
     "reclamation": "ClosingIdle is insufficient. Provider no-future/drain must include every raw pre-entry/rejected/retained user and provider access; only complete drain and driver ownership allow one environment cleanup, then Closed, then finish free. Failed registration must synchronously withdraw and drain before returning null.",
     "trust": "Transport, premise bools, same-named declarations and active=0 are never proofs. Unsupported environments or graphs fail closed; runtime white-box self-close/reentry controls do not grant source owner access."
+  },
+  "returned_capture_and_owner_cleanup": {
+    "runtime_schema_version": 48,
+    "wire_version": 48,
+    "authority": "spec/returned-capture-provenance.md",
+    "capture_sources": "Option<Vec<StorageSourceBinding>>; None=Unknown; each actual external environment leaf requires independent CFG-derived parameter sources and parent loans",
+    "nested_capture_projection": "ContractProjection::Capture(u32) is metadata only, never a physical address or permission",
+    "owning_cleanup": "DynInterface.owning_cleanup:Option<DynCleanupContract>; independent whole concrete owner teardown bound, not method cleanup",
+    "acceptance": [
+      "Source positive and nearest source/parent-loan/cleanup negatives",
+      "independent raw/Wire derivation",
+      "Unknown/empty/actual-path identity separation",
+      "construction failure, early exit and exact once cleanup",
+      "default request budgets, cold/warm/fresh boundaries"
+    ]
   }
 }
