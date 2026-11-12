@@ -255,6 +255,9 @@ pub(crate) fn validate_declaration(
         if !variables.insert(parameter.name.clone()) {
             return Err(error(parameter.span, "duplicate trait type binder"));
         }
+        if matches!(parameter.kind, GenericParamKind::Lifetime) {
+            continue;
+        }
         let GenericParamKind::Type(bounds) = &parameter.kind else {
             return Err(unsupported(
                 parameter.span,

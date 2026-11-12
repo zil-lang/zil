@@ -267,7 +267,12 @@ impl<'a> Index<'a> {
                         budget,
                     )?;
                     let mut bounds = index.parameter_bounds(&declaration.generics, budget)?;
-                    if has_associated {
+                    if has_associated
+                        && !declaration
+                            .generics
+                            .iter()
+                            .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                    {
                         let mut arguments = Vec::new();
                         for parameter in &declaration.generics {
                             budget.text(&parameter.name, parameter.span)?;
@@ -555,6 +560,14 @@ impl<'a> Index<'a> {
         Ok(declaration)
     }
 
+    pub(super) fn source_declaration(
+        &self,
+        application: &TypeRef,
+        budget: &mut Budget<'_>,
+    ) -> R<(&'a Item, &'a TraitDecl)> {
+        let declaration = self.declaration(application, budget)?;
+        Ok(self.declarations[declaration.name.as_str()])
+    }
     pub(super) fn reference(
         &self,
         bound: &TypeRef,

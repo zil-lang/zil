@@ -124,6 +124,7 @@ enum Head {
     // inventory. This is never a name-based semantic identity or cache key.
     Declaration(usize),
     Enum(usize),
+    Trait(usize),
     Plain(Vec<String>),
 }
 #[derive(Clone)]
@@ -482,15 +483,80 @@ impl Check<'_, '_, '_> {
                 let qualified = actuals.iter().any(Fact::has_retained_class);
                 Fact::Named(self.head(path, ty.span, qualified)?, actuals)
             }
+            TypeKind::Dyn {
+                path,
+                args,
+                bindings,
+            } => {
+                if !bindings.is_empty() {
+                    return Err(unsupported(
+                        ty.span,
+                        "dyn lifetime bindings require their full class consumer",
+                    ));
+                }
+                let [name] = path.as_slice() else {
+                    return Err(error(
+                        ty.span,
+                        "dyn lifetime application lacks its resolved trait declaration",
+                    ));
+                };
+                let mut selected = None;
+                for (index, source) in self.trait_sources.iter().enumerate() {
+                    self.budget.text(name, ty.span)?;
+                    self.budget.text(&source.declaration.name, ty.span)?;
+                    if &source.declaration.name == name {
+                        selected = Some(index);
+                    }
+                }
+                let index = selected
+                    .ok_or_else(|| error(ty.span, "dyn lifetime trait declaration absent"))?;
+                let parameters = &self.trait_sources[index].declaration.generics;
+                if parameters.len() != args.len() {
+                    return Err(error(ty.span, "dyn trait actual arity mismatch"));
+                }
+                let mut actuals = Vec::new();
+                for (formal, actual) in parameters.iter().zip(args) {
+                    self.budget.node(ty.span, depth)?;
+                    actuals.push(match (&formal.kind, actual) {
+                        (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                            match self.binder(scope, name, ty.span)? {
+                                Some((binder, true)) => Fact::Class(binder),
+                                _ => {
+                                    return Err(error(
+                                        ty.span,
+                                        "dyn trait lifetime actual has no genuine lexical binder",
+                                    ));
+                                }
+                            }
+                        }
+                        (GenericParamKind::Type(_), GenericArg::Type(t)) => {
+                            self.ty(t, scope, depth + 1)?
+                        }
+                        (GenericParamKind::Const(_), GenericArg::Const(_)) => {
+                            return Err(unsupported(
+                                ty.span,
+                                "dyn const actual requires its complete class consumer",
+                            ));
+                        }
+                        _ => return Err(error(ty.span, "dyn trait actual kind mismatch")),
+                    });
+                }
+                Fact::Named(Head::Trait(index), actuals)
+            }
             TypeKind::Reference {
                 lifetime, inner, ..
             } => {
-                let life = lifetime
-                    .as_ref()
-                    .map(|name| self.binder(scope, name, ty.span))
-                    .transpose()?
-                    .flatten()
-                    .map(|(b, _)| Box::new(Fact::Class(b)));
+                let life = if let Some(name) = lifetime {
+                    let Some((binder, true)) = self.binder(scope, name, ty.span)? else {
+                        return Err(error(
+                            ty.span,
+                            "reference lifetime has no genuine lexical binder",
+                        ));
+                    };
+                    Some(Box::new(Fact::Class(binder)))
+                } else {
+                    None
+                };
                 Fact::Address(life, Box::new(self.ty(inner, scope, depth + 1)?))
             }
             TypeKind::Error { error, result } => Fact::Error(
@@ -594,6 +660,10 @@ impl Check<'_, '_, '_> {
                         this.compatible_position(x, y, span, true)?;
                     }
                 }
+            }
+            (Fact::Named(Head::Trait(a), xs), Fact::Named(Head::Trait(b), ys)) => {
+                if a != b || xs.len() != ys.len() { return Err(error(span, "dyn trait source application identity mismatch")); }
+                for (x, y) in xs.iter().zip(ys) { this.compatible_position(x, y, span, true)?; }
             }
             (Fact::Named(Head::Enum(a), xs), Fact::Named(Head::Enum(b), ys)) => {
                 if expected.has_class() && (a != b || xs.len() != ys.len()) {
@@ -2373,7 +2443,6 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         impl_parameters: BTreeMap<usize, (usize, &'a [GenericParam])>,
         standalone: Vec<bool>,
         trait_sources: Vec<TraitSource<'a>>,
-        nominal_lending: bool,
         top_profiles: Vec<bool>,
         function_profiles: Vec<bool>,
     }
@@ -2454,18 +2523,23 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                 }
                 ItemKind::Trait(t) => {
                     budget.identity_work(t.generics.len(), item.span)?;
+                    let first_function = found.functions.len();
+                    inventory(&t.members, found, host, None, false, budget, depth + 1)?;
                     if t.generics
                         .iter()
                         .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
                     {
-                        return Err(unsupported(
-                            item.span,
-                            "ambient trait requires its actual enclosing source context",
-                        ));
+                        for function in first_function..found.functions.len() {
+                            budget.identity_work(
+                                found.impl_parameters.len().saturating_add(1),
+                                item.span,
+                            )?;
+                            found
+                                .impl_parameters
+                                .insert(function, (first_function, &t.generics));
+                        }
                     }
-                    let first_function = found.functions.len();
-                    inventory(&t.members, found, host, None, false, budget, depth + 1)?;
-                    if found.nominal_lending {
+                    {
                         budget.identity_work(3, item.span)?;
                         found.trait_sources.push(TraitSource {
                             declaration: t,
@@ -2483,7 +2557,6 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     // The later function vector preserves its original owners and ordinals;
     // repeated method calls query only the corresponding private bool.
     let mut top_profiles = Vec::new();
-    let mut nominal_lending = false;
     for item in &module.items {
         budget.node(item.span, 0)?;
         budget.identity_work(1, item.span)?;
@@ -2494,7 +2567,6 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         };
         budget.lineage_bytes(std::mem::size_of::<bool>(), item.span)?;
         top_profiles.push(profile);
-        nominal_lending |= profile;
     }
     let mut found = Inventory {
         functions: Vec::new(),
@@ -2505,7 +2577,6 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         impl_parameters: BTreeMap::new(),
         standalone: Vec::new(),
         trait_sources: Vec::new(),
-        nominal_lending,
         top_profiles,
         function_profiles: Vec::new(),
     };
