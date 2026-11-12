@@ -3586,7 +3586,7 @@ fn check_instruction(
                     "capture index is outside the entry environment",
                 )
             })?;
-            if matches!(
+            if packages::capture_owner(ty) || matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             ) || (budget.inline_store_root(ty)?

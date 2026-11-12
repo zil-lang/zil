@@ -14,6 +14,8 @@ mod relation_index;
 #[cfg(test)]
 mod result_row_tests;
 mod returned_environment;
+#[path = "stored_flow/captured_owner.rs"]
+mod captured_owner;
 #[cfg(test)]
 mod set_bits_tests;
 mod ssa_loan_groups;
@@ -446,6 +448,7 @@ struct Summary {
     result: Vec<(Path, Vec<Source>)>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
     external_after: Vec<(u32, Path, Vec<Source>)>,
+    capture_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
     returned_enum_variants: enum_address::Variants,
@@ -1402,6 +1405,8 @@ pub(super) fn qualifications(
                             | InstructionKind::Store { .. }
                             | InstructionKind::StorageLive(_)
                             | InstructionKind::StorageDead(_)
+                            | InstructionKind::BindPackageCapture { .. }
+                            | InstructionKind::EndPackageCapture { .. }
                             | InstructionKind::BorrowLocal { .. }
                             | InstructionKind::BorrowLocalMut { .. }
                             | InstructionKind::ReborrowAddress { .. }
@@ -2593,7 +2598,7 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
-    if !b.stored_slot_updates && !b.stored_constructor_sites {
+    if !b.stored_slot_updates && !b.stored_constructor_sites && !b.nested_callable_sources {
         return Ok(sites);
     }
     b.spend(f.blocks.len())?;
@@ -2601,7 +2606,8 @@ fn write_sites(
         b.spend(block.instructions.len())?;
         for i in &block.instructions {
             let site = i as *const Instruction as usize;
-            let mut add = |parameter: u32, path: &Path, exclusive: bool| -> Check<()> {
+            let capture_paths = captured_owner::write_paths(module, f, &i.kind, b)?;
+            let mut add = |parameter: u32, path: &Path, exclusive: bool, b: &mut Budget| -> Check<()> {
                 b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
                 let id = loans.len();
                 loans.push(Loan::default());
@@ -2617,7 +2623,7 @@ fn write_sites(
                     )?) {
                         for slot in &shape.slots {
                             if slot.mode == StoredBorrowMode::ExclusiveAddress {
-                                add(u32::MAX, &slot.path, true)?;
+                                add(u32::MAX, &slot.path, true, b)?;
                             }
                         }
                     }
@@ -2626,6 +2632,7 @@ fn write_sites(
                     u32::MAX,
                     path,
                     matches!(vt(f, *value)?, Type::Address { mutable: true, .. }),
+                    b,
                 )?,
                 InstructionKind::Call { function, .. } => {
                     let callee = module
@@ -2644,9 +2651,22 @@ fn write_sites(
                                     position as u32,
                                     &slot.path,
                                     slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                    b,
                                 )?;
                             }
                         }
+                        if let Type::Address { mutable: true, inner } = &callee.locals[local.0 as usize].ty
+                            && let Type::Closure(id) = inner.as_ref()
+                        {
+                            for (path, ty) in returned_environment::leaves(module, *id, b)? {
+                                add(position as u32, &path, matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)), b)?;
+                            }
+                        }
+                    }
+                }
+                kind if captured_owner::mutable_call(module, f, kind).is_some() => {
+                    for (path, exclusive) in &capture_paths {
+                        add(u32::MAX, path, *exclusive, b)?;
                     }
                 }
                 _ => {}
@@ -2735,6 +2755,23 @@ fn step(
         InstructionKind::Store { local, value } => {
             clear_local_holes(state, *local, b)?;
             state.locals[local.0 as usize] = copy_payload(val(*value)?, b)?
+        }
+        InstructionKind::BindPackageCapture { local, index } => {
+            // Bind is an alias to the checked physical capture, not a fresh
+            // parameter of the same qualified type. Keep every leaf's actual
+            // source and parent loan when installing its entry-local view.
+            if let Some(capture) = state.captures.get(*index as usize) {
+                let payload = copy_payload(capture, b)?;
+                clear_local_holes(state, *local, b)?;
+                state.locals[local.0 as usize] = payload;
+            }
+        }
+        InstructionKind::EndPackageCapture { local, index } => {
+            if let Some(capture) = state.captures.get_mut(*index as usize) {
+                *capture = copy_payload(&state.locals[local.0 as usize], b)?;
+                state.locals[local.0 as usize] = Payload::default();
+                clear_local_holes(state, *local, b)?;
+            }
         }
         InstructionKind::BorrowPlaceLocal { local, path, .. }
             if ordinary_error_borrow(f, i, b)? =>
@@ -3376,7 +3413,8 @@ fn step(
                     .get(index)
                     .ok_or_else(|| err("external summary parameter is absent"))?;
                 if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some()
+                        || returned_environment::closure(inner).is_some())
                 {
                     continue;
                 }
@@ -3414,7 +3452,8 @@ fn step(
                 let holder = match root.base {
                     HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
                     HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-                    HoldRoot::Static | HoldRoot::Capture(_) => None,
+                    HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
+                    HoldRoot::Static => None,
                 }
                 .ok_or_else(|| err("updated caller carrier location is absent"))?;
                 if let Some(row) = holder.leaves.position(&path, b)? {
@@ -3526,6 +3565,7 @@ fn step(
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }
+    captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
     if let Some(id) = i.result
         && b.static_utf8
         && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
@@ -3826,6 +3866,8 @@ fn reverse(
     match i.kind {
         InstructionKind::Store { local, .. }
         | InstructionKind::StorageLive(local)
+        | InstructionKind::BindPackageCapture { local, .. }
+        | InstructionKind::EndPackageCapture { local, .. }
         | InstructionKind::StorageDead(local) => {
             live.assign(f.values.len() + local.0 as usize, false)?
         }
@@ -3874,6 +3916,8 @@ fn reverse_bool(
     match i.kind {
         InstructionKind::Store { local, .. }
         | InstructionKind::StorageLive(local)
+        | InstructionKind::BindPackageCapture { local, .. }
+        | InstructionKind::EndPackageCapture { local, .. }
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
         | InstructionKind::BorrowPlaceLocal { local, .. }
@@ -4571,6 +4615,7 @@ fn windows(
                     }
                     InstructionKind::Store { local, .. }
                     | InstructionKind::StorageDead(local)
+                    | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::BorrowLocal { local }
@@ -4794,7 +4839,6 @@ fn windows(
                                 Some(&state.locals[callee.0 as usize])
                             }
                             InstructionKind::CallClosure { callee, .. }
-                            | InstructionKind::CallClosureBorrowed { callee, .. }
                             | InstructionKind::CallClosureOnce { callee, .. }
                                 if fixed_environment(module, vt(f, *callee)?, b) =>
                             {
@@ -4807,6 +4851,32 @@ fn windows(
                             for (_, p) in &receiver.leaves {
                                 permission_work(p, b)?;
                                 all.push((p.clone(), false));
+                            }
+                        }
+                        if let InstructionKind::CallClosureBorrowed { callee, .. } = &i.kind
+                            && let Some(id) = returned_environment::closure(vt(f, *callee)?)
+                        {
+                            for (path, _) in returned_environment::leaves(module, id, b)? {
+                                let permission = select(&state, pointer(*callee)?, &path, b)?;
+                                b.spend(1)?;
+                                all.push((permission, false));
+                            }
+                        }
+                        if matches!(i.kind, InstructionKind::CallClosureShared { .. }
+                            | InstructionKind::CallClosureMut { .. }
+                            | InstructionKind::CallClosureBorrowed { .. })
+                            && let Some((definition, actuals)) = stored_callables::called(module, f, &i.kind)
+                        {
+                            let obligations = &summaries[definition.function.0 as usize].apart;
+                            if !obligations.is_empty() {
+                                let receiver = captured_owner::receiver(f, i, &solution.values, b)?;
+                                for (left, right) in obligations {
+                                    let left = captured_owner::substitute(left, &definition.captures, &receiver, actuals, &solution.values, &state, b)?;
+                                    let right = captured_owner::substitute(right, &definition.captures, &receiver, actuals, &solution.values, &state, b)?;
+                                    for a in &left.sources {
+                                        for z in &right.sources { apart(a, z, requirements, b)?; }
+                                    }
+                                }
                             }
                         }
                         for argument in arguments {
@@ -4928,6 +4998,7 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         s.result
             .len()
             .saturating_add(s.external_after.len())
+            .saturating_add(s.capture_after.len())
             .saturating_add(s.apart.len()),
     )?;
     if b.task_borrowed_results {
@@ -4941,6 +5012,10 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         source_work(row, b)?;
     }
     for (_, path, row) in &s.external_after {
+        b.spend(path.len())?;
+        source_work(row, b)?;
+    }
+    for (_, path, row) in &s.capture_after {
         b.spend(path.len())?;
         source_work(row, b)?;
     }
@@ -5144,6 +5219,9 @@ fn summarize(
     }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
+        if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+            captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
+        }
         if b.stored_slot_updates && *reachable && matches!(block.terminator, Terminator::Return(_))
         {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
@@ -5152,7 +5230,8 @@ fn summarize(
                     .get(position)
                     .ok_or_else(|| err("external output exceeds actual parameter table"))?;
                 if !matches!(&f.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some())
+                    Type::Address { mutable: true, inner } if qualified(inner).is_some()
+                        || returned_environment::closure(inner).is_some())
                 {
                     continue;
                 }
@@ -5166,9 +5245,12 @@ fn summarize(
                         if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
                             return Err(err("external slot update retains a callee-local target"));
                         }
-                        if let HoldRoot::Parameter(origin) = source.base
-                            && relation(f, StorageBase::Parameter(position as u32), path, b)?
-                                != relation(f, StorageBase::Parameter(origin), &source.leaf, b)?
+                        b.spend(path.len())?;
+                        if let HoldRoot::Parameter(_) = source.base
+                            && captured_owner::class(module, f, &Source {
+                                base: HoldRoot::Parameter(position as u32), leaf: path.clone(),
+                                inline: Vec::new(), retained_port: None, heap_element: None,
+                            }, b)? != captured_owner::class(module, f, source, b)?
                         {
                             return Err(err(
                                 "external slot update exceeds its declared lifetime relation",
@@ -5884,7 +5966,19 @@ fn solve_check(
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
             {
                 b.spend(actual.len().saturating_add(1))?;
-                actual.insert(root.base);
+                // The private activation-local alias makes End/liveness
+                // explicit. Its public owner identity comes from the unique
+                // executable Bind checked by capture_views, never its type.
+                let base = match root.base {
+                    HoldRoot::Local(local)
+                        if matches!(f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. }) =>
+                    {
+                        graphs[index].package_views.capture(local)
+                            .map_or(root.base, HoldRoot::Capture)
+                    }
+                    _ => root.base,
+                };
+                actual.insert(base);
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {

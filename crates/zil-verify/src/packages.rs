@@ -3,6 +3,14 @@
 //! description provenance are independently reconstructed in `resources`.
 use super::*;
 
+/// Structural dispatch only: the complete physical fields and lifetime slots
+/// are still checked at admission. Qualification does not remove ownership.
+pub(super) fn capture_owner(ty: &Type) -> bool {
+    matches!(ty, Type::Package { .. })
+        || matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+}
+
 /// Reconstructed from executable entry instructions, never a producer claim.
 /// Empty vectors preserve the ordinary function path without a view table.
 #[derive(Default)]
@@ -28,7 +36,7 @@ pub(super) fn capture_views(
     };
     let captures = &closures::definition(module, environment, Some(function.span))?.captures;
     budget.spend(captures.len())?;
-    if !captures.iter().any(|ty| matches!(ty, Type::Package { .. })) {
+    if !captures.iter().any(capture_owner) {
         return Ok(CaptureViews::default());
     }
     let bad = |message| reject("E-VERIFY-CAPTURE", Some(function.span), message);
@@ -72,7 +80,7 @@ pub(super) fn capture_views(
     if captures
         .iter()
         .enumerate()
-        .any(|(index, ty)| matches!(ty, Type::Package { .. }) && views.by_capture[index].is_none())
+        .any(|(index, ty)| capture_owner(ty) && views.by_capture[index].is_none())
     {
         return Err(bad(
             "every Package capture requires exactly one entry-prefix Bind",
@@ -105,7 +113,16 @@ pub(super) fn capture_views(
                 | InstructionKind::BorrowLocalMut { local }
                     if views.capture(local).is_some() =>
                 {
-                    return Err(bad("Package capture views cannot expose a local address"));
+                    if !matches!(function.locals[local.0 as usize].ty, Type::BorrowedStorage { .. }) {
+                        return Err(bad("Package capture views cannot expose a local address"));
+                    }
+                    // The view is a unique, bounded activation alias of this
+                    // checked capture. Its stored leaves retain Capture roots;
+                    // the temporary head cannot outlive End or escape Return.
+                    if matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. })
+                        && closures::definition(module, environment, Some(function.span))?.kind == CallableKind::Fn {
+                        return Err(bad("shared Fn cannot exclusively address its owning capture view"));
+                    }
                 }
                 _ => {}
             }
@@ -541,7 +558,7 @@ pub(super) fn check_instruction(
             // End can occur on many edges. Charge each deep raw type equality,
             // rather than relying on an earlier declaration admission.
             resources::charge_payload(ty, budget)?;
-            if !matches!(ty, Type::Package { .. }) || local_type(function, *local, span)? != ty {
+            if !capture_owner(ty) || local_type(function, *local, span)? != ty {
                 return Err(bad(
                     "Package capture view must exactly match its Package field type",
                 ));

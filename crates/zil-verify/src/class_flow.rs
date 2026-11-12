@@ -1094,6 +1094,11 @@ fn check_with(
                             array_outer::copy(&mut e, out, source, outer.as_ref(), b)?;
                         }
                     }
+                    InstructionKind::BindPackageCapture { local, index } if !captures.is_empty() => {
+                        let source = captures.get(*index as usize)
+                            .ok_or_else(|| bad("owning capture view class index absent"))?;
+                        array_outer::copy(&mut e, &locals[local.0 as usize], source, outer.as_ref(), b)?;
+                    }
                     InstructionKind::MakeClosure {
                         closure,
                         captures: actuals,

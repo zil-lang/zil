@@ -776,7 +776,7 @@ pub(super) fn envelope(
     for (index, ty) in definition.captures.iter().enumerate() {
         budget.spend(1)?;
         match ty {
-            Type::Package { .. } => {
+            ty if packages::capture_owner(ty) => {
                 packages::check_capture_type(module, ty, Some(f.span), budget)?;
                 cleanup.push(index as u32);
             }
