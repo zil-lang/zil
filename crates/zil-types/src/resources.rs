@@ -136,7 +136,7 @@ impl Builder<'_, '_> {
         }
         let ty = self.function.locals[local.0 as usize].ty.clone();
         match ty {
-            Type::Managed(_) => Ok((
+            Type::Managed(_) | Type::Address{mutable:true,..} => Ok((
                 self.value(InstructionKind::TakeLocal { local }, ty.clone(), span)?,
                 ty,
             )),

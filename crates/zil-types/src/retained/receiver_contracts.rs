@@ -4,8 +4,8 @@
 use super::*;
 
 fn candidate(d: &ClosureDefinition) -> bool {
-    matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-        && lending::supported_result(&d.result)
+    matches!(d.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce)
+        && lending::transferred_result(&d.result)
         && d.parameters.iter().all(Type::is_copy_value)
         && d.captures
             .iter()
@@ -93,6 +93,7 @@ pub(super) fn finish(module: &mut TypedModule, summaries: &[Summary], left: &mut
         })?;
         spend(left, borrowed_fp::metadata_work(&life), f.span)?;
         let result = if origin.receiver {
+            if d.kind==CallableKind::FnOnce {return Err(error("E-CLOSURE-RESULT-LIFE",f.span,"FnOnce must transfer the actual capture; a read cannot escape its receiver"));}
             if life
                 .bindings
                 .iter()

@@ -89,6 +89,12 @@ pub(super) fn fixed_result(d:&ClosureDefinition)->bool {
     d.storage_life.as_ref().is_some_and(|life|
         matches!(super::signature_life::outer(life,StorageBase::Result),Some(StorageBinder::Fixed(_))))
 }
+pub(super) fn transferred(d:&ClosureDefinition)->bool {
+    d.kind==CallableKind::FnOnce
+        && matches!(&d.result,Type::Address{inner,..}if inner.is_address_pointee())
+        && fixed_result(d)
+        && !d.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position.base==StorageBase::Receiver))
+}
 
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
@@ -192,6 +198,7 @@ pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
         (d.lending_captures.is_empty() && scalar(&d.result))
             || lending(d)
+            || transferred(d)
             || borrowed_owned_candidate(d)
     })
 }
@@ -445,7 +452,7 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
         InstructionKind::TakeCapture { index } => f.environment
             .and_then(|id|module.closures.get(id.0 as usize))
             .and_then(|d|d.captures.get(*index as usize))
-            .is_some_and(|ty|matches!(ty,Type::Closure(child) if finite(module,*child))),
+            .is_some_and(|ty|matches!(ty,Type::Closure(child) if finite(module,*child)) || exclusive_capture(ty)),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -540,6 +547,15 @@ pub(super) fn types(
             if !matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address {mutable:false,inner}) if inner.as_ref()==actual)
             {
                 return Err(bad("inline capture loan has a different actual result"));
+            }
+            return Ok(());
+        }
+        InstructionKind::TakeCapture{index} => {
+            let d=f.environment.and_then(|id|module.closures.get(id.0 as usize)).ok_or_else(||bad("capture transfer has no actual entry"))?;
+            let ty=d.captures.get(*index as usize).ok_or_else(||bad("capture transfer field absent"))?;
+            if d.kind!=CallableKind::FnOnce || !exclusive_capture(ty)
+                || i.result.and_then(|id|f.values.get(id.0 as usize))!=Some(ty) {
+                return Err(bad("borrowed capture capability transfer requires its genuine consuming entry and exact type"));
             }
             return Ok(());
         }
