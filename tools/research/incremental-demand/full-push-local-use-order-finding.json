@@ -1,0 +1,85 @@
+{
+  "finding": "F12",
+  "source_commit": "8067b6dd397446a1fae8862a9f307c72ad4aef2b",
+  "also_applies_to": "afc1319acd6e4c2ecb14478a222cf72b027f7133",
+  "path": "crates/zil-llvm-api/native/work_products.cpp",
+  "file_sha256": "6e5c4f730f3f278f845acf48a0c557c00d81b08765fccb4f094277a1469250ce",
+  "reported_by": "backend author first; /root/audit independently confirmed exact original LLVM source and actual consumer",
+  "severity": "blocking input-dependency omission for exact function-stage result replay",
+  "status": "open; author implementing explicit projection",
+  "description": "Function::print(...ShouldPreserveUseListOrder=true) does not initialize AssemblyWriter.UseListOrders. Actual local argument/basicblock/instruction Use order is absent from functionText keys and output-text checks. Replaying a prior output preserved old local Use order, but a different current input Use order can observe different actual default optimization work order even with identical function text and numbering/name state.",
+  "source_evidence": [
+    {
+      "path": "/tmp/zil-AsmWriter.cpp",
+      "lines": [
+        2982,
+        3105,
+        3109,
+        4288,
+        5081,
+        5095
+      ],
+      "proof": "Ctor only stores flag/collects Comdat; sole UseListOrders assignment is inside printModule; Function::print directly constructs writer then printFunction, whose printUseLists sees an empty map."
+    },
+    {
+      "path": "/workspace/.zil-environment/llvm-23.1.4/include/llvm/Transforms/Utils/InstructionWorklist.h",
+      "lines": [
+        106,
+        107
+      ],
+      "proof": "pushUsersToWorkList iterates I.users() in actual order and pushes users."
+    },
+    {
+      "path": "/tmp/zil-InstructionCombining.cpp",
+      "lines": [
+        5971,
+        5984
+      ],
+      "proof": "Actual fixed default InstCombine calls this worklist operation."
+    }
+  ],
+  "nearest_counterexample_design": "Create two otherwise identical admitted current functions and reorder a local instruction Use list via Value::sortUseList. Existing functionText remains equal. Exact proposed key must differ without needing an object divergence or a new semantic IR field. Do not remove names/order checks or treat a semantic-equivalent output as the byte-quality oracle.",
+  "required_fix": "Append each function-owned arg/BB/instruction ordered Use list using stable current user instruction ordinal plus operand number. Reject unsupported/outside-function mappings. Use the same functionText projection for subject input/output, incoming callers and MIR key. Retain real output use-order restoration and whole-context failure fallback.",
+  "execution": "No build/test/benchmark run by reviewer; no executable-divergence counterexample claimed.",
+  "prior_receipts": "Do not overwrite afc prior accepted bounded checkpoint or native53 raw logs. This is a newly discovered dependency finding that narrows their proof; close via new exact-source addendum.",
+  "official_sources": [
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/lib/IR/AsmWriter.cpp",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/AsmWriter.cpp",
+      "local_file": "/tmp/llvm7a-audit-f12-AsmWriter.cpp",
+      "sha256": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
+      "bytes": 183128,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    },
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/lib/Transforms/InstCombine/InstructionCombining.cpp",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/InstCombine/InstructionCombining.cpp",
+      "local_file": "/tmp/llvm7a-audit-f12-InstructionCombining.cpp",
+      "sha256": "9df7af07a0cf705ad952e6364103103157e46870253e33bad437e38295da076e",
+      "bytes": 249354,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    },
+    {
+      "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+      "path": "llvm/include/llvm/Transforms/Utils/InstructionWorklist.h",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/Transforms/Utils/InstructionWorklist.h",
+      "local_file": "/tmp/llvm7a-audit-f12-InstructionWorklist.h",
+      "sha256": "5242e37af036e5942acb2a665a77039d29cda8e28bc7b1c703b1faa11662bbe4",
+      "bytes": 4140,
+      "independently_downloaded": true,
+      "matches_prior_reviewed_local_file": true
+    }
+  ],
+  "current_key_scope": {
+    "subject_optimizer_entry": "functionText used by beforeStage P.Input and afterStage P.OutputText",
+    "incoming_callers": "worldText appends functionText of all actual direct callers in module order; separately ordered Subject external uses are already explicitly bound",
+    "native_machine": "MachineRequest records functionText(F) input at first machine function pass and compares exact prior input before restore",
+    "missing": "Ordered local arg/BB/instruction Use sequence on all those functionText paths; successful bitcode snapshot preserves old output use lists but is not proof of current input equality",
+    "safe_existing_parts": "Current function body text, attributes/world, BB Number/Next/Epoch, VST presence/max/counter and external incoming Subject use sequence remain bound. This finding does not negate those separate fields."
+  },
+  "requested_exit_condition": "Pending until explicit stable local-use projection is in a new frozen source; tests must show same printed body with different local use order yields different actual key, and preserve existing cold/warm/ordinary object equality and required reuse counts. No broad general LLVM state proof follows from passing fixtures."
+}

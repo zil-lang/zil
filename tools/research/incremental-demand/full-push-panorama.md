@@ -129,3 +129,20 @@ unchanged dependencies. Neither slice may weaken complete input/analysis binding
 oracles. A separate raw-machine owner-history slice must restore identities atomically with
 values, since restoring only the old module with the new epoch's scalar identity is unsound.
 See full-push-diagnostic-v13.json and full-push-panorama-review.json.
+
+## New independent blocker F12 (supersedes the completeness assertion)
+
+Independent fixed-source review confirms that `Function::print(..., true)` does not
+initialize the UseListOrders produced only by Module::printModule. Therefore old
+functionText keys did not actually bind local argument/basic-block/instruction use
+iteration order, although replay restored the saved output order. The default InstCombine
+worklist reads this order. It affects optimizer entry/output, incoming caller and MIR
+input projections. Old53-test and425 whole-output observations remain facts; they do not
+close this newly confirmed input-dependency gap. No wrong-code example is asserted here.
+
+Read full-push-local-use-order-finding.json for official fixed-source URLs/hashes/lines.
+Acceptance of complete native input binding is pending explicit stable user-ordinal and
+operand-number sequences and a same-text/different-use-order negative test. Prior review
+receipts are retained as history, not silently rewritten. Later typed MIR tests pass53,
+but their first version's raw probability projection is also being strengthened to retain
+unknown sentinels and empty probability vectors exactly, before the next full gate.

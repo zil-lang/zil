@@ -1,0 +1,20 @@
+{
+  "archive_bytes": 110467558,
+  "files": 788,
+  "main_commit": "42f0396f36b2a36860ecb55371d436e4327877a4",
+  "parts": 5,
+  "raw_bytes": 421613345,
+  "restore_dir": "/tmp/zil-full-push-v8-restored",
+  "scope": "Real425 joint optimizer/MIR reuse; no new end-to-end performance acceptance; postv7 native and default stack failures/fixes; SDK12/13; later typedMIR/world work excluded",
+  "sha256": "bbb865ae3b869acd7d8b912133fd9382b8a058ba20ccfadcaf53ebf497c5d915",
+  "source_commits": {
+    "defensive": "a4609db7e20a78325f14f47cdb0a2c066ff53590",
+    "measured": "afc1319acd6e4c2ecb14478a222cf72b027f7133"
+  },
+  "status": "verified",
+  "remote_commit": "7f069c9122af50168a4bf07442756f1538bd6319",
+  "remote_ref": "archive/source-history",
+  "remote_path": "research/incremental-demand-full-push-20261112-v8",
+  "retrieval": "Fresh HTTPS from fixed remote commit; all 788 entries verified after restoration",
+  "limits": "Real425 afc diagnostic plus complete native07/08, stack repair and strict Clippy. No formal speed/Rust claim. Later typed-body/world projection/raw-machine history work excluded."
+}

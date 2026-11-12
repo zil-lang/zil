@@ -1,0 +1,52 @@
+{
+  "source_commit": "8067b6dd397446a1fae8862a9f307c72ad4aef2b",
+  "tree": "6c3c6c1791c3f4fd31529a30e35a73b24275eb9e",
+  "file": {
+    "path": "crates/zil-llvm-api/native/machine_products.cpp",
+    "sha256": "8ef951386bc29324d309546d1ab6cf8c00aae3ab81a07650beae983e92e9434a"
+  },
+  "reviewer": "non-author /root/audit",
+  "method": "Exact frozen source diff and complete changed functions; fixed LLVM7a MachineOperand/MachineInstr/MRI/MBB implementation and original MIR header printer/parser. No compiler/test/benchmark execution.",
+  "status": "static checkpoint; test/final frozen receipt pending",
+  "confirmed_correctness_blockers": [],
+  "checked": {
+    "operands": "Reg kind/value/def/implicit/dead-or-kill/undef/early/debug/internal/raw physical renamable/subreg; Imm64/APInt and current MBB ordinal; nonreg target flags. Current MI descriptor identity required. Pointer-bearing operands rejected. Detached renamable accessor returns raw physical bit in fixed LLVM implementation.",
+    "ties_and_lists": "Original paired ties recaptured after descriptor auto-ties are cleared/replaced. Explicit-before-implicit guard prevents addOperand reordering. Physical register lists use current coordinate identity and restore original def/use order (reverse insert defs, forward append uses). Actual recaptured body equality checks exact resulting order.",
+    "blocks": "Original layout, current IRBB layout-index mapping, alignment, ordered successors, effective probabilities and has-probabilities bit, complete block liveins retained. Existing sparse numbering/epoch and hidden alignment maximum/force-label/predecessor-order restoration still runs.",
+    "instructions": "Original opcode descriptor, flags, AsmPrinter flags, CFIType and bundle membership retained; complete instrs iteration includes members. Full MI extra owner/metadata/memory/call domain exclusions remain.",
+    "register_and_header_state": "No vregs or pending vreg map; frame save/restore points empty. Used phys mask, frozen reserved mask and subreg-liveness are checked/restored. Tiny original MIR header retains current function-level MRI liveins, optional initialized callee-saved list (including initialized-empty), frame and target info. CSR proof independently checked in fixed convertMRI/parseRegisterInfo.",
+    "safety_guards": "Typed recapture equality, existing full MIR equality, domain check and MachineVerifier all remain before publication. Current MMI retains current FunctionNumber. No old LLVM pointer owners are saved in BodyState. Failure still triggers ABI2 whole-context fallback."
+  },
+  "bounded_unrepresented_state": [
+    {
+      "state": "Unknown raw successor probabilities",
+      "assessment": "Implementation captures effective getSuccProbability values plus vector presence, not raw unknown sentinels. No actual fixed tail consumer divergence confirmed: probability-analysis queries observe those effective values; complete MIR equality still guards printer-visible behavior. This is a bounded semantic projection, not complete arbitrary MBB serialization.",
+      "condition": "Keep actual tail provider/AsmPrinter dependencies and no CFG-transform/mutation assumptions. Raw-state copies/split/normalize on a future tail would require raw probabilities or a new proof."
+    },
+    {
+      "state": "NoRegister renamable private bit",
+      "assessment": "Current projection records false for register0. Public isRenamable requires a physical register, and no later allocator/setReg/renaming transform is admitted. Thus no concrete current consumer divergence found; do not describe this as all-private-bit byte serialization."
+    },
+    {
+      "state": "Inactive vreg tables/names/hints/types and MRI delegate pointers",
+      "assessment": "getNumVirtRegs0/pending-empty, no later allocation/virtual-register production; current tail providers remain fresh. Old non-owning delegate callbacks are not transported. Future vreg mutation consumers require a wider domain and proof."
+    }
+  ],
+  "measurement_finding": {
+    "severity": "scope/attribution",
+    "path": "beforeMachine warm replay: restoreBody occurs before ParseTime.pause",
+    "issue": "mir_parse_ns now measures original tiny-header parser plus typed MI/MBB reconstruction, not YAML parser alone. mir_restore_validate_ns starts only afterwards. Comparing it as pure YAML parsing with old 133.7ms scope would be misleading.",
+    "resolution": "Add separate typed-body timer or explicitly document the new composite scope. Judge actual benefit by total emission and end-to-end wall.",
+    "reported_to_root": true
+  },
+  "needed_validation": [
+    "Root actual native full gate on integrated source, preserving nonzero machine reuse counts and ordinary/cold object byte oracle.",
+    "Real425 scenario must show lower parser-plus-reconstruction cost and net total emission/wall benefit; no hit-rate-only acceptance.",
+    "Focused body reconstruction negatives should preserve raw flags/ties/use order, bundles, liveins and unsupported MRI cases; aggregate original guards may conservatively fall back."
+  ],
+  "not_claimed": [
+    "Generic MIR serializer or all LLVM machine-state closure",
+    "Net speed improvement",
+    "Fresh full workspace or native tests executed by reviewer"
+  ]
+}
