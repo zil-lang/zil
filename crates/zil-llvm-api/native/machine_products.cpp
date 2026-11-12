@@ -60,14 +60,21 @@ struct TargetInfoAPI {
   int (*restore)(void *, const void *);
   void (*dispose)(void *);
   const void *(*printerID)();
-  bool available() const { return clone && restore && dispose && printerID; }
+  int (*restoreBlockNumbers)(void *, unsigned, unsigned, unsigned,
+                             const unsigned *, const unsigned *, uint64_t);
+  bool available() const {
+    return clone && restore && dispose && printerID && restoreBlockNumbers;
+  }
 };
 const TargetInfoAPI &targetInfoAPI() {
   static const TargetInfoAPI API{
       reinterpret_cast<void *(*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMCloneX86ProductInfo")),
       reinterpret_cast<int (*)(void *, const void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMRestoreX86ProductInfo")),
       reinterpret_cast<void (*)(void *)>(dlsym(RTLD_DEFAULT, "ZilLLVMDisposeX86ProductInfo")),
-      reinterpret_cast<const void *(*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMAsmPrinterPassID"))};
+      reinterpret_cast<const void *(*)()>(dlsym(RTLD_DEFAULT, "ZilLLVMAsmPrinterPassID")),
+      reinterpret_cast<int (*)(void *, unsigned, unsigned, unsigned,
+                              const unsigned *, const unsigned *, uint64_t)>(
+          dlsym(RTLD_DEFAULT, "ZilLLVMRestoreMachineBlockNumbers"))};
   return API;
 }
 struct PassStep {
@@ -94,6 +101,11 @@ struct Snapshot {
   std::string input, world, mir;
   std::shared_ptr<const void> targetInfo;
   llvm::MachineFunctionProperties properties;
+  // MIR's parser assigns dense IDs in layout order. Preserve both original
+  // numbering domains and their complete table/next-ID/epoch state separately.
+  // Only scalar IDs escape; the inverse table is rebuilt with CURRENT MBBs.
+  unsigned blockIDCapacity = 0, nextAnalysisNumber = 0, analysisEpoch = 0;
+  std::vector<unsigned> blockNumbers, analysisNumbers;
   std::vector<PassStep> pipeline, sequence;
   size_t firstMachine = 0;
   std::set<ID> emissionProviders;
@@ -122,6 +134,8 @@ size_t stepsPayload(const std::vector<PassStep> &Steps) {
 size_t snapshotPayload(const Snapshot &S, size_t NameBytes) {
   size_t N = boundedAdd(sizeof(Snapshot) + sizeof(llvm::X86MachineFunctionInfo), NameBytes);
   for (const auto *Text : {&S.input, &S.world, &S.mir}) N = boundedAdd(N, Text->size());
+  for (const auto *Numbers : {&S.blockNumbers, &S.analysisNumbers})
+    for (unsigned Number : *Numbers) { (void)Number; N = boundedAdd(N, sizeof(unsigned)); }
   N = boundedAdd(N, stepsPayload(S.pipeline));
   N = boundedAdd(N, stepsPayload(S.sequence));
   for (ID Provider : S.emissionProviders) { (void)Provider; N = boundedAdd(N, sizeof(ID)); }
@@ -369,6 +383,12 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
             } else if (!targetInfoAPI().restore(MF, C.replay->targetInfo.get())) {
               diagnose(F, "restore-target-info");
               R.fail();
+            } else if (!targetInfoAPI().restoreBlockNumbers(
+                           MF, C.replay->blockIDCapacity, C.replay->nextAnalysisNumber,
+                           C.replay->analysisEpoch, C.replay->blockNumbers.data(),
+                           C.replay->analysisNumbers.data(), C.replay->blockNumbers.size())) {
+              diagnose(F, "restore-machine-number-state");
+              R.fail();
             } else {
               MF->getProperties() = C.replay->properties;
               if (!snapshotDomain(*MF)) {
@@ -421,6 +441,13 @@ int beforeMachine(MachineRequest &R, llvm::Pass &P, llvm::Function &F,
         } else {
           C.recording->targetInfo = {Info, targetInfoAPI().dispose};
           C.recording->properties = MF->getProperties();
+          C.recording->blockIDCapacity = MF->getNumBlockIDs();
+          C.recording->nextAnalysisNumber = MF->getMaxAnalysisBlockNumber();
+          C.recording->analysisEpoch = MF->getAnalysisBlockNumberEpoch();
+          for (const auto &BB : *MF) {
+            C.recording->blockNumbers.push_back(BB.getNumber());
+            C.recording->analysisNumbers.push_back(BB.getAnalysisNumber());
+          }
           C.recording->mir = machineText(MMI, *MF);
           R.stats.mir_snapshot_bytes += C.recording->mir.size();
           if (!R.reserve(C, recordingReservation(*C.recording, F.getName().size())))
