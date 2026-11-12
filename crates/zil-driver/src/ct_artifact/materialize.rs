@@ -1547,59 +1547,76 @@ impl Materializer<'_, '_> {
                             event_path: self.item_path.clone(),
                         },
                     );
-                    let value = self.expression_value(
-                        module,
-                        &owner,
-                        expression,
-                        Some(CtTy::Syntax(CtSyntaxCategory::ItemList)),
-                    )?;
-                    let GeneratedSyntax::ItemList(mut generated_items) =
-                        self.parsed(value, CtSyntaxCategory::ItemList, item.span)?
-                    else {
-                        return Err(category(
-                            "#emit must yield ItemList in item position",
-                            item.span,
-                        ));
-                    };
-                    let tree = self.pending_generated_tree.take().ok_or_else(|| {
-                        category("generated ItemList frozen tree absent", item.span)
-                    })?;
-                    self.environment.budget.reserve_analysis_work(
-                        self.environment.generated_catalog.trees.len() as u64,
-                    )?;
-                    let row = self
-                        .environment
-                        .generated_catalog
-                        .trees
-                        .iter()
-                        .position(|candidate| Arc::ptr_eq(candidate, &tree))
-                        .ok_or_else(|| {
-                            category("generated source catalog row absent", item.span)
+                    self.environment.begin_generation_batch()?;
+                    let batch = (|| -> CompileResult<_> {
+                        let value = self.expression_value(
+                            module,
+                            &owner,
+                            expression,
+                            Some(CtTy::Syntax(CtSyntaxCategory::ItemList)),
+                        )?;
+                        let GeneratedSyntax::ItemList(mut generated_items) =
+                            self.parsed(value, CtSyntaxCategory::ItemList, item.span)?
+                        else {
+                            return Err(category(
+                                "#emit must yield ItemList in item position",
+                                item.span,
+                            ));
+                        };
+                        let tree = self.pending_generated_tree.take().ok_or_else(|| {
+                            category("generated ItemList frozen tree absent", item.span)
                         })?;
-                    let row = u32::try_from(row).map_err(|_| {
-                        category("generated source catalog row overflow", item.span)
-                    })?;
-                    self.bind_source_items(
-                        &tree.module,
-                        &generated_items,
-                        compiler::source_sites::SourceTreeId::Generated(row),
-                    )?;
-                    self.discard_item_sites(&item)?;
-                    let previous_tree = self.current_generated_tree.replace(tree);
-                    let previous_path = std::mem::take(&mut self.item_path);
-                    let generated_rows =
-                        self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
-                    self.item_path = previous_path;
-                    self.current_generated_tree = previous_tree;
+                        self.environment.budget.reserve_analysis_work(
+                            self.environment.generated_catalog.trees.len() as u64,
+                        )?;
+                        let row = self
+                            .environment
+                            .generated_catalog
+                            .trees
+                            .iter()
+                            .position(|candidate| Arc::ptr_eq(candidate, &tree))
+                            .ok_or_else(|| {
+                                category("generated source catalog row absent", item.span)
+                            })?;
+                        let row = u32::try_from(row).map_err(|_| {
+                            category("generated source catalog row overflow", item.span)
+                        })?;
+                        self.bind_source_items(
+                            &tree.module,
+                            &generated_items,
+                            compiler::source_sites::SourceTreeId::Generated(row),
+                        )?;
+                        self.discard_item_sites(&item)?;
+                        let previous_tree = self.current_generated_tree.replace(tree);
+                        let previous_path = std::mem::take(&mut self.item_path);
+                        let generated_rows =
+                            self.items(module, &mut generated_items, Some(&owner), depth + 1, true);
+                        self.item_path = previous_path;
+                        self.current_generated_tree = previous_tree;
+                        let generated_rows = generated_rows?;
+                        if let Some(retained) = &mut retained {
+                            let generated_rows = generated_rows.ok_or_else(|| {
+                                category("generated ItemList origin rows absent", item.span)
+                            })?;
+                            self.reserve_output_origins(retained, generated_rows.len())?;
+                            retained.extend(generated_rows);
+                        }
+                        output.extend(generated_items);
+                        Ok(())
+                    })();
                     self.current_emitter = previous_emitter;
-                    if let Some(retained) = &mut retained {
-                        let generated_rows = generated_rows.ok_or_else(|| {
-                            category("generated ItemList origin rows absent", item.span)
-                        })?;
-                        self.reserve_output_origins(retained, generated_rows.len())?;
-                        retained.extend(generated_rows);
+                    match batch {
+                        Ok(()) => {
+                            if let Err(errors) = self.environment.finish_generation_batch() {
+                                self.environment.abort_generation_batch();
+                                return Err(errors);
+                            }
+                        }
+                        Err(errors) => {
+                            self.environment.abort_generation_batch();
+                            return Err(errors);
+                        }
                     }
-                    output.extend(generated_items);
                 }
                 s::ItemKind::Meta(s::MetaItem::If {
                     then_items,

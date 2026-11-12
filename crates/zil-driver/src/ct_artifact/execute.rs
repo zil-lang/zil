@@ -17,6 +17,8 @@ use zil_base::{
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::ParseResult;
+#[path = "definition_inventory.rs"]
+mod definition_inventory;
 #[path = "execute_static_host.rs"]
 mod static_host;
 
@@ -41,6 +43,8 @@ pub(super) struct Environment<'a> {
     stage_inventory: Option<Arc<super::stage_inventory::FrozenCtStageInventory>>,
     generation_epoch: u64,
     snapshot_base_fingerprint: Fingerprint,
+    generation_batch: Option<GenerationCheckpoint>,
+    generation_depth: u32,
     pub impl_index: Option<ImplSnapshot>,
     shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
@@ -54,7 +58,68 @@ pub(super) struct Environment<'a> {
     static_host_invocations: Vec<static_host::Invocation>,
 }
 
+struct GenerationCheckpoint {
+    index: SourceIndex,
+    catalog: zil_expand::source_context::GeneratedSourceCatalog,
+    ct_only: Vec<CtSymbolId>,
+}
+
 impl<'a> Environment<'a> {
+    pub(super) fn begin_generation_batch(&mut self) -> CompileResult<()> {
+        if self.generation_depth == 0 {
+            self.freeze_stage_before_execution()?;
+            let index = self.index.copy_for_generation(&mut self.budget)?;
+            self.budget.reserve_analysis_work(
+                self.generated_catalog.trees.len() as u64 + self.ct_only.len() as u64,
+            )?;
+            self.budget.reserve_temporary_bytes(
+                self.generated_catalog.trees.len() as u64
+                    * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>()
+                        as u64
+                    + self.ct_only.len() as u64 * std::mem::size_of::<CtSymbolId>() as u64,
+            )?;
+            self.generation_batch = Some(GenerationCheckpoint {
+                index,
+                catalog: self.generated_catalog.clone(),
+                ct_only: self.ct_only.clone(),
+            });
+        }
+        self.generation_depth = self
+            .generation_depth
+            .checked_add(1)
+            .ok_or_else(|| error("CT generation batch depth overflow", Span::default()))?;
+        Ok(())
+    }
+
+    pub(super) fn finish_generation_batch(&mut self) -> CompileResult<()> {
+        if self.generation_depth == 0 {
+            return Err(error("CT generation batch is absent", Span::default()));
+        }
+        if self.generation_depth == 1 {
+            let epoch = self
+                .generation_epoch
+                .checked_add(1)
+                .ok_or_else(|| error("CT generation epoch overflow", Span::default()))?;
+            self.generation_batch
+                .take()
+                .ok_or_else(|| error("CT generation checkpoint is absent", Span::default()))?;
+            self.generation_depth = 0;
+            self.generation_epoch = epoch;
+            self.stage_inventory = None;
+        } else {
+            self.generation_depth -= 1;
+        }
+        Ok(())
+    }
+
+    pub(super) fn abort_generation_batch(&mut self) {
+        if let Some(before) = self.generation_batch.take() {
+            self.index = before.index;
+            self.generated_catalog = before.catalog;
+            self.ct_only = before.ct_only;
+        }
+        self.generation_depth = 0;
+    }
     fn freeze_stage_before_execution(&mut self) -> CompileResult<()> {
         if self.stage_inventory.is_some() {
             return Ok(());
@@ -269,6 +334,8 @@ impl<'a> Environment<'a> {
             stage_inventory: None,
             generation_epoch: 0,
             snapshot_base_fingerprint: snapshot.fingerprint,
+            generation_batch: None,
+            generation_depth: 0,
             impl_index,
             shape_failure,
             snapshot,
@@ -352,21 +419,49 @@ impl<'a> Environment<'a> {
                 .saturating_add(event_path.len() as u64 * 4)
                 .saturating_add(128),
         )?;
-        self.index
-            .register_generated_tree(&tree, &self.limits, &mut self.budget)?;
-        self.budget.release_temporary_bytes(seen_bytes);
-        self.generated_catalog.trees.reserve_exact(1);
-        self.generated_catalog.trees.push(tree);
-        self.classify_definitions()?;
-        // The VM query that produced this emission has finished. Publish the
-        // next epoch only after parse/hygiene, unique declaration registration
-        // and actual generated CT-body validation all succeed. An error never
-        // supplies a query view of a partially committed source batch.
-        self.generation_epoch = self
+        // All mutations and CT-only body validation happen in a private draft.
+        // DefinitionInventory executes no VM; no query can observe its index.
+        let mut draft_index = self.index.copy_for_generation(&mut self.budget)?;
+        draft_index.register_generated_tree(&tree, &self.limits, &mut self.budget)?;
+        self.budget
+            .reserve_analysis_work(self.generated_catalog.trees.len() as u64 + 1)?;
+        self.budget.reserve_temporary_bytes(
+            (self.generated_catalog.trees.len() as u64 + 1)
+                * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>()
+                    as u64,
+        )?;
+        let mut draft_catalog = zil_expand::source_context::GeneratedSourceCatalog {
+            trees: Vec::with_capacity(self.generated_catalog.trees.len() + 1),
+        };
+        draft_catalog
+            .trees
+            .extend(self.generated_catalog.trees.iter().cloned());
+        draft_catalog.trees.push(tree);
+        let next_epoch = self
             .generation_epoch
             .checked_add(1)
             .ok_or_else(|| error("CT generation epoch overflow", span))?;
-        self.stage_inventory = None;
+        let ct_only = definition_inventory::DefinitionInventory {
+            sources: self.sources,
+            parsed: self.parsed,
+            index: &draft_index,
+            generated_catalog: &draft_catalog,
+            source_fingerprint: self.source_fingerprint,
+            target: self.target,
+            limits: &self.limits,
+            snapshot: &self.snapshot,
+            dynamic_catalogue: self.dynamic_catalogue.as_ref(),
+            budget: &mut self.budget,
+        }
+        .classify()?;
+        self.index = draft_index;
+        self.generated_catalog = draft_catalog;
+        self.ct_only = ct_only;
+        self.budget.release_temporary_bytes(seen_bytes);
+        if self.generation_depth == 0 {
+            self.generation_epoch = next_epoch;
+            self.stage_inventory = None;
+        }
         Ok(row)
     }
 
@@ -473,116 +568,21 @@ impl<'a> Environment<'a> {
         self.remaining_limits()
     }
 
-    /// Classify every actual CT-only declaration from the same source artifact
-    /// used by execution. Verify its entire body without calling the VM.
+    /// Classify the complete current immutable source inventory without VM execution.
     pub(super) fn classify_definitions(&mut self) -> CompileResult<()> {
-        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
-        let modules = self.index.modules(self.sources, &syntax);
-        let mut limits = self.remaining_limits();
-        let before = self.budget.remaining();
-        let catalog = (!self.generated_catalog.trees.is_empty()).then_some(&self.generated_catalog);
-        let result = if catalog.is_some() {
-            compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog)
-        } else {
-            compiler::definitions_entry(&modules, &mut limits)
-        };
-        self.budget.reserve_analysis_work(
-            before
-                .max_analysis_work
-                .saturating_sub(limits.max_analysis_steps as u64),
-        )?;
-        self.budget.reserve_generated_nodes(
-            before
-                .max_generated_nodes
-                .saturating_sub(limits.max_nodes as u64),
-        )?;
-        let temporary_bytes = before
-            .max_temporary_bytes
-            .saturating_sub(limits.max_source_bytes as u64);
-        self.budget.reserve_temporary_bytes(temporary_bytes)?;
-        self.budget.release_temporary_bytes(temporary_bytes);
-        for _ in 0..before
-            .max_instances
-            .saturating_sub(limits.max_functions as u64)
-        {
-            self.budget.reserve_instance()?;
-        }
-        let (entry, generic_definitions) = result?;
-        self.ct_only.extend(generic_definitions);
-        let Some(entry) = entry else {
-            return Ok(());
-        };
-        let span = self.index.span(&entry).ok_or_else(|| {
-            error(
-                "CT-only definition is absent from the frozen source index",
-                Span::default(),
-            )
-        })?;
-        let input_tokens = self.empty_input(span)?;
-        let selected_limits = self.remaining_limits();
-        let request = CompileRequest {
-            target_pointer_width: self.target.pointer_width,
-            modules: &modules,
-            source_fingerprint: self.source_fingerprint,
-            entry: Entry::Function(entry),
-            input_tokens: &input_tokens,
-            snapshot: &self.snapshot,
-            limits: &selected_limits,
-        };
-        let compiled = if catalog.is_some() {
-            compiler::compile_scoped_with_catalog(request, catalog).map(|(program, _)| program)
-        } else {
-            compiler::compile(request)
-        };
-        let mut expected = compiled.map_err(|mut errors| {
-                for error in &mut errors {
-                    if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
-                        error.code = "E-CT-RUNTIME".into();
-                        error.message = "compile-time Type or Ident cannot cross a foreign runtime function boundary".into();
-                    }
-                }
-                errors
-            })?;
-        let classified = compiler::ct_only_definitions(&mut expected)?;
-        let declared = expected.budget;
-        let before = self.budget.remaining();
-        self.budget.reserve_analysis_work(
-            before
-                .max_analysis_work
-                .saturating_sub(declared.max_analysis_work),
-        )?;
-        self.budget.reserve_generated_nodes(
-            before
-                .max_generated_nodes
-                .saturating_sub(declared.max_generated_nodes),
-        )?;
-        for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
-            self.budget.reserve_instance()?;
-        }
-        self.attach_dynamic_catalogue(&mut expected)?;
-        let authority = FrozenAuthority {
-            source_fingerprint: self.source_fingerprint,
-            snapshot: &self.snapshot,
-            input: &input_tokens,
+        self.ct_only = definition_inventory::DefinitionInventory {
+            sources: self.sources,
+            parsed: self.parsed,
             index: &self.index,
-            expected_functions: &expected.functions,
-            expected_artifact: &expected,
-            invocation_context: None,
-        };
-        let clone_charge = value_context::program_copy_cost(&expected, &mut self.budget)?;
-        self.budget.reserve_temporary_bytes(clone_charge)?;
-        let mut meter =
-            zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
-        let result = zil_verify::verify_ct_artifact_metered(
-            expected.clone(),
-            &selected_limits,
-            &authority,
-            &mut meter,
-        );
-        self.budget.reserve_analysis_work(meter.spent())?;
-        self.budget.release_temporary_bytes(clone_charge);
-        result?;
-        self.ct_only.extend(classified);
+            generated_catalog: &self.generated_catalog,
+            source_fingerprint: self.source_fingerprint,
+            target: self.target,
+            limits: &self.limits,
+            snapshot: &self.snapshot,
+            dynamic_catalogue: self.dynamic_catalogue.as_ref(),
+            budget: &mut self.budget,
+        }
+        .classify()?;
         Ok(())
     }
 

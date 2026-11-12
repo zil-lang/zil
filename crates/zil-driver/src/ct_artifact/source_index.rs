@@ -153,6 +153,45 @@ fn children(
 }
 
 impl SourceIndex {
+    /// A private draft gets an independently paid complete index. No caller
+    /// can observe inserted rows before all generated definitions validate.
+    pub(super) fn copy_for_generation(
+        &self,
+        budget: &mut zil_ct::CtExecutionBudget,
+    ) -> CompileResult<Self> {
+        let mut bytes = self.module_ids.len() as u64 * std::mem::size_of::<ModuleId>() as u64
+            + (self.imports.len() + self.symbols.len()) as u64
+                * std::mem::size_of::<Vec<SourceImport>>() as u64
+            + self.public.len() as u64 * std::mem::size_of::<(CtSymbolId, bool)>() as u64;
+        budget.reserve_analysis_work(
+            self.module_ids.len() as u64
+                + self.imports.len() as u64
+                + self.symbols.len() as u64
+                + self.public.len() as u64,
+        )?;
+        for imports in &self.imports {
+            budget.reserve_analysis_work(imports.len() as u64)?;
+            bytes = bytes
+                .saturating_add(imports.len() as u64 * std::mem::size_of::<SourceImport>() as u64);
+            for import in imports {
+                budget.reserve_analysis_work(import.alias.len() as u64)?;
+                bytes = bytes.saturating_add(import.alias.len() as u64);
+            }
+        }
+        for symbols in &self.symbols {
+            budget.reserve_analysis_work(symbols.len() as u64)?;
+            bytes = bytes.saturating_add(
+                symbols.len() as u64 * std::mem::size_of::<(Span, CtSymbolId)>() as u64,
+            );
+        }
+        budget.reserve_temporary_bytes(bytes)?;
+        Ok(Self {
+            module_ids: self.module_ids.clone(),
+            imports: self.imports.clone(),
+            symbols: self.symbols.clone(),
+            public: self.public.clone(),
+        })
+    }
     /// Register the actual frozen event inventory. The Materializer owns the
     /// verified emission; this only adds its precise source bindings and normal
     /// public/private flags, never type, scope, reflection, or loan authority.
