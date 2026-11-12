@@ -129,9 +129,13 @@
 +  }
 --- a/llvm/lib/IR/PassManager.cpp
 +++ b/llvm/lib/IR/PassManager.cpp
-@@ -15,0 +16 @@
+@@ -9,0 +10,3 @@
++#include "llvm/Analysis/AssumptionCache.h"
++#include "llvm/Analysis/TargetTransformInfo.h"
++#include "llvm/IR/IntrinsicInst.h"
+@@ -15,0 +19 @@
 +extern "C" LLVM_ABI unsigned ZilLLVMFunctionStageCapability() { return 1; }
-@@ -165,0 +167,37 @@
+@@ -165,0 +170,56 @@
 +
 +extern "C" LLVM_ABI void ZilLLVMVisitFunctionAnalysisKeys(
 +    void *Manager, void *IR, void (*Visit)(void *, const void *), void *Context) {
@@ -168,6 +172,25 @@
 +  if (!IR || (!Numbers && Count)) return 0;
 +  return static_cast<llvm::Function *>(IR)->zilRestoreBlockNumberState(
 +      Next, Epoch, llvm::ArrayRef<unsigned>(Numbers, Count));
++}
++
++extern "C" LLVM_ABI int ZilLLVMEmptyAssumptionState(void *Manager, void *IR) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *AC = AM.getCachedResult<llvm::AssumptionAnalysis>(F);
++  if (!AC) return -1;
++  return AC->zilEmptyProductState(&F, AM.getCachedResult<llvm::TargetIRAnalysis>(F));
++}
++extern "C" LLVM_ABI int ZilLLVMRestoreEmptyAssumptionState(
++    void *Manager, void *IR, unsigned State) {
++  auto &F = *static_cast<llvm::Function *>(IR);
++  auto &AM = *static_cast<llvm::FunctionAnalysisManager *>(Manager);
++  auto *AC = AM.getCachedResult<llvm::AssumptionAnalysis>(F);
++  if (!AC) return 0;
++  for (auto &BB : F) for (auto &I : BB)
++    if (llvm::isa<llvm::AssumeInst>(I)) return 0;
++  return AC->zilRestoreEmptyProductState(
++      &F, AM.getCachedResult<llvm::TargetIRAnalysis>(F), State);
 +}
 --- a/llvm/lib/Analysis/CGSCCPassManager.cpp
 +++ b/llvm/lib/Analysis/CGSCCPassManager.cpp
@@ -248,4 +271,23 @@
 +    return true;
 +  }
 +
++
+--- a/llvm/include/llvm/Analysis/AssumptionCache.h
++++ b/llvm/include/llvm/Analysis/AssumptionCache.h
+@@ -111,0 +112,16 @@
++  // Read only: never force the lazy scan. No owner escapes this request.
++  int zilEmptyProductState(const Function *Current,
++                           const TargetTransformInfo *CurrentTTI) const {
++    if (&F != Current || (TTI && TTI != CurrentTTI) ||
++        !AssumeHandles.empty() || !AffectedValues.empty()) return -1;
++    return (Scanned ? 1 : 0) | (TTI ? 2 : 0);
++  }
++  bool zilRestoreEmptyProductState(const Function *Current,
++                                  const TargetTransformInfo *CurrentTTI,
++                                  unsigned State) {
++    int Now = zilEmptyProductState(Current, CurrentTTI);
++    if (Now < 0 || State > 3 || (unsigned(Now) & 2) != (State & 2)) return false;
++    Scanned = State & 1;
++    return true;
++  }
 +

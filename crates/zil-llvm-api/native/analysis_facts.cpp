@@ -10,6 +10,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/Support/raw_ostream.h"
+#include <dlfcn.h>
 namespace zil {
 bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
                    const std::vector<const void *> &Keys, std::string &Out) {
@@ -60,15 +61,11 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
       if (!DT) return false;
       OS << "post-dominator-tree:\n"; DT->print(OS);
     } else if (K == AssumptionAnalysis::ID()) {
-      auto *AC = AM.getCachedResult<AssumptionAnalysis>(F);
-      if (!AC || !AC->assumptions().empty()) return false;
-      // Admit only the truly empty state, including no stale/null handles.
-      for (Argument &A : F.args()) if (!AC->assumptionsFor(&A).empty()) return false;
-      for (BasicBlock &B : F) {
-        if (!AC->assumptionsFor(&B).empty()) return false;
-        for (Instruction &I : B) if (!AC->assumptionsFor(&I).empty()) return false;
-      }
-      OS << "assumptions:empty\n";
+      using Get = int (*)(void *, void *);
+      static auto GetState = reinterpret_cast<Get>(dlsym(RTLD_DEFAULT, "ZilLLVMEmptyAssumptionState"));
+      int State = GetState ? GetState(&AM, &F) : -1;
+      if (State < 0) return false;
+      OS << "assumptions:empty:" << State << '\n';
     } else if (K == LoopAnalysis::ID()) {
       auto *LI = AM.getCachedResult<LoopAnalysis>(F);
       if (!LI || !LI->empty()) return false;
