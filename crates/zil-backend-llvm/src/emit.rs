@@ -368,7 +368,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         name: "llvm.trap".into(),
         linkage: m::Linkage::External,
         signature: m::Signature {
-            retained_return_sources: None,
             result: m::Ty::Void,
             result_attrs: vec![],
             params: vec![],
@@ -401,7 +400,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Struct(vec![m::Ty::Int(bits), m::Ty::Int(1)]),
                 result_attrs: vec![],
                 params: vec![
@@ -436,7 +434,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             name: "printf".into(),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Int(32),
                 result_attrs: vec![],
                 params: vec![m::Param {
@@ -476,7 +473,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
                 name: "ExitProcess".into(),
                 linkage: m::Linkage::External,
                 signature: m::Signature {
-                    retained_return_sources: None,
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     params: vec![m::Param {
@@ -495,7 +491,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
                 name: "zil.pe.entry".into(),
                 linkage: m::Linkage::External,
                 signature: m::Signature {
-                    retained_return_sources: None,
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     params: vec![],
@@ -1149,7 +1144,6 @@ fn entry_wrapper(
             name: "main".into(),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: m::Ty::Int(32),
                 result_attrs: vec![],
                 params: vec![],
@@ -1515,7 +1509,6 @@ impl FunctionEmitter<'_> {
             name: self.abi_symbol(self.function.id),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                retained_return_sources: None,
                 result: if self.abi().result.is_some() {
                     m::Ty::Void
                 } else {
