@@ -262,3 +262,216 @@ fn segmented_publication_preserves_stream_limits_and_shared_fragments() {
         }
     }
 }
+
+fn plans_fixture() -> (TypedModule, CandidatePlan) {
+    let (module, mut plan) = fixture();
+    plan.functions = module
+        .functions
+        .iter()
+        .map(|function| FunctionPlan {
+            function: function.id,
+            blocks: vec![BlockPlan {
+                block: BlockId(0),
+                initialized_in: vec![LocalId(0)],
+                initialized_out: vec![LocalId(0), LocalId(1)],
+            }],
+            holds: vec![ValueHold {
+                value: ValueId(0),
+                roots: vec![
+                    HoldRoot::Local(LocalId(0)),
+                    HoldRoot::Parameter(0),
+                    HoldRoot::Static,
+                ],
+            }],
+        })
+        .collect();
+    (module, plan)
+}
+
+fn cached_plans(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    limits: &Limits,
+    functions: &[OnceLock<RawFunctionEncoding>],
+    plans: &mut [Option<Arc<RawFunctionPlanEncoding>>],
+) -> (CompileResult<Vec<u8>>, FunctionPlanEncodingStats) {
+    let functions: Vec<_> = module.functions.iter().zip(functions).collect();
+    let mut stats = FunctionPlanEncodingStats::default();
+    let result = encode_module_candidate_plan_segments(
+        module,
+        plan,
+        &functions,
+        plans,
+        limits,
+        &mut FunctionEncodingStats::default(),
+        &mut stats,
+    )
+    .map(|segments| {
+        segments
+            .iter()
+            .flat_map(|s| s.bytes.iter().copied())
+            .collect()
+    });
+    (result, stats)
+}
+
+#[test]
+fn plan_fragments_bind_exact_rows_and_reuse_equal_outputs_after_module_changes() {
+    let (mut module, mut plan) = plans_fixture();
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let mut plans = vec![None, None, None];
+    let (cold, stats) = cached_plans(&module, &plan, &limits, &functions, &mut plans);
+    assert_eq!(cold, encode_module_candidate(&module, &plan, &limits));
+    assert_eq!(stats.serialized_function_plans, 3);
+    let old = plans.clone();
+    module.source_fingerprint = Fingerprint::of(b"different current source");
+    plan.module_fingerprint = module.fingerprint();
+    let (edited, stats) = cached_plans(&module, &plan, &limits, &functions, &mut plans);
+    assert_eq!(edited, encode_module_candidate(&module, &plan, &limits));
+    assert_ne!(cold, edited);
+    assert_eq!(
+        (stats.serialized_function_plans, stats.reused_function_plans),
+        (0, 3)
+    );
+    assert_eq!(
+        stats.reused_function_plan_bytes,
+        old.iter()
+            .flatten()
+            .map(|raw| raw.encoding.byte_len())
+            .sum::<usize>()
+    );
+    for (old, current) in old.iter().zip(&plans) {
+        assert!(Arc::ptr_eq(
+            old.as_ref().unwrap(),
+            current.as_ref().unwrap()
+        ));
+    }
+    // No public digest or unchanged enclosing module binding can mask a changed
+    // fact. A stale private slot is checked against the complete actual row.
+    plan.functions[1].blocks[0].initialized_out.pop();
+    let (changed, stats) = cached_plans(&module, &plan, &limits, &functions, &mut plans);
+    assert_eq!(changed, encode_module_candidate(&module, &plan, &limits));
+    assert_eq!(
+        (stats.serialized_function_plans, stats.reused_function_plans),
+        (1, 2)
+    );
+    assert!(!Arc::ptr_eq(
+        old[1].as_ref().unwrap(),
+        plans[1].as_ref().unwrap()
+    ));
+    assert!(Arc::ptr_eq(
+        old[0].as_ref().unwrap(),
+        plans[0].as_ref().unwrap()
+    ));
+    let mut changed_limits = limits.clone();
+    changed_limits.max_tokens -= 1;
+    assert_eq!(
+        cached_plans(&module, &plan, &changed_limits, &functions, &mut plans)
+            .1
+            .serialized_function_plans,
+        3
+    );
+    assert_eq!(
+        cached_plans(&module, &plan, &changed_limits, &functions, &mut plans)
+            .1
+            .reused_function_plans,
+        3
+    );
+    assert!(
+        plans
+            .iter()
+            .flatten()
+            .all(|raw| raw.encoding.limits == changed_limits)
+    );
+    // Global claims and target binding remain current even when every local
+    // row is equal. They are deliberately outside the fragment cache.
+    plan.target_fingerprint = Fingerprint::of(b"different target claim");
+    plan.origins.push(OriginClaim {
+        origin: OriginId(0),
+        source: NodeId(0),
+        multiplicity: OriginMultiplicity::Many,
+    });
+    plan.responsibilities.push(ResponsibilityClaim {
+        function: FunctionId(0),
+        carrier: LocalId(0),
+        origin: OriginId(0),
+        state: ResponsibilityState::Live,
+    });
+    let (actual, stats) = cached_plans(&module, &plan, &changed_limits, &functions, &mut plans);
+    assert_eq!(
+        actual,
+        encode_module_candidate(&module, &plan, &changed_limits)
+    );
+    assert_eq!(stats.reused_function_plans, 3);
+}
+
+#[test]
+fn plan_fragment_replay_preserves_aggregate_first_errors_and_exact_boundaries() {
+    let (module, plan) = plans_fixture();
+    let normal = Limits::default();
+    let mut writer = Writer::new(&normal);
+    writer.header(MODULE_MAGIC).unwrap();
+    writer.module(&module).unwrap();
+    writer.plan(&plan).unwrap();
+    let length = writer.output.len();
+    let node_count = normal.max_nodes - writer.nodes;
+    for bytes in [length, length - 1, length - 13, length / 2] {
+        for nodes in [node_count, node_count - 1, node_count - 4, 0] {
+            let limits = Limits {
+                max_source_bytes: bytes,
+                max_nodes: nodes,
+                ..normal.clone()
+            };
+            let functions = slots(&module, &limits);
+            let mut plans = vec![None, None, None];
+            let (cold, _) = cached_plans(&module, &plan, &limits, &functions, &mut plans);
+            assert_eq!(cold, encode_module_candidate(&module, &plan, &limits));
+            let (warm, _) = cached_plans(&module, &plan, &limits, &functions, &mut plans);
+            assert_eq!(warm, cold);
+            let cached_bytes = functions
+                .iter()
+                .filter_map(OnceLock::get)
+                .map(RawFunctionEncoding::byte_len)
+                .chain(plans.iter().flatten().map(|raw| raw.encoding.byte_len()))
+                .sum::<usize>();
+            assert!(cached_bytes <= limits.max_source_bytes);
+        }
+    }
+    // Warm every row under exactly the selected limit, then consume additional
+    // aggregate allowance before it without changing any cached plan's facts.
+    for (extra_bytes, extra_nodes) in [(13, 0), (0, 4)] {
+        let limits = Limits {
+            max_source_bytes: length,
+            max_nodes: node_count,
+            ..normal.clone()
+        };
+        let functions = slots(&module, &limits);
+        let mut plans = vec![None, None, None];
+        assert!(
+            cached_plans(&module, &plan, &limits, &functions, &mut plans)
+                .0
+                .is_ok()
+        );
+        let checkpoint = plans.clone();
+        let mut changed = module.clone();
+        changed.functions[0].name.push_str(&"x".repeat(extra_bytes));
+        changed.functions[0]
+            .values
+            .extend(std::iter::repeat_n(Type::I32, extra_nodes));
+        let changed_functions = slots(&changed, &limits);
+        let (actual, stats) =
+            cached_plans(&changed, &plan, &limits, &changed_functions, &mut plans);
+        assert!(actual.is_err());
+        assert_eq!(actual, encode_module_candidate(&changed, &plan, &limits));
+        assert!(stats.reused_function_plans > 0);
+        assert!(stats.serialized_function_plans > 0);
+        // Failed work cannot mutate the immutable checkpoint's fragments.
+        assert!(
+            checkpoint
+                .iter()
+                .flatten()
+                .all(|raw| raw.encoding.limits == limits)
+        );
+    }
+}

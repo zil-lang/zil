@@ -247,6 +247,22 @@ impl RawFunctionEncoding {
     }
 }
 
+/// Immutable serialization of an exact raw FunctionPlan under one complete
+/// Limits value. The owned row binds reuse without treating an Analyze digest
+/// or an enclosing program identity as evidence. This carries no Verify authority.
+pub struct RawFunctionPlanEncoding {
+    function: FunctionPlan,
+    encoding: RawFunctionEncoding,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FunctionPlanEncodingStats {
+    pub serialized_function_plans: usize,
+    pub reused_function_plans: usize,
+    pub serialized_function_plan_bytes: usize,
+    pub reused_function_plan_bytes: usize,
+}
+
 /// Encode one raw function fragment; the enclosing publication must separately
 /// charge aggregate node and byte limits across all fragments and metadata.
 pub fn encode_raw_function(
@@ -375,6 +391,107 @@ pub fn encode_module_candidate_segments(
             stats,
         )?;
         writer.plan(plan)?;
+        writer.flush_segment();
+        Ok(writer.segments.expect("segmented writer"))
+    })())
+}
+
+/// The ordinary Wire stream, split additionally at FunctionPlan boundaries.
+/// Each cached row is checked against the complete current raw value and limits.
+/// The mutable slots belong to the caller's current publication epoch; retaining
+/// older checkpoints does not create a global history cache or byte quota.
+pub fn encode_module_candidate_plan_segments(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    functions: &[(&TypedFunction, &OnceLock<RawFunctionEncoding>)],
+    plans: &mut [Option<Arc<RawFunctionPlanEncoding>>],
+    limits: &Limits,
+    stats: &mut FunctionEncodingStats,
+    plan_stats: &mut FunctionPlanEncodingStats,
+) -> CompileResult<Vec<WireSegment>> {
+    public((|| {
+        let mut writer = Writer::new(limits);
+        writer.segments = Some(Vec::new());
+        writer.header(MODULE_MAGIC)?;
+        let retained_bytes = functions
+            .iter()
+            .map(|(_, cache)| cache.get().map_or(0, RawFunctionEncoding::byte_len))
+            .chain(
+                plans
+                    .iter()
+                    .map(|slot| slot.as_ref().map_or(0, |raw| raw.encoding.byte_len())),
+            )
+            .fold(0usize, usize::saturating_add);
+        let mut cache_bytes = limits.max_source_bytes.saturating_sub(retained_bytes);
+        writer.module_with_functions(
+            module,
+            functions
+                .iter()
+                .map(|(function, cache)| (*function, Some(*cache))),
+            &mut cache_bytes,
+            stats,
+        )?;
+        let mut occupied = functions
+            .iter()
+            .map(|(_, cache)| cache.get().map_or(0, RawFunctionEncoding::byte_len))
+            .chain(
+                plans
+                    .iter()
+                    .map(|slot| slot.as_ref().map_or(0, |raw| raw.encoding.byte_len())),
+            )
+            .fold(0usize, usize::saturating_add);
+        writer.flush_segment();
+        writer.plan_header(plan)?;
+        writer.flush_segment();
+        for (index, function) in plan.functions.iter().enumerate() {
+            let slot = plans.get_mut(index);
+            if let Some(raw) = slot.as_deref().and_then(Option::as_ref)
+                && raw.function == *function
+                && raw.encoding.limits == *limits
+                && raw.encoding.nodes <= writer.nodes
+                && writer
+                    .total_len()
+                    .checked_add(raw.encoding.bytes.len())
+                    .is_some_and(|length| length <= limits.max_source_bytes)
+            {
+                writer.charge(raw.encoding.nodes)?;
+                writer.shared_fragment(&raw.encoding)?;
+                plan_stats.reused_function_plans += 1;
+                plan_stats.reused_function_plan_bytes += raw.encoding.byte_len();
+            } else {
+                // Replaying a single total cannot reproduce which original
+                // collection/byte/node check fails first. Traverse the current
+                // row when either remaining aggregate allowance is too small.
+                let nodes = writer.nodes;
+                plan_stats.serialized_function_plans += 1;
+                writer.function_plan(function)?;
+                let length = writer.output.len();
+                plan_stats.serialized_function_plan_bytes += length;
+                writer.flush_segment();
+                if let Some(slot) = slot {
+                    if let Some(old) = slot.take() {
+                        occupied = occupied.saturating_sub(old.encoding.byte_len());
+                    }
+                    if occupied
+                        .checked_add(length)
+                        .is_some_and(|n| n <= limits.max_source_bytes)
+                    {
+                        let segment = writer.segments.as_ref().unwrap().last().unwrap();
+                        *slot = Some(Arc::new(RawFunctionPlanEncoding {
+                            function: function.clone(),
+                            encoding: RawFunctionEncoding {
+                                bytes: segment.bytes.clone(),
+                                limits: limits.clone(),
+                                nodes: nodes - writer.nodes,
+                                fingerprint: OnceLock::from(segment.fingerprint),
+                            },
+                        }));
+                        occupied += length;
+                    }
+                }
+            }
+        }
+        writer.plan_suffix(plan)?;
         writer.flush_segment();
         Ok(writer.segments.expect("segmented writer"))
     })())
@@ -2543,41 +2660,51 @@ impl<'a> Writer<'a> {
         Ok(())
     }
     fn plan(&mut self, plan: &CandidatePlan) -> WireResult<()> {
+        self.plan_header(plan)?;
+        for function in &plan.functions {
+            self.function_plan(function)?;
+        }
+        self.plan_suffix(plan)
+    }
+    fn plan_header(&mut self, plan: &CandidatePlan) -> WireResult<()> {
         self.u32(plan.schema_version)?;
         self.fingerprint(plan.module_fingerprint)?;
         self.fingerprint(plan.target_fingerprint)?;
-        self.count(plan.functions.len(), self.limits.max_functions)?;
-        for function in &plan.functions {
-            self.u32(function.function.0)?;
-            self.count(function.blocks.len(), self.limits.max_blocks)?;
-            for block in &function.blocks {
-                self.u32(block.block.0)?;
-                self.locals(&block.initialized_in)?;
-                self.locals(&block.initialized_out)?;
-            }
-            self.count(function.holds.len(), self.limits.max_values)?;
-            for hold in &function.holds {
-                self.u32(hold.value.0)?;
-                self.count(hold.roots.len(), self.limits.max_nodes)?;
-                for root in &hold.roots {
-                    match root {
-                        HoldRoot::Local(local) => {
-                            self.u8(0)?;
-                            self.u32(local.0)?;
-                        }
-                        HoldRoot::Capture(index) => {
-                            self.u8(1)?;
-                            self.u32(*index)?;
-                        }
-                        HoldRoot::Parameter(index) => {
-                            self.u8(2)?;
-                            self.u32(*index)?;
-                        }
-                        HoldRoot::Static => self.u8(3)?,
+        self.count(plan.functions.len(), self.limits.max_functions)
+    }
+    fn function_plan(&mut self, function: &FunctionPlan) -> WireResult<()> {
+        self.u32(function.function.0)?;
+        self.count(function.blocks.len(), self.limits.max_blocks)?;
+        for block in &function.blocks {
+            self.u32(block.block.0)?;
+            self.locals(&block.initialized_in)?;
+            self.locals(&block.initialized_out)?;
+        }
+        self.count(function.holds.len(), self.limits.max_values)?;
+        for hold in &function.holds {
+            self.u32(hold.value.0)?;
+            self.count(hold.roots.len(), self.limits.max_nodes)?;
+            for root in &hold.roots {
+                match root {
+                    HoldRoot::Local(local) => {
+                        self.u8(0)?;
+                        self.u32(local.0)?;
                     }
+                    HoldRoot::Capture(index) => {
+                        self.u8(1)?;
+                        self.u32(*index)?;
+                    }
+                    HoldRoot::Parameter(index) => {
+                        self.u8(2)?;
+                        self.u32(*index)?;
+                    }
+                    HoldRoot::Static => self.u8(3)?,
                 }
             }
         }
+        Ok(())
+    }
+    fn plan_suffix(&mut self, plan: &CandidatePlan) -> WireResult<()> {
         self.count(plan.origins.len(), self.limits.max_nodes)?;
         for origin in &plan.origins {
             self.u32(origin.origin.0)?;
