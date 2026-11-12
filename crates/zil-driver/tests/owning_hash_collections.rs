@@ -353,35 +353,8 @@ fn every_owning_hash_allocation_failure_returns_owners_and_preserves_map() {
         }
     }
 
-    let prefix = CONSUMER.split("fn main()->i32").next().unwrap();
-    let replacement = format!(
-        r#"{prefix}
-extern "C" fn probe_fail_next();
-fn main()->i32 {{
-    var map=owning_hash_map.new::<Key,Value>()
-    let first=owning_entries.Entry::<Key,Value>{{key:key(7),value:value(66)}}
-    match owning_hash_map.insert::<Key,Value>(&mut map,first){{.err(_)=>{{return 1}},.ok(_)=>{{}}}}
-    let second=owning_entries.Entry::<Key,Value>{{key:key(9),value:value(68)}}
-    match owning_hash_map.insert::<Key,Value>(&mut map,second){{.err(_)=>{{return 2}},.ok(_)=>{{}}}}
-    let query=key(7)
-    let cap=owning_hash_map.capacity::<Key,Value>(&map)
-    let incoming=owning_entries.Entry::<Key,Value>{{key:key(7),value:value(70)}}
-    unsafe{{probe_fail_next()}}
-    match owning_hash_map.insert::<Key,Value>(&mut map,incoming){{
-        .ok(_)=>{{return 3}},
-        .err(original)=>{{
-            if original.key.id!=7 || original.value.id!=70 || bytes_view(original.value.bytes)[0]!=70u8 {{return 4}}
-            if owning_hash_map.capacity::<Key,Value>(&map)!=cap || owning_hash_map.len::<Key,Value>(&map)!=2 {{return 5}}
-            match owning_hash_map.get::<Key,Value>(&map,&query){{Option.None()=>{{return 6}},Option.Some(old)=>{{if old.id!=66 || bytes_view(old.bytes)[0]!=66u8{{return 7}}}}}}
-            match owning_hash_map.insert::<Key,Value>(&mut map,original){{.err(_)=>{{return 8}},.ok(replaced)=>{{if !replaced{{return 9}}}}}}
-        }}
-    }}
-    match owning_hash_map.take::<Key,Value>(&mut map,&query){{.err(_)=>{{return 10}},.ok(old)=>{{if old.value.id!=70 || bytes_view(old.value.bytes)[0]!=70u8{{return 11}}}}}}
-    if owning_hash_map.clear::<Key,Value>(&mut map)!=1 {{return 12}}
-    return 0
-}}
-"#
-    );
+    let replacement =
+        include_str!("../../../tests/fixtures/owning-hash-collections/replacement-recovery.zil");
     fs::write(&source, replacement).unwrap();
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -1040,4 +1013,89 @@ fn main()->i32 {
         "into-entries",
         b"CDEAB",
     );
+}
+
+#[test]
+fn complete_owning_hash_consumer_keeps_default_and_exact_fresh_kernel_budgets() {
+    use zil_base::{Limits, TargetProfile};
+    let module = typed_stdlib(&[
+        ("main", CONSUMER),
+        (
+            "owning_hash_map",
+            include_str!("../../../lib/std/owning_hash_map.zil"),
+        ),
+        (
+            "owning_hash_set",
+            include_str!("../../../lib/std/owning_hash_set.zil"),
+        ),
+        (
+            "owning_entries",
+            include_str!("../../../lib/std/owning_entries.zil"),
+        ),
+        (
+            "owning_map",
+            include_str!("../../../lib/std/owning_map.zil"),
+        ),
+        ("store", include_str!("../../../lib/std/store.zil")),
+    ]);
+    let target = TargetProfile::host_llvm();
+    let diagnostic = Limits {
+        max_analysis_steps: 50_000_000,
+        ..Limits::default()
+    };
+    let plan = zil_analyze::analyze(&module, &diagnostic).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &diagnostic).unwrap();
+    let success = |verify: bool, n: usize| {
+        let selected = Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        if verify {
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &selected).map(|_| ())
+        } else {
+            zil_analyze::analyze(&module, &selected).map(|_| ())
+        }
+    };
+    let mut boundaries = Vec::new();
+    for verify in [false, true] {
+        let (mut low, mut high) = (0, diagnostic.max_analysis_steps);
+        success(verify, high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match success(verify, middle) {
+                Ok(()) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|error| error.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        success(verify, high).unwrap();
+        assert!(
+            success(verify, high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|error| error.category == ResultCategory::ResourceLimit)
+        );
+        success(verify, high).unwrap();
+        eprintln!(
+            "complete owning hash {} N={high}; N-1/fresh N checked",
+            if verify { "Verify" } else { "Analyze" }
+        );
+        boundaries.push(high);
+    }
+    assert!(
+        boundaries
+            .iter()
+            .all(|n| *n <= Limits::default().max_analysis_steps),
+        "complete original consumer must fit default; diagnostic boundaries={boundaries:?}"
+    );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap();
 }
