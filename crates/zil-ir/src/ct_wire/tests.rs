@@ -1114,11 +1114,11 @@ fn ct_dynamic_constant_occurrences_are_real_catalogue_edges_and_identity() {
         CtDynamicTypeNode::I32,
         CtDynamicTypeNode::Address {
             mutable: false,
-            inner: CtDynamicTypeId(0),
+            inner: Box::new(CtDynamicTypeId(0)),
         },
         CtDynamicTypeNode::BorrowedFunctionPointer {
             parameters: vec![],
-            result: CtDynamicTypeId(1),
+            result: Box::new(CtDynamicTypeId(1)),
             life: crate::StorageLifeContract {
                 fixed_binder_count: 0,
                 invocation_binder_count: 0,
