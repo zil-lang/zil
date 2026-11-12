@@ -119,6 +119,27 @@ fn input(
     };
     let endpoint = crate::dynamic_ports::physical_path(storage, &path, b)?;
     dynamic_metadata::ty(endpoint, b)?;
+    if !path.is_empty()
+        && endpoint.is_b0_scalar()
+        && let Type::Address { mutable, .. } = root
+    {
+        // A scalar subobject view retains the input head's class and actual
+        // address window. It is not a stored pointer read out of that field.
+        b.spend(path.len().saturating_add(2))?;
+        return Ok((
+            Type::Address {
+                mutable: *mutable,
+                inner: Box::new(endpoint.clone()),
+            },
+            Source {
+                base: HoldRoot::Parameter(index),
+                retained_port: None,
+                leaf: vec![],
+                inline: path,
+                heap_element: None,
+            },
+        ));
+    }
     let source = Source {
         base: HoldRoot::Parameter(index),
         retained_port: None,

@@ -136,6 +136,36 @@ fn dyn_result_upper_keeps_actual_same_type_input_and_rejects_local_escape() {
     forged.0[0].1.permission.sources[0].base = HoldRoot::Local(LocalId(0));
     assert!(!checked(&module, &f, &forged));
 }
+
+#[test]
+fn scalar_subobject_view_keeps_actual_field_window_and_head_class() {
+    let (module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32), ("right".into(), Type::I32)],
+        }),
+    };
+    f.retained_return_sources.as_mut().unwrap()[0].sources[0].path =
+        vec![ContractProjection::Place(PlaceProjection::Field(0))];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    let mut wrong = f.clone();
+    wrong.retained_return_sources.as_mut().unwrap()[0].sources[0].path =
+        vec![ContractProjection::Place(PlaceProjection::Field(1))];
+    assert!(
+        !checked(&module, &wrong, &actual),
+        "same root/type/class cannot replace the actual field"
+    );
+    let mut wrong = actual.clone();
+    wrong.0[0].1.permission.sources[0].leaf = vec![PlaceProjection::Field(0)];
+    wrong.0[0].1.permission.sources[0].inline.clear();
+    assert!(
+        !checked(&module, &f, &wrong),
+        "address of scalar storage is not a pointer loaded from that storage"
+    );
+}
 #[test]
 fn dyn_result_unknown_missing_and_empty_are_distinct() {
     let (module, f, rows) = boundary();
