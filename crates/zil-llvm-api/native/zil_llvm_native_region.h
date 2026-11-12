@@ -31,6 +31,7 @@ using ZilRegionValidateLease = int (*)(void *Lease, void *Emission, void *Contex
 // behavior. A current-Function binding covers providers/diagnostics, not just AP.
 void *ZilLLVMNativeRegionGetContext(const void *MF);
 void *ZilLLVMNativeRegionGetFunction(const void *MF);
+const void *ZilLLVMNativeRegionGetTarget(const void *MF);
 int ZilLLVMNativeRegionGetFunctionNumber(const void *MF, unsigned *Out);
 int ZilLLVMNativeRegionGetSection(const void *MF, void **Out);
 int ZilLLVMNativeRegionSetSection(const void *MF, void *Section);
