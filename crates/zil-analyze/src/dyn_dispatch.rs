@@ -840,11 +840,73 @@ fn body(
                         .ok_or_else(|| bad("dyn saved borrow has no actual result"))?;
                     if !matches!(value(f, output, budget)?, Type::Address {mutable: actual,inner: target}
                         if *actual == output_mutable && target == inner)
-                        || !scalar(inner)
+                        || !(scalar(inner)
+                            || matches!(inner.as_ref(), Type::Slice { element } | Type::Array { element, .. } if scalar(element)))
                     {
                         return Err(bad("dyn saved borrow changes full target type or mode"));
                     }
                     field_values.insert(output, inner.as_ref().clone());
+                }
+                InstructionKind::AddressIndex { address, index }
+                    if panic && field_values.contains_key(address) =>
+                {
+                    if !value_results.contains(index) || !value(f, *index, budget)?.is_integer() {
+                        return Err(bad("dyn index lacks an actual integer operand"));
+                    }
+                    let element = match field_values.get(address).expect("proved address") {
+                        Type::Slice { element } | Type::Array { element, .. }
+                            if scalar(element) =>
+                        {
+                            element.as_ref()
+                        }
+                        _ => return Err(bad("dyn index does not select an actual finite element")),
+                    };
+                    let Type::Address {
+                        mutable: source_mutable,
+                        ..
+                    } = value(f, *address, budget)?
+                    else {
+                        return Err(bad("dyn index source is not an actual address"));
+                    };
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn index lacks result"))?;
+                    if !matches!(value(f, output, budget)?, Type::Address { mutable, inner }
+                        if mutable == source_mutable && inner.as_ref() == element)
+                    {
+                        return Err(bad("dyn index changes actual element type or permission"));
+                    }
+                    budget.type_work(element, true, WORK)?;
+                    field_values.insert(output, element.clone());
+                }
+                InstructionKind::SliceLength { address } if field_values.contains_key(address) => {
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn slice length lacks result"))?;
+                    if !matches!(field_values.get(address), Some(Type::Slice { .. }))
+                        || value(f, output, budget)? != &Type::I64
+                    {
+                        return Err(bad("dyn length does not read actual slice metadata"));
+                    }
+                    value_results.insert(output);
+                }
+                InstructionKind::ConvertInteger {
+                    value: source,
+                    target,
+                } if panic => {
+                    if !value_results.contains(source)
+                        || !value(f, *source, budget)?.is_integer()
+                        || !target.is_integer()
+                    {
+                        return Err(bad("dyn checked conversion has unproved integer endpoints"));
+                    }
+                    let output = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn conversion lacks result"))?;
+                    if value(f, output, budget)? != target {
+                        return Err(bad("dyn conversion changes its actual target type"));
+                    }
+                    value_results.insert(output);
                 }
                 InstructionKind::ReadAddress { address } if field_values.contains_key(address) => {
                     let result = instruction
