@@ -5915,7 +5915,12 @@ fn check_with_mask(
         && !b.task_sources()
         && owned_byte_views::profile(module, b)?;
     if mask.is_none() || b.masked_stored_tasks() {
-        if !mixed_package && !b.task_sources() && !b.masked_stored_tasks() && !owned_byte_profile && !closed_dyn_profile {
+        if !mixed_package
+            && !b.task_sources()
+            && !b.masked_stored_tasks()
+            && !owned_byte_profile
+            && !closed_dyn_profile
+        {
             super::stored_owned::module(module, b)?;
         }
         if !b.returned_environment_sources {
