@@ -51,6 +51,13 @@ fn run(module: &TypedModule, plan: &CandidatePlan, limit: usize) -> Check<()> {
     complete.module_fingerprint = module.fingerprint();
     crate::verify_module(module.clone(), complete, &module.target, &limits)
         .map_err(|errors| errors.into_iter().next().unwrap())?;
+    component(module, plan, limit)
+}
+fn component(module: &TypedModule, plan: &CandidatePlan, limit: usize) -> Check<()> {
+    let limits = Limits {
+        max_analysis_steps: limit,
+        ..Limits::default()
+    };
     let mut budget = Budget::new(&limits);
     budget.function_count = module.functions.len();
     budget.replacements = true;
@@ -148,5 +155,151 @@ fn actual_mutable_endpoint_and_complete_rhs_settle_exact_reservation_raw_wire() 
                 "{attack}: {error:?}"
             );
         }
+    }
+}
+
+#[test]
+fn old_head_child_and_weak_description_do_not_survive_commit_raw_wire() {
+    let (module, plan) = request();
+    for weak in [false, true] {
+        let mut changed = module.clone();
+        let mut claim = plan.clone();
+        let f = &mut changed.functions[0];
+        let owner = f.locals[1].ty.clone();
+        let Type::Managed(payload) = &owner else {
+            panic!()
+        };
+        let payload = payload.clone();
+        f.values.extend([
+            Type::Address {
+                mutable: true,
+                inner: Box::new(owner.clone()),
+            },
+            Type::Address {
+                mutable: false,
+                inner: Box::new(owner),
+            },
+            Type::Desc(payload),
+            Type::I32,
+        ]);
+        let op = crate::place_replacements::fixture::instruction;
+        f.blocks[0].instructions.insert(
+            2,
+            op(
+                Some(ValueId(2)),
+                InstructionKind::AddressField {
+                    address: ValueId(0),
+                    index: 0,
+                },
+            ),
+        );
+        f.blocks[0].instructions.insert(
+            3,
+            op(
+                Some(ValueId(3)),
+                InstructionKind::ReborrowAddress {
+                    address: ValueId(2),
+                    mutable: false,
+                },
+            ),
+        );
+        let commit = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            if weak { commit } else { commit + 1 },
+            op(
+                Some(ValueId(4)),
+                InstructionKind::DescribeAddress {
+                    address: ValueId(3),
+                },
+            ),
+        );
+        let after = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+            .unwrap()
+            + 1;
+        let read_at = if weak { after } else { after + 1 };
+        f.blocks[0].instructions.insert(
+            read_at,
+            op(
+                Some(ValueId(5)),
+                InstructionKind::ReadDesc {
+                    desc: ValueId(4),
+                    index: 0,
+                },
+            ),
+        );
+        claim.functions[0].holds.extend([
+            ValueHold {
+                value: ValueId(2),
+                roots: vec![HoldRoot::Parameter(0)],
+            },
+            ValueHold {
+                value: ValueId(3),
+                roots: vec![HoldRoot::Parameter(0)],
+            },
+            ValueHold {
+                value: ValueId(4),
+                roots: vec![HoldRoot::Parameter(0)],
+            },
+            ValueHold {
+                value: ValueId(5),
+                roots: vec![],
+            },
+        ]);
+        for result in both(&changed, &claim) {
+            let error = result.unwrap_err();
+            eprintln!("replacement weak={weak}: {error:?}");
+            assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
+            assert!(
+                error.message.contains("retir")
+                    || error.message.contains("overlap")
+                    || error.message.contains("loan")
+                    || error.message.contains("borrow"),
+                "{error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn prepared_actual_sources_have_exact_fresh_component_budgets_raw_wire() {
+    let (module, mut plan) = request();
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    let (decoded, transported) =
+        zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+    for (name, module, plan) in [
+        ("raw", &module, &plan),
+        ("decoded Wire", &decoded, &transported),
+    ] {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        component(module, plan, high).unwrap();
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match component(module, plan, mid) {
+                Ok(()) => high = mid,
+                Err(error) => {
+                    assert_eq!(
+                        error.category,
+                        zil_base::ResultCategory::ResourceLimit,
+                        "{error:?}"
+                    );
+                    low = mid;
+                }
+            }
+        }
+        component(module, plan, high).unwrap();
+        assert_eq!(
+            component(module, plan, high - 1).unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        component(module, plan, high).unwrap();
+        eprintln!("V replacement mixed component {name} N={high}, N-1/fresh checked");
     }
 }
