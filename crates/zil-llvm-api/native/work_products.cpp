@@ -327,6 +327,7 @@ extern "C" void *ZilNativeProductsCreateRequest(void *M, void *TM, const void *P
   R->Stats.available = 1;
   R->Machine = createMachine(R->M, R->TM, R->Config,
       R->Prior && R->Prior->Config == R->Config ? R->Prior->Machine : nullptr, R->Stats, R->Failed);
+  if (!R->Machine) return nullptr;
   R->Hooks = {1, R.get(), beforeMachineCallback, enterPass, leavePass, beforeStage, afterStage, skippedCallback};
   R->Previous = symbols().set(&R->Hooks); return R.release();
 }
