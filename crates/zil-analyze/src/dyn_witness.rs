@@ -4,6 +4,7 @@ use crate::{bad, budget::Budget};
 use zil_base::CompileResult;
 use zil_ir::*;
 mod declarations;
+mod scopes;
 mod values;
 const WORK: &str = "dynamic original declaration witness";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
@@ -59,5 +60,22 @@ pub(super) fn receiver(
         interface.retained_life.binder_count,
         None,
         b,
-    )
+    )?;
+    let witnesses = table
+        .implementation_witnesses
+        .as_ref()
+        .ok_or_else(|| fail("complete implementation graph is Unknown"))?;
+    b.spend(witnesses.len(), WORK)?;
+    for witness in witnesses {
+        scopes::witness(module, witness, interface.retained_life.binder_count, b)?;
+    }
+    Ok(())
+}
+pub(super) fn instance(
+    module: &TypedModule,
+    function: &TypedFunction,
+    instance: &DynFunctionInstance,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    scopes::instance(module, function, instance, b)
 }

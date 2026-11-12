@@ -1910,6 +1910,7 @@ pub(super) fn preflight(
         budget.input(1, "dynamic definition instance presence")?;
         if let Some(instance) = &function.dyn_instance {
             super::dyn_metadata::recipe(instance, budget)?;
+            super::dyn_witness::instance(module, function, instance, budget)?;
             return Err(super::bad(
                 "dynamic function instance requires its complete definition proof",
             ));
