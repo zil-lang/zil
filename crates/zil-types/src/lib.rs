@@ -3665,6 +3665,32 @@ impl<'a, 'c> Builder<'a, 'c> {
                 continue;
             }
             if let Type::Managed(payload) = &stored {
+                if matches!(payload.as_ref(), Type::Task { .. })
+                    && capture.written
+                    && builder.closures.pending[id.0 as usize].callable_kind()
+                        == CallableKind::FnMut
+                {
+                    // The environment retains the original frame. Its unique
+                    // activation borrows the real owning slot; it never takes
+                    // the Task out and never refills or recreates that frame.
+                    let address = Type::Address {
+                        mutable: true,
+                        inner: Box::new(stored.clone()),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: true,
+                        },
+                        address,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, stored);
+                    continue;
+                }
                 // The hidden environment keeps the carrier. Each activation
                 // receives a descriptor into that live field, never a copy or
                 // an eager move of the carrier on a Shared/Exclusive call.

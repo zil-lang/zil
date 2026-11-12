@@ -3786,7 +3786,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     } else if matches!(
                         stored::physical(&ty),
                         Type::Package { .. } | Type::OwnedDyn { .. }
-                    ) {
+                    ) || self.move_capture
+                        && matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }))
+                    {
                         // A qualified owning Package uses the same actual
                         // capture responsibility. Borrowing its head for a
                         // helper marks mutable environment use, not Copy.
@@ -4182,7 +4184,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .checked_sub(1)
                     .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
                 let head = self.graph.fresh(VALUE, false);
-                self.graph.bind(head, &tasks::owner(), span)?;
+                let owner = if matches!(payload, Type::Task { .. }) {
+                    self.reserve_type(&payload, 0, span)?;
+                    Type::Managed(Box::new(payload))
+                } else {
+                    tasks::owner()
+                };
+                self.graph.bind(head, &owner, span)?;
                 return Ok(LocalType::Address(head, true));
             }
             if matches!(value, LocalType::Address(..)) {
