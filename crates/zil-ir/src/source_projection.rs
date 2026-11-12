@@ -588,20 +588,9 @@ fn closed(ty: &Type, fuel: &mut Fuel<'_>, depth: usize) -> Result<()> {
         };
     }
     match ty {
+        number if number.is_integer() || number.is_float() => Ok(()),
         Type::Unit
         | Type::Bool
-        | Type::I8
-        | Type::I16
-        | Type::I32
-        | Type::I64
-        | Type::Isize
-        | Type::U8
-        | Type::U16
-        | Type::U32
-        | Type::U64
-        | Type::Usize
-        | Type::F32
-        | Type::F64
         | Type::ForeignHandle
         | Type::CWideString
         | Type::ByteBuffer
