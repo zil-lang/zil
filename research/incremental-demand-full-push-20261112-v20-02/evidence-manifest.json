@@ -1,0 +1,52 @@
+{
+  "archive": {
+    "bytes": 25728253,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "b8742bd7f57c2b0c09cbe9566ce56d1a77f7cefff5a8b569206e096cf99af353"
+      },
+      {
+        "bytes": 562429,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "9de34503a24b47ddc1fe9b5cdc18ba7ce37e1435315f288c1d7f3792759c8633"
+      }
+    ],
+    "sha256": "66a58cf6ae6cead564d8831781103b230a2c4fde87c7a7d62bffb0c92dff3db1",
+    "tar_bytes": 72407040
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 72392168,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14/runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+        "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+      },
+      {
+        "bytes": 7666,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-14/runtime-blobs/213e18cf327f617054641c0eafdc6e6a1c7d213dd5d50d8ed2c7204a21fadc51.maps",
+        "sha256": "213e18cf327f617054641c0eafdc6e6a1c7d213dd5d50d8ed2c7204a21fadc51"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V20 complete failed-partial and gate checkpoint. Profile14 compiledsourcebe64d90860353d05b60c8abb399b3e1602fd9e2a/treeee5972a66a6e8baf1266d0dc307c4fba8dd2c23b/binaryf7f88850d55b4ca808e042649cd7fc53293b98f9b5d027bc8544b3f6f7d7ebf8 against main3ec. Original425/22file/CGU16/O2/jobs1 but candidate additionallylate-closed-executable+push-reuse+profile; SDK15. FAILED PARTIAL only4rows/24recordednative/controller1/alloldrowvalidFalse. Old recorded ELF/codegen identity allTrue does NOT satisfy new machine-quality zero-size-marker rule;16units report0removed. No complete34-row or270-row validator or performance acceptance claim. Entire original failedrun/source/DSO/ELF/oldtext/helper/controller evidence preserved. Frozen whole original file master is exact-disjoint-union authority; each fixed shard freshHTTPS full bytes/modes verified before master-matched local raw retirement. Gates06/07 include original Clippy16 failure101 and all successful followups/CLI5. Compiled794/be64 trees and immutable release16 separatelybound from tools/docs d6a7. SDK16/MIRheader futurecomponents are source-only/unbuilt by this checkpoint.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "documentation": "d6a7d3092db11d76e3142e12cbe5859a194789d3",
+      "failed_profile14": "be64d90860353d05b60c8abb399b3e1602fd9e2a"
+    }
+  },
+  "inventory_sha256": "882ac19f75d7aee11e9cdd0259323b291a0970f6159d201e18db585c4c69f880",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-14/runtime-blobs/200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461.dso",
+    "zil-push-main/out/runs/full-push-native-profile-14/runtime-blobs/213e18cf327f617054641c0eafdc6e6a1c7d213dd5d50d8ed2c7204a21fadc51.maps"
+  ],
+  "source_root": "/workspace"
+}
