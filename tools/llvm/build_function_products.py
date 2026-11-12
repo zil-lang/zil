@@ -37,6 +37,7 @@ def build(sdk, prefix, receipt):
     logs.mkdir()
     receipt.update({'llvm_commit': manifest['llvm_commit'], 'version': manifest['version'],
                     'patch_sha256': sha(patch), 'hook_header_sha256': sha(NATIVE / 'zil_llvm_work_products_hooks.h'),
+                    'machine_emission_header_sha256': sha(NATIVE / 'zil_llvm_machine_emission_hooks.h'),
                     'sdk_receipt_sha256': sha(sdk / 'install-receipt.json'),
                     'original_dso_sha256': installed['library']['sha256'], 'commands': []})
 
@@ -153,6 +154,10 @@ def build(sdk, prefix, receipt):
     loaded.ZilLLVMGetFunctionProductHooks.restype = ctypes.c_void_p
     if loaded.ZilLLVMGetFunctionProductHooks() is not None:
         raise ValueError('extension unexpectedly enabled without an explicit client')
+    loaded.ZilLLVMGetMachineEmissionHooksV1.argtypes = []
+    loaded.ZilLLVMGetMachineEmissionHooksV1.restype = ctypes.c_void_p
+    if loaded.ZilLLVMGetMachineEmissionHooksV1() is not None:
+        raise ValueError('machine emission extension unexpectedly enabled without an explicit owner')
     dependencies = run('dependencies', ['ldd', output])
     if 'not found' in dependencies:
         raise ValueError('replacement DSO has missing dependencies')

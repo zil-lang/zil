@@ -1,7 +1,7 @@
 {
   "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
   "version": "23.1.4",
-  "patch_sha256": "4e84d4a60b07fb2dd6cfd05cb907638fccd6076b5e01fa987d6bfea90e81e0b1",
+  "patch_sha256": "2f17d81f7d816793740bb0de584525d55f1332879016f1de2c769a8eb53c64f9",
   "original_files": {
     "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
     "llvm/include/llvm/IR/PassManagerImpl.h": "97aa3e5d2b85a5a2cc8b36b559f6c748f3eb0a65e77cfd89488c116f25277527",
@@ -25,7 +25,25 @@
     "llvm/include/llvm/IR/ValueSymbolTable.h": "a358a117bf6b27da4ba486b33cc6ee3d12e00eec437b1e4f9f56fbf15a0c2d8f",
     "llvm/lib/IR/AsmWriter.cpp": "8dd401fc99373558367e84a7afb07ab884d0e32a24b7221d595747328da7650c",
     "llvm/include/llvm/IR/TypeFinder.h": "f38fd4918bf059fa7094dadbeac10c0626ec422be9e77883217faf6e36c50bff",
-    "llvm/lib/CodeGen/MIRPrinter.cpp": "5842607bf0cbe54e90f79ee5677a8e1be0486f1aeb5491516b3aacdd902556c9"
+    "llvm/lib/CodeGen/MIRPrinter.cpp": "5842607bf0cbe54e90f79ee5677a8e1be0486f1aeb5491516b3aacdd902556c9",
+    "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp": "708823dcb12c6e2b9a6c3fc8fa1a18c96278bcc435167800d91435d4e48d16e0",
+    "llvm/lib/MC/MCObjectStreamer.cpp": "7bc92d35da705efcdb7c2e228b65a69ba248fbc663dc69f1187bfef7edcc343b",
+    "llvm/lib/CodeGen/AsmPrinter/CodeViewDebug.h": "7e41b2c788b44b24e98fd047c1499acca0b408f3d6ddf604ce4ea26636386031",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfDebug.h": "24db55e0ba97214b08ee54d4f6ec2af7773f4b2c781c321339ae58091b05acf7",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfException.h": "7b77f76f31f12dbfcb756a8e7ce60a86fc181edfe9d101c51f68b29445c4b9b3",
+    "llvm/lib/CodeGen/AsmPrinter/PseudoProbePrinter.h": "d57fd5a7f7a18ee16767a2cb2bb82d62a05b7c580c395f98b268acf29b87f920",
+    "llvm/lib/CodeGen/AsmPrinter/WasmException.h": "4c978c980de2ebdd6de1f18df97ae0be981757df6f1c3dd35d7e30d293de94fd",
+    "llvm/lib/CodeGen/AsmPrinter/WinCFGuard.h": "cea436a03d06d2e1f36fc60f4ddfb8ccccb49993489ae16191f2c0cf0c6af78e",
+    "llvm/lib/CodeGen/AsmPrinter/WinException.h": "5c1c99a5ed1ab753271dcf8aab4a65440977ecbd3b1680f89603f23c90701292",
+    "llvm/lib/CodeGen/AsmPrinter/AddressPool.h": "aa4dbfd909b555ca85191b81bb486f9407e2ce85cca0daa6bff1664acd2830d2",
+    "llvm/lib/CodeGen/AsmPrinter/DebugLocEntry.h": "4460eec07cae01dc408ad534d0ba234af4ce301e5ec4a2a410933754f7ddbd79",
+    "llvm/lib/CodeGen/AsmPrinter/DebugLocStream.h": "2d79ee31e2a5c231a345078492c7e373e310a1be7dee05f235067197a30385f6",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfFile.h": "c540c3d5204531cece65d36c3aaa56150a32f80c17feeaf8cd162e524af33695",
+    "llvm/lib/CodeGen/AsmPrinter/EHStreamer.h": "6193f58943669a0982d72c59c4a0ad76fd4304fab593dee01521728803e42cea",
+    "llvm/lib/CodeGen/AsmPrinter/ByteStreamer.h": "22e3748e692987ef4e4a85a1434a37916f6b2d0c046cf36925827b60e09dbf02",
+    "llvm/lib/CodeGen/AsmPrinter/DwarfStringPool.h": "1849aba16c8e36f46d20a7350346592089b826171459bf0188d4a44b548f2638",
+    "llvm/lib/CodeGen/AsmPrinter/DIEHash.h": "b0fbee45c95c1aeda1bead0dc166f762de9794ca0592ff9783c7e925a14620f0",
+    "llvm/lib/CodeGen/AsmPrinter/DIEHashAttributes.def": "d1847979d98058cc4f7cb5032134f41d833299f28c149a4dc179250b7a21365e"
   },
   "compile_units": [
     {
@@ -84,6 +102,26 @@
       "include_dirs": [
         "llvm/include"
       ]
+    },
+    {
+      "source": "llvm/lib/CodeGen/AsmPrinter/AsmPrinter.cpp",
+      "archive": "libLLVMAsmPrinter.a",
+      "member": "AsmPrinter.cpp.o",
+      "include_dirs": [
+        "llvm/include",
+        "llvm/lib/CodeGen/AsmPrinter",
+        "zil-native-private"
+      ]
+    },
+    {
+      "source": "llvm/lib/MC/MCObjectStreamer.cpp",
+      "archive": "libLLVMMC.a",
+      "member": "MCObjectStreamer.cpp.o",
+      "include_dirs": [
+        "llvm/include",
+        "llvm/lib/CodeGen/AsmPrinter",
+        "zil-native-private"
+      ]
     }
   ],
   "header_overlays": [
@@ -105,7 +143,7 @@
     "llvm/include/llvm/IR/TypeFinder.h"
   ],
   "private_header": "zil_llvm_work_products_hooks.h",
-  "default_behavior": "No installed thread-local ABI 2 hook: original pass objects, order and invalidation. Every earlier experimental ABI layout is rejected before reading callbacks. AsmPrinter/streamer remain original. Explicit native_products=false by default.",
+  "default_behavior": "No current ABI2 owner plus matching independent V1 hook: original passes and complete AsmPrinter emission. Explicit native_products remains disabled by default. Admitted V1 replays only verified, provider-bound per-block MC inputs; all function/block boundaries, original CFI and current assembler remain.",
   "patch_context_lines": 0,
   "apply_options": [
     "--unidiff-zero"
@@ -130,6 +168,12 @@
   },
   "additional_component_provenance": "Installed official LLVM 23.1.4 SDK component; explicit current archive hashes. Original SDK archive pinned efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378; additional component is linked into the same DSO, never a second LLVM runtime.",
   "required_exports": [
-    "ZilLLVMPrintMachineProductHeaderV1"
+    "ZilLLVMPrintMachineProductHeaderV1",
+    "ZilLLVMSetMachineEmissionHooksV1",
+    "ZilLLVMGetMachineEmissionHooksV1",
+    "ZilLLVMX86MachineEmissionStateV1",
+    "ZilLLVMEmitAndCountX86InstructionV1",
+    "ZilLLVMPeekMachineBlockSymbolV1",
+    "ZilLLVMReadOnlyMachineEmissionProviderV1"
   ]
 }

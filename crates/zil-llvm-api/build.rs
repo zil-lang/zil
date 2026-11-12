@@ -85,6 +85,7 @@ fn build_native_products(out: &std::path::Path) {
     for source in [
         "work_products",
         "machine_products",
+        "machine_emission_products",
         "analysis_facts",
         "packed_stage",
     ] {
@@ -114,6 +115,8 @@ fn build_native_products(out: &std::path::Path) {
     for header in [
         "work_products.h",
         "machine_products.h",
+        "machine_emission_products.h",
+        "zil_llvm_machine_emission_hooks.h",
         "machine_frame_products.h",
         "analysis_facts.h",
         "packed_stage.h",
