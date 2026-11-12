@@ -1,0 +1,54 @@
+{
+  "archive": {
+    "bytes": 74847,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 74847,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "9ce62a87d1e67d5de56af3ef1630c01de968d644d53137301a50cecda07cbb3f"
+      }
+    ],
+    "sha256": "9ce62a87d1e67d5de56af3ef1630c01de968d644d53137301a50cecda07cbb3f",
+    "tar_bytes": 13864960
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 7764,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/06d631198b5907c167303b8455f4a00f56ad9ba63c63a869cd780188ba3ba866.maps",
+        "sha256": "06d631198b5907c167303b8455f4a00f56ad9ba63c63a869cd780188ba3ba866"
+      },
+      {
+        "bytes": 7764,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/158b9e31b98d7ad5a1ff0be83ae57f30f4c5e60d02e3b23dc6b08c947a531723.maps",
+        "sha256": "158b9e31b98d7ad5a1ff0be83ae57f30f4c5e60d02e3b23dc6b08c947a531723"
+      },
+      {
+        "bytes": 13834951,
+        "mode": 384,
+        "path": "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/eadf76635c1486e1e0cb2a83ad614ace15931aca866bb0c60cb3dc6c056e7b36.ll",
+        "sha256": "eadf76635c1486e1e0cb2a83ad614ace15931aca866bb0c60cb3dc6c056e7b36"
+      }
+    ],
+    "main_commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "schema": 1,
+    "scope": "V16 complete original diagnostic profiles10/11/12 storage shard. Profile10 source25c8607ab77584e423605793bbcb553ff8099330; profiles11/12 source328eb392d8d88148a75a743d899b43aebae73587. Each has34rows/18measured16parents/180 recorded native outcomes/15 successful full-recorded-ELF and strict LLVM pairs/2 safe-error pairs; independent current qualifier passed. Profile11 controller completion unknown after reconnect; timing/performance attribution excluded. Candidate profiled, baseline3ec7 unprofiled; no Rust/older-candidate timing comparison. Whole master1480files/1246722829B SHA491b43d4fac24e1affef1f69eb5894d0055ef68ee01de96be5abfac4dced1038 is union authority. Fixed-commit freshHTTPS hashes/modes verified per shard, no wholefresh native rerun claimed.",
+    "source_commits": {
+      "baseline": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+      "profile10": "25c8607ab77584e423605793bbcb553ff8099330",
+      "profile11_and_12": "328eb392d8d88148a75a743d899b43aebae73587"
+    }
+  },
+  "inventory_sha256": "e4bbbf6cf6578c9482510f90313f8df52b48f0c4d9a0be85f33c82cf15aaa675",
+  "schema": 1,
+  "selectors": [
+    "zil-push-main/out/runs/full-push-native-profile-12/llvm-inputs/eadf76635c1486e1e0cb2a83ad614ace15931aca866bb0c60cb3dc6c056e7b36.ll",
+    "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/06d631198b5907c167303b8455f4a00f56ad9ba63c63a869cd780188ba3ba866.maps",
+    "zil-push-main/out/runs/full-push-native-profile-10/runtime-blobs/158b9e31b98d7ad5a1ff0be83ae57f30f4c5e60d02e3b23dc6b08c947a531723.maps"
+  ],
+  "source_root": "/workspace"
+}
