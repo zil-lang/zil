@@ -13,12 +13,14 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/Support/raw_ostream.h"
 #include <dlfcn.h>
 namespace zil {
 bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
-                   const std::vector<const void *> &Keys, std::string &Out, AnalysisReplayState *ReplayState) {
+                   const std::vector<const void *> &Keys, std::string &Out, AnalysisReplayState *ReplayState, AnalysisFactsMemo *Memo) {
   using namespace llvm;
   Out.clear();
   if (ReplayState) *ReplayState = {};
@@ -56,19 +58,71 @@ bool analysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
       if (!Count || Count > 4096) return false;
       std::vector<uint64_t> Words(Count);
       if (GetOverrides(&AM, &F, Words.data(), Words.size()) != Count) return false;
-      OS << "target-library-overrides:";
-      for (uint64_t W : Words) OS << W << ':';
-      OS << '\n';
-      OS << "target-library:" << TLI->getIntSize() << ':'
-         << TLI->getExtAttrForI32Param(false) << ':' << TLI->getExtAttrForI32Param(true)
-         << ':' << TLI->getExtAttrForI32Return(false) << ':' << TLI->getExtAttrForI32Return(true) << '\n';
-      // Bind per-function overrides as well as target implementation names.
-      // Vector-library calls are outside the admitted intrinsic-only domain.
-      for (unsigned I = 0; I != static_cast<unsigned>(NumLibFuncs); ++I) {
-        auto LF = static_cast<LibFunc>(I); StringRef Name = TLI->getName(LF);
-        OS << TLI->has(LF) << ':' << Name.size() << ':' << Name << ';';
+      // At pinned 7a941dfb, a TLI result has exactly const Impl* and the
+      // mutable OverrideAsUnavailable bitset. The default registered TLA owns
+      // an optional BaselineInfoImpl initialized once by run(); later runs do
+      // not mutate it. A narrow SDK getter checks the actual registered typed
+      // factory and exact cached Result.Impl association, or declines. A TLI
+      // result pointer is NOT a basis: AM.clear destroys/reuses its storage.
+      using BasisQuery = const void *(*)(void *, void *);
+      static auto GetBasis = reinterpret_cast<BasisQuery>(
+          dlsym(RTLD_DEFAULT, "ZilLLVMTargetLibraryImmutableBasis"));
+      const void *Basis = Memo && GetBasis ? GetBasis(&AM, &F) : nullptr;
+      // Query the complete current override bitset and these scalar fields on
+      // EVERY call. Function no-builtins/no-builtin-* attrs affect the result
+      // through that bitset; direct setUnavailable/disableAllFunctions do too.
+      // The enclosing unchanged function/world projections remain independent.
+      const std::array<uint64_t, 5> Scalars = {
+          TLI->getIntSize(), TLI->getExtAttrForI32Param(false),
+          TLI->getExtAttrForI32Param(true), TLI->getExtAttrForI32Return(false),
+          TLI->getExtAttrForI32Return(true)};
+      if (Memo && Basis) {
+        if (Memo->Manager != &AM) { Memo->clear(); Memo->Manager = &AM; }
+        const std::string *Cached = nullptr;
+        for (const auto &Entry : Memo->TargetLibraries)
+          if (Entry.Basis == Basis && Entry.OverrideWords == Words &&
+              Entry.ScalarQueries == Scalars) { Cached = &Entry.Facts; break; }
+        if (Cached) {
+          ++Memo->TargetLibraryReuses;
+          OS << *Cached;
+          continue;
+        }
       }
-      OS << '\n';
+      auto Project = [&](raw_ostream &Stream) {
+        Stream << "target-library-overrides:";
+        for (uint64_t W : Words) Stream << W << ':';
+        Stream << '\n';
+        Stream << "target-library:" << Scalars[0] << ':' << Scalars[1] << ':'
+               << Scalars[2] << ':' << Scalars[3] << ':' << Scalars[4] << '\n';
+        // Preserve the original complete query sequence and exact bytes.
+        // Vector-library queries stay outside the existing intrinsic-only
+        // domain; this memo adds no newly admitted analysis or result fields.
+        for (unsigned I = 0; I != static_cast<unsigned>(NumLibFuncs); ++I) {
+          auto LF = static_cast<LibFunc>(I); StringRef Name = TLI->getName(LF);
+          Stream << TLI->has(LF) << ':' << Name.size() << ':' << Name << ';';
+        }
+        Stream << '\n';
+      };
+      if (Memo) ++Memo->TargetLibraryProjections;
+      if (!Memo || !Basis) {
+        // Missing SDK getter, an unknown factory/result association or an old
+        // SDK always executes the original full current projection.
+        Project(OS);
+      } else {
+        std::string Facts; raw_string_ostream FactsOS(Facts); Project(FactsOS);
+        OS << Facts;
+        // Optional Request scratch has explicit entry/payload bounds. At a cap
+        // only memo admission stops; original facts/quality checks still run.
+        constexpr size_t MaxEntries = 32, MaxBytes = 4 * 1024 * 1024;
+        size_t Bytes = sizeof(AnalysisFactsMemo::TargetLibraryEntry) +
+                       Words.size() * sizeof(uint64_t);
+        if (Memo->TargetLibraries.size() < MaxEntries && Bytes <= MaxBytes &&
+            Facts.size() <= MaxBytes - Bytes &&
+            Memo->RetainedBytes <= MaxBytes - Bytes - Facts.size()) {
+          Memo->RetainedBytes += Bytes + Facts.size();
+          Memo->TargetLibraries.push_back({Basis, std::move(Words), Scalars, std::move(Facts)});
+        }
+      }
     } else if (K == DominatorTreeAnalysis::ID()) {
       auto *DT = AM.getCachedResult<DominatorTreeAnalysis>(F);
       if (!DT) return false;
@@ -167,4 +221,105 @@ bool restoreAnalysisFacts(llvm::Function &F, llvm::FunctionAnalysisManager &AM, 
   }
   return true;
 }
+}
+
+// A semantic counterexample entry for the native test harness. It compares
+// every memo result with the original full current projection; a missing SDK
+// recipe getter is reported distinctly rather than a vacuous test success.
+extern "C" int ZilNativeAnalysisFactsTLIMemoCounterexample() {
+  using namespace llvm;
+  using BasisQuery = const void *(*)(void *, void *);
+  auto GetBasis = reinterpret_cast<BasisQuery>(
+      dlsym(RTLD_DEFAULT, "ZilLLVMTargetLibraryImmutableBasis"));
+  if (!GetBasis) return -1;
+  LLVMContext Context;
+  Module M("tli-current-request-memo", Context);
+  M.setTargetTriple(Triple("x86_64-unknown-linux-gnu"));
+  auto NewFunction = [&](StringRef Name) {
+    auto *F = Function::Create(FunctionType::get(Type::getVoidTy(Context), false),
+                              GlobalValue::ExternalLinkage, Name, &M);
+    IRBuilder<> Builder(BasicBlock::Create(Context, "entry", F));
+    Builder.CreateRetVoid();
+    return F;
+  };
+  auto *F = NewFunction("f"); auto *G = NewFunction("g");
+  FunctionAnalysisManager AM;
+  AM.registerPass([] { return PassInstrumentationAnalysis(); });
+  AM.registerPass([] { return TargetLibraryAnalysis(); });
+  AM.getResult<TargetLibraryAnalysis>(*F);
+  AM.getResult<TargetLibraryAnalysis>(*G);
+  zil::AnalysisFactsMemo Memo;
+  const std::vector<const void *> Keys{TargetLibraryAnalysis::ID()};
+  auto Check = [&](Function &Fn, FunctionAnalysisManager &Manager,
+                   zil::AnalysisFactsMemo &Scratch, std::string &Facts) {
+    std::string Full;
+    return zil::analysisFacts(Fn, Manager, Keys, Full) &&
+           zil::analysisFacts(Fn, Manager, Keys, Facts, nullptr, &Scratch) &&
+           Full == Facts;
+  };
+  std::string Original, Current;
+  const void *Basis = GetBasis(&AM, F);
+  if (!Basis || !Check(*F, AM, Memo, Original) ||
+      !Check(*G, AM, Memo, Current) || Original != Current ||
+      Memo.targetLibraryProjections() != 1 || Memo.targetLibraryReuses() != 1)
+    return 0;
+  // The result object stays put, but a pass can mutate its complete overrides.
+  AM.getResult<TargetLibraryAnalysis>(*F).setUnavailable(LibFunc_malloc);
+  if (!Check(*F, AM, Memo, Current) || Current == Original ||
+      Memo.targetLibraryProjections() != 2) return 0;
+  F->addFnAttr("no-builtins");
+  AM.clear(*F, F->getName());
+  AM.getResult<TargetLibraryAnalysis>(*F);
+  if (GetBasis(&AM, F) != Basis || !Check(*F, AM, Memo, Current) ||
+      Memo.targetLibraryProjections() != 3) return 0;
+  // AM.clear may recycle result addresses. Only the surviving factory basis
+  // plus the newly queried complete override key can license reuse.
+  F->removeFnAttr("no-builtins"); F->addFnAttr("no-builtin-malloc");
+  AM.clear(*F, F->getName()); AM.getResult<TargetLibraryAnalysis>(*F);
+  if (!Check(*F, AM, Memo, Current) || Memo.targetLibraryProjections() != 3 ||
+      Memo.targetLibraryReuses() != 2) return 0;
+  F->removeFnAttr("no-builtin-malloc");
+  AM.clear(*F, F->getName()); AM.getResult<TargetLibraryAnalysis>(*F);
+  if (!Check(*F, AM, Memo, Current) || Current != Original ||
+      Memo.targetLibraryReuses() != 3) return 0;
+  // This is mandatory at a new LLVMRunPasses boundary, even when a new FAM
+  // could occupy exactly the old address. No result/basis token crosses it.
+  Memo.clear();
+  if (Memo.retainedBytes() || !Check(*F, AM, Memo, Current) ||
+      Memo.targetLibraryProjections() != 4) return 0;
+
+  TargetLibraryInfoImpl Baseline(Triple("x86_64-unknown-linux-gnu"));
+  Baseline.setAvailableWithName(LibFunc_malloc, "custom-malloc");
+  FunctionAnalysisManager OtherAM;
+  OtherAM.registerPass([] { return PassInstrumentationAnalysis(); });
+  OtherAM.registerPass([&] { return TargetLibraryAnalysis(Baseline); });
+  OtherAM.getResult<TargetLibraryAnalysis>(*F);
+  if (GetBasis(&OtherAM, F) == Basis || !Check(*F, OtherAM, Memo, Current) ||
+      Current == Original || Memo.targetLibraryProjections() != 5) return 0;
+  // A const result pointer alone does not prove its externally supplied Impl
+  // immutable. The SDK recipe must decline this non-factory association.
+  TargetLibraryInfoImpl Foreign(Triple("x86_64-unknown-linux-gnu"));
+  auto &Info = OtherAM.getResult<TargetLibraryAnalysis>(*F);
+  Info = TargetLibraryInfo(Foreign, F);
+  if (GetBasis(&OtherAM, F) || !Check(*F, OtherAM, Memo, Current) ||
+      Memo.targetLibraryProjections() != 6) return 0;
+  const std::string Before = Current;
+  Foreign.setAvailableWithName(LibFunc_malloc, "changed-foreign-malloc");
+  if (!Check(*F, OtherAM, Memo, Current) || Current == Before ||
+      Memo.targetLibraryProjections() != 7) return 0;
+
+  // Bound even a request with many successful dynamic override combinations.
+  // At the cap every uncached combination still gets the original full facts.
+  OtherAM.clear(*F, F->getName());
+  auto &BoundedInfo = OtherAM.getResult<TargetLibraryAnalysis>(*F);
+  zil::AnalysisFactsMemo Bounded;
+  for (unsigned I = 0; I != 40; ++I) {
+    BoundedInfo.setUnavailable(static_cast<LibFunc>(I));
+    if (!Check(*F, OtherAM, Bounded, Current)) return 0;
+  }
+  const auto Projections = Bounded.targetLibraryProjections();
+  if (!Bounded.retainedBytes() || Bounded.retainedBytes() > 4 * 1024 * 1024 ||
+      !Check(*F, OtherAM, Bounded, Current) ||
+      Bounded.targetLibraryProjections() != Projections + 1) return 0;
+  return 1;
 }
