@@ -77,6 +77,9 @@ fn exercise(source: &str) {
     assert_eq!(cold_work.machine_function_executions, 2);
     assert_eq!(cold_work.machine_function_reuses, 0);
     assert!(cold_work.mir_snapshot_bytes > 0);
+    if source.contains(" uwtable {") {
+        assert_nonempty_unwind_section(&cold.bytes);
+    }
     assert_eq!(cold.bytes, ordinary(source).bytes);
     let (warm, _, warm_work) = products(source, Some(&prior));
     assert_eq!(warm_work.machine_function_reuses, 2);
@@ -100,6 +103,36 @@ fn exercise(source: &str) {
     assert_eq!(changed_warm_work.machine_function_reuses, 2);
     assert_eq!(changed_warm_work.machine_function_executions, 0);
     assert_eq!(changed_warm.bytes, changed.bytes);
+}
+
+fn assert_nonempty_unwind_section(object: &[u8]) {
+    // The fixture's explicit target is ELF64 little-endian. Inspect the actual
+    // section table rather than accepting a CFI instruction counter alone.
+    assert_eq!(&object[..6], b"\x7fELF\x02\x01");
+    let u16_at = |offset| u16::from_le_bytes(object[offset..offset + 2].try_into().unwrap());
+    let u64_at = |offset| u64::from_le_bytes(object[offset..offset + 8].try_into().unwrap());
+    let table = usize::try_from(u64_at(40)).unwrap();
+    let stride = usize::from(u16_at(58));
+    let count = usize::from(u16_at(60));
+    let names_index = usize::from(u16_at(62));
+    assert!(stride >= 64 && names_index < count && count > 0);
+    let names_header = table + names_index * stride;
+    let names_start = usize::try_from(u64_at(names_header + 24)).unwrap();
+    let names_size = usize::try_from(u64_at(names_header + 32)).unwrap();
+    let names = &object[names_start..names_start + names_size];
+    let found = (0..count).any(|index| {
+        let header = table + index * stride;
+        let name_offset = usize::try_from(u32::from_le_bytes(
+            object[header..header + 4].try_into().unwrap(),
+        ))
+        .unwrap();
+        let name = &names[name_offset..];
+        name.starts_with(b".eh_frame\0") && u64_at(header + 32) > 0
+    });
+    assert!(
+        found,
+        "requested CFI must produce a nonempty .eh_frame section"
+    );
 }
 
 #[test]
