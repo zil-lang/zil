@@ -18,7 +18,7 @@ pub(super) fn interface<'a>(
         .find(|item| item.id == id)
         .ok_or_else(|| bad("port carrier interface is absent"))
 }
-pub(super) fn physical_field<'a>(ty: &'a Type, p: PlaceProjection) -> Check<&'a Type> {
+pub(super) fn physical_field(ty: &Type, p: PlaceProjection) -> Check<&Type> {
     let ty = if let Type::BorrowedStorage { storage, .. } = ty {
         storage.as_ref()
     } else {
