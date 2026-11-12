@@ -308,7 +308,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
         {
             return Err(bad(
-                "trait declaration cannot claim implementation recipes",
+                "trait declaration cannot claim an implementation recipe",
                 None,
             ));
         }
@@ -556,6 +556,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 None,
             ));
         }
+        crate::dynamic_patterns::provider(module, item, implementation, iface, budget)?;
         if item.owned_storage == Some(DynOwnedStorage::Heap) {
             let bound = crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
             crate::dynamic_cleanup::prove(module, &item.self_type, bound, budget)?;

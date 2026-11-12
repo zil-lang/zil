@@ -1272,19 +1272,18 @@ fn check_with(
                         }
                     }
                     InstructionKind::TakeVariantField { local, path } if b.dyn_contexts => {
-                        if let (Some(out), [step]) = (out, path.as_slice()) {
-                            if matches!(step, PlaceProjection::ErrorArm(_))
-                                && !out.classes.is_empty()
-                            {
-                                link_projection(
-                                    &f.locals[local.0 as usize].ty,
-                                    &locals[local.0 as usize],
-                                    out,
-                                    LifeTypeProjection::Place(*step),
-                                    &mut e,
-                                    b,
-                                )?;
-                            }
+                        if let (Some(out), [step]) = (out, path.as_slice())
+                            && matches!(step, PlaceProjection::ErrorArm(_))
+                            && !out.classes.is_empty()
+                        {
+                            link_projection(
+                                &f.locals[local.0 as usize].ty,
+                                &locals[local.0 as usize],
+                                out,
+                                LifeTypeProjection::Place(*step),
+                                &mut e,
+                                b,
+                            )?;
                         }
                     }
                     InstructionKind::TaskCreate {

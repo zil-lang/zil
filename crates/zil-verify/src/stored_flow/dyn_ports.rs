@@ -275,6 +275,7 @@ pub(super) fn seed(
     }
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
 pub(super) fn call(
     module: &TypedModule,
     f: &TypedFunction,
@@ -355,6 +356,7 @@ pub(super) fn call(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn select_actual(
     module: &TypedModule,
     f: &TypedFunction,

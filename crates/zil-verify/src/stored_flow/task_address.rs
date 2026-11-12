@@ -167,6 +167,7 @@ pub(super) fn select(
         Ok(Permission::default())
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub(super) fn call(
     module: &TypedModule,
     f: &TypedFunction,
