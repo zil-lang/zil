@@ -269,3 +269,109 @@ fn raw_return_bridge_matches_the_actual_owner_scope_and_all_original_input_occur
         );
     }
 }
+
+#[test]
+fn returned_exclusive_capability_requires_take_once_and_an_affine_environment() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let module = zil_types::check(&raw_return_bridge(), &target, &limits).unwrap();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let entry = module.closures[0].function.0 as usize;
+    let main = module
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let factory = module
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    for attack in 0..5 {
+        let mut bad = module.clone();
+        match attack {
+            0 => {
+                let instruction = bad.functions[entry]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::TakeCapture { .. }))
+                    .unwrap();
+                let InstructionKind::TakeCapture { index } = instruction.kind else {
+                    unreachable!()
+                };
+                instruction.kind = InstructionKind::ReadCapture { index };
+            }
+            1 => {
+                let function = &mut bad.functions[entry];
+                let block = function
+                    .blocks
+                    .iter_mut()
+                    .find(|b| {
+                        b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, InstructionKind::TakeCapture { .. }))
+                    })
+                    .unwrap();
+                let index = block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::TakeCapture { .. }))
+                    .unwrap();
+                let mut second = block.instructions[index].clone();
+                let ty = function.values[second.result.unwrap().0 as usize].clone();
+                second.result = Some(ValueId(u32::try_from(function.values.len()).unwrap()));
+                function.values.push(ty);
+                block.instructions.insert(index + 1, second);
+            }
+            2 => {
+                let function = &mut bad.functions[main];
+                let instruction=function.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::TakeLocal{local}if matches!(function.locals[local.0 as usize].ty,Type::Closure(_)))).unwrap();
+                let InstructionKind::TakeLocal { local } = instruction.kind else {
+                    unreachable!()
+                };
+                instruction.kind = InstructionKind::Load(local);
+            }
+            3 => {
+                let function = &mut bad.functions[main];
+                let block = function
+                    .blocks
+                    .iter_mut()
+                    .find(|b| {
+                        b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                    })
+                    .unwrap();
+                let index = block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                    .unwrap();
+                let mut second = block.instructions[index].clone();
+                let ty = function.values[second.result.unwrap().0 as usize].clone();
+                second.result = Some(ValueId(u32::try_from(function.values.len()).unwrap()));
+                function.values.push(ty);
+                block.instructions.insert(index + 1, second);
+            }
+            _ => bad.functions[factory]
+                .callable_return_contract
+                .as_mut()
+                .unwrap()
+                .cleanup
+                .push(0),
+        }
+        assert!(
+            zil_analyze::analyze(&bad, &limits).is_err(),
+            "attack {attack}"
+        );
+        let mut dishonest = candidate.clone();
+        dishonest.module_fingerprint = bad.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &dishonest, &limits).unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &limits).is_err(),
+            "wire attack {attack}"
+        );
+    }
+}
