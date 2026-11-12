@@ -112,14 +112,14 @@ impl Catalog {
         for (ordinal, interface) in self.interfaces.iter().enumerate() {
             budget.node(span, 0)?;
             pay_key(&interface.reference.key, budget, span)?;
-            if interface.reference.key == reference.key {
-                if let Some(existing) = &interface.context {
-                    crate::stored_types::pay_type(existing, budget, span, 0)?;
-                    crate::stored_types::pay_type(&context, budget, span, 0)?;
-                    if existing == &context {
-                        selected = Some(ordinal);
-                        break;
-                    }
+            if interface.reference.key == reference.key
+                && let Some(existing) = &interface.context
+            {
+                crate::stored_types::pay_type(existing, budget, span, 0)?;
+                crate::stored_types::pay_type(&context, budget, span, 0)?;
+                if existing == &context {
+                    selected = Some(ordinal);
+                    break;
                 }
             }
         }
