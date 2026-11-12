@@ -109,7 +109,11 @@ fn array_classes(
 }
 
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
-    let rows = c.bindings.len().saturating_add(c.classes.len());
+    let rows = c
+        .bindings
+        .len()
+        .saturating_add(c.classes.len())
+        .saturating_add(c.static_bindings.len());
     b.spend(
         (c.fixed_binder_count as usize)
             .saturating_add(c.invocation_binder_count as usize)
@@ -120,6 +124,9 @@ pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<(
     )?;
     for row in &c.bindings {
         b.spend(row.position.path.len(), "signature actual borrow path")?;
+    }
+    for position in &c.static_bindings {
+        b.spend(position.path.len(), "signature constant borrow path")?;
     }
     for row in &c.classes {
         b.spend(row.position.path.len(), "signature semantic class path")?;
@@ -903,6 +910,7 @@ mod tests {
     #[test]
     fn impossible_domain_is_rejected_before_allocating_claimed_class_storage() {
         let impossible = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: u32::MAX,
             invocation_binder_count: 0,
             bindings: vec![],
@@ -917,6 +925,7 @@ mod tests {
             length: 2,
         };
         let mut contract = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 1,
             bindings: vec![],

@@ -10,6 +10,7 @@ pub(super) fn signature_cost(
     budget.reserve_analysis_work(
         (life.bindings.len() as u64)
             .saturating_add(life.classes.len() as u64)
+            .saturating_add(life.static_bindings.len() as u64)
             .saturating_add(2),
     )?;
     let mut bytes = (life.bindings.len() as u64)
@@ -22,6 +23,18 @@ pub(super) fn signature_cost(
         budget.reserve_analysis_work(row.position.path.len() as u64)?;
         bytes = bytes.saturating_add(
             (row.position.path.len() as u64)
+                .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>() as u64),
+        );
+    }
+    budget.reserve_analysis_work(life.static_bindings.len() as u64)?;
+    bytes = bytes.saturating_add(
+        (life.static_bindings.len() as u64)
+            .saturating_mul(std::mem::size_of::<zil_ir::StoragePosition>() as u64),
+    );
+    for position in &life.static_bindings {
+        budget.reserve_analysis_work(position.path.len() as u64)?;
+        bytes = bytes.saturating_add(
+            (position.path.len() as u64)
                 .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>() as u64),
         );
     }

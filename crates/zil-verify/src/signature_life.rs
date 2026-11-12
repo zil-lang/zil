@@ -147,7 +147,11 @@ fn array_classes(
 }
 
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
-    let n = c.bindings.len().saturating_add(c.classes.len());
+    let n = c
+        .bindings
+        .len()
+        .saturating_add(c.classes.len())
+        .saturating_add(c.static_bindings.len());
     b.spend(
         n.saturating_mul(n)
             .saturating_add(n.saturating_mul(2))
@@ -157,6 +161,9 @@ pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
     )?;
     for r in &c.bindings {
         b.spend(r.position.path.len())?;
+    }
+    for position in &c.static_bindings {
+        b.spend(position.path.len())?;
     }
     for r in &c.classes {
         b.spend(r.position.path.len())?;
@@ -794,6 +801,7 @@ mod tests {
     #[test]
     fn impossible_fixed_domain_never_allocates_a_claimed_grounding_vector() {
         let relation_data = StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: u32::MAX,
             invocation_binder_count: 0,
             bindings: vec![],
