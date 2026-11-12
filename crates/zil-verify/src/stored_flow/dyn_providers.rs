@@ -40,6 +40,7 @@ pub(super) fn work(summary: &Summary, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
 pub(super) fn observe(
     module: &TypedModule,
     f: &TypedFunction,

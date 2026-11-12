@@ -304,6 +304,14 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
         crate::dynamic_metadata::declaration(declaration, budget)?;
+        if declaration.kind == DynDeclarationKind::Trait
+            && (declaration.implemented_trait.is_some() || declaration.self_pattern.is_some())
+        {
+            return Err(bad(
+                "trait declaration cannot claim an implementation recipe",
+                None,
+            ));
+        }
         budget.spend(
             declaration
                 .members
@@ -532,6 +540,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 None,
             ));
         }
+        crate::dynamic_patterns::provider(module, item, implementation, iface, budget)?;
         if item.owned_storage == Some(DynOwnedStorage::Heap) {
             let bound = crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
             crate::dynamic_cleanup::prove(module, &item.self_type, bound, budget)?;

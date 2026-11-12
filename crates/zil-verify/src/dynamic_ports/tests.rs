@@ -13,6 +13,7 @@ fn candidate() -> TypedModule {
 fn headers(module: &TypedModule) -> Result<(), Diagnostic> {
     let limits = Limits::default();
     let mut b = Budget::new(&limits);
+    b.stored_context = true;
     crate::stored_flow::inventory(module, &limits, &mut b)?;
     crate::dynamic_dispatch::inventory(module, &mut b)
 }
