@@ -1091,8 +1091,8 @@
         "controls": "no main merge, research flags default off, default budgets/independent Verify/original O2 retained; one heavy window"
       },
       "latest_whole_push_checkpoint": {
-        "read_goal": "2a34b35826638ba5c647ba62754c05bd797fcad8",
-        "source": "328eb392d8d88148a75a743d899b43aebae73587",
+        "read_goal": "ee5e84e053e5c3c49277e01680edace3c795aec5",
+        "source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
         "measured_source": "328eb392d8d88148a75a743d899b43aebae73587",
         "measured_binary_sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
         "captured_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
@@ -1117,7 +1117,7 @@
         "profile07": "34valid/180native/15wholeELF+strict diagnosticLLVM pairs; candidate-only profiling,not formalRust or isolated gain; private641.803,opt236.406,emit98.761; cold8997.945,broad9553.928,recovery1074.651 negative",
         "actual_reductions": "cold retained native payload66,086,077B; recovery78optimizer stage+39MF reuses where oldprofile06 hadnone; no new wall-time/Rust lead proven",
         "closed_policy_negative": "common existing closed-executable main42/BD yields22emitted defs vs424,15strongpairs; private1022.865,cold10313.717,broad9529.437; snapshot domain rejected ordinary spilled frames so0oldMF products,not proved world-attr invalidation. Unchanged actual root has25480identical machine bytes but recompiles.",
-        "active_construction": "Integrate full DenseMap capture scratch slice; next retained NativeRegion prototype with actual owner lifecycle, current providers and emission symbol overlay. No Region implementation/quality claim; user requests whole-slice then unified tests.",
+        "active_construction": "Default-off explicit late-closed-executable no-ZIL-exports contract, originalO2 complete then eligibleuse-empty definitions DCE; allCGU references/address/ABI/metadata closure/currentpolicy+keys and independentretainedmachinequalitygate underconstruction. Driver/CLI677+807+bc827 toolsWIP inindependenttree; no compiler gate/perfclaim. NativeRegion/JITLink/inotify alternatives haveboundednegativeclosure receipts, no unprovedfastpath.",
         "rejected_hypothesis": "fixed LLVM CVP/LVI and actual400helper disassembly already remove post-first-round overflow checks; no duplicate range pass added",
         "raw_v10": {
           "commit": "520d2c7396ab62e1a87daa2551cd9b2c25347351",
@@ -1202,8 +1202,8 @@
           "parts": 7,
           "status": "Fullcheck02/finalgates/binaries freshHTTPSallfilebytes+modeverified; capturedactualvalidator270/144/126/117 rerunidentical. checksummary20fileprojection separately fullmanifestverified. O2 originalfullvalidatorpassed but archivev15inprogress, notyetdurableclaim."
         },
-        "delivery_source": "f4e195ca66af0357143490775beede0c5125986c",
-        "current_readme": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.md",
+        "delivery_source": "5046fa84a4fb7b193a95016414e144a6595c3229",
+        "current_readme": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-03b.md",
         "current_profile_328": {
           "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-328.json",
           "scope": "Original425/22files/20x20x16/CGU16/O2/jobs1,one main/candidate candidate-profiled diagnostic block; no newRust ratio or priorcandidatewallcomparison. All3windows retained.",
@@ -1352,7 +1352,65 @@
           },
           "limits": "Cold/broad/noop slower than Rust; recovery median favorable but paired geometric ratio adverse. CGU16 actual contents differ. No general speed or significance claim."
         },
-        "raw_current_v17_v18": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json"
+        "raw_current_v17_v18": "check03: fixed archive/source-history@57bafe3fa331ff155bd94029d5dd0921f8b236e6, all 3058 files/728179825 bytes; O2-03: fixed archive/source-history@4985eabf85b543d083181f8aa0ca1a5e7b80f572, all 21672 files/2313541824 bytes. Each storage piece freshly recovered via HTTPS and all file hashes/modes plus exact disjoint original-master union verified. Original full validators passed before retirement; no assembled whole fresh validator rerun is claimed. Receipts: full-push-recovery-v17.json and full-push-recovery-v18.json",
+        "current_profile_03b": {
+          "source": "03b078b5799fe44d98855f26279f0f09e1d25bf5",
+          "tree": "5294dbb3a4c84c7f8ac8647df5b83ff386724c45",
+          "binary_sha256": "d0d6b76c543148f44b3856cd41f4317b1da5e589a7735ec814c5bbdebb75630c",
+          "qualified_counts": {
+            "rows": 34,
+            "measured": 18,
+            "parents": 16,
+            "pairs": 17,
+            "successful_pairs": 15,
+            "safe_error_pairs": 2,
+            "native_outcomes_recomputed": 180,
+            "files": 22,
+            "functions": 425
+          },
+          "scope": "One main/candidate diagnostic block; original425/22files/CGU16/O2/jobs1. Candidate profiled. All named parents and errors retained. No Rust, earlier-candidate timing ratio or isolated causal attribution.",
+          "medians_not_claimed_single_observation_ms": {
+            "cold": {
+              "baseline": 5870.973683,
+              "candidate": 6801.415973
+            },
+            "unchanged": {
+              "candidate": 58.918368,
+              "baseline": 506.299454
+            },
+            "private": {
+              "baseline": 1411.420919,
+              "candidate": 476.111764
+            },
+            "multi": {
+              "candidate": 680.727086,
+              "baseline": 1715.558986
+            },
+            "broad": {
+              "baseline": 5605.277529,
+              "candidate": 6579.048862
+            },
+            "positions": {
+              "candidate": 819.219429,
+              "baseline": 1456.119137
+            },
+            "error": {
+              "baseline": 376.72359,
+              "candidate": 42.803552
+            },
+            "recovery": {
+              "candidate": 454.374456,
+              "baseline": 1910.921333
+            },
+            "restore": {
+              "baseline": 518.95962,
+              "candidate": 153.506893
+            }
+          },
+          "gates": "1453native72/backend242/mixed3/strictClippy/release14 pass; subsequent onlyExpand3 files,03bExpand105/fulldriver210/strictClippy/fmt/release15 pass; no currentfullworkspace or summingoverlaps",
+          "actual_removed_work": "Three lookup-only capture scratch std::map allocations/lookups replaced byDenseMap, preservingproducer/MRIorder; actualNormalize/Restore borrow Arc successfuldeclarationInventory, no fullnames/table reconstruction oncompatibleprivate edits. Currentpreflight/environment/ledger/firsterror/complete-success publication retained."
+        },
+        "raw_current_v19": "Complete original profile13 496files/415587451B, immutable1453+03b binaries, both gate batches/full source snapshots and exact7c13 metadata are fixed archive/source-history@60b8b494911e85e1eb387f6c387d402c5f6e02d0. Four storage pieces and index freshly recovered via HTTPS, all file hashes/modes and exact original-master disjoint union verified. Original local qualifier passed before retirement; no whole assembled fresh qualifier/native rerun claim. Receipt:full-push-recovery-v19.json"
       }
     }
   }
