@@ -365,6 +365,17 @@ pub(super) fn validate_interface(
             None,
         ));
     }
+    if iface
+        .retained_life
+        .ports
+        .iter()
+        .any(|port| port.mode != StoredBorrowMode::SharedAddress)
+    {
+        return Err(unsupported(
+            "Context retained mode requires a completed independent loan-site proof",
+            None,
+        ));
+    }
     let root = application(
         module,
         &iface.application,
@@ -646,8 +657,7 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
         for source in &row.sources {
             let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
             dynamic_metadata::ty(&port.leaf, b)?;
-            if head || binder != StorageBinder::Fixed(port.binder) || !compatible(&leaf, &port.leaf)
-            {
+            if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf {
                 return Err(bad(
                     "receiver-after source has a different full leaf, mode or persistent class",
                 ));
@@ -909,6 +919,78 @@ pub(super) fn validate_entries(
         }
     }
     Ok(())
+}
+
+/// Paid actual-type traversal used only to demand a complete signature. It
+/// supplies neither classes nor targets and never treats a missing class map
+/// as an empty dependency envelope.
+pub(super) fn has_context(module: &TypedModule, root: &Type, b: &mut Budget) -> Check<bool> {
+    let mut pending = vec![(root, 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth.min(128) {
+            return Err(limit("Context type inventory exceeds selected depth"));
+        }
+        match ty {
+            Type::Dyn { interface: id } | Type::OwnedDyn { interface: id } => {
+                let item = interface(module, *id, b)?;
+                if item.retained_life.binder_count != 0 || !item.retained_life.ports.is_empty() {
+                    return Ok(true);
+                }
+            }
+            Type::BorrowedStorage { storage: inner, .. }
+            | Type::Address { inner, .. }
+            | Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner }
+            | Type::OwnedStore { element: inner }
+            | Type::Mutex { payload: inner }
+            | Type::Registration { environment: inner }
+            | Type::AsyncRegistration { environment: inner }
+            | Type::Opaque { hidden: inner, .. } => pending.push((inner, depth + 1)),
+            Type::Task {
+                result: inner,
+                retained_life,
+            }
+            | Type::MutexGuard {
+                payload: inner,
+                retained_life,
+            } => {
+                b.spend(retained_life.ports.len().saturating_add(1))?;
+                pending.push((inner, depth + 1));
+                pending.extend(retained_life.ports.iter().map(|p| (&p.leaf, depth + 1)));
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            Type::Closure(id) => {
+                let d = crate::closures::definition(module, *id, None)?;
+                b.spend(d.captures.len())?;
+                pending.extend(d.captures.iter().map(|ty| (ty, depth + 1)));
+            }
+            _ => {}
+        }
+        if pending.len() > b.limits.max_nodes {
+            return Err(limit("Context type inventory pending bound exceeded"));
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]

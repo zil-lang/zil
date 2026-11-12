@@ -654,6 +654,14 @@ pub(super) fn checked_sources(
         ] {
             b.spend(count.saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1)))?;
         }
+        // Keep actual pointer/parent facts for descriptor effects; do not
+        // promote an ordinary resource description to a strong public loan.
+        if matches!(&f.values[id], Type::Desc(payload)
+            if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
+                | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
+        {
+            row.public.clear();
+        }
         row.pointer.sort();
         row.pointer.dedup();
         row.public.sort();

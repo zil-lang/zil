@@ -1992,6 +1992,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             {
                 return Err(err("stored signature requires complete class relation"));
             }
+            if b.dyn_contexts && crate::dynamic_ports::has_context(module, ty, b)? {
+                return Err(err(
+                    "Context-bearing signature requires its complete actual class relation",
+                ));
+            }
             let composite = |ty: &Type| {
                 matches!(
                     ty,
@@ -3681,6 +3686,7 @@ fn step(
             dyn_ports::call(
                 module,
                 f,
+                callee,
                 &summaries[function.0 as usize],
                 arguments,
                 values,
@@ -6029,11 +6035,9 @@ fn summarize(
             task_address::summarize(f, payload, &mut summary, b)?;
             dyn_returns::summarize(module, f, payload, &mut summary, &solution.loans, b)?;
             if b.dyn_contexts && matches!(f.return_type, Type::Address { .. }) {
-                add_sources(
-                    &mut summary.dyn_result_parents,
-                    &dyn_returns::parents(&payload.address, &solution.loans, b)?,
-                    b,
-                )?;
+                let parents = dyn_returns::parents(&payload.address, &solution.loans, b)?;
+                dyn_returns::check_parent_escape(f, &parents, b)?;
+                add_sources(&mut summary.dyn_result_parents, &parents, b)?;
             }
         }
     }
@@ -6735,6 +6739,9 @@ fn solve_check(
                 continue;
             }
             let mut actual = BTreeSet::new();
+            let weak_description = matches!(&f.values[v], Type::Desc(payload)
+                if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
+                    | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }));
             for root in p
                 .address
                 .sources
@@ -6767,13 +6774,18 @@ fn solve_check(
                     }
                     _ => root.base,
                 };
-                actual.insert(base);
+                // The private ledger above still proves descriptor accesses
+                // and retirement. Public Hold denotes strong address debt.
+                if !weak_description {
+                    actual.insert(base);
+                }
             }
             b.spend(actual.len().saturating_add(claim.roots.len()))?;
             if claim.value != ValueId(v as u32) || !actual.iter().eq(claim.roots.iter()) {
-                return Err(err(
-                    "candidate differs from independently reconstructed stored target roots",
-                ));
+                return Err(err(&format!(
+                    "candidate differs from independently reconstructed stored target roots: {} value {v}: actual {actual:?}, candidate {:?}",
+                    f.name, claim.roots
+                )));
             }
         }
     }

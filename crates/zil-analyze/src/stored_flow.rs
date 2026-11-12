@@ -7112,9 +7112,17 @@ pub(super) fn infer(
         fee(b, function.values.len())?;
         for (id, targets) in function.values.into_iter().enumerate() {
             let mut roots = BTreeSet::new();
+            // A weak resource descriptor retains its full private target and
+            // cleanup proof, but it publishes no strong address Hold.
+            let weak_description = matches!(&module.functions[index].values[id],
+                Type::Desc(payload) if !matches!(payload.as_ref(),
+                    Type::ByteBuffer | Type::Task { .. } | Type::TaskI32
+                    | Type::OwnedStore { .. } | Type::Mutex { .. }));
             for target in targets {
                 ordered(b, roots.len(), 0)?;
-                roots.insert(target.base);
+                if !weak_description {
+                    roots.insert(target.base);
+                }
             }
             rows.push(ValueHold {
                 value: ValueId(id as u32),

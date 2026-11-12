@@ -61,6 +61,34 @@ fn boundary() -> (TypedModule, TypedFunction, dyn_ports::Rows) {
         },
     ];
     f.return_type = Type::OwnedDyn { interface };
+    f.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 2,
+        bindings: vec![
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            },
+            StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(1),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(1),
+            },
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Result,
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(0),
+        }],
+    });
     f.retained_return_sources = Some(vec![StorageSourceBinding {
         position: StoragePosition {
             base: StorageBase::Result,
@@ -358,4 +386,65 @@ fn dyn_helper_preserves_non_target_head_parent_after_address_result_assignment()
         loans[2].parents.contains(&5),
         "ordinary result assignment must preserve the real receiver head parent"
     );
+    let mut b = Budget::new(&Limits::default());
+    let head = Permission {
+        sources: vec![Source {
+            base: HoldRoot::Local(owner),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_element: None,
+            heap_parents: Vec::new(),
+        }],
+        loans: vec![],
+    };
+    let active = ancestry(&result.address.loans, &loans, &mut b).unwrap();
+    assert!(
+        access(&head, true, &active, &loans, &mut vec![], &mut b).is_err(),
+        "retiring the real owner while its short view lives must reject"
+    );
+    let mut stripped = loans.clone();
+    stripped[2].parents.retain(|parent| *parent != 5);
+    let active = ancestry(&result.address.loans, &stripped, &mut b).unwrap();
+    assert!(
+        access(&head, true, &active, &stripped, &mut vec![], &mut b).is_ok(),
+        "removing the non-target head parent would incorrectly authorize retirement"
+    );
+}
+
+#[test]
+fn borrowed_return_cannot_hide_a_local_head_behind_external_data_sources() {
+    let (_, f, _) = boundary();
+    let mut b = Budget::new(&Limits::default());
+    let data = Source {
+        base: HoldRoot::Parameter(0),
+        retained_port: None,
+        leaf: vec![],
+        inline: vec![],
+        heap_element: None,
+        heap_parents: Vec::new(),
+    };
+    let local_head = Source {
+        base: HoldRoot::Local(LocalId(2)),
+        ..data.clone()
+    };
+    let loans = vec![
+        Loan {
+            sources: vec![data.clone()],
+            parents: vec![1],
+            exclusive: false,
+        },
+        Loan {
+            sources: vec![local_head],
+            parents: vec![],
+            exclusive: false,
+        },
+    ];
+    let result = Permission {
+        sources: vec![data.clone()],
+        loans: vec![0],
+    };
+    let actual = parents(&result, &loans, &mut b).unwrap();
+    assert!(check_parent_escape(&f, &actual, &mut b).is_err());
+    assert!(check_parent_escape(&f, &[data], &mut b).is_ok());
 }

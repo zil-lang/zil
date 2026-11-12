@@ -139,6 +139,29 @@ fn input(
         ))
     }
 }
+
+/// Canonical public call transport uses the independently checked upper.
+/// Actual Return rows remain separate and are still required to prove it.
+pub(super) fn published_sources(
+    module: &TypedModule,
+    f: &TypedFunction,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<Vec<Source>> {
+    let claim = f
+        .retained_return_sources
+        .as_ref()
+        .ok_or_else(|| bad("retained result source upper is Unknown"))?;
+    b.spend(claim.len().saturating_mul(path.len().saturating_add(1)))?;
+    let mut result = Vec::new();
+    if let Some(row) = claim.iter().find(|row| row.position.path == path) {
+        for source in &row.sources {
+            let (_, source) = input(module, f, source, b)?;
+            add_sources(&mut result, &[source], b)?;
+        }
+    }
+    Ok(result)
+}
 pub(super) fn validate(
     module: &TypedModule,
     f: &TypedFunction,
@@ -203,17 +226,46 @@ pub(super) fn validate(
         let output = &crate::dynamic_ports::interface(module, *interface, b)?
             .retained_life
             .ports[*port as usize];
+        let (class_path, class) = class_key(module, &f.return_type, carrier, output.binder, 0, b)?;
+        let output_binder = class_binding(f, StorageBase::Result, &class_path, class, b)?;
+        for parent in &actual.parent_sources {
+            if !matches!(parent.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
+                return Err(bad("returned Dyn retains an activation-local parent loan"));
+            }
+        }
         let mut upper = Vec::new();
         if let Some(declared) = declared {
             for source in &declared.sources {
                 let (leaf, symbolic) = input(module, f, source, b)?;
                 dynamic_metadata::ty(&output.leaf, b)?;
+                let HoldRoot::Parameter(parameter) = symbolic.base else {
+                    unreachable!()
+                };
+                let binder =
+                    if let Some(PortOrigin::Dyn { carrier, port }) = &symbolic.retained_port {
+                        source_relation(module, f, parameter, carrier, *port, b)?
+                    } else {
+                        relation(f, StorageBase::Parameter(parameter), &symbolic.leaf, b)?
+                    };
+                if binder != output_binder {
+                    return Err(bad(
+                        "result source upper contains a different actual lifetime class",
+                    ));
+                }
                 if leaf != output.leaf {
                     return Err(bad(
                         "source upper full borrowed leaf differs from result port",
                     ));
                 }
                 source_work(std::slice::from_ref(&symbolic), b)?;
+                b.spend(
+                    upper
+                        .len()
+                        .saturating_mul(width(&symbolic).saturating_add(1)),
+                )?;
+                if upper.contains(&symbolic) {
+                    return Err(bad("result source upper repeats an actual input selector"));
+                }
                 upper.push(symbolic);
             }
         }
@@ -264,10 +316,19 @@ pub(super) fn source_relation(
         .ok_or_else(|| bad("Dyn class source port is absent"))?
         .binder;
     let (path, class) = class_key(module, root, carrier, class, 0, b)?;
+    class_binding(f, StorageBase::Parameter(parameter), &path, class, b)
+}
+fn class_binding(
+    f: &TypedFunction,
+    base: StorageBase,
+    path: &[LifeTypeProjection],
+    class: u32,
+    b: &mut Budget,
+) -> Check<StorageBinder> {
     let life = f
         .storage_life
         .as_ref()
-        .ok_or_else(|| bad("Dyn data source has no actual signature class relation"))?;
+        .ok_or_else(|| bad("Dyn dependency has no complete signature class relation"))?;
     b.spend(
         life.classes
             .len()
@@ -276,13 +337,12 @@ pub(super) fn source_relation(
     life.classes
         .iter()
         .find(|row| {
-            row.position.base == StorageBase::Parameter(parameter)
-                && row.position.path == path
-                && row.position.class == class
+            row.position.base == base && row.position.path == path && row.position.class == class
         })
         .map(|row| row.binder)
-        .ok_or_else(|| bad("Dyn data source omits its actual enclosing class relation"))
+        .ok_or_else(|| bad("Dyn dependency omits its full actual enclosing class binding"))
 }
+
 fn parameter_type(f: &TypedFunction, index: u32) -> Check<&Type> {
     parameter(f, index)
 }
@@ -406,6 +466,13 @@ pub(super) fn after(
                 &parents(&row.permission, loans, b)?,
                 b,
             )?;
+            for parent in &row.parent_sources {
+                if !matches!(parent.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
+                    return Err(bad(
+                        "helper after-state retains an activation-local parent loan",
+                    ));
+                }
+            }
             row.permission.loans.clear();
             for source in &row.permission.sources {
                 if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
@@ -434,6 +501,24 @@ pub(super) fn after(
 
 /// Preserve actual non-target parents across an ordinary call boundary. The
 /// source graph of each ancestor was reconstructed by this kernel's SSA pass.
+pub(super) fn check_parent_escape(
+    f: &TypedFunction,
+    sources: &[Source],
+    b: &mut Budget,
+) -> Check<()> {
+    source_work(sources, b)?;
+    for source in sources {
+        if matches!(source.base, HoldRoot::Local(_))
+            || f.environment.is_none() && matches!(source.base, HoldRoot::Capture(_))
+        {
+            return Err(bad(
+                "borrowed result retains an activation-local parent loan",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn parents(
     permission: &Permission,
     loans: &[Loan],

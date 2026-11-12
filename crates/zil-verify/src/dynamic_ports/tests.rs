@@ -1,6 +1,6 @@
 //! The bytes were produced from context-read.zil by real Expand+Types. The
-//! enclosed plan is deliberately empty; these tests prove independent raw
-//! header validation, not Analyze, Verify-module, or native execution.
+//! typed-only fixture has an empty plan for raw header checks. Separate real
+//! Analyze candidates exercise full independent module verification.
 use super::*;
 fn candidate() -> TypedModule {
     zil_ir::wire::decode_module_candidate(
@@ -73,4 +73,78 @@ fn actual_context_read_candidate_reaches_independent_memory_kernel() {
     let target = module.target.clone();
     let result = crate::verify_module(module, plan, &target, &limits);
     assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn actual_context_factory_candidate_proves_error_success_class_path_and_result_sources() {
+    let limits = Limits::default();
+    let (module, plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("../../tests/fixtures/dyn-context/context-factory.candidate.wire"),
+        &limits,
+    )
+    .unwrap();
+    let target = module.target.clone();
+    let result = crate::verify_module(module, plan, &target, &limits);
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn actual_context_factory_unknown_empty_wrong_root_and_duplicate_sources_reject_raw_and_wire() {
+    let limits = Limits::default();
+    let (module, plan) = zil_ir::wire::decode_module_candidate(
+        include_bytes!("../../tests/fixtures/dyn-context/context-factory.candidate.wire"),
+        &limits,
+    )
+    .unwrap();
+    for attack in 0..7 {
+        let mut wrong = module.clone();
+        let factory = wrong
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "create")
+            .unwrap();
+        match attack {
+            0 => factory.retained_return_sources = None,
+            1 => factory.retained_return_sources = Some(vec![]),
+            2 => factory.retained_return_sources.as_mut().unwrap()[0]
+                .sources
+                .clear(),
+            3 => {
+                let row = factory.retained_return_sources.as_ref().unwrap()[0].clone();
+                factory.retained_return_sources.as_mut().unwrap().push(row);
+            }
+            6 => {
+                let source =
+                    factory.retained_return_sources.as_ref().unwrap()[0].sources[0].clone();
+                factory.retained_return_sources.as_mut().unwrap()[0]
+                    .sources
+                    .push(source);
+            }
+            other => {
+                factory.retained_return_sources.as_mut().unwrap()[0].sources =
+                    vec![StoragePosition {
+                        base: StorageBase::Parameter(if other == 4 { 1 } else { 2 }),
+                        path: vec![],
+                    }];
+            }
+        }
+        let target = wrong.target.clone();
+        // Rebind only cache identity. All actual instructions and plan facts
+        // stay fixed, so rejection must come from the independent kernel.
+        let mut plan = plan.clone();
+        plan.module_fingerprint = wrong.fingerprint();
+        let failure =
+            crate::verify_module(wrong.clone(), plan.clone(), &target, &limits).unwrap_err();
+        assert_eq!(
+            failure[0].code, "E-VERIFY-DYN-SOURCE",
+            "raw attack {attack}: {failure:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&wrong, &plan, &limits).unwrap();
+        let (wrong, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let failure = crate::verify_module(wrong, plan, &target, &limits).unwrap_err();
+        assert_eq!(
+            failure[0].code, "E-VERIFY-DYN-SOURCE",
+            "Wire attack {attack}: {failure:?}"
+        );
+    }
 }
