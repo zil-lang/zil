@@ -68,8 +68,8 @@ pub struct VerifyStats {
 #[derive(Clone, Default)]
 pub struct VerifySession {
     verified: Option<VerifiedModule>,
-    flows: Arc<BTreeMap<FunctionId, Arc<FlowReceipt>>>,
-    empty_borrows: Arc<BTreeMap<FunctionId, borrows::EmptyContext>>,
+    flows: zil_ir::PersistentVec<Option<Arc<FlowReceipt>>>,
+    empty_borrows: zil_ir::PersistentVec<Option<borrows::EmptyContext>>,
     shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     shape_tree: Option<Arc<raw_tree::Node>>,
@@ -175,8 +175,9 @@ impl VerifySession {
             current_shape_functions: None,
             previous_resource_inventory: self.resource_inventory.as_ref(),
             next_resource_inventory: None,
-            next: BTreeMap::new(),
-            next_empty_borrows: BTreeMap::new(),
+            next: self.flows.clone(),
+            next_empty_borrows: self.empty_borrows.clone(),
+            empty_borrow_phase_entered: false,
             next_shapes: self.shapes.clone(),
             next_inventory: self.inventory.clone(),
             bound_plans: BTreeMap::new(),
@@ -196,6 +197,7 @@ impl VerifySession {
             let Attempt {
                 next,
                 next_empty_borrows,
+                empty_borrow_phase_entered,
                 next_shapes,
                 next_inventory,
                 next_lexical,
@@ -204,8 +206,12 @@ impl VerifySession {
                 next_resource_inventory,
                 ..
             } = attempt;
-            self.flows = Arc::new(next);
-            self.empty_borrows = Arc::new(next_empty_borrows);
+            self.flows = next;
+            self.empty_borrows = if empty_borrow_phase_entered {
+                next_empty_borrows
+            } else {
+                zil_ir::PersistentVec::new()
+            };
             self.shapes = next_shapes;
             self.inventory = next_inventory;
             self.lexical = next_lexical;
@@ -218,10 +224,10 @@ impl VerifySession {
     }
 }
 
-fn resized_rows<T>(
-    previous: &zil_ir::PersistentVec<Option<Arc<T>>>,
+fn resized_rows<T: Clone>(
+    previous: &zil_ir::PersistentVec<Option<T>>,
     count: usize,
-) -> zil_ir::PersistentVec<Option<Arc<T>>> {
+) -> zil_ir::PersistentVec<Option<T>> {
     if previous.len() == count {
         previous.clone()
     } else {
@@ -329,8 +335,8 @@ struct FlowReceipt {
 }
 
 pub(super) struct Attempt<'a> {
-    previous: &'a BTreeMap<FunctionId, Arc<FlowReceipt>>,
-    previous_empty_borrows: &'a BTreeMap<FunctionId, borrows::EmptyContext>,
+    previous: &'a zil_ir::PersistentVec<Option<Arc<FlowReceipt>>>,
+    previous_empty_borrows: &'a zil_ir::PersistentVec<Option<borrows::EmptyContext>>,
     previous_shapes: &'a zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     previous_inventory: &'a zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     previous_lexical: &'a zil_ir::PersistentVec<Option<Arc<lexical::Receipt>>>,
@@ -344,8 +350,9 @@ pub(super) struct Attempt<'a> {
     next_resource_inventory: Option<Arc<resource_inventory::Node>>,
     next_shape_tree: Option<Arc<raw_tree::Node>>,
     current_shape_functions: Option<zil_ir::PersistentVec<TypedFunction>>,
-    next: BTreeMap<FunctionId, Arc<FlowReceipt>>,
-    next_empty_borrows: BTreeMap<FunctionId, borrows::EmptyContext>,
+    next: zil_ir::PersistentVec<Option<Arc<FlowReceipt>>>,
+    next_empty_borrows: zil_ir::PersistentVec<Option<borrows::EmptyContext>>,
+    empty_borrow_phase_entered: bool,
     next_shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
     next_inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     bound_plans: BTreeMap<FunctionId, bool>,
@@ -355,6 +362,29 @@ pub(super) struct Attempt<'a> {
 }
 
 impl<'a> Attempt<'a> {
+    pub(crate) fn begin_empty_borrow_phase(&mut self) {
+        self.empty_borrow_phase_entered = true;
+    }
+    pub(crate) fn invalidate_empty_borrow(&mut self, function: FunctionId) {
+        let index = function.0 as usize;
+        if self
+            .next_empty_borrows
+            .get(index)
+            .is_some_and(Option::is_some)
+            && let Some(row) = self.next_empty_borrows.get_mut(index)
+        {
+            *row = None;
+        }
+    }
+    pub(crate) fn invalidate_flow(&mut self, function: FunctionId) {
+        let index = function.0 as usize;
+        if self.next.get(index).is_some_and(Option::is_some)
+            && let Some(row) = self.next.get_mut(index)
+        {
+            *row = None;
+        }
+    }
+
     /// Called only after schema, target and complete raw table cardinalities
     /// pass their original entry bounds. Diffing never traverses raw values.
     pub(super) fn prepare_current(
@@ -394,6 +424,16 @@ impl<'a> Attempt<'a> {
         target: &TargetProfile,
         limits: &Limits,
     ) -> bool {
+        if self
+            .delta
+            .as_ref()
+            .is_some_and(|delta| delta.same_function(function))
+            && self.previous_inputs.is_some_and(|previous| {
+                previous.limits() == limits && previous.module().target == *target
+            })
+        {
+            return true;
+        }
         *self.bound_functions.entry(function.id).or_insert_with(|| {
             self.previous_inputs.is_some_and(|previous| {
                 previous.limits() == limits
@@ -402,23 +442,22 @@ impl<'a> Attempt<'a> {
                         .module()
                         .functions
                         .get(function.id.0 as usize)
-                        .is_some_and(|prior| {
-                            self.delta
-                                .as_ref()
-                                .is_some_and(|delta| delta.same_function(function))
-                                || same_function(prior, function)
-                        })
+                        .is_some_and(|prior| same_function(prior, function))
             })
         })
     }
 
     fn plan_matches(&mut self, function: &TypedFunction, plan: &FunctionPlan) -> bool {
+        if self
+            .delta
+            .as_ref()
+            .is_some_and(|delta| delta.same_plan(plan))
+        {
+            return true;
+        }
         *self.bound_plans.entry(function.id).or_insert_with(|| {
             self.previous_inputs.is_some_and(|previous| {
-                self.delta
-                    .as_ref()
-                    .is_some_and(|delta| delta.same_plan(plan))
-                    || previous.plan().functions.get(function.id.0 as usize) == Some(plan)
+                previous.plan().functions.get(function.id.0 as usize) == Some(plan)
             })
         })
     }
@@ -436,7 +475,7 @@ impl<'a> Attempt<'a> {
         context: borrows::EmptyContext,
         limits: &Limits,
     ) -> bool {
-        self.previous_empty_borrows.get(&function.id) == Some(&context)
+        self.previous_empty_borrows.get(function.id.0 as usize) == Some(&Some(context))
             && self.function_matches(function, &module.target, limits)
             && self.plan_matches(function, plan)
             && *self.bound_closures.get_or_insert_with(|| {
@@ -451,7 +490,12 @@ impl<'a> Attempt<'a> {
         context: borrows::EmptyContext,
         reused: bool,
     ) {
-        self.next_empty_borrows.insert(function.id, context);
+        let index = function.id.0 as usize;
+        if self.next_empty_borrows.get(index) != Some(&Some(context))
+            && let Some(row) = self.next_empty_borrows.get_mut(index)
+        {
+            *row = Some(context);
+        }
         self.stats.empty_borrow_values_avoided += function.values.len();
         if reused {
             self.stats.empty_borrow_proofs_reused += 1;
@@ -487,7 +531,10 @@ impl<'a> Attempt<'a> {
         let function_matches = self.function_matches(inputs.function, target, limits);
         let plan_matches = self.plan_matches(inputs.function, inputs.plan);
         if function_matches
-            && let Some(receipt) = self.previous.get(&inputs.function.id)
+            && let Some(receipt) = self
+                .previous
+                .get(inputs.function.id.0 as usize)
+                .and_then(Option::as_ref)
             && plan_matches
             && receipt.work <= budget.remaining
         {
@@ -495,20 +542,28 @@ impl<'a> Attempt<'a> {
             // If insufficient budget remains, execute the ordinary checks to
             // preserve their first error and its current diagnostic location.
             budget.spend(receipt.work)?;
-            self.next.insert(inputs.function.id, receipt.clone());
+            let index = inputs.function.id.0 as usize;
+            if !self
+                .next
+                .get(index)
+                .and_then(Option::as_ref)
+                .is_some_and(|row| Arc::ptr_eq(row, receipt))
+                && let Some(row) = self.next.get_mut(index)
+            {
+                *row = Some(receipt.clone());
+            }
             self.stats.function_proofs_reused += 1;
             return Ok(receipt.proof.clone());
         }
         self.stats.function_proofs_checked += 1;
         let before = budget.remaining;
         let proof = check_flow(inputs, budget, limits)?;
-        self.next.insert(
-            inputs.function.id,
-            Arc::new(FlowReceipt {
+        if let Some(row) = self.next.get_mut(inputs.function.id.0 as usize) {
+            *row = Some(Arc::new(FlowReceipt {
                 work: before - budget.remaining,
                 proof: proof.clone(),
-            }),
-        );
+            }));
+        }
         Ok(proof)
     }
 }

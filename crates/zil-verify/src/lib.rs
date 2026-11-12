@@ -1929,6 +1929,7 @@ fn check_function_with_reuse(
         }
         if let Some(attempt) = reuse.as_deref_mut() {
             attempt.discard_lexical(function.id);
+            attempt.invalidate_flow(function.id);
         }
         return Ok(FunctionGraph {
             successors: Vec::new(),

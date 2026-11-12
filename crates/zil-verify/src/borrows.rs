@@ -1439,6 +1439,9 @@ fn check_module_mask(
     budget: &mut Budget,
     mut reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<Vec<BTreeSet<u32>>> {
+    if let Some(attempt) = reuse.as_deref_mut() {
+        attempt.begin_empty_borrow_phase();
+    }
     // The complete raw-type preflight already found every retained Task port.
     // Closed/legacy modules keep their original fee path and need no new table.
     let port_facts = if budget.borrowed_task_ports {
@@ -1724,6 +1727,11 @@ fn check_module_mask(
         .zip(&facts)
         .enumerate()
     {
+        if (!facts.compact_empty || mask.is_some_and(|mask| mask[function_index]))
+            && let Some(attempt) = reuse.as_deref_mut()
+        {
+            attempt.invalidate_empty_borrow(function.id);
+        }
         if mask.is_some_and(|mask| mask[function_index]) {
             if has_buffers {
                 apart.push(Default::default());
@@ -1776,6 +1784,8 @@ fn check_module_mask(
                     .as_deref_mut()
                     .expect("compact session context")
                     .record_empty_borrow(function, context, reused);
+            } else if let Some(attempt) = reuse.as_deref_mut() {
+                attempt.invalidate_empty_borrow(function.id);
             }
             continue;
         }

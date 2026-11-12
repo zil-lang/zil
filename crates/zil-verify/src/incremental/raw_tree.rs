@@ -85,6 +85,8 @@ impl Attempt<'_> {
         b: &mut Budget,
         limits: &Limits,
     ) -> Check<()> {
+        self.next = resized_rows(self.previous, module.functions.len());
+        self.next_empty_borrows = resized_rows(self.previous_empty_borrows, module.functions.len());
         self.next_shapes = resized_rows(self.previous_shapes, module.functions.len());
         self.next_inventory = resized_rows(self.previous_inventory, module.functions.len());
         self.next_lexical = resized_rows(self.previous_lexical, module.functions.len());
