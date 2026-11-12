@@ -348,7 +348,8 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         pending.push((Visit::Expr(left), depth + 1));
                         pending.push((Visit::Expr(right), depth + 1));
                     }
-                    CoreExprKind::MakeDynBorrow { source, .. } => {
+                    CoreExprKind::MakeDynBorrow { source, .. }
+                    | CoreExprKind::MakeDynOwned { source, .. } => {
                         pending.push((Visit::Expr(source), depth + 1));
                     }
                     CoreExprKind::CallDynSlot {

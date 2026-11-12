@@ -1350,6 +1350,7 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             expression_has_closure_closure(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::MakeDynBorrow { .. }
+        | CoreExprKind::MakeDynOwned { .. }
         | CoreExprKind::Unary { .. }
         | CoreExprKind::CompileTime(..)
         | CoreExprKind::Try(..) => {
@@ -1473,6 +1474,9 @@ fn expression_has_closure_unary(
     let mut found = false;
     match &e.kind {
         CoreExprKind::MakeDynBorrow {
+            source: operand, ..
+        }
+        | CoreExprKind::MakeDynOwned {
             source: operand, ..
         }
         | CoreExprKind::Unary { operand, .. }
@@ -3748,6 +3752,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     return Ok(Term::Resource(*variable, true));
                 }
                 Ok(term)
+            }
+            CoreExprKind::MakeDynOwned {
+                interface, source, ..
+            } => {
+                self.expr(source, depth + 1, false)?;
+                self.known_term(&dyn_dispatch::owned_result(*interface), span)
             }
             CoreExprKind::Unary { .. } => self.expr_unary(expression, depth, write),
             CoreExprKind::Binary { .. } => self.expr_binary(expression, depth),
@@ -6129,7 +6139,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     });
                 }
             }
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::MakeDynOwned {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand) => self.normalize_expr(operand, expression, statement)?,
             CoreExprKind::Binary { left, right, .. } => {

@@ -3702,7 +3702,7 @@ fn transfer(
             )]);
         }
     }
-    dyn_address::propagate(i, state, values, &mut out, b)?;
+    dyn_address::propagate(module, f, i, state, values, &mut out, b)?;
     if let Some(result) = i.result
         && b.static_utf8
         && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
@@ -5493,6 +5493,7 @@ pub(super) fn infer(
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     byte_queries::authenticate(module, b)?;
+    dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
     let owned_byte_profile = !b.task_borrowed_results
@@ -5571,6 +5572,7 @@ pub(super) fn infer(
                 false
             };
             if !(byte_value
+                || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || b.task_borrowed_results && task_address::admitted_value(ty)
                 || carrier(ty).is_some()
@@ -5765,6 +5767,8 @@ fn actual_instructions(
             | InstructionKind::StoreOwnedArrayElement { value, .. }
             | InstructionKind::StoreStoredBorrow { value, .. }
             | InstructionKind::MakeErrorUnion { value, .. }
+            | InstructionKind::TakeErrorUnion { value, .. }
+            | InstructionKind::MakeDynOwned { source: value, .. }
             | InstructionKind::ExtractField {
                 aggregate: value, ..
             }
@@ -5968,6 +5972,7 @@ fn actual_instructions(
                 && !byte_description
                 && !package_read
                 && !error_borrow
+                && !dyn_address::instruction(module, f, i, b)?
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
                 && !(b.store_option_results
                     && matches!(
@@ -6081,6 +6086,7 @@ fn actual_instructions(
                 }
             }
             if pure_copy::operation(&i.kind)
+                && !dyn_address::instruction(module, f, i, b)?
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()

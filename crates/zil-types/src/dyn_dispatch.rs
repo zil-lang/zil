@@ -203,6 +203,88 @@ pub(super) fn valid_scalar_contract(slot: &DynSlot) -> bool {
     slot.contract == expected
 }
 
+/// A complete declaration upper for Context slots. Receiver-head access and
+/// opaque external access remain distinct; replacing a pointer is not Write
+/// permission to a shared external leaf.
+pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> DynContract {
+    let mut expected = scalar_contract(slot.receiver.mutable);
+    expected.effects = slot.contract.effects.clone();
+    if borrowed_result(&slot.result) {
+        expected.result = Some(DynResultSource::Borrow {
+            sources: vec![receiver_position()],
+            mutable: false,
+        });
+    }
+    for (index, port) in interface.retained_life.ports.iter().enumerate() {
+        let position = StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(index as u32)],
+        };
+        expected
+            .guarantees
+            .as_mut()
+            .expect("finite guarantee")
+            .push(DynGuarantee::StorageSources(StorageSourceBinding {
+                position: position.clone(),
+                sources: vec![position.clone()],
+            }));
+        expected
+            .requires
+            .as_mut()
+            .expect("finite requires")
+            .push(DynRequirement::Read(position.clone()));
+        let access = expected.call.as_mut().expect("finite call");
+        access.reads.push(position.clone());
+        if slot.receiver.mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
+            access.writes.push(position.clone());
+            expected
+                .requires
+                .as_mut()
+                .expect("finite requires")
+                .push(DynRequirement::Write(position.clone()));
+        }
+        if let Some(DynResultSource::Borrow { sources, .. }) = &mut expected.result
+            && (port.leaf == slot.result
+                || matches!((&port.leaf, &slot.result),
+                (Type::Address {inner: a, ..} | Type::Desc(a), Type::Address {mutable: false, inner: z}) if a == z))
+        {
+            sources.push(position);
+        }
+    }
+    expected
+}
+pub(super) fn valid_slot_contract(slot: &DynSlot, interface: &DynInterface) -> bool {
+    if interface.context.is_none() {
+        return valid_scalar_contract(slot);
+    }
+    let effects = slot.contract.effects.as_deref();
+    effects
+        == Some(&[
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ])
+        && slot.contract == contextual_contract(slot, interface)
+}
+pub(super) fn context_slot_life(slot: &DynSlot, interface: &DynInterface) -> StorageLifeContract {
+    let mut life = slot_life(slot);
+    life.fixed_binder_count = interface.retained_life.binder_count;
+    life.classes = (0..life.fixed_binder_count)
+        .map(|class| SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class,
+            },
+            binder: StorageBinder::Fixed(class),
+        })
+        .collect();
+    life
+}
+
 fn scalar_expression(
     expr: &CoreExpr,
     function: &CoreFunction,
@@ -249,6 +331,14 @@ fn scalar_expression(
                 && fields
                     .iter()
                     .any(|(name, ty)| name == member && ty.is_b0_scalar())
+        }
+        CoreExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } => {
+            matches!(&operand.kind, CoreExprKind::Member {object, member, owner: None}
+                if matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name)
+                    && fields.iter().any(|(name, ty)| name == member && matches!(ty, Type::Address {inner, ..} if inner.is_b0_scalar())))
         }
         CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
             for value in values {
@@ -332,8 +422,7 @@ fn inventory_in_modules(
     for interface in &core.dyn_interfaces {
         spend(&mut left, 1 + interface.slots.len())?;
         crate::dyn_context::validate(interface, modules, limits, &mut left)?;
-        if interface.context.is_some()
-            || !interfaces.insert(interface.id)
+        if !interfaces.insert(interface.id)
             || !declarations.contains(&interface.application.declaration)
             || core
                 .dyn_declarations
@@ -341,17 +430,12 @@ fn inventory_in_modules(
                 .find(|d| d.id == interface.application.declaration)
                 .is_none_or(|declaration| {
                     declaration.kind != DynDeclarationKind::Trait
-                        || !declaration.parameters.is_empty()
+                        || declaration.parameters.len() != interface.application.actuals.len()
                 })
-            || !interface.application.actuals.is_empty()
             || !interface.inherited.is_empty()
             || interface.slots.is_empty()
             || !interface.associated_types.is_empty()
             || !interface.associated_constants.is_empty()
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || interface.retained_life.binder_count != 0
-            || !interface.retained_life.nominal_arguments.is_empty()
         {
             return Err(unsupported(
                 Span::default(),
@@ -382,7 +466,7 @@ fn inventory_in_modules(
                 }
             }
             spend(&mut left, 256 + slot.parameters.len())?;
-            if !valid_scalar_contract(slot)
+            if !valid_slot_contract(slot, interface)
                 || slot.receiver.mode
                     != if slot.receiver.mutable {
                         PassingMode::BorrowMut
@@ -398,7 +482,7 @@ fn inventory_in_modules(
                     .iter()
                     .any(|mode| *mode != PassingMode::Infer)
                 || slot.call_kind != CallKind::Direct
-                || slot.storage_life.as_ref() != Some(&slot_life(slot))
+                || slot.storage_life.as_ref() != Some(&context_slot_life(slot, interface))
                 || slot.member.application != interface.application
                 || slot.member.ordinal as usize != ordinal
                 || core
@@ -441,9 +525,6 @@ fn inventory_in_modules(
         if !ids.insert(table.id)
             || table.entries.len() != interface.slots.len()
             || table.cleanup.is_some()
-            || !table.ports.is_empty()
-            || !table.self_classes.is_empty()
-            || !table.actuals.is_empty()
             || core
                 .dyn_declarations
                 .iter()
@@ -463,19 +544,6 @@ fn inventory_in_modules(
                 unsupported(Span::default(), "dyn implementation declaration is absent")
             })?;
         spend(&mut left, core.dyn_declarations.len())?;
-        if implementation
-            .implemented_trait
-            .as_ref()
-            .is_none_or(|recipe| {
-                recipe.declaration != interface.application.declaration
-                    || !recipe.arguments.is_empty()
-            })
-        {
-            return Err(unsupported(
-                Span::default(),
-                "dyn provider has no proved complete implemented-trait application",
-            ));
-        }
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
             let bound = interface.owning_cleanup.as_ref().ok_or_else(|| {
                 unsupported(
@@ -487,8 +555,29 @@ fn inventory_in_modules(
             if bound.effects.len() > 6
                 || !bound.environment
                 || !bound.positions.is_empty()
-                || !bound.access.reads.is_empty()
-                || !bound.access.writes.is_empty()
+                || bound.access.reads
+                    != interface
+                        .retained_life
+                        .ports
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![ContractProjection::RetainedPort(i as u32)],
+                        })
+                        .collect::<Vec<_>>()
+                || bound.access.writes
+                    != interface
+                        .retained_life
+                        .ports
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, p)| p.mode == StoredBorrowMode::ExclusiveAddress)
+                        .map(|(i, _)| StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![ContractProjection::RetainedPort(i as u32)],
+                        })
+                        .collect::<Vec<_>>()
                 || bound.effects.iter().any(|e| {
                     !matches!(
                         e,
@@ -539,7 +628,7 @@ fn inventory_in_modules(
                     "dyn provider receiver must be shared concrete Address",
                 ));
             };
-            let (name, fields, owning_package) = match inner.as_ref() {
+            let (name, fields, owning_package) = match stored::physical(inner) {
                 Type::Record { name, fields } => (name, fields, false),
                 Type::Package { name, fields } => (name, fields, true),
                 _ => {
@@ -549,14 +638,18 @@ fn inventory_in_modules(
                     ));
                 }
             };
-            let Type::Named(raw_self) = &table.self_type else {
-                return Err(unsupported(
-                    function.span,
-                    "dyn raw Self needs nominal declaration",
-                ));
+            let matches_self = match &table.self_type {
+                Type::Named(raw_self) => {
+                    *name == format!("@module{}:{}", table.id.module.0, raw_self)
+                }
+                Type::BorrowedStorage { .. } => table.self_type == **inner,
+                _ => false,
             };
-            if *name != format!("@module{}:{}", table.id.module.0, raw_self)
-                || if owning_package {
+            let qualified = matches!(inner.as_ref(), Type::BorrowedStorage { .. });
+            if !matches_self
+                || if qualified {
+                    interface.context.is_none()
+                } else if owning_package {
                     table.owned_storage != Some(DynOwnedStorage::Heap)
                         || closed_owner_shape(inner, &mut left, 0, limits)?.is_none()
                 } else {
@@ -654,7 +747,11 @@ fn inventory_in_modules(
         }
         spend(&mut left, output.len())?;
         if output.iter().any(|prior: &DynVtable| {
-            prior.interface == table.interface && prior.self_type == self_type
+            prior.interface == table.interface
+                && prior.self_type == self_type
+                && prior.self_classes == table.self_classes
+                && prior.ports == table.ports
+                && prior.actuals == table.actuals
         }) {
             return Err(error(
                 "E-DYN-PROVIDER",
@@ -669,7 +766,7 @@ fn inventory_in_modules(
             self_type,
             implementation: table.implementation,
             actuals: table.actuals.clone(),
-            ports: Vec::new(),
+            ports: table.ports.clone(),
             entries,
             cleanup: None,
             owned_storage: table.owned_storage,
@@ -720,12 +817,6 @@ pub(super) fn inventory_program(
             {
                 spend(&mut left, name.len())?;
             }
-            if !declaration.parameters.is_empty() {
-                return Err(unsupported(
-                    Span::default(),
-                    "generic dyn declaration needs a fixed application",
-                ));
-            }
             if !declaration_ids.insert(declaration.id)
                 || !declaration_identities.insert(&declaration.identity)
             {
@@ -758,14 +849,9 @@ pub(super) fn inventory_program(
                     + interface.retained_life.retained.len()
                     + interface.retained_life.nominal_arguments.len(),
             )?;
-            if interface.context.is_some()
-                || !interface.application.actuals.is_empty()
-                || !interface.inherited.is_empty()
+            if !interface.inherited.is_empty()
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
-                || !interface.retained_life.ports.is_empty()
-                || !interface.retained_life.retained.is_empty()
-                || !interface.retained_life.nominal_arguments.is_empty()
             {
                 return Err(unsupported(
                     Span::default(),
@@ -785,9 +871,8 @@ pub(super) fn inventory_program(
                         + slot.actuals.len()
                         + slot.member.application.actuals.len(),
                 )?;
-                if !valid_scalar_contract(slot)
+                if !valid_slot_contract(slot, interface)
                     || !slot.actuals.is_empty()
-                    || !slot.member.application.actuals.is_empty()
                     || slot.parameters.iter().any(|ty| !plain_value(ty))
                     || !(plain_value(&slot.result)
                         || !slot.receiver.mutable && borrowed_result(&slot.result))
@@ -804,7 +889,7 @@ pub(super) fn inventory_program(
                 &mut left,
                 1 + table.entries.len() + table.actuals.len() + table.ports.len(),
             )?;
-            if !table.actuals.is_empty() || !table.ports.is_empty() || table.cleanup.is_some() {
+            if table.cleanup.is_some() {
                 return Err(unsupported(
                     Span::default(),
                     "dyn table has unsupported actuals or cleanup",
@@ -877,7 +962,11 @@ pub(super) fn inventory_program(
             })?;
             if tables.iter().any(|prior: &DynVtable| {
                 prior.id == table.id
-                    || prior.interface == table.interface && prior.self_type == table.self_type
+                    || prior.interface == table.interface
+                        && prior.self_type == table.self_type
+                        && prior.self_classes == table.self_classes
+                        && prior.ports == table.ports
+                        && prior.actuals == table.actuals
             }) {
                 return Err(error(
                     "E-DYN-PROVIDER",
@@ -1331,29 +1420,36 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<(ValueId, Type)> {
         let (source_value, actual) = self.transfer_expr(source, None)?;
-        if !matches!(&actual, Type::Package { .. }) {
+        if !matches!(
+            stored::physical(&actual),
+            Type::Package { .. } | Type::Record { .. }
+        ) {
             return Err(error(
                 "E-DYN-OWNER",
                 span,
                 "owned dyn needs a complete Package with closed built-in ByteBuffer cleanup",
             ));
         }
-        let table = self
-            .dyn_vtables
-            .iter()
-            .find(|table| {
-                table.interface == interface
-                    && table.self_type == actual
-                    && table.owned_storage == Some(route)
-                    && vtable.is_none_or(|id| table.id == id)
-            })
-            .ok_or_else(|| {
-                error(
-                    "E-DYN-PROVIDER",
-                    span,
-                    "owned dyn has no exact owning provider table",
-                )
-            })?;
+        let mut candidates = self.dyn_vtables.iter().filter(|table| {
+            table.interface == interface
+                && table.self_type == actual
+                && table.owned_storage == Some(route)
+                && vtable.is_none_or(|id| table.id == id)
+        });
+        let table = candidates.next().ok_or_else(|| {
+            error(
+                "E-DYN-PROVIDER",
+                span,
+                "owned dyn has no exact owning provider table",
+            )
+        })?;
+        if candidates.next().is_some() {
+            return Err(error(
+                "E-DYN-PROVIDER",
+                span,
+                "owned dyn requires the actual constructor's exact provider witness",
+            ));
+        }
         let result = owned_result(interface);
         let value = self.value(
             InstructionKind::MakeDynOwned {

@@ -656,7 +656,7 @@ fn local_value(
             .iter()
             .find(|i| i.id == *interface)
             .ok_or_else(|| bad("owned dyn lacks an actual interface"))?;
-        crate::dyn_cleanup::bound(found.owning_cleanup.as_ref(), budget)?;
+        crate::dyn_cleanup::bound(found, budget)?;
         return Ok(false);
     }
     if let Type::ErrorUnion { error, result } = ty

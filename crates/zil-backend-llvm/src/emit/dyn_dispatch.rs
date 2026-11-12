@@ -146,6 +146,12 @@ fn closed_owner_shape(
     let mut owners = 0usize;
     let mut cost = 1usize;
     match ty {
+        Type::BorrowedStorage { storage, .. } => {
+            return closed_owner_shape(storage, module, limits, depth + 1);
+        }
+        // These are external borrowed leaves. Verified port coverage supplies
+        // no destructor or ownership of their pointees.
+        Type::Address { .. } | Type::Desc(_) => return Ok(Some((0, 1))),
         Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => {
             return Ok(module
                 .resources
@@ -253,13 +259,16 @@ pub(super) fn reserve(
         .saturating_add(module.dyn_vtables.len());
     for interface in &module.dyn_interfaces {
         cost = cost.saturating_add(interface.slots.len().saturating_mul(128));
-        if interface.retained_life.binder_count != 0
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || !interface.retained_life.nominal_arguments.is_empty()
-        {
-            return unsupported("shared dyn ABI has no retained environment ports", None);
-        }
+        cost = cost
+            .saturating_add(interface.retained_life.ports.len().saturating_mul(32))
+            .saturating_add(interface.retained_life.retained.len().saturating_mul(16))
+            .saturating_add(
+                interface
+                    .retained_life
+                    .nominal_arguments
+                    .len()
+                    .saturating_mul(16),
+            );
         for slot in &interface.slots {
             for ty in slot.parameters.iter().chain(std::iter::once(&slot.result)) {
                 if !ty.is_b0_scalar() {
@@ -279,7 +288,9 @@ pub(super) fn reserve(
         cost = cost.saturating_add(table.entries.len().saturating_mul(128));
         if table.owned_storage == Some(DynOwnedStorage::Heap) {
             let shape = match &table.self_type {
-                Type::Package { .. } => closed_owner_shape(&table.self_type, module, limits, 0)?,
+                Type::Package { .. } | Type::BorrowedStorage { .. } => {
+                    closed_owner_shape(&table.self_type, module, limits, 0)?
+                }
                 Type::Record { fields, .. } if fields.iter().all(|(_, ty)| ty.is_b0_scalar()) => {
                     Some((0, fields.len()))
                 }
@@ -293,7 +304,14 @@ pub(super) fn reserve(
                 .saturating_add(owners.saturating_mul(256))
                 .saturating_add(512);
         }
-        if !table.ports.is_empty() || table.cleanup.is_some() {
+        cost = cost.saturating_add(table.ports.len().saturating_mul(16));
+        for row in &table.ports {
+            cost = cost.saturating_add(row.sources.len().saturating_mul(16));
+            for source in &row.sources {
+                cost = cost.saturating_add(source.path.len().saturating_mul(16));
+            }
+        }
+        if table.cleanup.is_some() {
             return unsupported(
                 "borrowed dyn ABI has no owning cleanup or retained ports",
                 None,

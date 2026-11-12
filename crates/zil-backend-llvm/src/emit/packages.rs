@@ -191,7 +191,7 @@ pub(super) fn teardown_paths(
     while let Some((ty, path)) = pending.pop() {
         match ty {
             Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. }) =>
+                if matches!(storage.as_ref(), Type::Package { .. } | Type::Record { .. }) =>
             {
                 pending.push((storage.as_ref(), path));
             }

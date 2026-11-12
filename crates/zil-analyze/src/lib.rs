@@ -21,6 +21,7 @@ mod dyn_cleanup;
 mod dyn_context;
 mod dyn_dispatch;
 mod dyn_metadata;
+mod dyn_provider;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
