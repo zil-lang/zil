@@ -507,9 +507,9 @@ fn normalize(
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
             // This is the same paid member walk as features_with_methods.
-            // Record receiver-free declarations and actual scalar providers,
-            // whose calls normalize to direct functions. An impl may omit
-            // `self` while inheriting a receiver from its trait signature.
+            // Every ordinary member has an executable receiver collector
+            // target. Retained input elision needs that actual declaration's
+            // restoration row as well as receiver-free/scalar methods.
             let mut defaults = false;
             let mut associated = false;
             let mut methods = false;
@@ -519,10 +519,7 @@ fn normalize(
                 if let ItemKind::Function(function) = &member.kind {
                     methods |= !function.generics.is_empty();
                     defaults |= !matches!(function.body, FunctionBody::Declaration);
-                    if function.generics.is_empty()
-                        && (!function.params.first().is_some_and(|p| p.name == "self")
-                            || scalar_traits.contains(&t.name))
-                    {
+                    if function.generics.is_empty() {
                         budget.text(&t.name, item.span)?;
                         budget.text(&function.name, member.span)?;
                         budget.lineage_bytes(

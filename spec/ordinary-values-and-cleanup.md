@@ -17,3 +17,18 @@ Qualified ordinary Type actuals retain separate physical syntax and semantic sou
 Associated arguments keep the complete trait application and each independent binder throughout definition checking and specialization, including protected binders and cross-module declarations. A candidate trait must actually declare the requested method. Equal parameter spellings, equal machine layout and unrelated bare method names do not merge providers. Nominal premises cannot supply a missing structural, callable, or cleanup obligation.
 
 Executable controls are in `crates/zil-driver/tests/iterator_adapters.rs`, `generic_product_methods.rs` and `borrowed_product_store_captures.rs`, with ordinary library consumers and an allocation observer in `tests/language-readiness/iterator-adapters`. Native acceptance uses Clang and LLVM API at O0/O2. Raw Core recipe mutations and raw/Wire TypedIR mutations must be rejected by their actual independent consumers after refreshing the untrusted fingerprint.
+
+An omitted lifetime on an ordinary Source function's data Address input denotes
+an implicit invocation domain at that exact declaration, parameter ordinal and
+nested type path. Independent omitted input occurrences have independent source
+domains; actual call substitution may relate them only through the real inputs.
+These hygienic domains are not additional user generic parameters. A bare
+borrowed result uses the receiver domain, or the unique input domain when there
+is no receiver; an ambiguous result needs an explicit relation. A generic result
+that transfers the whole actual `T` preserves the complete joint input shape
+rather than selecting one of its borrowed leaves. Ordinary helper result hints
+are substituted through the complete semantic input applications before another
+generic call uses them. Code signatures introduce their own invocation domain:
+`Fn`, `FnMut` and `FnOnce` parameter/result lifetimes are code contracts, not
+inferred retained slots of the callable environment. Neither elision nor a
+Source hint supplies actual roots, class equality, ownership or access rights.

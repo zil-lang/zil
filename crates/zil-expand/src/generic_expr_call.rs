@@ -1097,7 +1097,7 @@ impl Engine<'_> {
                             "type arguments supplied to a non-generic function",
                         ));
                     }
-                    self.signature_result(&target)?
+                    if let Some(result)=self.rebase_input_call_result(&target,&actual,e.span)?{Some(result)}else{self.signature_result(&target)?}
                 }
             } else {
                 let callee_type = self.expr(callee, env, depth + 1)?;

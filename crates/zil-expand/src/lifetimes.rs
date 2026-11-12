@@ -106,6 +106,13 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     }
                 }
             }
+            if let s::ItemKind::Function(function)=&item.kind {
+                for parameter in &function.params {
+                    if generics::source_input_life::has_elided(&parameter.ty,self.budget,depth+1).map_err(|error|vec![error])? {
+                        self.budget.note_stored_lifetimes();
+                    }
+                }
+            }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
                 // The trait method itself has a per-call life scope. A lifted
                 // provider retains its nominal Copy premise and the trait
