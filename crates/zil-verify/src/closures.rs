@@ -305,6 +305,14 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if matches!(ty, Type::Address { mutable: true, inner }
+                if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+            {
+                // Scheduling follows the actual borrowed holder type. Its
+                // source slots and every write are still independently solved.
+                budget.spend(1)?;
+                budget.nested_callable_sources = true;
+            }
             if let Type::OwnedDyn { interface } = ty {
                 dynamic_dispatch::closed_owned(module, *interface, budget)?;
                 continue;
