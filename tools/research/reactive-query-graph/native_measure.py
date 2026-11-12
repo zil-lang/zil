@@ -391,7 +391,12 @@ def codegen_identity(pair, mode, push_pair):
                           same('executable_sha256') and (compared if push_pair else raw)]))
 
 
-def main():
+def main(*, native_quality=None):
+    """Default retains byte equality; an explicit named protocol may add checks.
+
+    The old identity fields always keep their original meaning. A separate
+    protocol records its own evidence and acceptance without relabeling them.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--baseline', required=True, type=Path)
     p.add_argument('--candidate', required=True, type=Path)
@@ -423,6 +428,11 @@ def main():
     a = p.parse_args()
     a.out = a.out.resolve()
     a.out.mkdir(parents=True, exist_ok=False)
+    if native_quality is not None:
+        try:
+            native_quality.validate_arguments(a)
+        except ValueError as error:
+            p.error(str(error))
     if a.blocks < 1 or a.sample_ms <= 0:
         p.error('blocks and sample-ms must be positive')
     selected = a.request or default_requests(a.case)
@@ -459,6 +469,8 @@ def main():
                 'transition_policy': 'Each measured edit is preceded by a paired unmeasured compile of its named parent snapshot. Preparations are archived and validated. No application caches cross blocks; OS page cache is not flushed. Recovery produces a new successful body; restore returns to an old successful snapshot.',
                 'measurement_boundary': 'Wall: send compile through complete response; startup separate. CPU: /proc resident utime+stime+cutime+cstime delta, includes waited child CPU; tick quantization. RSS: resident response and sampled live tree sum (shared pages can double count; not exact child high-water). Native runs and source writes outside compilation timer.',
                 'coverage_boundary': 'Real Source/Types/Analyze/current independent Verify/native build. Mixed generator combines bounded arithmetic with live stdin, shared generic/trait calls, direct recursion, CT branch and owned closure. Scalar generator covers bounded arithmetic only. Existing consumers are small coverage controls, not scale evidence. No claims for full SCC, blanket traits, general resource composition or budget/cancel/eviction until separately exercised.'}
+    if native_quality is not None:
+        manifest['native_quality_protocol'] = native_quality.describe(a)
     dump(a.out / 'manifest.json', manifest)
     rows = []
     for block in range(a.blocks):
@@ -562,11 +574,33 @@ def main():
                                 and pair[0].get('executable_sha256') == pair[1].get('executable_sha256'))
                 identity = codegen_identity(pair, a.mode,
                                             '--push-reuse' in a.extra_arg + a.candidate_extra_arg)
+                quality_record = None
+                if native_quality is not None and a.mode != 'check' and all(
+                        row.get('status') == 'Success' for row in pair):
+                    try:
+                        quality_record = native_quality.compare_pair(pair, a)
+                    except (OSError, ValueError, RuntimeError, KeyError) as error:
+                        quality_record = {'valid': False, 'error': str(error)}
                 for row in pair:
                     row['paired_semantics_equal'] = equal
                     row['paired_executable_equal'] = binary_equal if a.mode != 'check' else None
                     row.update(identity)
-                    row['valid'] &= equal and identity['paired_codegen_identity_valid'] is not False
+                    if native_quality is not None:
+                        row['closed_machine_quality'] = quality_record
+                        # LLVM input equality remains mandatory. The ELF byte
+                        # equality field above is retained even when false.
+                        llvm_equal = (identity['paired_llvm_equal_excluding_identity_comment']
+                                      if '--push-reuse' in a.extra_arg + a.candidate_extra_arg
+                                      else identity['paired_raw_llvm_equal'])
+                        if row.get('status') == 'Success':
+                            accepted = (isinstance(quality_record, dict) and
+                                        quality_record.get('valid') is True and llvm_equal is True)
+                        else:
+                            accepted = (quality_record is None and
+                                        identity['paired_codegen_identity_valid'] is not False)
+                    else:
+                        accepted = identity['paired_codegen_identity_valid'] is not False
+                    row['valid'] &= equal and accepted
                     rows.append(row)
                     with (a.out / 'rows.jsonl').open('a') as f:
                         f.write(json.dumps(row, ensure_ascii=False) + '\n')
