@@ -470,9 +470,7 @@ fn relation_inner(
                 StorageBinder::Fixed(i) => (0, i, c.fixed_binder_count),
                 StorageBinder::Invocation(i) => (1, i, c.invocation_binder_count),
             };
-            if id >= count
-                || id > next[domain]
-                || (output && id >= inputs[domain] && !(domain == 0 && pending_here))
+            if id >= count || id > next[domain] || (output && id >= inputs[domain] && !pending_here)
             {
                 return Err(invalid());
             }

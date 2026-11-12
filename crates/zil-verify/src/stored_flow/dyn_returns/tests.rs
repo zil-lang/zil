@@ -885,3 +885,49 @@ fn static_class_obligations_do_not_borrow_evidence_from_another_port_or_parent()
         DynClassGrounding::Unknown
     );
 }
+
+#[test]
+fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
+    let (module, mut f, mut actual) = boundary();
+    f.parameters.clear();
+    let life = f.storage_life.as_mut().unwrap();
+    life.fixed_binder_count = 0;
+    life.invocation_binder_count = 1;
+    life.bindings.clear();
+    life.classes[0].binder = StorageBinder::Invocation(0);
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::Static {
+        leaf: module.dyn_interfaces[0].retained_life.ports[0].leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Static;
+    let mut b = Budget::new(&Limits::default());
+    b.dyn_contexts = true;
+    let keys = pending::register(&module, &f, &mut b).unwrap();
+    assert_eq!(keys.len(), 1);
+    let c = f.storage_life.as_ref().unwrap();
+    assert!(
+        signature_life::function_relation(&module, &[], &f.return_type, c, None, false).is_err()
+    );
+    signature_life::function_relation_pending(
+        &module,
+        &[],
+        &f.return_type,
+        c,
+        None,
+        false,
+        false,
+        &keys,
+    )
+    .unwrap();
+    validate(&module, &f, &actual, &mut b).unwrap();
+    assert_eq!(b.dyn_static_classes[0].binder, StorageBinder::Invocation(0));
+    assert_eq!(b.dyn_static_classes[0].grounding, DynClassGrounding::Static);
+    assert_eq!(module.dyn_interfaces[0].retained_life.binder_count, 1);
+    let mut forged = actual.clone();
+    forged.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    assert!(pending::discharge(&f, &forged, &mut b).is_err());
+    assert_eq!(
+        b.dyn_static_classes[0].grounding,
+        DynClassGrounding::Unknown
+    );
+}

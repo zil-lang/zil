@@ -13,14 +13,9 @@ pub(in crate::stored_flow) fn register(
     let Some(life) = &f.storage_life else {
         return Ok(Vec::new());
     };
-    if life.fixed_binder_count == 0 {
-        return Ok(Vec::new());
-    }
     let mut result = Vec::new();
     for row in &life.classes {
-        if row.position.base != StorageBase::Result
-            || !matches!(row.binder, StorageBinder::Fixed(_))
-        {
+        if row.position.base != StorageBase::Result {
             continue;
         }
         b.spend(life.classes.len().saturating_add(life.bindings.len()))?;
