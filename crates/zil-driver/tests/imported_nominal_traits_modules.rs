@@ -500,17 +500,21 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         }
         high
     }
+    // Project normalization now records each real source declaration before
+    // combining modules. The paid Origin insertion, lookup and owner routing
+    // replace late synthetic-root provenance; these exact boundaries include
+    // that work, with unchanged default limits and N-1/fresh checks below.
     let mut observed = Vec::new();
     let mut recorded = Vec::new();
     for (text, expected_minimum) in [
-        ("fn main()->i32=>0", 242),
+        ("fn main()->i32=>0", 244),
         (
             "resource R{n:i32}impl Drop for R{fn drop(self:Self){}}fn main()->i32{let r=R{n:1};return 0}",
-            2132,
+            2134,
         ),
         (
             "trait Code{fn code(self:&Self)->i32;}struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}fn main()->i32{let x=Payload{n:13};return x.code()-13}",
-            1273,
+            1275,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text);
@@ -547,9 +551,9 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         options.limits.max_analysis_steps = steps;
         CompilationSession::default().compile_project(&project(&files), &options)
     });
-    eprintln!("two-module trait: N={project_minimum}, expected=1414");
+    eprintln!("two-module trait: N={project_minimum}, expected=1420");
     observed.push(project_minimum);
-    recorded.push(1414);
+    recorded.push(1420);
     for (steps, expected) in [
         (project_minimum, ResultCategory::Success),
         (project_minimum - 1, ResultCategory::ResourceLimit),
