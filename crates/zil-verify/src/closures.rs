@@ -167,6 +167,7 @@ pub(super) fn check_definitions(
                 module,
                 &closure.parameters,
                 &closure.captures,
+                closure.kind,
                 stored_callables::life_result(closure),
                 life,
                 None,
@@ -211,7 +212,12 @@ pub(super) fn check_definitions(
                 "lending capture indices must be sorted, unique and within the actual environment",
             ));
         }
+        let receiver_relation = closure
+            .storage_life
+            .as_ref()
+            .is_some_and(|life| signature_life::outer(life, StorageBase::Receiver).is_some());
         let invocation = if matches!(closure.result, Type::Address { .. })
+            && !receiver_relation
             && closure.lending_captures.is_empty()
         {
             budget.spend(closure.parameters.len())?;
@@ -232,7 +238,7 @@ pub(super) fn check_definitions(
         }
         budget.borrowed_function_pointers |= invocation;
         budget.invocation_callbacks |= invocation;
-        if matches!(closure.result, Type::Address { .. }) && !invocation {
+        if matches!(closure.result, Type::Address { .. }) && !invocation && !receiver_relation {
             if !lending_result(&closure.result)
                 || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 || closure.lending_captures.is_empty()
@@ -256,7 +262,9 @@ pub(super) fn check_definitions(
                     ));
                 }
             }
-        } else if !closure.lending_captures.is_empty() {
+        } else if !matches!(closure.result, Type::Address { .. })
+            && !closure.lending_captures.is_empty()
+        {
             return Err(reject(
                 "E-VERIFY-LENDING",
                 None,
@@ -429,18 +437,6 @@ pub(super) fn check_definitions(
             } else {
                 check_local_type(ty, None, module, budget)?;
             }
-        }
-        if closure.kind == CallableKind::Fn
-            && closure
-                .captures
-                .iter()
-                .any(|t| matches!(t, Type::Address { mutable: true, .. }))
-        {
-            return Err(reject(
-                "E-VERIFY-CLOSURE-CALL",
-                None,
-                "exclusive capture requires an exclusive environment entry",
-            ));
         }
         let owning_signature = owned_callbacks::signature(module, closure, budget)?;
         if owning_signature {
@@ -914,6 +910,7 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
                         | Type::Package { .. }
                         | Type::Closure(_)
                         | Type::OwnedDyn { .. }
+                        | Type::Address { mutable: true, .. }
                 )
         }))
 }

@@ -3731,7 +3731,19 @@ fn check_instruction(
                     "owned captures require their explicit resource or Package view operations, never copying ReadCapture",
                 ));
             }
-            Some(ty.clone())
+            if definition.kind == CallableKind::Fn
+                && let Type::Address {
+                    mutable: true,
+                    inner,
+                } = ty
+            {
+                Some(Type::Address {
+                    mutable: false,
+                    inner: inner.clone(),
+                })
+            } else {
+                Some(ty.clone())
+            }
         }
         InstructionKind::WriteCapture { index, value } => {
             let environment = function.environment.ok_or_else(|| {

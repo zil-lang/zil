@@ -927,6 +927,7 @@ pub(super) fn check_role(
             module,
             &d.parameters,
             &d.captures,
+            d.kind,
             super::stored_callables::life_result(d),
             life,
             Some(f.span),
@@ -1107,6 +1108,37 @@ fn check_with(
             captures.push(ports);
         }
     }
+    // One invocation domain belongs to this actual entry. Each captured
+    // exclusive read creates its own permission, while its outer class refers
+    // to this shared call region and its pointee Fixed classes stay invariant.
+    let receiver_region = if let Some(id) = f.environment {
+        let definition = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| bad("receiver entry environment is absent"))?;
+        b.spend(definition.captures.len())?;
+        let explicit =
+            assumptions.and_then(|life| crate::signature_life::outer(life, StorageBase::Receiver));
+        if let Some(binder) = explicit {
+            Some(select(
+                header
+                    .as_ref()
+                    .ok_or_else(|| bad("receiver relation absent"))?,
+                binder,
+            )?)
+        } else if definition.kind != CallableKind::FnOnce
+            && definition
+                .captures
+                .iter()
+                .any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
+        {
+            Some(e.fresh(true, b)?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let outer = if b.array_outer_functions.is_empty() {
         None
     } else {
@@ -1419,7 +1451,38 @@ fn check_with(
                             .get(*index as usize)
                             .ok_or_else(|| bad("capture class index absent"))?;
                         if let Some(out) = out {
-                            array_outer::copy(&mut e, out, source, outer.as_ref(), b)?;
+                            let exclusive = f
+                                .environment
+                                .and_then(|id| module.closures.get(id.0 as usize))
+                                .and_then(|d| d.captures.get(*index as usize))
+                                .is_some_and(|ty| {
+                                    matches!(ty, Type::Address { mutable: true, .. })
+                                });
+                            if exclusive && let Some(region) = receiver_region {
+                                b.spend(
+                                    out.classes
+                                        .len()
+                                        .saturating_add(source.classes.len())
+                                        .saturating_add(1),
+                                )?;
+                                if out.classes.len() != source.classes.len() {
+                                    return Err(bad(
+                                        "capture reborrow changes its complete pointee class domain",
+                                    ));
+                                }
+                                e.equal(
+                                    out.outer.ok_or_else(|| {
+                                        bad("capture reborrow lacks an outer address")
+                                    })?,
+                                    region,
+                                    b,
+                                )?;
+                                for (to, from) in out.classes.iter().zip(&source.classes) {
+                                    e.equal(*to, *from, b)?;
+                                }
+                            } else {
+                                array_outer::copy(&mut e, out, source, outer.as_ref(), b)?;
+                            }
                         }
                     }
                     InstructionKind::BindPackageCapture { local, index }
@@ -2113,6 +2176,16 @@ fn check_with(
                             let mut vars = (receiver.classes.clone(), Vec::new());
                             for _ in 0..definition.invocation_binder_count {
                                 vars.1.push(e.fresh(false, b)?);
+                            }
+                            if let Some(binder) =
+                                crate::signature_life::outer(definition, StorageBase::Receiver)
+                            {
+                                let actual = select(&vars, binder)?;
+                                if let Some(head) = receiver.outer {
+                                    e.equal(actual, head, b)?;
+                                } else {
+                                    e.ground_address(Some(actual), b)?;
+                                }
                             }
                             for (index, argument) in arguments.iter().enumerate() {
                                 bind_with_outer(
