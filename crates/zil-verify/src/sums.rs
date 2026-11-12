@@ -1209,13 +1209,26 @@ fn forget_shared_copy_tags(
         }
     }
     if budget.large_tag_layout {
-        match tag_layout(ty, budget)? {
+        let layout = if let Some((cache, local)) = cached {
+            budget.spend(1)?; // actual mutable RefCell borrow
+            cache.borrow_mut().layout(local, ty, budget)?
+        } else {
+            tag_layout(ty, budget)?
+        };
+        match layout {
             0 => return Ok(()),
             1 if route_already_absent(value, budget)? => return Ok(()),
             _ => {}
         }
     }
-    value.cost(budget)?;
+    // A uniquely held root is edited in place. Only an actual shared root
+    // makes Arc::make_mut clone the recursive Content tree. The transfer itself
+    // charges its actual visits below; small inventories retain the old path.
+    if !budget.large_tag_layout || Arc::strong_count(value) > 1 {
+        value.cost(budget)?;
+    } else {
+        budget.spend(1)?; // uniqueness check before the in-place edit
+    }
     Arc::make_mut(value).forget_copy_tags(ty, budget)
 }
 
