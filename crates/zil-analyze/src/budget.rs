@@ -2877,6 +2877,15 @@ pub(super) fn preflight(
     for element in callback_store_elements {
         super::dynamic_store::callback_element(module, element, budget)?;
     }
+    if (budget.registrations || budget.async_registrations)
+        && budget.task_input_scopes.is_none()
+        && module
+            .functions
+            .iter()
+            .any(|function| function.storage_life.is_some())
+    {
+        budget.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, budget)?);
+    }
     Ok((package_functions, store_profiles))
 }
 

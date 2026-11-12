@@ -163,13 +163,14 @@ pub(super) fn relation(
         .iter()
         .map(|local| f.locals[local.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    function_relation_in_module(
+    function_relation_resource_scopes(
         &parameters,
         &f.return_type,
         c,
         !module.closures.is_empty(),
         module,
         false,
+        b,
     )?;
     Ok(true)
 }

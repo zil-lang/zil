@@ -271,12 +271,14 @@ pub(super) fn borrowed_signature(
         )?;
         return Ok(true);
     }
-    super::signature_life::function_relation(
+    super::signature_life::function_relation_resource_scopes(
         &parameters,
         &f.return_type,
         contract,
         callable,
-        if callable { &module.closures } else { &[] },
+        module,
+        false,
+        budget,
     )?;
     Ok(true)
 }

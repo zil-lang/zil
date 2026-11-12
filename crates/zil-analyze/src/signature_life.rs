@@ -187,7 +187,18 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, None, result, c, false, &[], false, &[], None)
+    relation_inner(
+        parameters,
+        None,
+        result,
+        c,
+        false,
+        &[],
+        false,
+        &[],
+        None,
+        &[],
+    )
 }
 pub(super) fn function_relation(
     parameters: &[Type],
@@ -206,6 +217,28 @@ fn function_relation_inner(
     closures: &[ClosureDefinition],
     allow_byte_input: bool,
     interfaces: &[DynInterface],
+) -> CompileResult<()> {
+    function_relation_scopes_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        closures,
+        allow_byte_input,
+        interfaces,
+        &[],
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn function_relation_scopes_inner(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    closures: &[ClosureDefinition],
+    allow_byte_input: bool,
+    interfaces: &[DynInterface],
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> CompileResult<()> {
     if let Type::ErrorUnion {
         result: success, ..
@@ -287,6 +320,7 @@ fn function_relation_inner(
         allow_byte_input,
         interfaces,
         None,
+        zero_resources,
     )
 }
 
@@ -308,6 +342,7 @@ pub(super) fn closure_relation(
         false,
         &[],
         Some(kind),
+        &[],
     )
 }
 pub(super) fn function_relation_in_module(
@@ -328,6 +363,79 @@ pub(super) fn function_relation_in_module(
         &module.dyn_interfaces,
     )
 }
+
+struct ZeroResourceRoot<'a> {
+    base: StorageBase,
+    whole_type: &'a Type,
+}
+fn opaque_resource(ty: &Type) -> Option<&Type> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let ty = if let Type::Managed(inner) | Type::Desc(inner) = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    match ty {
+        Type::Registration { .. } | Type::AsyncRegistration { .. } => Some(ty),
+        Type::Task { retained_life, .. } if retained_life.binder_count == 0 => Some(ty),
+        _ => None,
+    }
+}
+
+/// Only a structural free-domain witness. Original parameter ordinals and
+/// complete types stay intact; roots, state, cleanup and Transfer are separate.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn function_relation_resource_scopes(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+    module: &TypedModule,
+    allow_byte_input: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut roots = Vec::new();
+    for (base, ty) in parameters
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
+        .chain(std::iter::once((StorageBase::Result, result)))
+    {
+        if let Some(resource) = opaque_resource(ty) {
+            if matches!(resource, Type::Task { .. }) {
+                crate::tasks::require_closed_context(resource)?;
+            }
+            if crate::tasks::input_scope::domain(resource, b)?
+                == crate::tasks::input_scope::Domain::Known(0)
+            {
+                b.type_work(ty, false, "actual zero-resource occurrence identity")?;
+                roots.push(ZeroResourceRoot {
+                    base,
+                    whole_type: ty,
+                });
+            }
+        }
+    }
+    if !roots.is_empty() && !c.static_bindings.is_empty() {
+        return Err(bad(
+            "opaque resource header requires its complete static occurrence consumer",
+        ));
+    }
+    function_relation_scopes_inner(
+        parameters,
+        result,
+        c,
+        allow_callback,
+        &module.closures,
+        allow_byte_input,
+        &module.dyn_interfaces,
+        &roots,
+    )
+}
 #[allow(clippy::too_many_arguments)]
 fn relation_inner(
     parameters: &[Type],
@@ -339,6 +447,7 @@ fn relation_inner(
     allow_byte_input: bool,
     interfaces: &[DynInterface],
     receiver_kind: Option<CallableKind>,
+    zero_resources: &[ZeroResourceRoot<'_>],
 ) -> CompileResult<()> {
     if c.classes
         .iter()
@@ -346,7 +455,7 @@ fn relation_inner(
     {
         return Err(bad("receiver head has no persistent class directory"));
     }
-    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
+    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 && zero_resources.is_empty() {
         return Err(bad(
             "vacuous borrowed signature must use the ordinary callable type",
         ));
@@ -385,6 +494,7 @@ fn relation_inner(
         array_result_input: bool,
         closures: &'a [ClosureDefinition],
         interfaces: &'a [DynInterface],
+        zero_resources: &'a [ZeroResourceRoot<'a>],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -523,6 +633,13 @@ fn relation_inner(
                     self.borrow += 1;
                     self.binder(row.binder, false)?;
                 }
+                return Ok(());
+            }
+            if self
+                .zero_resources
+                .iter()
+                .any(|root| root.base == base && root.whole_type == ty)
+            {
                 return Ok(());
             }
             let task = match target {
@@ -831,6 +948,7 @@ fn relation_inner(
         array_result_input: false,
         closures,
         interfaces,
+        zero_resources,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;

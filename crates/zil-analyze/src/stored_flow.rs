@@ -2414,13 +2414,14 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
-    super::signature_life::function_relation_in_module(
+    super::signature_life::function_relation_resource_scopes(
         &parameters,
         result,
         c,
         f.callable_contract.is_some() || f.callable_return_contract.is_some(),
         module,
         byte_signature,
+        b,
     )?;
     Ok(())
 }
