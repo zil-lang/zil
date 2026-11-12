@@ -1,6 +1,6 @@
 # 增量编译：main 与 Rust 对照
 
-> 最新追加：[d3真实负载诊断](full-push-diagnostic-d3f561bdc.json) 默认private464ms、cold7216/broad6664仍负，错误恢复1566ms负例保留；cold IRkey+capture约184ms，原3816组O2仍执行。共同closed private739ms、1机器复用/1执行。两策略各34valid/180native/15强产物对，不作新Rust比值。完整Types失败历史桥接后101/208及严格Clippy已过，格式修正与release10也过，尚未测量该修复。完整MIR平池与真实scheduler四类AU绑定继续集成，非终态。raw [v12](full-push-recovery-v12.json)/[v13](full-push-recovery-v13.json)已完整远端恢复核验；旧07/01、08/02、09/03本地原目录已逐manifest核后退役，侧文件与cleanup06 metadata仍在，完整raw从固定Git恢复。
+> 最新正式检查点：[1e260全景与剩余成本](full-push-checkpoint-1e260.md)、[同窗六轮三方结果](full-push-matched-1e260.md)。main固定3ec7；check单处候选80ms/Rust251ms，原生O2单处560ms/Rust593ms，尚非显著领先；cold7616/Rust6819、broad7070/5826、noop64/13及recovery516/515负结果全保留。两模式各270请求，原生2808执行，78完整ELF/严格LLVM相等对（42测量+36父准备）。精确源码native72/backend239/mixeddriver3/strictClippy/fmt/release11过；[flat MIR/真实四列AU独审](full-push-flat-mir-canonical-au-review.json)。[check raw v14](full-push-recovery-v14.json)已全量fixedGit freshHTTPS恢复并原validator重算；O2分片归档恢复中，尚不宣称远端完成。研究继续，默认关闭、不合main，未达到全局最简及显著超Rust目标。
 
 > **此前检查点：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，冻结源码 `244c5bdbd73db14a9ab06e86ee75a67afd5f1e52`；实际 main `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02`。目标未完成、研究开关默认关闭、未合 main。旧 [正式六轮三方结果](full-push-matched-433-raw-review.md) 仍绑定433/main42：private641ms/Rust704、多处898/970，cold/noop/broad/recovery负例保留；新main不能回填旧窗口。
 >

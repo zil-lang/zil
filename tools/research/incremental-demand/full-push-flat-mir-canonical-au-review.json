@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "status": "accepted_bounded_source_and_targeted_native_tests",
+  "source_commit": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+  "source_tree": "d1461e76726b6641e766efd6d441a74661a93900",
+  "scope": "Flat typed MIR instruction/operand/MMO/tie pools and complete current canonical LegacyPM analysis usage identity. Previous input/world/stage economics/frame/gap source acceptances are separate bounded receipts.",
+  "production_file_sha256": {
+    "crates/zil-llvm-api/native/machine_products.cpp": "afd5e66b68c5c4b2ce68d2794277f72ca7bd6ce386202c8fa2d9420369135f3b"
+  },
+  "official_source_pins": [
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/IR/LegacyPassManager.cpp",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/IR/LegacyPassManager.cpp",
+      "sha256": "0063f62e4c7cce497e03231167c72f41a7cab719af50b1638d7b9ecb4155bc6d",
+      "bytes": 60364
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/include/llvm/IR/LegacyPassManagers.h",
+      "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/include/llvm/IR/LegacyPassManagers.h",
+      "sha256": "912633318f08bd0f04abe192ebf3bcfe3a5dd8e78856246fdf25bf43fbfd7796",
+      "bytes": 18574
+    }
+  ],
+  "method": "Read complete source delta and actual capture/reconstruct/typed recapture/ledger/provider consumers plus strict negative fixtures, fixed actual LLVM canonical AU cache and scheduling/invalidation implementations. Read/hash completed root native23 logs and exact source/tree/source_after/exit receipt. Reviewer ran no compiler/Cargo/native code/benchmark or production mutation.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "complete flat representation",
+      "conclusion": "40-byte MI header retains opcode/MI flags/AsmPrinter flags/CFI type and three complete ranges into owned operand/MMO/tie pools; blocks retain full instruction ranges. Same exact BodyOperand16-byte fields, arbitrary-width owned APInt pool, memory/frame state, raw probabilities, current IRBB/layout, MRI masks and physical use-def order remain. BodyState Eq includes every side pool and all range values, not only MIR text."
+    },
+    {
+      "topic": "pre-allocation range closure",
+      "conclusion": "canonicalBodyRanges requires each range start equal current encounter cursor, overflow-safe fits checks and exact final total for every pool. This rejects aliases, gaps, reordering and unused tails before any current MBB/MI allocation. Ties are prechecked as valid distinct local def/use register indices and canonical use order. The owned APInt pool still requires exact one-to-one encounter coverage before allocation. All bounded source capture appends are charged before pushing;64MiB bound is below uint32 range capacity, so compact pool ordinals do not truncate admitted data."
+    },
+    {
+      "topic": "current reconstruction and original checks",
+      "conclusion": "Restore slices only after canonical proof, allocates current blocks/MI and uses saved local operand indices correctly. FI/CFI/MMO restoration and frame/current PSV ownership remain original; bundles, ties and physical use-def sequence restored as before. Existing snapshot domain, full typed recapture Eq, current MachineVerifier, full MIR output Eq and original AsmPrinter/MC consumers remain. Partial replay failures still abort full native attempt and use fresh original context."
+    },
+    {
+      "topic": "capacity",
+      "conclusion": "snapshotPayload now charges each global instruction/operand/MMO/tie pool exactly once at actual record size; body vector headers are in sizeof structures and APInt/frame/numbering/pipeline state charges remain. All AU vectors including Preserved are counted in full retained pipeline/sequence payload; required provider-reservation closure counts only actual input columns. Original optional cap/refusal behavior remains; no RSS or total allocator bound is asserted."
+    },
+    {
+      "topic": "canonical AU source and lifetime",
+      "conclusion": "Fixed7a findAnalysisUsage619-649 uses exact current Pass instance in TPM map and interns by full AU values. Scheduling/required-used1057, initializeAnalysisImpl1076, preservation869/889/903 consume that canonical value. New describe borrows only current resolver/PM/TPM then immediately copies values/static IDs; no Pass/PM/AU object reference is retained in product. Missing resolver/TPM falls back to original direct getAnalysisUsage. Dynamic later virtual answers ignored by scheduler no longer override this actual canonical identity."
+    },
+    {
+      "topic": "four AU columns",
+      "conclusion": "One ID vector stores Required, Transitive, Used and Preserved with three explicit lengths and Preserved remainder. Equality compares all lengths/ordered IDs/PassID/machine/preservesAll, closing original concatenated-category and omitted-Preserved projection limits without claiming an observed prior wrong-code. Input provider traversal uses only first three columns; Preserved entries participate in identity but do not falsely become demanded/fresh providers."
+    },
+    {
+      "topic": "strict actual tests",
+      "conclusion": "Existing typed mask bit8 now also requires real TPM per-instance/cache/fallback/dynamic-answer/column-boundary/preserved-order/closure-exclusion counterexamples and malformed flat ranges. Frame bit64 adds MMO range/unused-tail/alias/accounting rejections. Existing entire masks and real cold/warm/private O2 object/MIR quality tests remain strict; new negative cases are included in existing tests rather than implied by unchanged test count."
+    }
+  ],
+  "test_evidence": {
+    ".log": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-23.log",
+      "sha256": "741caac18d4c5030f5c9a2fe2474b4630975dd896afa68d71ff783f08074a349",
+      "bytes": 77184
+    },
+    "results": [
+      "test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.00s"
+    ],
+    ".json": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-23.json",
+      "sha256": "882334425e14a4728d39cc6069e597558d63d8fcb4fb6ad45bf79ecd0d3feb95",
+      "bytes": 434
+    },
+    "command_receipt": {
+      "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+      "tree": "d1461e76726b6641e766efd6d441a74661a93900",
+      "source_after": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native-products,text-reference",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "elapsed_ns": 29922459877
+    },
+    ".exit": {
+      "path": "/workspace/zil-push-main/out/runs/native-products-full-tests-23.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    "explicit_exit": "0"
+  },
+  "validation_summary": "Root native23 exact source/tree/source_after match1e260; explicit exit0;72 passed/0failed/0ignored. Syntax-only author pass is not used as runtime acceptance.",
+  "not_claimed": [
+    "current backend10/driver3mixed02/Clippy11/fmt11/release11 results until separately complete and read",
+    "new full workspace",
+    "actual425 retained-memory or latency improvement, balanced performance matrix",
+    "general unsupported LLVM pass/analysis/target correctness",
+    "resident logical payload caps are RSS bounds or public typed metadata is independent safety authority"
+  ]
+}

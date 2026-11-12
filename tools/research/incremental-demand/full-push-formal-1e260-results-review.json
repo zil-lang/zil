@@ -1,0 +1,657 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/audit, independent of compiler slice and matrix execution",
+  "status": "accepted_bounded_data_and_quality_comparison_not_global_performance_acceptance",
+  "candidate_source": {
+    "commit": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+    "tree": "d1461e76726b6641e766efd6d441a74661a93900",
+    "worktree": "/workspace/zil-push-main",
+    "status": "",
+    "source_tree_inventory": {
+      "sha256": "4f9a9b6690d6fab1bf819ca001806414fcb30d779b3299ab5127f0e916b8f543",
+      "bytes": 497294,
+      "archive": "blobs/4f9a9b6690d6fab1bf819ca001806414fcb30d779b3299ab5127f0e916b8f543.git-ls-tree"
+    },
+    "worktree_diff": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+    }
+  },
+  "baseline_source": {
+    "commit": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
+    "tree": "f50e96aa1d238357704e1f58fa7fe4769bea836d",
+    "worktree": "/workspace/zil-baseline-3ec7e8a9",
+    "status": "",
+    "source_tree_inventory": {
+      "sha256": "31f014c415b3bea3fabe6af4f24719d54338ae0d43be69a4ebebae05aa7b54a1",
+      "bytes": 474049,
+      "archive": "blobs/31f014c415b3bea3fabe6af4f24719d54338ae0d43be69a4ebebae05aa7b54a1.git-ls-tree"
+    },
+    "worktree_diff": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+    }
+  },
+  "binaries": {
+    "baseline": {
+      "path": "/workspace/zil-baseline-3ec7e8a9/target/release/zil",
+      "sha256": "1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405",
+      "bytes": 23042160,
+      "archive": "blobs/1b9abd96de7989b4b9e01bc37ccbee54e5984617028988dffd5d00d516c73405.compiler",
+      "build_receipt": {
+        "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f",
+        "bytes": 931,
+        "archive": "blobs/99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f.build-receipt"
+      }
+    },
+    "candidate": {
+      "path": "/workspace/zil-push-main/out/binaries/1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d/zil",
+      "sha256": "e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393",
+      "bytes": 26208664,
+      "archive": "blobs/e2411c9d010cc7c8a8d4a21d40563384118568faba094b795d2cdad997ddb393.compiler",
+      "build_receipt": {
+        "sha256": "5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8",
+        "bytes": 1339,
+        "archive": "blobs/5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8.build-receipt"
+      }
+    }
+  },
+  "runtime_binding": {
+    "schema": "per-arm-resident-llvm-v1",
+    "arms": {
+      "baseline": {
+        "environment": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-23.1.4/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        },
+        "llvm_dsos": [
+          {
+            "path": "/workspace/.zil-environment/llvm-23.1.4/lib/libLLVM.so.23.1",
+            "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+          }
+        ]
+      },
+      "candidate": {
+        "environment": {
+          "LD_LIBRARY_PATH": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "ZIL_LLVM_LIB_DIR": "/workspace/.zil-environment/llvm-function-products-v15/lib",
+          "LD_PRELOAD": null,
+          "LD_AUDIT": null,
+          "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang",
+          "ZIL_LLVM_CONFIG": null,
+          "LLVM_CONFIG": null
+        },
+        "llvm_dsos": [
+          {
+            "path": "/workspace/.zil-environment/llvm-function-products-v15/lib/libLLVM.so.23.1",
+            "sha256": "200a8dbefbb8dc13dfff539a72969378c57feb7a8f2d36c635589507c4376461"
+          }
+        ]
+      }
+    }
+  },
+  "o2_cells": {
+    "cold": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          5912.905809,
+          5664.589169,
+          5749.352088,
+          7285.178614,
+          6532.432135,
+          6415.219534
+        ],
+        "candidate": [
+          7712.788212,
+          7067.734936,
+          7519.474236,
+          8329.049965,
+          7329.956808,
+          7934.314684
+        ],
+        "rust": [
+          6191.748899,
+          6842.425572,
+          6795.748922,
+          7167.225693,
+          7198.883137,
+          6488.466031
+        ]
+      },
+      "median_ms": {
+        "baseline": 6164.0626715,
+        "candidate": 7616.131224000001,
+        "rust": 6819.0872469999995
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          1.3043989640863904,
+          1.2477047717209304,
+          1.3078820223403234,
+          1.1432869949123803,
+          1.122086943502552,
+          1.2367955051185626
+        ],
+        "rust": [
+          1.2456558458379434,
+          1.032928288606016,
+          1.1064967705997895,
+          1.1621023701171733,
+          1.0182075008727844,
+          1.2228336630094319
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 1.224884353305984,
+        "rust": 1.1280051338828423
+      }
+    },
+    "unchanged": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          588.765364,
+          822.379095,
+          729.861579,
+          1138.941761,
+          509.561814,
+          498.805938
+        ],
+        "candidate": [
+          55.666396,
+          57.470145,
+          63.670192,
+          86.022839,
+          63.862266,
+          65.315286
+        ],
+        "rust": [
+          14.370197,
+          13.610837,
+          13.323893,
+          24.275954,
+          12.265416,
+          12.315323
+        ]
+      },
+      "median_ms": {
+        "baseline": 659.3134715,
+        "candidate": 63.766228999999996,
+        "rust": 13.467365000000001
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.09454767451300006,
+          0.06988278927493895,
+          0.0872359825917073,
+          0.07552874250960054,
+          0.12532780959132073,
+          0.13094328079149692
+        ],
+        "rust": [
+          3.873739239622115,
+          4.222381400938091,
+          4.778647802110089,
+          3.543541028294913,
+          5.2066938455246845,
+          5.303578801790258
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.0945496539124555,
+        "rust": 4.438745379415984
+      }
+    },
+    "private": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          1418.954036,
+          1819.80651,
+          1930.306137,
+          2288.936348,
+          1843.624961,
+          1866.445553
+        ],
+        "candidate": [
+          725.402749,
+          636.25596,
+          467.982759,
+          687.298278,
+          484.108924,
+          455.906113
+        ],
+        "rust": [
+          585.707957,
+          503.464052,
+          881.956697,
+          892.929714,
+          600.778658,
+          528.572718
+        ]
+      },
+      "median_ms": {
+        "baseline": 1855.035257,
+        "candidate": 560.182442,
+        "rust": 593.2433074999999
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.5112235707401025,
+          0.34962835691801103,
+          0.24243965764276074,
+          0.3002697207375554,
+          0.2625853599516328,
+          0.24426435170702243
+        ],
+        "rust": [
+          1.238505880499759,
+          1.2637564836505943,
+          0.530618748734327,
+          0.7697115094548191,
+          0.8058024657726773,
+          0.8625229745588193
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.3068389961885937,
+        "rust": 0.8735314606170999
+      }
+    },
+    "multi": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          1590.182516,
+          2210.397812,
+          1673.829366,
+          2022.546862,
+          1561.287909,
+          1787.712101
+        ],
+        "candidate": [
+          873.832961,
+          802.601071,
+          653.85423,
+          804.387469,
+          640.896245,
+          714.163555
+        ],
+        "rust": [
+          1053.208294,
+          1347.13629,
+          924.625246,
+          1305.418239,
+          895.1382,
+          1023.099227
+        ]
+      },
+      "median_ms": {
+        "baseline": 1730.7707335,
+        "candidate": 758.3823130000001,
+        "rust": 1038.1537605
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.5495173995486188,
+          0.3631025450001667,
+          0.39063374277064755,
+          0.3977101762698243,
+          0.41049203116579064,
+          0.39948465672997086
+        ],
+        "rust": [
+          0.8296867447570632,
+          0.5957831267391661,
+          0.7071559346109397,
+          0.6161913821705075,
+          0.7159746338610061,
+          0.6980393847956645
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.4146598684888142,
+        "rust": 0.6897130671798594
+      }
+    },
+    "broad": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          5779.524743,
+          6138.109424,
+          5479.068095,
+          5066.784444,
+          5342.020234,
+          5655.85054
+        ],
+        "candidate": [
+          7493.557887,
+          7438.111516,
+          7149.380221,
+          6780.366999,
+          6990.998754,
+          6670.779016
+        ],
+        "rust": [
+          6003.002164,
+          6401.659289,
+          5633.538196,
+          5708.15605,
+          5918.71013,
+          5734.102703
+        ]
+      },
+      "median_ms": {
+        "baseline": 5567.4593175,
+        "candidate": 7070.1894875,
+        "rust": 5826.4064165
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          1.2965699119250227,
+          1.2117919382337814,
+          1.3048533248791465,
+          1.3381992216047784,
+          1.3086806952742067,
+          1.1794475417661938
+        ],
+        "rust": [
+          1.2483017134224708,
+          1.1619036846870217,
+          1.2690745979278704,
+          1.1878384086924183,
+          1.181169308928464,
+          1.1633518549484552
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 1.2719492947717457,
+        "rust": 1.201230199155189
+      }
+    },
+    "restore": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          501.030028,
+          609.000726,
+          569.141563,
+          478.675479,
+          532.459214,
+          516.591244
+        ],
+        "candidate": [
+          167.07004,
+          160.689971,
+          165.006926,
+          183.787272,
+          149.847211,
+          170.748784
+        ],
+        "rust": [
+          447.359762,
+          458.363644,
+          527.624725,
+          554.982045,
+          542.949303,
+          463.020629
+        ]
+      },
+      "median_ms": {
+        "baseline": 524.525229,
+        "candidate": 166.03848299999999,
+        "rust": 495.322677
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.3334531478420691,
+          0.26385842272378507,
+          0.2899224669697862,
+          0.3839496278020124,
+          0.28142476843306163,
+          0.33052976794163397
+        ],
+        "rust": [
+          0.37345790612254487,
+          0.350573116134839,
+          0.3127353935128798,
+          0.3311589512774238,
+          0.2759874820209503,
+          0.3687714397709913
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.3113549684320833,
+        "rust": 0.3336671182774251
+      }
+    },
+    "error": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          331.047561,
+          323.376114,
+          326.406997,
+          370.196388,
+          343.094835,
+          398.193328
+        ],
+        "candidate": [
+          42.897791,
+          48.666572,
+          50.193695,
+          86.606936,
+          51.126072,
+          50.504113
+        ],
+        "rust": [
+          208.105378,
+          195.985177,
+          222.774708,
+          191.586717,
+          227.125873,
+          295.566505
+        ]
+      },
+      "median_ms": {
+        "baseline": 337.071198,
+        "candidate": 50.348904,
+        "rust": 215.440043
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.12958195756047272,
+          0.1504952589046203,
+          0.15377640633114248,
+          0.23394862512813064,
+          0.14901440297112023,
+          0.1268331472394736
+        ],
+        "rust": [
+          0.2061349466903253,
+          0.24831761638789654,
+          0.22531146129927818,
+          0.4520508381590985,
+          0.2251001672539526,
+          0.17087224751667987
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.15384725884116374,
+        "rust": 0.24193359458447355
+      }
+    },
+    "recovery": {
+      "measured_wall_ms_by_block": {
+        "baseline": [
+          1951.285659,
+          2127.181578,
+          1651.696971,
+          1739.430276,
+          1531.953996,
+          1928.918633
+        ],
+        "candidate": [
+          498.746811,
+          536.444254,
+          447.343935,
+          496.591134,
+          536.656812,
+          533.656764
+        ],
+        "rust": [
+          803.023444,
+          450.323092,
+          563.100095,
+          466.843614,
+          467.192742,
+          625.84568
+        ]
+      },
+      "median_ms": {
+        "baseline": 1834.1744545000001,
+        "candidate": 516.2017874999999,
+        "rust": 515.1464185
+      },
+      "paired_candidate_over_other_ratios": {
+        "baseline": [
+          0.2555990757681267,
+          0.25218545494568023,
+          0.27083898732898987,
+          0.28549068097283137,
+          0.35030869947872767,
+          0.2766611068347744
+        ],
+        "rust": [
+          0.621086239419929,
+          1.191243050889338,
+          0.7944305798776325,
+          1.0637205246209065,
+          1.1486839664987774,
+          0.8526970482563688
+        ]
+      },
+      "paired_candidate_over_other_geomean": {
+        "baseline": 0.2801110516401566,
+        "rust": 0.9215208865010077
+      }
+    }
+  },
+  "method": {
+    "performed": "Read all270 O2 row metadata and selected raw reports/command/publication/session/build/quality records. Independently recomputed medians, permutations, pair grouping, native outcomes, publication preservation and Verify counts. Read retained270 check metadata; compared all original/recovered validation cells.",
+    "not_performed": "No compiler, Cargo/native execution, compression, remote restore, full blob/DSO/binary rehash or measurement rerun. Root validator reports476 O2 blobs; reviewer did not repeat large hashing under single-window/disk constraints.",
+    "disclosure": "Reviewer authored early argv/counter helper delta6eb and later independently reviewed resolved-path delta3913; did not author compiler slice or matrix execution. This is not a blanket independent proof of every helper."
+  },
+  "raw_rows": {
+    "path": "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/rows.jsonl",
+    "bytes": 15452890,
+    "hash_recomputed": false
+  },
+  "evidence_sha256": {
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/manifest.json": {
+      "sha256": "ec728c48921d37e8e77c274a9fc3d65b6a2a47ed42f39c0b12e1c9405d4dbc1b",
+      "bytes": 13717
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/completion.json": {
+      "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252",
+      "bytes": 77
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02-validation.json": {
+      "sha256": "baa14c8c61b629ed8373c2f54ebca519a13c7fb01636a3f40fe1688b641b3eb5",
+      "bytes": 10330
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-check-02-validation.json": {
+      "sha256": "3a85efaf5c0332c1f9fe2fd02186cb6f530179628268b6d4069855549043c8b2",
+      "bytes": 10346
+    },
+    "/workspace/zil-push-main/out/runs/full-push-archive-v14-restored-matched-validation-01.json": {
+      "sha256": "3a85efaf5c0332c1f9fe2fd02186cb6f530179628268b6d4069855549043c8b2",
+      "bytes": 10346
+    },
+    "/workspace/zil-push-main/out/runs/full-push-archive-v14-recovery-01.json": {
+      "sha256": "14ecf601c9ab32b1dfb98ca9564b02dacb2ac8b2b66046e054cbf1d2170f40a7",
+      "bytes": 4011
+    },
+    "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-07/check02-materialization-retirement.json": {
+      "sha256": "541ba7e34ddd23891bac85ba56f528b72c0ea0249bce7bce7b2f30da41531159",
+      "bytes": 2129
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/block-00/candidate/command.json": {
+      "sha256": "bed1cf65b1a1494233f416cb52f9c9c76f8403b87d9ccad68278439cd0108a9a",
+      "bytes": 1198
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/block-00/baseline/command.json": {
+      "sha256": "612c982c7a764d7b5af82a365ce87eff0dda8c549861660b4f088278e79e3f2e",
+      "bytes": 1114
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/rustc-version/stdout.bin": {
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+      "bytes": 196
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/cargo-version/stdout.bin": {
+      "sha256": "c8d779e105538d1d2db3c4799b42feb659c6f87b2b2182e963e54cb0537c5be1",
+      "bytes": 336
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/blobs/99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f.build-receipt": {
+      "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f",
+      "bytes": 931
+    },
+    "/workspace/zil-push-main/out/runs/full-push-matched-o2-02/blobs/5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8.build-receipt": {
+      "sha256": "5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8",
+      "bytes": 1339
+    }
+  },
+  "independent_checks": {
+    "rows": 270,
+    "measured": 144,
+    "preparations": 126,
+    "three_arm_groups": 90,
+    "all_valid": true,
+    "quality_pairs": {
+      "total": 78,
+      "measured": 42,
+      "preparation": 36,
+      "ELF_digest_equal": 78,
+      "strict_LLVM_digest_equal": 78
+    },
+    "native_records": 2808,
+    "native_mismatches": 0,
+    "error_rows": 36,
+    "all_error_publication_preserved": true,
+    "all_Zil_successVerify1_errorVerify0": true,
+    "all_8_measured_scenarios_have_six_distinct_orders": true,
+    "actual_objects_all_success_arms": [
+      16
+    ]
+  },
+  "check02_scope": {
+    "status": "Local raw retired after fixed-v14 fresh recovery; reviewer read retained rows/manifest and original/recovered validation, not newly restored binaries.",
+    "rows": 270,
+    "measured": 144,
+    "preparations": 126,
+    "native": 0,
+    "root_validator_blobs": 117,
+    "fixed_archive_commit": "8d10022e4c0daf0717a07bdfeb2905372372ca4a",
+    "all_raw_metadata_medians_and_recovered_validation_cells_equal": true,
+    "metadata_dir": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-07/full-push-matched-check-02-metadata"
+  },
+  "assessment": [
+    "Candidate improves sampled warm/private/multi/restore/error/recovery against exact3ec7 baseline and loses on cold/broad. Cold and broad negatives must remain visible; no global speedup is accepted.",
+    "Rust comparison is mixed: private median560.2 versus593.2ms, multi758.4 versus1038.2ms; recovery516.2 versus515.1ms is essentially tied by medians. Paired ratios/geomeans are separately stored and must not be confused with ratios of medians.",
+    "Rust nochange13.47ms versus candidate63.77ms retains a material Cargo freshness advantage. Rust also wins cold/broad. No substantial across-the-board Rust superiority claim for candidate is supported.",
+    "78 equal Zil ELF/strict-LLVM pairs comprise42 measured and36 preparations, not78 independent measured samples. Raw LLVM hashes remain; only strict second-line fingerprint hex64 is excluded from comparison.",
+    "2808 native observations use six stdin cases repeated twice on successful arms/requests. Matching actual exit/stdout/stderr plus exact baseline ELF identities is strong observed quality evidence, not exhaustive cross-language semantics.",
+    "Six balanced sequential blocks support per-scenario observations only. No confidence bound, representative-program population inference or favorable overall aggregate is justified."
+  ],
+  "limits": [
+    "Resident Zil send-to-response excludes startup; Rust includes full Cargo process. Cold is protocol cache-cold, not identical process/OS cold. No --profile-compilation flag was used; ordinary phase/receipt/economic clocks still exist.",
+    "Rust58cf8/Cargo5f94 use LLVM23.1.1, Zil23.1.4 uses original versus patched SDK15. Rust generated scalar source and Zil independent Verify have different checking guarantees; Rust release does not explicitly enable overflow checks. Sampled arithmetic is bounded but compiler-guarantee parity is not established.",
+    "All successful inventories actually contain16 current objects; this does not establish same partition boundaries, symbol allocation, query reuse or function optimization units. Historical Rust sessions are separate; equal content is not proof of physical reuse.",
+    "Source writes, inventories/native checks/archival and Zil startup are outside timed requests. OS caches not flushed and DSO archiving can warm them. RSS scopes differ; no cross-language memory advantage is accepted.",
+    "Exact baseline is3ec7, not historical42f0396. Cross-version performance tables need explicit source differences.",
+    "Full-pipeline global minimality, full push completion, broad program coverage and long-session bounds are not established. New CT alias fixture is not part of this formal timing workload.",
+    "O2v15 archival/fresh recovery and final human report were in progress. No new independent remote recovery or full validator rerun is claimed."
+  ]
+}

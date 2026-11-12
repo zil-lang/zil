@@ -1,0 +1,14 @@
+{
+  "authority": "root-owned reproducible Cargo debug build cache after all debug test/clippy processes completed; no source/raw/evidence or release binaries under selected directory",
+  "source": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d",
+  "path": "/workspace/zil-push-main/target/debug",
+  "files": 9956,
+  "logical_bytes": 1227386467,
+  "free_before": 2257309696,
+  "active_debug_executables": [],
+  "unreadable_proc_exe_count": 439,
+  "note": "Unreadable other process executables are not a blanket no-users proof; all root/team debug windows were already completed and no team worker uses this root target. This is rebuildable cache, not unique evidence.",
+  "utc": "2026-11-12T17:36:54.966593+00:00",
+  "free_after": 3219820544,
+  "source_after": "1e260a4ed8898e1ce92ae6f0b7931b47d4dceb7d"
+}

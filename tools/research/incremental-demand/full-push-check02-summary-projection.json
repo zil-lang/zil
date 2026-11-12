@@ -1,0 +1,151 @@
+{
+  "schema": "strict-matched-summary-check-projection-v1",
+  "fixed_archive_commit": "8d10022e4c0daf0717a07bdfeb2905372372ca4a",
+  "manifest_sha256": "1f3bda3bdfd9f797cc0acfd5714b7d04aadd117053f59dba4f9f0645d32af0c8",
+  "archive_sha256": "bf77b4a40dd0468bd1985958d7ff33c6a41fc0ba39a20a6160483e7837d467d1",
+  "projection": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection",
+  "validation": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection-validation.json",
+  "selected_files": [
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02-validation.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection-validation.json",
+      "bytes": 10346,
+      "mode": 384,
+      "sha256": "3a85efaf5c0332c1f9fe2fd02186cb6f530179628268b6d4069855549043c8b2"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/blobs/5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8.build-receipt",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/blobs/5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8.build-receipt",
+      "bytes": 1339,
+      "mode": 384,
+      "sha256": "5759c832e5404592c0e099eed1b01633e2c9cfa5d3c3c6d1586e6c7ed4f6dbf8"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/blobs/99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f.build-receipt",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/blobs/99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f.build-receipt",
+      "bytes": 931,
+      "mode": 384,
+      "sha256": "99d7abc6712a6c663b806e84d8c325f7a9023e688806be8564b94537dec06e5f"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-00/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-00/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "f60deec1663e35e0804aca855c004118065caf7e61fd500f8efa7ffaf77607eb"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-00/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-00/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "6aea40fae3b791116dc3de9c700236981fbf23a57edeb3fbafd60cc2fe9f9394"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-01/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-01/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "ecce7ef1d5c0aec2730b7dce496940a87394162430efcebe05ccf687559e087e"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-01/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-01/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "82bab3edfa2958cf64f8e529e2e3ec23b6111f16c8a74a7f782cf9c52aad82c2"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-02/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-02/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "87bc0781af719556f35b14990c574d23d1792fbf338dda856487476f0c573e8c"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-02/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-02/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "27b42859586294d2323ce03c1cfb02f9b00bd21fbb79b36b6b71a667bfab6e1f"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-03/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-03/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "3699131334d697a49feb13165f45ea3584afebe131ccab5b1fbb12e0dc7e04b7"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-03/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-03/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "724436ea6d50767aac0e0a0aa4dc7c4cea159012593f8a129f74422347896fed"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-04/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-04/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "bb9f07860ca8c273208d0df745bcf4706d5a271e65c78b990306952395be4bac"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-04/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-04/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "56cbf13b49cfb439d16c821519325fe6f235713a50baa827d195179705ae3303"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-05/baseline/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-05/baseline/command.json",
+      "bytes": 786,
+      "mode": 384,
+      "sha256": "5c79054ba8b1ea5325a1da4caeb6110e4f4f08559ad6aea490938be787068355"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/block-05/candidate/command.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/block-05/candidate/command.json",
+      "bytes": 868,
+      "mode": 384,
+      "sha256": "9c257e4cac57c37c139f10a1fa710789a645bdda4b46ff13c3ea6ba9ce0463e7"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/cargo-version/stdout.bin",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/cargo-version/stdout.bin",
+      "bytes": 336,
+      "mode": 384,
+      "sha256": "c8d779e105538d1d2db3c4799b42feb659c6f87b2b2182e963e54cb0537c5be1"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/completion.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/completion.json",
+      "bytes": 77,
+      "mode": 384,
+      "sha256": "cfcb7b991a99c6534c157690562a0bb4b93b0cc9929465aa7d0b1431d85e3252"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/manifest.json",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/manifest.json",
+      "bytes": 13725,
+      "mode": 384,
+      "sha256": "013d7ae2831a644bff8816f6ef2906124011cb5da6432ee8ce6b777cb134b75d"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/rows.jsonl",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/rows.jsonl",
+      "bytes": 4090864,
+      "mode": 384,
+      "sha256": "97ae06dc275da2e100869bd66bcfd3775f0b86dc83906125d6add2f57a734937"
+    },
+    {
+      "archive_path": "zil-push-main/out/runs/full-push-matched-check-02/rustc-version/stdout.bin",
+      "projection_path": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-09/check02-summary-projection/rustc-version/stdout.bin",
+      "bytes": 196,
+      "mode": 384,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    }
+  ],
+  "scope": "Selective projection only, not fullrestore or fullvalidator rerun. Allcompressedparts/wholearchive and selected bytes/modes checked against fixedv14manifest. Selected exact current strictmatched_summary checkmode file reads."
+}
