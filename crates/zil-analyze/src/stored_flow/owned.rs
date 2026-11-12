@@ -217,9 +217,10 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         }
     }
     if !actual {
-        return Err(closed(
-            "owned/closure storage integration requires an actual bounded owning Fixed environment",
-        ));
+        // This is the direct Fixed-environment family, not a module-wide
+        // requirement on every ordinary resource. Other actual head families
+        // qualify their own producers; the resource ledger still checks debt.
+        return Ok(false);
     }
     fee(b, module.resources.len())?;
     for (index, r) in module.resources.iter().enumerate() {

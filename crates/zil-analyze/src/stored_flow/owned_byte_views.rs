@@ -329,7 +329,10 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         return Ok(false);
     }
     if module.resources.len() != 1 {
-        return Err(closed(Span::default()));
+        // Each actual byte head was authenticated above. A mixed owning
+        // module belongs to the compositional consumers, not this sole-owner
+        // family; returning false grants it no byte or ownership permission.
+        return Ok(false);
     }
     // Each actual head above independently authenticated this sole definition.
     fee(b, module.closures.len())?;

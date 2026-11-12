@@ -3359,9 +3359,10 @@ impl Flow<'_> {
                                     || (matches!(package_storage(local_ty), Type::Package { .. })
                                         && budget.ordinary_pod_store_type(local_ty)?);
                                 if !new_store_sum || !state.sums.no_live_owner(*local, budget)? {
-                                    return Err(error(
-                                        "storage boundary discards an owned carrier",
-                                    ));
+                                    return Err(error(&format!(
+                                        "storage boundary discards an owned carrier in {} local {} block {} instruction {}",
+                                        f.name, local.0, b, position,
+                                    )));
                                 }
                             }
                             no_later_use(
