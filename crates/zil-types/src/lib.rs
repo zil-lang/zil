@@ -142,8 +142,7 @@ fn signatures(
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
-                || !f.state_parameters.is_empty()
-                || f.callable_return.is_some())
+                || !f.state_parameters.is_empty())
         {
             return Err(vec![unsupported(
                 f.span,

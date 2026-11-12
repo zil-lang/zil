@@ -66,7 +66,6 @@ pub(super) fn compile(
         || !f.type_parameters.is_empty()
         || !f.callable_parameters.is_empty()
         || !f.state_parameters.is_empty()
-        || f.callable_return.is_some()
     {
         return Err(invalid(f, "life requires an ordinary direct function"));
     }
