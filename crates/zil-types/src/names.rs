@@ -8,25 +8,33 @@ pub(super) fn check_modules<'a>(
     modules: impl IntoIterator<Item = &'a CoreModule>,
     limits: &Limits,
 ) -> R<()> {
+    check_modules_recording(modules, limits, None)
+}
+
+/// Successful costs belong to this exact input; a changed leaf is checked with
+/// the same lexical visitor. Aggregate replay never changes error ordering:
+/// insufficient total allowance restarts the original current traversal.
+pub(super) fn check_modules_recording<'a>(
+    modules: impl IntoIterator<Item = &'a CoreModule>,
+    limits: &Limits,
+    mut costs: Option<&mut Vec<usize>>,
+) -> R<()> {
     let mut checker = Names { limits, visited: 0 };
     for module in modules {
-        for f in &module.functions {
-            if primitive_name(&f.name) {
-                return Err(primitive_reserved(&f.name, f.span));
+        for function in &module.functions {
+            let before = checker.visited;
+            checker.function(function)?;
+            if let Some(costs) = costs.as_mut() {
+                costs.push(checker.visited - before);
             }
-            for (index, p) in f.parameters.iter().enumerate() {
-                if primitive_name(&p.name) {
-                    return Err(primitive_reserved(&p.name, p.span));
-                }
-                if p.name == "self" && (index != 0 || f.receiver.is_none() || !f.name.contains('.'))
-                {
-                    return Err(reserved(p.span));
-                }
-            }
-            checker.block(&f.body, f.receiver.is_some(), 0)?;
         }
     }
     Ok(())
+}
+pub(super) fn check_function(function: &CoreFunction, limits: &Limits) -> R<usize> {
+    let mut checker = Names { limits, visited: 0 };
+    checker.function(function)?;
+    Ok(checker.visited)
 }
 
 fn reserved(span: Span) -> Diagnostic {
@@ -117,6 +125,21 @@ struct Names<'a> {
     visited: usize,
 }
 impl Names<'_> {
+    fn function(&mut self, f: &CoreFunction) -> R<()> {
+        if primitive_name(&f.name) {
+            return Err(primitive_reserved(&f.name, f.span));
+        }
+        for (index, p) in f.parameters.iter().enumerate() {
+            if primitive_name(&p.name) {
+                return Err(primitive_reserved(&p.name, p.span));
+            }
+            if p.name == "self" && (index != 0 || f.receiver.is_none() || !f.name.contains('.')) {
+                return Err(reserved(p.span));
+            }
+        }
+        self.block(&f.body, f.receiver.is_some(), 0)
+    }
+
     fn charge(&mut self, depth: usize, span: Span) -> R<()> {
         if depth > self.limits.max_call_depth || self.visited >= self.limits.max_nodes {
             return Err(Diagnostic::limit(

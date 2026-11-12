@@ -1031,3 +1031,72 @@ fn function_input_environment_rejects_every_nearby_import_identity_change() {
         );
     }
 }
+
+#[test]
+fn sparse_changes_bind_actual_epoch_and_share_unmodified_input_tables() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    let mut input = [
+        parsed(0, "fn first(x:i32)->i32=>x+1;fn sibling(x:i32)->i32=>x+2;"),
+        parsed(1, "fn other(x:i32)->i32=>x+3;"),
+    ];
+    let cold = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    let first_owner = cold.function_owner(ModuleId(0), "first").unwrap().clone();
+    let warm = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert!(warm.change_batch().changes().is_empty());
+    assert_eq!(
+        warm.change_batch().previous_epoch(),
+        Some(cold.change_batch().epoch())
+    );
+    assert!(Arc::ptr_eq(
+        &cold.functions[&ModuleId(0)],
+        &warm.functions[&ModuleId(0)]
+    ));
+    input[0] = parsed(
+        0,
+        "fn first(x:i32)->i32=>x+111;fn sibling(x:i32)->i32=>x+2;",
+    );
+    let edited = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_eq!(
+        edited.function_owner(ModuleId(0), "first"),
+        Some(&first_owner)
+    );
+    assert_eq!(
+        edited.change_batch().context(),
+        warm.change_batch().context()
+    );
+    assert!(Arc::ptr_eq(
+        &warm.functions[&ModuleId(1)],
+        &edited.functions[&ModuleId(1)]
+    ));
+    assert_eq!(edited.change_batch().changed_modules(), [0]);
+    assert_eq!(edited.change_batch().changes().len(), 2);
+    assert!(edited.change_batch().changes()[0].body_changed());
+    assert!(!edited.change_batch().changes()[1].body_changed());
+    for change in edited.change_batch().changes() {
+        let (module, function) = edited.changed_function(change).unwrap();
+        assert_eq!(module.core.module_id, ModuleId(0));
+        assert_eq!(
+            function.span,
+            input[0].parsed().module.items[change.function_index()].span
+        );
+        assert!(cold.changed_function(change).is_none());
+    }
+    input[0] = parsed(
+        0,
+        "fn first(x:i64)->i64=>x+111;fn sibling(x:i32)->i32=>x+2;",
+    );
+    let interface = checked(&mut session, &input, &limits)
+        .into_program(ModuleId(0), Fingerprint::ZERO)
+        .0;
+    assert_ne!(
+        edited.change_batch().context(),
+        interface.change_batch().context()
+    );
+}

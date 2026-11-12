@@ -15,7 +15,8 @@ pub use generated_spans::{remap_generated_spans, remap_generated_spans_metered};
 mod incremental;
 mod mapping;
 pub use incremental::{
-    ExpandSession, ExpandedProgram, FunctionInputRevision, ModuleRevision, ProducedProgram,
+    ExpandSession, ExpandedProgram, ExpansionEpoch, FunctionChangeBatch, FunctionInputChange,
+    FunctionInputRevision, FunctionOwner, InputContext, ModuleRevision, ProducedProgram,
     ProducerStats,
 };
 mod modules;

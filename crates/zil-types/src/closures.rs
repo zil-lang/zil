@@ -472,6 +472,29 @@ impl State {
     }
 
     // Private work-product receipts record only shared accounting, never proof.
+    /// The push leaf replay domain has no inventory or mode side effects. The
+    /// actual Builder must leave every such state empty before costs compose.
+    pub(super) fn push_closed_state(&self) -> bool {
+        !self.array_billing
+            && self.resource_writes.is_empty()
+            && self.helper_templates.is_empty()
+            && self.active_helpers.is_empty()
+            && self.helper_tables.is_empty()
+            && self.helper_instances.is_empty()
+            && self.forward_callers.is_empty()
+            && self.forward_results.is_empty()
+            && self.store_instances.is_empty()
+            && self.products.is_none()
+            && self.internal_product_fields.is_empty()
+            && self.helper_functions.is_empty()
+            && self.helper_exports.is_empty()
+            && self.pending.is_empty()
+            && self.thread_transfers.is_empty()
+            && self.thread_entries.is_empty()
+            && !self.threaded_providers
+            && self.thin.is_empty()
+    }
+
     pub(super) fn accounting(&self) -> [usize; 6] {
         [
             self.blocks,
