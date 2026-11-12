@@ -2,40 +2,6 @@
 //! proposed zero domain is never itself a ClosedEnvironment proof.
 use super::*;
 
-pub(crate) fn potential(
-    definitions: &[closures::Pending],
-    root: ClosureId,
-    left: &mut usize,
-    span: Span,
-) -> R<bool> {
-    let mut pending = vec![root];
-    let mut seen = BTreeSet::new();
-    let mut has_constant_candidate = false;
-    while let Some(id) = pending.pop() {
-        spend(left, seen.len().saturating_add(1), span)?;
-        if !seen.insert(id) { continue; }
-        let d = definitions.get(id.0 as usize)
-            .ok_or_else(|| unsupported(span, "deferred closed environment identity is absent"))?;
-        spend(left, d.captures.len(), span)?;
-        for capture in &d.captures {
-            if capture.borrowed || matches!(capture.ty,Type::Managed(_)) && !capture.moved {
-                return Ok(false);
-            }
-            match &capture.ty {
-                Type::Closure(child) => pending.push(*child),
-                Type::Address {mutable:false,inner}
-                    if capture.moved && matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8) => {
-                    has_constant_candidate=true;
-                }
-                Type::Managed(_) | Type::Package{..} | Type::OwnedDyn{..} => {}
-                ty if ty.is_copy_value() => {}
-                _ => return Ok(false),
-            }
-        }
-    }
-    Ok(has_constant_candidate)
-}
-
 pub(crate) fn check(
     module: &TypedModule,
     obligations: &BTreeMap<ClosureId,Span>,

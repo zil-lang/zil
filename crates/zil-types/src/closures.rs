@@ -520,19 +520,16 @@ impl State {
         true
     }
 
-    pub(super) fn defer_static_closed(&mut self, id: ClosureId, span: Span) -> R<bool> {
-        if !retained::potential_static_closed(&self.pending, id, &mut self.work_left, span)? {
-            return Ok(false);
-        }
+    pub(super) fn record_static_closed(&mut self, id: ClosureId, span: Span) -> R<()> {
         self.snapshot(self.deferred_closed.len().saturating_add(1), span)?;
         self.deferred_closed.insert(id, span);
-        Ok(true)
+        Ok(())
     }
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
-        if self.defer_static_closed(id, span)? {
-            return Ok(());
+        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, span)? {
+            self.record_static_closed(id,span)?;
         }
-        retained::self_contained(&self.pending, id, &mut self.work_left, span)
+        Ok(())
     }
     pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::transportable(&self.pending, id, &mut self.work_left, span)

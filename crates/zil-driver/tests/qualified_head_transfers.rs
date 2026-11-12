@@ -534,6 +534,11 @@ fn every_same_definition_constructor_is_checked_even_in_an_uncalled_function() {
     let ty=module.closures[0].captures[0].clone();
     extra.locals.push(LocalDecl{id:parameter,name:"actual_parameter".into(),ty,mutable:false,span:extra.span});
     extra.parameters.push(parameter);
+    for block in &mut extra.blocks {
+        if let Some(index)=block.instructions.iter().position(|i|matches!(i.kind,InstructionKind::ScopeExit{..})) {
+            block.instructions.insert(index,Instruction{result:None,kind:InstructionKind::StorageDead(parameter),span:extra.span});
+        }
+    }
     module.functions.push(extra);
     let limits=Limits::default();
     let candidate=zil_analyze::analyze(&module,&limits).expect("extra real literal constructor must remain valid");

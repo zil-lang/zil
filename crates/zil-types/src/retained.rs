@@ -5,7 +5,7 @@ use super::*;
 use std::collections::BTreeSet;
 mod local_scopes;
 mod static_closed;
-pub(super) use static_closed::{potential as potential_static_closed, check as check_deferred_closed};
+pub(super) use static_closed::check as check_deferred_closed;
 mod return_life;
 mod source_scope;
 mod sources;
@@ -184,7 +184,12 @@ pub(super) fn self_contained(
     work: &mut usize,
     span: Span,
 ) -> R<()> {
-    environment_shape(closures, root, work, span, false)
+    environment_shape(closures, root, work, span, false, false).map(|_| ())
+}
+pub(super) fn closed_or_constant(
+    closures: &[closures::Pending],root: ClosureId,work: &mut usize,span: Span,
+) -> R<bool> {
+    environment_shape(closures,root,work,span,false,true)
 }
 
 /// Source-side formation only. Escaping leaves still require actual CFG source
@@ -195,7 +200,7 @@ pub(super) fn transportable(
     work: &mut usize,
     span: Span,
 ) -> R<()> {
-    environment_shape(closures, root, work, span, true)
+    environment_shape(closures, root, work, span, true, false).map(|_| ())
 }
 fn environment_shape(
     closures: &[closures::Pending],
@@ -203,7 +208,9 @@ fn environment_shape(
     work: &mut usize,
     span: Span,
     borrowed_leaves: bool,
-) -> R<()> {
+    constant_candidates: bool,
+) -> R<bool> {
+    let mut deferred = false;
     let mut seen = BTreeSet::new();
     let mut pending = vec![root];
     while let Some(id) = pending.pop() {
@@ -231,6 +238,11 @@ fn environment_shape(
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. } => {}
+                Type::Address { mutable:false,inner }
+                    if constant_candidates && capture.moved && !capture.borrowed
+                        && (**inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8)) => {
+                    deferred=true;
+                }
                 Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
                     if borrowed_leaves => {}
                 ty if capture.moved && owned_shapes::sum(ty) => {}
@@ -244,7 +256,7 @@ fn environment_shape(
             }
         }
     }
-    Ok(())
+    Ok(deferred)
 }
 
 pub(super) fn transported_borrows(

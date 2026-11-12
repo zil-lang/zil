@@ -529,7 +529,7 @@ fn closed_environment_for(
     span: Span,
     asynchronous: bool,
 ) -> R<()> {
-    let deferred_static = state.defer_static_closed(root, span)?;
+    let mut deferred_static = false;
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -584,7 +584,7 @@ fn closed_environment_for(
                     ));
                 }
                 Type::Address { mutable: false, inner }
-                    if deferred_static && matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8) => {}
+                    if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8) => {deferred_static=true;}
                 Type::Dyn { .. }
                 | Type::Task { .. }
                 | Type::Address { .. }
@@ -662,5 +662,6 @@ fn closed_environment_for(
         }
         state.snapshot(before - work, span)?;
     }
+    if deferred_static { state.record_static_closed(root,span)?; }
     Ok(())
 }
