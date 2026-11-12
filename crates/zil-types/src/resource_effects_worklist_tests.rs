@@ -115,7 +115,6 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
-                    dyn_instance: None,
                     retained_return_sources: None,
                     storage_life: None,
                     life: None,

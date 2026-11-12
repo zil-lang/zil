@@ -213,9 +213,12 @@ fn deeply_nested_recipe_stops_at_a_finite_wire_bound() {
         max_call_depth: 100_000,
         ..Limits::default()
     };
+    let plan = CandidatePlan::empty_for(&module);
+    let errors = wire::encode_module_candidate(&module, &plan, &limits).unwrap_err();
     assert!(
-        wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits)
-            .is_err()
+        errors
+            .iter()
+            .all(|error| error.category == zil_base::ResultCategory::ResourceLimit)
     );
 }
 
@@ -352,4 +355,31 @@ fn receiver_after_sources_have_independent_bytes_and_preserve_before_selectors()
     };
     binding.sources.remove(0);
     assert_ne!(changed.fingerprint(), module.fingerprint());
+}
+
+#[test]
+fn finite_deep_recipe_round_trips_with_the_same_exact_identity() {
+    for depth in [0, 1, 32, 112] {
+        let mut module = fixture();
+        let mut pattern = DynTypePattern::Parameter(2);
+        for _ in 0..depth {
+            pattern = DynTypePattern::Tuple(vec![pattern]);
+        }
+        let DynTypePattern::Nominal(root) =
+            module.dyn_declarations[0].self_pattern.as_mut().unwrap()
+        else {
+            unreachable!()
+        };
+        root.arguments[3] = DynPatternActual::Type(pattern);
+        let limits = Limits {
+            max_call_depth: 100_000,
+            ..Limits::default()
+        };
+        let plan = CandidatePlan::empty_for(&module);
+        let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        let (decoded, recovered) = wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(decoded, module, "depth {depth}");
+        assert_eq!(recovered, plan, "depth {depth}");
+        assert_eq!(decoded.fingerprint(), module.fingerprint(), "depth {depth}");
+    }
 }
