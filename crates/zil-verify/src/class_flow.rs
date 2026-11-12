@@ -2265,22 +2265,22 @@ fn check_with(
                         // kernel separately proves role provenance and traces;
                         // selecting a role by a moved local or ClosureId would
                         // confuse distinct instances of the same entry.
-                        let role = if d.storage_life.is_some() {
-                            None
-                        } else {
-                            super::stored_callables::role(module, f, &i.kind, d, b)?
-                        };
+                        let role = super::stored_callables::role(module, f, &i.kind, d, b)?;
                         if let Some(definition) = &d.storage_life {
                             if let Some(role) = role {
                                 super::signature_life::charge(role, b)?;
                             }
                             super::signature_life::charge(definition, b)?;
-                            if role.is_some_and(|r| r != definition) {
-                                return Err(unsupported(
-                                    "captured Fixed role requires its actual capture map",
+                            if let Some(role) = role {
+                                super::signature_life::role_relation(
+                                    module,
+                                    d,
+                                    role,
                                     Some(f.span),
-                                ));
+                                    b,
+                                )?;
                             }
+                            let definition = role.unwrap_or(definition);
                             let receiver = match &i.kind {
                                 InstructionKind::CallClosureShared { callee, .. }
                                 | InstructionKind::CallClosureMut { callee, .. } => {

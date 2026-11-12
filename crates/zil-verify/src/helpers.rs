@@ -1097,31 +1097,13 @@ pub(super) fn check_module(
             if let Some(life) = &proposed.life {
                 crate::signature_life::charge(life, budget)?;
                 borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
-                if let Some(actual) = &definition.storage_life {
-                    crate::signature_life::charge(actual, budget)?;
-                    crate::signature_life::closure_relation(
-                        module,
-                        &definition.parameters,
-                        &definition.captures,
-                        definition.kind,
-                        super::stored_callables::life_result(definition),
-                        life,
-                        Some(f.span),
-                    )?;
-                    if life != actual {
-                        return Err(unsupported(
-                            "captured Fixed helper role needs its actual capture mapping",
-                            Some(f.span),
-                        ));
-                    }
-                } else {
-                    borrowed_fp::relation(
-                        &definition.parameters,
-                        super::stored_callables::life_result(definition),
-                        life,
-                        Some(f.span),
-                    )?;
-                }
+                crate::signature_life::role_relation(
+                    module,
+                    definition,
+                    life,
+                    Some(f.span),
+                    budget,
+                )?;
             }
             roles.push(CallableRole {
                 life: proposed.life.clone(),

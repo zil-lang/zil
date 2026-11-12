@@ -779,24 +779,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                 let needs=d.parameters.iter().any(|t|matches!(t,Type::BorrowedStorage{..})||matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..})));
                 if let Some(life) = &role.life {
                     let entry = &module.functions[d.function.0 as usize];
-                    if let Some(definition) = &d.storage_life {
-                        super::signature_life::charge(life, b)?;
-                        super::signature_life::closure_relation(
-                            module,
-                            &d.parameters,
-                            &d.captures,
-                            d.kind,
-                            life_result(d),
-                            life,
-                            Some(entry.span),
-                        )?;
-                        if life != definition {
-                            return Err(unsupported(
-                                "captured Fixed role adaptation requires its actual capture map",
-                                Some(entry.span),
-                            ));
-                        }
-                    }
+                    super::signature_life::role_relation(module, d, life, Some(entry.span), b)?;
                     super::class_flow::check_role(
                         module,
                         entry,
