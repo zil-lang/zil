@@ -7584,7 +7584,7 @@ pub(super) fn infer(
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
-                    "owned or opaque value has no actual stored permission integration",
+                    format!("owned or opaque value has no actual stored permission integration in {}: {ty:?}", f.name),
                     Some(f.span),
                 )]);
             }
