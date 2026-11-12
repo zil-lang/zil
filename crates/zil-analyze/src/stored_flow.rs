@@ -292,9 +292,15 @@ fn package_return_candidates(
     Ok(result)
 }
 
+/// Port numbers have meaning only within the actual carrier namespace.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum PortOrigin {
+    Task(u32),
+    Dyn(u32),
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
-    pub(super) retained_port: Option<u32>,
+    pub(super) retained_port: Option<PortOrigin>,
     pub base: HoldRoot,
     /// Empty is an ordinary input pointee. A nonempty path is an input's
     /// *stored target*, never a byte offset into that input's carrier.
@@ -2596,7 +2602,10 @@ fn substitute(
         .get(actual.0 as usize)
         .ok_or_else(|| failure("call actual is outside values"))?;
     let mut result = if let Some(port) = source.retained_port {
-        task_address::select(value, &source.stored, port, b)?
+        match port {
+            PortOrigin::Task(port) => task_address::select(value, &source.stored, port, b)?,
+            PortOrigin::Dyn(port) => dyn_address::select(value, &source.stored, port, b)?,
+        }
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
