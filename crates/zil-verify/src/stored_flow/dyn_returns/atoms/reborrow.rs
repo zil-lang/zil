@@ -14,7 +14,7 @@ pub(super) fn resolve(
     let StorageBase::Parameter(parameter) = head.base else {
         return Err(bad("reborrow head is not an actual input permission"));
     };
-    if source.base != head.base || source.path.is_empty() || !head.path.is_empty() {
+    if source.base != head.base || source.path.is_empty() || !source.path.starts_with(&head.path) {
         return Err(bad(
             "reborrow source is not a leaf held by that exact input head",
         ));
@@ -26,7 +26,9 @@ pub(super) fn resolve(
     else {
         return Err(bad("reborrow has no actual address head"));
     };
-    match inner.as_ref() {
+    let head_path = path_places(&head.path, b)?;
+    let head_type = crate::dynamic_ports::physical_path(inner, &head_path, b)?;
+    match head_type {
         Type::BorrowedStorage { .. } => {}
         Type::OwnedDyn { interface } | Type::Dyn { interface }
             if crate::dynamic_ports::interface(module, *interface, b)?
@@ -79,7 +81,19 @@ pub(super) fn resolve(
     // Validate the real head's independent scope. It remains distinct from the
     // original data class and is instantiated by the actual caller head loan.
     let _head_scope = relation(f, StorageBase::Parameter(parameter), &[], b)?;
-    let (_, head) = input(module, f, head, b)?;
+    // A physical nested holder has its own window within the actual head.
+    // Capture/RetainedPort selectors were rejected by path_places and cannot
+    // become a GEP. The selected data must belong to this exact holder prefix.
+    b.spend(head_path.len().saturating_add(1))?;
+    let head = Source {
+        static_dependency: None,
+        base: HoldRoot::Parameter(parameter),
+        retained_port: None,
+        leaf: vec![],
+        inline: head_path,
+        heap_element: None,
+        heap_parents: vec![],
+    };
     dynamic_metadata::ty(output, b)?;
     Ok((
         output.clone(),

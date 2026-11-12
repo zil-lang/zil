@@ -1198,6 +1198,76 @@ fn reborrow_call_retains_distinct_head_and_data_children_without_publishing_head
 }
 
 #[test]
+fn reborrow_nested_heads_keep_their_complete_physical_owner_position() {
+    let (module, mut f, mut actual) = borrowed_owner_boundary();
+    let owner = f.return_type.clone();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Tuple(vec![owner.clone(), owner])),
+    };
+    let life = f.storage_life.as_mut().unwrap();
+    life.classes[0]
+        .position
+        .path
+        .push(LifeTypeProjection::Place(PlaceProjection::Field(0)));
+    let mut sibling = life.classes[0].clone();
+    sibling.position.path[1] = LifeTypeProjection::Place(PlaceProjection::Field(1));
+    life.classes.insert(1, sibling);
+    let StorageSource::ReborrowedLeaf { source, head } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    source
+        .path
+        .insert(0, ContractProjection::Place(PlaceProjection::Field(0)));
+    head.path
+        .push(ContractProjection::Place(PlaceProjection::Field(0)));
+    let Some(PortOrigin::Dyn { carrier, .. }) =
+        &mut actual.0[0].1.permission.sources[0].retained_port
+    else {
+        unreachable!()
+    };
+    carrier.push(ContractProjection::Place(PlaceProjection::Field(0)));
+    assert!(checked(&module, &f, &actual));
+    let (_, _, selected) = atoms::resolve_output(
+        &module,
+        &f,
+        &f.retained_return_sources.as_ref().unwrap()[0].sources[0],
+        &module.dyn_interfaces[0].retained_life.ports[0].leaf,
+        &mut Budget::new(&Limits::default()),
+    )
+    .unwrap();
+    assert_eq!(
+        selected.parent_head().unwrap().inline,
+        [PlaceProjection::Field(0)]
+    );
+    assert!(selected.parent_head().unwrap().retained_port.is_none());
+    let original = f.clone();
+    let StorageSource::ReborrowedLeaf { head, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    head.path[0] = ContractProjection::Place(PlaceProjection::Field(1));
+    assert!(
+        !checked(&module, &f, &actual),
+        "same-type sibling cannot stand in for the actual held source"
+    );
+    let mut forged = original;
+    let StorageSource::ReborrowedLeaf { head, .. } =
+        &mut forged.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    head.path = vec![ContractProjection::RetainedPort(0)];
+    assert!(
+        !checked(&module, &forged, &actual),
+        "metadata port cannot become an owner byte address"
+    );
+}
+
+#[test]
 fn reborrow_slice_preserves_the_full_leaf_and_does_not_hide_element_classes() {
     let (mut module, f, actual) = borrowed_owner_boundary();
     let Type::Address { inner, .. } = &mut module.dyn_interfaces[0].retained_life.ports[0].leaf
