@@ -1049,3 +1049,1385 @@ fn check_with(
         && let Some(binder)=super::signature_life::outer(contract,StorageBase::Receiver) {
         Some(select(variables,binder)?)
     } else if exclusive_head { Some(e.fresh(true, b)?) } else { None };
+    let outer = if b.array_outer_functions.is_empty() {
+        None
+    } else {
+        b.spend(
+            b.array_outer_functions.len(),
+            "dynamic upper function scheduling",
+        )?;
+        if b.array_outer_functions.contains(&f.id) {
+            Some(array_outer::Flow::build(
+                module,
+                f,
+                reachable,
+                (&values, &locals, &captures),
+                e.parent.len(),
+                b,
+            )?)
+        } else {
+            None
+        }
+    };
+    let mut deferred_helpers = Vec::new();
+    let mut deferred_closures = Vec::new();
+    for (block_index, block) in f.blocks.iter().enumerate() {
+        for (instruction_index, i) in block.instructions.iter().enumerate() {
+            if let Some(flow) = &outer {
+                flow.enter(block_index, instruction_index);
+            }
+            b.spend(1, "class equation instruction")?;
+            let out = i.result.map(|v| &values[v.0 as usize]);
+            match &i.kind {
+                InstructionKind::MakeDynOwned { vtable, source, .. }
+                | InstructionKind::MakeDynBorrow { vtable, source, .. }
+                    if b.dyn_contexts =>
+                {
+                    let output =
+                        out.ok_or_else(|| bad("dyn constructor lacks actual class result"))?;
+                    b.spend(
+                        module.dyn_vtables.len(),
+                        "dyn actual class witness selection",
+                    )?;
+                    let table = module
+                        .dyn_vtables
+                        .iter()
+                        .find(|table| table.id == *vtable)
+                        .ok_or_else(|| bad("dyn constructor class witness is absent"))?;
+                    let input = &values[source.0 as usize];
+                    if let (Some(a), Some(z)) = (input.outer, output.outer) {
+                        e.equal(a, z, b)?;
+                    }
+                    b.spend(
+                        table.self_classes.len().saturating_add(input.keys.len()),
+                        "dyn complete actual Self class map",
+                    )?;
+                    if table.self_classes.len() != input.classes.len() {
+                        return Err(bad("dyn class witness omits complete actual Self classes"));
+                    }
+                    for (index, target) in table.self_classes.iter().enumerate() {
+                        let StorageBinder::Fixed(class) = target else {
+                            return Err(bad(
+                                "dyn Self class witness is not a persistent Context class",
+                            ));
+                        };
+                        let wanted = if matches!(i.kind, InstructionKind::MakeDynOwned { .. }) {
+                            vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+                        } else {
+                            vec![LifeTypeProjection::Pointee]
+                        };
+                        b.spend(
+                            output
+                                .keys
+                                .len()
+                                .saturating_mul(wanted.len().saturating_add(1)),
+                            "dyn actual Context class selection",
+                        )?;
+                        let target = output
+                            .keys
+                            .iter()
+                            .position(|(path, local)| *path == wanted && local == class)
+                            .ok_or_else(|| {
+                                bad("dyn class witness points outside actual Context result")
+                            })?;
+                        e.equal(input.classes[index], output.classes[target], b)?;
+                    }
+                }
+                InstructionKind::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                } if b.dyn_contexts => {
+                    b.spend(
+                        module.dyn_interfaces.len(),
+                        "dyn actual slot class selection",
+                    )?;
+                    let slot = module
+                        .dyn_interfaces
+                        .iter()
+                        .find(|item| item.id == *interface)
+                        .and_then(|item| item.slots.get(*slot as usize))
+                        .ok_or_else(|| bad("dyn actual slot class signature is absent"))?;
+                    let life = slot
+                        .storage_life
+                        .as_ref()
+                        .ok_or_else(|| bad("dyn slot omits complete actual life relation"))?;
+                    b.spend(
+                        arguments.len().saturating_add(1),
+                        "dyn actual slot operands",
+                    )?;
+                    let mut actual = Vec::with_capacity(arguments.len().saturating_add(1));
+                    actual.push(*callee);
+                    actual.extend_from_slice(arguments);
+                    call_with_outer(
+                        life,
+                        &actual,
+                        i.result,
+                        &values,
+                        None,
+                        (&mut e, outer.as_ref()),
+                        b,
+                    )?;
+                }
+                InstructionKind::TaskCreate {
+                    arguments,
+                    port_bindings,
+                    ..
+                }
+                | InstructionKind::TaskCreateOwned {
+                    arguments,
+                    port_bindings,
+                    ..
+                } if b.task_sources() => {
+                    if let Some(out) = out {
+                        if matches!(i.kind, InstructionKind::TaskCreateOwned { .. })
+                            && b.task_failure_carriers
+                            && let Some(Type::ErrorUnion { error, .. }) =
+                                i.result.and_then(|id| f.values.get(id.0 as usize))
+                            && let Some(error_shape) = shape(error)
+                        {
+                            for slot in &error_shape.slots {
+                                let [PlaceProjection::Field(1), PlaceProjection::Field(argument)] =
+                                    slot.path.as_slice()
+                                else {
+                                    return Err(bad(
+                                        "failure class source has no actual input position",
+                                    ));
+                                };
+                                let path =
+                                    [LifeTypeProjection::Place(PlaceProjection::ErrorArm(true))];
+                                let class = out
+                                    .keys
+                                    .iter()
+                                    .position(|(p, c)| p.as_slice() == path && *c == slot.binder)
+                                    .ok_or_else(|| bad("failure actual class is absent"))?;
+                                let input = *arguments
+                                    .get(*argument as usize)
+                                    .ok_or_else(|| bad("failure actual input is absent"))?;
+                                let source = values[input.0 as usize].outer.ok_or_else(|| {
+                                    bad("failure actual input Address class is absent")
+                                })?;
+                                e.equal(out.classes[class], source, b)?;
+                            }
+                        }
+                        for row in port_bindings {
+                            b.spend(out.task_ports.len(), "actual Task semantic class")?;
+                            let path = vec![
+                                zil_ir::ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                                zil_ir::ContractProjection::RetainedPort(row.port),
+                            ];
+                            let index = out
+                                .task_ports
+                                .iter()
+                                .find(|(p, _)| p == &path)
+                                .map(|(_, i)| *i)
+                                .ok_or_else(|| bad("Task constructor class omits actual port"))?;
+                            let StorageBase::Parameter(input) = row.source.base else {
+                                return Err(bad("Task port class has no actual input"));
+                            };
+                            let arg = arguments
+                                .get(input as usize)
+                                .ok_or_else(|| bad("Task class input is absent"))?;
+                            e.equal(
+                                out.classes[index],
+                                values[arg.0 as usize]
+                                    .outer
+                                    .ok_or_else(|| bad("Task input has no outer Address class"))?,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::TaskPoll { task }
+                    if b.task_sources()
+                        && matches!(super::tasks::task_payload(&f.values[task.0 as usize]),
+                            Some(Type::Task { result, .. })
+                                if matches!(result.as_ref(), Type::Address { mutable: false, .. })) =>
+                {
+                    if let Some(out) = out
+                        && !values[task.0 as usize].task_ports.is_empty()
+                    {
+                        let input = &values[task.0 as usize];
+                        super::tasks::charge_result_selection(&f.values[task.0 as usize], b)?;
+                        let port = input
+                            .task_ports
+                            .iter()
+                            .find(|(p, _)| matches!(p.as_slice(), [zil_ir::ContractProjection::RetainedPort(port)]
+                                        if super::tasks::result_port(&f.values[task.0 as usize], *port)))
+                            .ok_or_else(|| bad("TaskPoll has no actual retained class"))?
+                            .1;
+                        let result = out
+                            .keys
+                            .iter()
+                            .position(|(p, c)| {
+                                p == &vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(
+                                    false,
+                                ))] && *c == 0
+                            })
+                            .ok_or_else(|| bad("TaskPoll has no actual Ready class"))?;
+                        e.equal(out.classes[result], input.classes[port], b)?;
+                    }
+                }
+                InstructionKind::UnpackTuple { local, fields }
+                    if super::stored_flow::failure_unpack(f, i, b)? =>
+                {
+                    let parent_shape = shape(&f.locals[local.0 as usize].ty)
+                        .ok_or_else(|| bad("failure tuple class source is absent"))?;
+                    for (position, target) in fields.iter().enumerate() {
+                        if let Some(to) = locals[target.0 as usize].outer {
+                            let source = b
+                                .physical_slot(
+                                    parent_shape,
+                                    &[PlaceProjection::Field(position as u32)],
+                                )?
+                                .ok_or_else(|| {
+                                    bad("failure tuple field has no actual parent class")
+                                })?
+                                .0;
+                            let from = *locals[local.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure tuple parent class is absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                    }
+                }
+                InstructionKind::TakeVariantField { local, path }
+                    if b.task_failure_carriers
+                        && path.as_slice() == [PlaceProjection::ErrorArm(true)] =>
+                {
+                    if let Some(child) = out {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::TakeErrorUnion {
+                    value,
+                    is_error: true,
+                } if b.task_failure_carriers => {
+                    if let Some(child) = out {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            child,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(true)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::Load(local) => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::BindPackageCapture { local, index }
+                | InstructionKind::EndPackageCapture { local, index }
+                    if !captures.is_empty() =>
+                {
+                    let actual = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("captured view class index absent"))?;
+                    array_outer::copy(
+                        &mut e,
+                        &locals[local.0 as usize],
+                        actual,
+                        outer.as_ref(),
+                        b,
+                    )?;
+                }
+                InstructionKind::TakeLocal { local }
+                    if matches!(&f.locals[local.0 as usize].ty, Type::BorrowedStorage { .. })
+                        || super::stored_callables::exclusive_capture(
+                            &f.locals[local.0 as usize].ty,
+                        )
+                        || (b.task_sources()
+                            && !locals[local.0 as usize].task_ports.is_empty())
+                        || super::stored_callables::fixed_value(
+                            module,
+                            &f.locals[local.0 as usize].ty,
+                        ) =>
+                {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::BorrowCapture { index, .. }
+                    if !captures.is_empty() && out.is_some_and(|out| out.environment) =>
+                {
+                    let out = out.unwrap();
+                    if let Some(head) = out.outer {
+                        e.address_origin(head, b)?;
+                    }
+                    let captured = captures
+                        .get(*index as usize)
+                        .ok_or_else(|| bad("borrowed child class capture absent"))?;
+                    b.spend(
+                        out.classes.len().saturating_add(captured.classes.len()),
+                        "actual borrowed child environment classes",
+                    )?;
+                    if out.classes.len() != captured.classes.len() {
+                        return Err(bad("borrowed child class arity differs from capture"));
+                    }
+                    for (actual, source) in out.classes.iter().zip(&captured.classes) {
+                        e.equal(*actual, *source, b)?;
+                    }
+                }
+                InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                    if let Some(out) = out {
+                        let capture = captures
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("actual capture class source is absent"))?;
+                        let mutable_head = f
+                            .environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|d| d.captures.get(*index as usize))
+                            .is_some_and(super::stored_callables::exclusive_capture);
+                        if mutable_head {
+                            array_outer::copy_elements(&mut e, out, capture, outer.as_ref(), b)?;
+                            b.spend(
+                                out.classes.len().saturating_add(capture.classes.len()),
+                                "capture reborrow exact pointee classes",
+                            )?;
+                            if out.classes.len() != capture.classes.len() {
+                                return Err(bad(
+                                    "capture reborrow changes its pointee class domain",
+                                ));
+                            }
+                            if let (Some(head), Some(region)) = (out.outer, receiver_region) {
+                                array_outer::transport(&mut e, head, region, outer.as_ref(), b)?;
+                            }
+                            for (actual, original) in out.classes.iter().zip(&capture.classes) {
+                                e.equal(*actual, *original, b)?;
+                            }
+                        } else {
+                            array_outer::copy(&mut e, out, capture, outer.as_ref(), b)?;
+                        }
+                    }
+                }
+                InstructionKind::MakeClosure {
+                    closure,
+                    captures: actuals,
+                } => {
+                    let d = &module.closures[closure.0 as usize];
+                    if let Some(c) = &d.storage_life {
+                        let out = out
+                            .ok_or_else(|| bad("captured environment lacks actual class result"))?;
+                        b.spend(out.classes.len(), "environment Fixed class snapshot")?;
+                        let mut invocation = Vec::new();
+                        for _ in 0..c.invocation_binder_count {
+                            invocation.push(e.fresh(false, b)?);
+                        }
+                        let vars = (out.classes.clone(), invocation);
+                        for (index, value) in actuals.iter().enumerate() {
+                            bind_with_outer(
+                                c,
+                                StorageBase::Capture(index as u32),
+                                &values[value.0 as usize],
+                                &vars,
+                                &mut e,
+                                outer.as_ref(),
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::Store { local, value } => array_outer::copy(
+                    &mut e,
+                    &locals[local.0 as usize],
+                    &values[value.0 as usize],
+                    outer.as_ref(),
+                    b,
+                )?,
+                InstructionKind::BorrowPackageField { .. }
+                    if super::stored_flow::ordinary_package_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
+                }
+                InstructionKind::BorrowPlaceLocal { .. }
+                    if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                {
+                    if let Some(out) = out
+                        && let Some(outer) = out.outer
+                    {
+                        e.address_origin(outer, b)?;
+                    }
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } => {
+                    if let Some(out) = out {
+                        if let Some(outer) = out.outer {
+                            e.address_origin(outer, b)?;
+                        }
+                        let stored = &locals[local.0 as usize];
+                        array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
+                        b.spend(
+                            out.classes.len().saturating_add(stored.classes.len()),
+                            "borrowed carrier classes",
+                        )?;
+                        if out.classes.len() != stored.classes.len() {
+                            return Err(bad("borrowed actual class arity differs"));
+                        }
+                        for (a, z) in out.classes.iter().zip(&stored.classes) {
+                            e.equal(*a, *z, b)?;
+                        }
+                    }
+                }
+                InstructionKind::BorrowDynOwned { local, .. } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &locals[local.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ReborrowAddress { address, .. } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[address.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::AddressIndex { address, .. } => {
+                    if let Some(out) = out {
+                        let parent = &values[address.0 as usize];
+                        if let (Some(a), Some(z)) = (out.outer, parent.outer) {
+                            array_outer::transport(&mut e, a, z, outer.as_ref(), b)?;
+                        }
+                        link_projection(
+                            &f.values[address.0 as usize],
+                            parent,
+                            out,
+                            LifeTypeProjection::Element,
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::AddressField { address, index } => {
+                    if let Some(out) = out {
+                        let parent = &values[address.0 as usize];
+                        if !out.array_elements.is_empty() {
+                            let shape = shape(&f.values[address.0 as usize]).ok_or_else(|| {
+                                bad("array field projection has no actual qualified parent")
+                            })?;
+                            b.spend(
+                                out.array_elements.len(),
+                                "array field physical upper inventory",
+                            )?;
+                            for (ordinal, upper) in out.array_elements.iter().enumerate() {
+                                let path = [
+                                    PlaceProjection::Field(*index),
+                                    PlaceProjection::Field(ordinal as u32),
+                                ];
+                                // Preserve the original first-row policy; independent
+                                // physical inventory still authenticates the shape.
+                                let (binder, _) =
+                                    b.physical_slot(shape, &path)?.ok_or_else(|| {
+                                        bad("array field lacks its actual physical class row")
+                                    })?;
+                                array_outer::transport(
+                                    &mut e,
+                                    *upper,
+                                    parent.classes[binder as usize],
+                                    outer.as_ref(),
+                                    b,
+                                )?;
+                            }
+                        }
+
+                        if let (Some(a), Some(z)) = (out.outer, parent.outer) {
+                            array_outer::transport(&mut e, a, z, outer.as_ref(), b)?;
+                        }
+                        link_projection(
+                            &f.values[address.0 as usize],
+                            parent,
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::AddressSlice { address, .. } => {
+                    if let (Some(out), Some(parent)) =
+                        (out.and_then(|o| o.outer), values[address.0 as usize].outer)
+                    {
+                        array_outer::transport(&mut e, out, parent, outer.as_ref(), b)?;
+                    }
+                }
+                InstructionKind::StoreStoredBorrow {
+                    storage,
+                    path,
+                    value,
+                } => {
+                    let actual = shape(&f.values[storage.0 as usize])
+                        .ok_or_else(|| bad("stored write lacks actual qualified class shape"))?;
+                    b.spend(
+                        actual
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                        "stored write exact declared slot class",
+                    )?;
+                    let slot = actual
+                        .slots
+                        .iter()
+                        .find(|slot| slot.path == *path)
+                        .ok_or_else(|| bad("stored write class selects absent physical slot"))?;
+                    if matches!(
+                        slot.mode,
+                        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                    ) {
+                        let expected = *values[storage.0 as usize]
+                            .classes
+                            .get(slot.binder as usize)
+                            .ok_or_else(|| bad("stored write lacks actual carrier class"))?;
+                        let source = values[value.0 as usize]
+                            .outer
+                            .ok_or_else(|| bad("stored write replacement has no Address class"))?;
+                        array_outer::binding(&mut e, source, expected, outer.as_ref(), b)?;
+                    }
+                    // Exact targets, retirement and parent loans are checked
+                    // independently by stored-flow; a class supplies no loan.
+                }
+                InstructionKind::TakePackageField { local, index: 1 }
+                    if b.task_failure_carriers =>
+                {
+                    if let Some(child_ty) = super::stored_flow::failure_projection(f, i, b)? {
+                        let parent_shape = shape(&f.locals[local.0 as usize].ty)
+                            .ok_or_else(|| bad("failure Product projection lacks actual parent"))?;
+                        let child_shape = shape(&child_ty)
+                            .ok_or_else(|| bad("failure Product projection lacks actual child"))?;
+                        let child =
+                            out.ok_or_else(|| bad("failure Product projection lacks result"))?;
+                        for row in &child_shape.slots {
+                            b.spend(
+                                row.path.len().saturating_add(2),
+                                "failure Product class projection",
+                            )?;
+                            let mut actual_path = vec![PlaceProjection::Field(1)];
+                            actual_path.extend(&row.path);
+                            let source = b
+                                .physical_slot(parent_shape, &actual_path)?
+                                .ok_or_else(|| {
+                                    bad("failure Product projection omitted original slot")
+                                })?
+                                .0;
+                            let from = *locals[local.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure Product parent class absent"))?;
+                            let to = *child
+                                .classes
+                                .get(row.binder as usize)
+                                .ok_or_else(|| bad("failure Product child class absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                    }
+                }
+                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                    if !values[storage.0 as usize].array_elements.is_empty() {
+                        let [PlaceProjection::Field(index)] = path.as_slice() else {
+                            return Err(bad("array load has no actual constant ordinal"));
+                        };
+                        let class = *values[storage.0 as usize]
+                            .array_elements
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("array load selects absent actual ordinal"))?;
+                        array_outer::transport(
+                            &mut e,
+                            out.and_then(|o| o.outer)
+                                .ok_or_else(|| bad("array load lacks Address result"))?,
+                            class,
+                            outer.as_ref(),
+                            b,
+                        )?;
+                        continue;
+                    }
+                    if let Some(child_ty) = super::stored_flow::failure_projection(f, i, b)? {
+                        let parent_shape = shape(&f.values[storage.0 as usize])
+                            .ok_or_else(|| bad("failure class projection parent is absent"))?;
+                        let child_shape = shape(&child_ty)
+                            .ok_or_else(|| bad("failure class projection child is absent"))?;
+                        let child =
+                            out.ok_or_else(|| bad("failure class projection result is absent"))?;
+                        for selected in &child_shape.slots {
+                            let mut actual_path = path.clone();
+                            actual_path.extend(&selected.path);
+                            let source = b
+                                .physical_slot(parent_shape, &actual_path)?
+                                .ok_or_else(|| {
+                                    bad("failure child class has no exact parent input slot")
+                                })?
+                                .0;
+                            let to = *child
+                                .classes
+                                .get(selected.binder as usize)
+                                .ok_or_else(|| bad("failure child class variable is absent"))?;
+                            let from = *values[storage.0 as usize]
+                                .classes
+                                .get(source as usize)
+                                .ok_or_else(|| bad("failure parent class variable is absent"))?;
+                            array_outer::transport(&mut e, to, from, outer.as_ref(), b)?;
+                        }
+                        continue;
+                    }
+                    let actual = shape(&f.values[storage.0 as usize])
+                        .ok_or_else(|| bad("stored load lacks actual class shape"))?;
+                    b.spend(
+                        actual
+                            .slots
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
+                        "stored class slot selection",
+                    )?;
+                    let leaf = actual
+                        .slots
+                        .iter()
+                        .find(|s| s.path == *path)
+                        .ok_or_else(|| bad("stored class slot is absent"))?;
+                    let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                    array_outer::transport(
+                        &mut e,
+                        out.and_then(|o| o.outer)
+                            .ok_or_else(|| bad("stored class load lacks Address result"))?,
+                        class,
+                        outer.as_ref(),
+                        b,
+                    )?;
+                }
+                InstructionKind::MakeAggregate { fields }
+                | InstructionKind::MakeOwnedTuple { fields } => {
+                    if let Some(out) = out
+                        && !out.array_elements.is_empty()
+                    {
+                        b.spend(fields.len(), "array constructor address uppers")?;
+                        if fields.len() != out.array_elements.len() {
+                            return Err(bad("array constructor address upper arity differs"));
+                        }
+                        for (upper, argument) in out.array_elements.iter().zip(fields) {
+                            array_outer::transport(
+                                &mut e,
+                                *upper,
+                                values[argument.0 as usize].outer.ok_or_else(|| {
+                                    bad("array constructor operand is not an Address")
+                                })?,
+                                outer.as_ref(),
+                                b,
+                            )?;
+                        }
+                    }
+
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && let Some(actual) = shape(&f.values[id.0 as usize])
+                    {
+                        for slot in &actual.slots {
+                            b.spend(
+                                slot.path.len().saturating_add(1),
+                                "aggregate physical class operand",
+                            )?;
+                            let (PlaceProjection::Field(index), tail) =
+                                slot.path.split_first().ok_or_else(|| {
+                                    bad("stored constructor slot lacks an actual field")
+                                })?
+                            else {
+                                return Err(bad("stored constructor slot is not an inline field"));
+                            };
+                            let arg = fields
+                                .get(*index as usize)
+                                .ok_or_else(|| bad("aggregate class operand is absent"))?;
+                            let operand = &values[arg.0 as usize];
+                            let upper = match tail {
+                                [] => operand
+                                    .outer
+                                    .ok_or_else(|| bad("stored class operand is not an Address"))?,
+                                [PlaceProjection::Field(ordinal)] => *operand
+                                    .array_elements
+                                    .get(*ordinal as usize)
+                                    .ok_or_else(|| {
+                                        bad("stored Array class operand lacks its actual ordinal")
+                                    })?,
+                                _ => {
+                                    return Err(bad(
+                                        "nested constructor class requires its physical operand consumer",
+                                    ));
+                                }
+                            };
+                            array_outer::binding(
+                                &mut e,
+                                upper,
+                                out.classes[slot.binder as usize],
+                                outer.as_ref(),
+                                b,
+                            )?;
+                        }
+                    }
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && !out.classes.is_empty()
+                        && !matches!(shape(&f.values[id.0 as usize]), Some(life) if life.retained.is_empty())
+                    {
+                        let parent_ty = &f.values[id.0 as usize];
+                        for (index, field) in fields.iter().enumerate() {
+                            let step = if matches!(parent_ty, Type::Array { .. }) {
+                                LifeTypeProjection::Element
+                            } else {
+                                LifeTypeProjection::Place(PlaceProjection::Field(index as u32))
+                            };
+                            link_projection(
+                                parent_ty,
+                                out,
+                                &values[field.0 as usize],
+                                step,
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::ReadAddress { address } => {
+                    if let Some(out) = out {
+                        let input = &values[address.0 as usize];
+                        array_outer::copy_elements(&mut e, out, input, outer.as_ref(), b)?;
+                        if out.classes.len() != input.classes.len() {
+                            return Err(bad("pure projection class arity differs"));
+                        }
+                        for (a, z) in out.classes.iter().zip(&input.classes) {
+                            e.equal(*a, *z, b)?;
+                        }
+                    }
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } => {
+                    if let Some(out) = out {
+                        if super::stored_flow::shared_array_value(&f.values[aggregate.0 as usize]) {
+                            let upper = out.outer.ok_or_else(|| {
+                                bad("dynamic shared Array result lacks an Address upper")
+                            })?;
+                            let elements = &values[aggregate.0 as usize].array_elements;
+                            let Type::Array { length, .. } = &f.values[aggregate.0 as usize] else {
+                                unreachable!()
+                            };
+                            b.spend(
+                                elements.len().saturating_add(1),
+                                "dynamic Array upper alternatives",
+                            )?;
+                            if elements.len() != *length as usize {
+                                return Err(bad(
+                                    "dynamic Array upper facts lack a physical candidate",
+                                ));
+                            }
+                            if outer.is_none() {
+                                for element in elements {
+                                    e.equal(upper, *element, b)?;
+                                }
+                            }
+                        } else {
+                            link_projection(
+                                &f.values[aggregate.0 as usize],
+                                &values[aggregate.0 as usize],
+                                out,
+                                LifeTypeProjection::Element,
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::UnpackTuple { local, fields }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    for (index, field) in fields.iter().enumerate() {
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            &locals[field.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::TakeTupleField { local, path }
+                    if matches!(f.locals[local.0 as usize].ty, Type::Tuple(_)) =>
+                {
+                    if let Some(out) = out {
+                        let Some(PlaceProjection::Field(index)) = path.first() else {
+                            return Err(bad("compound class take has no field"));
+                        };
+                        if path.len() != 1 {
+                            return Err(bad(
+                                "compound class take needs exact inline field consumer",
+                            ));
+                        }
+                        link_projection(
+                            &f.locals[local.0 as usize].ty,
+                            &locals[local.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ExtractField { aggregate, index } => {
+                    if let Some(out) = out {
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            &values[aggregate.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::MakeErrorUnion { value, is_error } if b.stored_enum_addresses => {
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && (super::stored_flow::enum_address::signature(&f.values[id.0 as usize])
+                            || b.task_sources() && !out.task_ports.is_empty())
+                    {
+                        link_projection(
+                            &f.values[id.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ReadErrorUnion { value, is_error } if b.stored_enum_addresses => {
+                    if let Some(out) = out
+                        && (super::stored_flow::enum_address::signature(
+                            &f.values[value.0 as usize],
+                        ) || b.task_sources()
+                            && !values[value.0 as usize].task_ports.is_empty())
+                    {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ReadVariant {
+                    value,
+                    variant,
+                    index,
+                } => {
+                    if let Some(out) = out {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Variant(
+                                zil_ir::VariantProjection {
+                                    variant: *variant,
+                                    index: *index,
+                                },
+                            )),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::MakeVariant { variant, fields } => {
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && !out.classes.is_empty()
+                        && !matches!(shape(&f.values[id.0 as usize]), Some(life) if life.retained.is_empty())
+                    {
+                        for (index, field) in fields.iter().enumerate() {
+                            link_projection(
+                                &f.values[id.0 as usize],
+                                out,
+                                &values[field.0 as usize],
+                                LifeTypeProjection::Place(PlaceProjection::Variant(
+                                    zil_ir::VariantProjection {
+                                        variant: *variant,
+                                        index: index as u32,
+                                    },
+                                )),
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::UpdateField {
+                    aggregate,
+                    index,
+                    value,
+                } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[aggregate.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::UpdateIndex {
+                    aggregate, value, ..
+                } => {
+                    if let Some(out) = out {
+                        array_outer::copy(
+                            &mut e,
+                            out,
+                            &values[aggregate.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Element,
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let callee = &module.functions[function.0 as usize];
+                    if let Some(c) = &callee.storage_life {
+                        let defer = if retained_environment {
+                            b.spend(arguments.len(), "actual environment argument detection")?;
+                            arguments.iter().any(|v| values[v.0 as usize].environment)
+                        } else {
+                            false
+                        };
+                        if defer {
+                            b.spend(1, "deferred actual environment helper call")?;
+                            deferred_helpers.push((
+                                c,
+                                arguments.as_slice(),
+                                i.result,
+                                (block_index, instruction_index),
+                            ));
+                        } else {
+                            call_with_outer(
+                                c,
+                                arguments,
+                                i.result,
+                                &values,
+                                None,
+                                (&mut e, outer.as_ref()),
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosure { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
+                    let role = super::stored_callables::role(module, f, &i.kind, b)?;
+                    let (definition, arguments) =
+                        super::stored_callables::called(module, f, &i.kind)
+                            .ok_or_else(|| bad("class call has no actual qualified closure"))?;
+                    if let Some(actual) = &definition.storage_life {
+                        let life = role.unwrap_or(actual);
+                        if let Some(role) = role {
+                            crate::signature_life::charge(actual, b)?;
+                            crate::signature_life::charge(role, b)?;
+                            if role != actual {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Analyze,
+                                    "Fixed role differs from complete actual capture relation",
+                                    None,
+                                )]);
+                            }
+                        }
+                        let receiver = match &i.kind {
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. } => {
+                                &locals[callee.0 as usize]
+                            }
+                            InstructionKind::CallClosureBorrowed { callee, .. }
+                            | InstructionKind::CallClosure { callee, .. }
+                            | InstructionKind::CallClosureOnce { callee, .. } => {
+                                &values[callee.0 as usize]
+                            }
+                            _ => unreachable!(),
+                        };
+                        b.spend(1, "deferred actual environment invocation")?;
+                        deferred_closures.push((
+                            life,
+                            arguments,
+                            i.result,
+                            (receiver.classes.as_slice(),receiver.outer),
+                            (block_index, instruction_index),
+                        ));
+                    } else if let Some(life) = role {
+                        call_with_outer(
+                            life,
+                            arguments,
+                            i.result,
+                            &values,
+                            None,
+                            (&mut e, outer.as_ref()),
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::CallIndirect { callee, arguments } => {
+                    let Type::BorrowedFunctionPointer { life, .. } = &f.values[callee.0 as usize]
+                    else {
+                        return Err(bad(
+                            "stored indirect class call requires its complete borrowed signature",
+                        ));
+                    };
+                    call_with_outer(
+                        life,
+                        arguments,
+                        i.result,
+                        &values,
+                        None,
+                        (&mut e, outer.as_ref()),
+                        b,
+                    )?;
+                }
+                _ => {}
+            }
+        }
+    }
+    // Ordinary sources and structural propagation precede any use of a free
+    // environment class. Only grounded capture facts get persistent identities;
+    // neither a local phantom constructor nor the first call can choose one.
+    if let Some(flow) = &outer {
+        flow.checkpoint(&mut e, b)?;
+    }
+    b.spend(
+        deferred_helpers.len(),
+        "deferred helper result class inventory",
+    )?;
+    let forwarded_environment = deferred_helpers
+        .iter()
+        .any(|(_, _, output, _)| output.is_some_and(|id| values[id.0 as usize].environment));
+    if retained_environment {
+        b.spend(values.len(), "retained environment inventory")?;
+        for p in &values {
+            if p.environment {
+                b.spend(p.classes.len(), "actual environment class retention")?;
+                for variable in &p.classes {
+                    if forwarded_environment {
+                        let root = e.root(*variable, b)?;
+                        b.spend(1, "actual forwarded class readiness")?;
+                        if !e.grounded.as_ref().is_some_and(|rows| rows[root]) {
+                            continue;
+                        }
+                    }
+                    e.retain(*variable, b)?;
+                }
+            }
+        }
+    }
+    let mut pending = deferred_helpers;
+    loop {
+        let mut remaining = Vec::new();
+        let mut progressed = false;
+        for (contract, arguments, output, site) in pending {
+            if forwarded_environment {
+                let mut ready = true;
+                b.spend(arguments.len(), "forwarded helper actual class inputs")?;
+                for argument in arguments {
+                    let p = &values[argument.0 as usize];
+                    if p.environment {
+                        for variable in &p.classes {
+                            let root = e.root(*variable, b)?;
+                            b.spend(1, "forwarded helper grounded input")?;
+                            ready &= e.grounded.as_ref().is_some_and(|rows| rows[root]);
+                        }
+                    }
+                }
+                if !ready {
+                    remaining.push((contract, arguments, output, site));
+                    continue;
+                }
+            }
+            if let Some(flow) = &outer {
+                flow.enter(site.0, site.1);
+            }
+            call_with_outer(
+                contract,
+                arguments,
+                output,
+                &values,
+                None,
+                (&mut e, outer.as_ref()),
+                b,
+            )?;
+            progressed = true;
+            if forwarded_environment && let Some(id) = output {
+                let p = &values[id.0 as usize];
+                if p.environment {
+                    for variable in &p.classes {
+                        e.retain(*variable, b)?;
+                    }
+                }
+            }
+        }
+        if remaining.is_empty() {
+            break;
+        }
+        if !progressed {
+            return Err(bad(
+                "forwarded environment classes have no grounded actual helper inputs",
+            ));
+        }
+        pending = remaining;
+    }
+    if forwarded_environment {
+        b.spend(
+            values.len(),
+            "complete forwarded environment class inventory",
+        )?;
+        for p in &values {
+            if p.environment {
+                for variable in &p.classes {
+                    e.retain(*variable, b)?;
+                }
+            }
+        }
+    }
+    for (contract, arguments, output, fixed, site) in deferred_closures {
+        if let Some(flow) = &outer {
+            flow.enter(site.0, site.1);
+        }
+        call_with_outer(
+            contract,
+            arguments,
+            output,
+            &values,
+            Some(fixed),
+            (&mut e, outer.as_ref()),
+            b,
+        )?;
+    }
+    if let (Some(c), Some(vars)) = (assumptions, header) {
+        for (block_index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
+            if *live && let Terminator::Return(Some(v)) = block.terminator {
+                if let Some(flow) = &outer {
+                    flow.enter(usize::MAX, block_index);
+                }
+                bind_with_outer(
+                    c,
+                    StorageBase::Result,
+                    &values[v.0 as usize],
+                    &vars,
+                    &mut e,
+                    outer.as_ref(),
+                    b,
+                )?;
+            }
+        }
+    }
+    if let Some(flow) = &outer {
+        flow.finish(&mut e, b)?;
+    }
+    Ok(())
+}
+
+/// The first rich executable pointer lane returns ordinary Copy values. Actual
+/// returned-target substitution remains closed here until separately proved.
+fn scalar(t: &Type) -> bool {
+    matches!(
+        t,
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::F32
+            | Type::F64
+    )
+}
+pub(super) fn pointer_instruction(f: &TypedFunction, i: &Instruction) -> bool {
+    match &i.kind {
+        InstructionKind::FunctionRef { .. } => i
+            .result
+            .and_then(|v| f.values.get(v.0 as usize))
+            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+        InstructionKind::CallIndirect { callee, .. } => f
+            .values
+            .get(callee.0 as usize)
+            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+        _ => false,
+    }
+}
+
+pub(super) fn pointer_types(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    match &i.kind {
+        InstructionKind::FunctionRef { function } => {
+            let ty = i
+                .result
+                .and_then(|v| f.values.get(v.0 as usize))
+                .ok_or_else(|| bad("function reference lacks actual result"))?;
+            let Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } = ty
+            else {
+                return Err(bad("stored pointer producer needs full borrowed signature"));
+            };
+            let target = module
+                .functions
+                .get(function.0 as usize)
+                .ok_or_else(|| bad("pointer target is absent"))?;
+            b.spend(
+                target.parameters.len().saturating_add(1),
+                "rich pointer target signature",
+            )?;
+            super::borrowed_fp::signature_work(parameters, result, b)?;
+            if target.foreign.is_some()
+                || target.environment.is_some()
+                || target.call_kind != CallKind::Direct
+                || target.callable_contract.is_some()
+                || target.parameters.len() != parameters.len()
+                || target.return_type != **result
+            {
+                return Err(bad("rich pointer target complete signature/effect differs"));
+            }
+            for (p, ty) in target.parameters.iter().zip(parameters) {
+                if target.locals.get(p.0 as usize).map(|p| &p.ty) != Some(ty) {
+                    return Err(bad("rich pointer target parameter differs"));
+                }
+            }
+            if let Some(required) = &target.storage_life {
+                super::signature_life::charge(required, b)?;
+                super::signature_life::charge(life, b)?;
+                if !super::signature_life::entails(required, life) {
+                    return Err(bad(
+                        "pointer relation does not entail actual target class requirements",
+                    ));
+                }
+            } else if !life.classes.is_empty() {
+                return Err(bad(
+                    "qualified pointer target omits its actual class contract",
+                ));
+            }
+        }
+        InstructionKind::CallIndirect { callee, arguments } => {
+            let Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            } = &f.values[callee.0 as usize]
+            else {
+                return Err(bad("indirect call lacks rich signature"));
+            };
+            if parameters.len() != arguments.len() {
+                return Err(bad("indirect call arity differs"));
+            }
+            for (p, v) in parameters.iter().zip(arguments) {
+                b.type_work(p, false, "rich indirect argument equality")?;
+                if f.values.get(v.0 as usize) != Some(p) {
+                    return Err(bad("indirect call actual argument differs"));
+                }
+            }
+            b.type_work(result, false, "rich indirect result equality")?;
+            if **result == Type::Unit {
+                if i.result.is_some() {
+                    return Err(bad("Unit indirect call fabricates result"));
+                }
+            } else if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(result.as_ref()) {
+                return Err(bad("rich indirect result differs"));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod equation_tests {
+    use super::*;
+
+    #[test]
+    fn balanced_components_preserve_rigid_conflicts_and_actual_grounding() {
+        let mut b = Budget::new(&Limits::default());
+        let mut e = Equations {
+            parent: Vec::new(),
+            sizes: Some(Vec::new()),
+            rigid: Vec::new(),
+            next_rigid: 0,
+            grounded: Some(Vec::new()),
+        };
+        let a = e.fresh(false, &mut b).unwrap();
+        let z = e.fresh(false, &mut b).unwrap();
+        e.equal(a, z, &mut b).unwrap();
+        let rigid = e.fresh(true, &mut b).unwrap();
+        // The grounded rigid singleton loses the representative to a larger
+        // flexible component; both properties must follow the real equality.
+        e.equal(rigid, a, &mut b).unwrap();
+        e.retain(z, &mut b).unwrap();
+        let other = e.fresh(true, &mut b).unwrap();
+        assert!(e.equal(z, other, &mut b).is_err());
+
+        let x = e.fresh(false, &mut b).unwrap();
+        let y = e.fresh(false, &mut b).unwrap();
+        e.equal(x, y, &mut b).unwrap();
+        assert!(e.retain(y, &mut b).is_err());
+        e.address_origin(y, &mut b).unwrap();
+        e.retain(y, &mut b).unwrap();
+        assert!(e.equal(x, a, &mut b).is_err());
+    }
+}

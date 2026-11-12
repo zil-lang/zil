@@ -871,3 +871,178 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     super::signature_life::closure_relation(
             &module.closures,
             definition.kind,
+                        &definition.parameters,
+                        &definition.captures,
+                        super::stored_callables::life_result(definition),
+                        life,
+                    )?;
+                    budget.spend(
+                        function.parameters.len(),
+                        "captured Fixed helper shared arguments",
+                    )?;
+                    if claim.roles.len() > 1 {
+                        budget.spend(
+                            function.parameters.len().saturating_mul(claim.roles.len()),
+                            "actual exclusive callable role exclusion",
+                        )?;
+                    }
+                    if function.parameters.iter().enumerate().any(|(position,p)| {
+                        p != local
+                            && matches!(function.locals[p.0 as usize].ty,Type::Address { mutable:true,.. })
+                            && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
+                                && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
+                    }) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "captured Fixed helper exclusive arguments need capture target summary substitution",
+                            None,
+                        )]);
+                    }
+                } else {
+                    super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
+                }
+            }
+            if !(returned
+                || (role.life.is_some() && matches!(&function.return_type, Type::Address { .. }))
+                || owned_data
+                || function.return_type.is_copy_value()
+                || (candidates.len() == 1
+                    && borrowed.is_some()
+                    && !definition.lending_captures.is_empty()
+                    && matches!(&function.return_type, Type::Address { inner, mutable: false }
+                        if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
+            {
+                return Err(bad(
+                    "helper result requires finite Copy or a single shared result from its borrowed environment",
+                ));
+            }
+            if closure != role.closure
+                || role.cleanup
+                    != if returned {
+                        CallableCleanup::Returned
+                    } else if borrowed.is_some() {
+                        CallableCleanup::Borrowed
+                    } else {
+                        CallableCleanup::Owned
+                    }
+            {
+                return Err(bad("helper environment identity or cleanup mode differs"));
+            }
+            if !matches!(
+                (definition.kind, role.kind),
+                (
+                    CallableKind::Fn,
+                    CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                ) | (
+                    CallableKind::FnMut,
+                    CallableKind::FnMut | CallableKind::FnOnce
+                ) | (CallableKind::FnOnce, CallableKind::FnOnce)
+            ) || (role.kind == CallableKind::FnOnce && borrowed.is_some())
+                || (role.kind == CallableKind::FnMut
+                    && borrowed != Some(true)
+                    && !(returned && borrowed.is_none()))
+            {
+                return Err(bad(
+                    "helper parameter cannot provide the requested call mode",
+                ));
+            }
+            budget.product(
+                definition.captures.len(),
+                3,
+                1,
+                "helper capture envelope buffers",
+            )?;
+            let mut hold = Vec::new();
+            let mut call = Vec::new();
+            let mut writes = Vec::new();
+            for (i, capture) in definition.captures.iter().enumerate() {
+                budget.spend(1, "helper capture envelope")?;
+                if matches!(capture, Type::BorrowedStorage { .. } | Type::Closure(_))
+                    && budget.returned_borrowed_environments.contains(&closure)
+                {
+                    let (held, called, written) =
+                        super::retained::capture_effects(module, capture, budget)?;
+                    if held {
+                        hold.push(i as u32);
+                    }
+                    if called {
+                        call.push(i as u32);
+                    }
+                    if written {
+                        writes.push(i as u32);
+                    }
+                    continue;
+                }
+                if matches!(capture, Type::Address { .. }) {
+                    hold.push(i as u32);
+                }
+                if matches!(capture, Type::Address { .. } | Type::Desc(_)) {
+                    call.push(i as u32);
+                }
+                if matches!(capture, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    writes.push(i as u32);
+                }
+            }
+            if role.hold != hold || role.call != call || role.writes != writes {
+                return Err(bad(
+                    "helper Hold/Call/write envelope differs from its concrete captures",
+                ));
+            }
+        }
+        flow::check(module, function, claim, &candidates, &checked, budget)?;
+        checked[index] = true;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod origin_classification_tests {
+    use super::*;
+    #[test]
+    fn legacy_masks_match_actual_invocation_and_borrowed_drop_classifiers() {
+        for borrowed_roles in 0..4 {
+            for mask in 0..16 {
+                let mut origin = Origin::EMPTY;
+                for (bit, mark) in [
+                    (1, Origin::supplied(0, borrowed_roles & 1 != 0)),
+                    (2, Origin::supplied(1, borrowed_roles & 2 != 0)),
+                    (4, FACTORY),
+                    (8, UNKNOWN),
+                ] {
+                    if mask & bit != 0 {
+                        origin |= mark;
+                    }
+                }
+                assert_eq!(origin.has_role(), mask & 3 != 0);
+                assert_eq!(origin.has_borrowed(), mask & borrowed_roles != 0);
+                for borrowed in [false, true] {
+                    let expected = match mask {
+                        1 => Some(Some(0)),
+                        2 => Some(Some(1)),
+                        4 if !borrowed => Some(None),
+                        _ => None,
+                    };
+                    assert_eq!(
+                        parameter_invocation(origin, borrowed).ok(),
+                        expected,
+                        "mask={mask} borrowed={borrowed} modes={borrowed_roles}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn later_roles_use_exact_ordinals_and_keep_borrowed_participation() {
+        for role in 0..96 {
+            for borrowed in [false, true] {
+                let origin = Origin::supplied(role, borrowed);
+                assert_eq!(parameter_invocation(origin, false).unwrap(), Some(role));
+                assert_eq!(origin.has_borrowed(), borrowed);
+                assert!(parameter_invocation(origin | FACTORY, false).is_err());
+                let mixed = origin | Origin::supplied(role + 1, false);
+                assert!(parameter_invocation(mixed, false).is_err());
+                assert_eq!(mixed.has_borrowed(), borrowed);
+            }
+        }
+    }
+}
