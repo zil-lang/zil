@@ -248,59 +248,94 @@ fn every_original_allocation_edge_and_moving_growth_preserve_nested_cleanup() {
     fn quote(path: &std::path::Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
-    let cases: [(&str, &[u8], usize, usize, &[(i32, &[u8], usize, usize)]); 5] = [
-        (
-            "drains",
-            b"AB",
-            3,
-            1,
-            &[
+    type Failure = (i32, &'static [u8], usize, usize);
+    const RETRIES: [Failure; 6] = [(0, b"BSAR", 3, 3); 6];
+    struct Case {
+        name: &'static str,
+        trace: &'static [u8],
+        heads: usize,
+        moves: usize,
+        failures: &'static [Failure],
+        retries: bool,
+    }
+    let cases = [
+        Case {
+            name: "drains",
+            trace: b"AB",
+            heads: 3,
+            moves: 1,
+            failures: &[
                 (1, b"", 0, 0),
                 (1, b"", 1, 0),
                 (2, b"BA", 2, 0),
                 (4, b"AB", 3, 0),
             ],
-        ),
-        (
-            "packages",
-            b"AR",
-            2,
-            2,
-            &[
+            retries: false,
+        },
+        Case {
+            name: "packages",
+            trace: b"AR",
+            heads: 2,
+            moves: 2,
+            failures: &[
                 (1, b"", 0, 0),
                 (2, b"A", 1, 0),
                 (3, b"AR", 2, 0),
                 (4, b"AR", 2, 1),
             ],
-        ),
-        (
-            "direct-store",
-            b"A",
-            2,
-            1,
-            &[(1, b"", 0, 0), (2, b"A", 1, 0), (3, b"A", 2, 0)],
-        ),
-        (
-            "direct-ticket",
-            b"BA",
-            1,
-            1,
-            &[(1, b"", 0, 0), (2, b"AB", 1, 0)],
-        ),
-        (
-            "direct-byte-buffer",
-            b"",
-            2,
-            1,
-            &[(1, b"", 0, 0), (2, b"", 1, 0), (3, b"", 2, 0)],
-        ),
+            retries: false,
+        },
+        Case {
+            name: "direct-store",
+            trace: b"A",
+            heads: 2,
+            moves: 1,
+            failures: &[(1, b"", 0, 0), (2, b"A", 1, 0), (3, b"A", 2, 0)],
+            retries: false,
+        },
+        Case {
+            name: "direct-ticket",
+            trace: b"BA",
+            heads: 1,
+            moves: 1,
+            failures: &[(1, b"", 0, 0), (2, b"AB", 1, 0)],
+            retries: false,
+        },
+        Case {
+            name: "direct-byte-buffer",
+            trace: b"",
+            heads: 2,
+            moves: 1,
+            failures: &[(1, b"", 0, 0), (2, b"", 1, 0), (3, b"", 2, 0)],
+            retries: false,
+        },
+        Case {
+            name: "recovery",
+            trace: b"BSAR",
+            heads: 3,
+            moves: 3,
+            failures: &RETRIES,
+            retries: true,
+        },
     ];
-    for (name, trace, heads, moves, failures) in cases {
-        let source = CASES
-            .iter()
-            .find(|(candidate, _)| *candidate == name)
-            .unwrap()
-            .1;
+    for Case {
+        name,
+        trace,
+        heads,
+        moves,
+        failures,
+        retries,
+    } in cases
+    {
+        let source = if name == "recovery" {
+            include_str!("../../../tests/fixtures/nested-store/recovery.zil")
+        } else {
+            CASES
+                .iter()
+                .find(|(candidate, _)| *candidate == name)
+                .unwrap()
+                .1
+        };
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
                 continue;
@@ -391,7 +426,13 @@ fn every_original_allocation_edge_and_moving_growth_preserve_nested_cleanup() {
                     assert_eq!(
                         counts,
                         [
-                            if at == 0 { failures.len() } else { at },
+                            if at == 0 {
+                                failures.len()
+                            } else if retries {
+                                failures.len() + 1
+                            } else {
+                                at
+                            },
                             acquired,
                             acquired,
                             0,
