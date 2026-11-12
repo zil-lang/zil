@@ -54,6 +54,35 @@ fn closed_owner() -> String {
     include_str!("../../../tests/language-readiness/task-owner-transport/closed-task-fnonce.zil")
         .to_owned()
 }
+fn returned_frame_cases() -> Vec<(&'static str, String)> {
+    cases()
+        .into_iter()
+        .map(|(name, text)| {
+            let name = match name {
+                "ready" => "returned-frame-ready",
+                "prepolled-pending" => "returned-frame-prepolled-pending",
+                "cancel-before-poll" => "returned-frame-cancel-before-poll",
+                "cancel-after-pending" => "returned-frame-cancel-after-pending",
+                "ready-result-unobserved-by-owner" => "returned-frame-ready-unobserved",
+                _ => unreachable!(),
+            };
+            let text = text
+                .replace(
+                    "->impl FnOnce()->i32",
+                    "->impl FnOnce()->Managed<Task<i32,&'a mut i32>>",
+                )
+                .replace(
+                    "return move()=>drive(give original);",
+                    "return move()=>give original;",
+                )
+                .replace(
+                    "let answer=callback();",
+                    "let restored=callback();let answer=drive(give restored);",
+                );
+            (name, text)
+        })
+        .collect()
+}
 #[test]
 fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
     for (name, text) in [
@@ -86,6 +115,81 @@ fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
         assert_eq!(report.verification_runs, 1);
     }
 }
+
+#[test]
+fn returned_frame_keeps_actual_capture_identity_when_lifetime_classes_are_equal_raw_and_wire() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil"
+    )
+    .replace("keep<life a,life b>", "keep<life a>")
+    .replace("&'b mut i32", "&'a mut i32");
+    let input = source(&text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let d = &typed.closures[0];
+    assert_eq!(d.captures[0], d.captures[1]);
+    assert_eq!(d.storage_life.as_ref().unwrap().fixed_binder_count, 1);
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let creator = typed
+        .functions
+        .iter()
+        .position(|f| f.callable_return_contract.is_some())
+        .unwrap();
+    let mut forged = typed.clone();
+    let rows = forged.functions[creator]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .capture_sources
+        .as_mut()
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    rows[1].sources = rows[0].sources.clone();
+    assert!(zil_analyze::analyze(&forged, &limits).is_err());
+    let mut claim = plan.clone();
+    claim.module_fingerprint = forged.fingerprint();
+    assert!(zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+
+    let entry = &typed.functions[d.function.0 as usize];
+    let returned = entry
+        .blocks
+        .iter()
+        .find_map(|block| match block.terminator {
+            zil_ir::Terminator::Return(Some(value)) => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        plan.functions[d.function.0 as usize].holds[returned.0 as usize].roots,
+        [zil_ir::HoldRoot::Capture(1)]
+    );
+    let mut claim = plan;
+    claim.functions[d.function.0 as usize].holds[returned.0 as usize].roots =
+        vec![zil_ir::HoldRoot::Capture(0)];
+    assert!(zil_verify::verify_module(typed.clone(), claim.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+}
 #[test]
 fn returned_fnonce_moves_the_actual_live_task_and_retains_its_parent() {
     for (name, text) in [
@@ -94,6 +198,7 @@ fn returned_fnonce_moves_the_actual_live_task_and_retains_its_parent() {
     ]
     .into_iter()
     .chain(cases())
+    .chain(returned_frame_cases())
     {
         let report = compile_source(
             &source(&text),
@@ -140,6 +245,39 @@ fn retained_task_parent_and_once_responsibility_survive_the_factory_call() {
             report.to_json()
         );
     }
+    let original = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/returned-task-result-fnonce.zil"
+    );
+    for text in [
+        original.replace(
+            "let answer=drive(give restored);",
+            "number=0;let answer=drive(give restored);",
+        ),
+        original.replace(
+            "let restored=callback();",
+            "let restored=callback();let duplicate=callback();",
+        ),
+    ] {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
 }
 #[test]
 fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
@@ -148,10 +286,11 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for (name, text, expected) in cases()
+            for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases())
                 .into_iter()
-                .map(|(name, text)| (name, text, &b"A"[..]))
-                .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..])))
+                .map(|(name, text)| (name, text, &b"A"[..],1))
+                .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..],1)))
+                .chain(std::iter::once(("returned-second-frame",include_str!("../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil").to_owned(),&b""[..],2)))
             {
                 let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
                     "../../out/runs/task-owner-native/{name}-{backend:?}-{optimization:?}"
@@ -166,6 +305,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                     .join("../../tests/language-readiness/task-aggregate-results/frame-observer.c");
                 let built = Command::new(&clang)
                     .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(format!("-DZIL_TASK_EXPECTED_FRAMES={frames}"))
                     .arg(observer)
                     .arg("-o")
                     .arg(&object)
@@ -213,6 +353,12 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                     "allocation {name}: {failed:?}"
                 );
                 assert_eq!(failed.stdout, expected, "allocation {name}: {failed:?}");
+                if frames>1 {
+                    let failed=Command::new(&report.artifacts["executable"])
+                        .env("ZIL_TASK_AGGREGATE_FAIL_AT","2").output().unwrap();
+                    assert_eq!(failed.status.code(),Some(1),"second allocation {name}: {failed:?}");
+                    assert_eq!(failed.stdout,expected,"second allocation {name}: {failed:?}");
+                }
             }
         }
     }
