@@ -88,6 +88,20 @@ class PushProfileQualification(unittest.TestCase):
         with self.assertRaises(ValueError):
             validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
 
+    def test_inventory_and_densemap_source_has_explicit_real_binary_pin(self):
+        source = '03b078b5799fe44d98855f26279f0f09e1d25bf5'
+        self.assertRegex(validator.CANDIDATES[source], r'^[0-9a-f]{64}$')
+        arguments = self.arguments()
+        arguments['candidate_source'] = source
+        validator.check_arguments(arguments, source)
+        record = {'source': source, 'binary_sha256': validator.CANDIDATES[source],
+                  'command': validator.expected_controller_command(Path('/repo'), Path('/raw'), arguments)}
+        validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+        for old_source in [validator.SOURCE, '328eb392d8d88148a75a743d899b43aebae73587']:
+            record['binary_sha256'] = validator.CANDIDATES[old_source]
+            with self.subTest(old_source=old_source), self.assertRaises(ValueError):
+                validator.check_controller_record(record, Path('/repo'), Path('/raw'), arguments, source)
+
     def test_only_second_line_fingerprint_is_normalized(self):
         prefix = b'; ZIL verified LLVM module\n; verified-fingerprint: '
         a = prefix + b'a'*64 + b'\ndefine i64 @f() { ret i64 1 }\n'
