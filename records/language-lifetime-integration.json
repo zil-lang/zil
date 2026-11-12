@@ -57,7 +57,7 @@
     "schema_actual": "workspace alltargets pass and independent byte oracle4/4 including depth112 roundtrip and depth130 ResourceLimit; no stack size or budget increase",
     "unaccepted": "Original scope/equality recipe independent V scalar math finite checks pass; lexical instantiation/header embeddings and Desc semantic lifetime fields in progress, all new witness proposals remain failclosed until actual proof consumers",
     "new_public_scope": "44ab700537c0498425e3df8c29a6970482fe490b + 1900cd7cd8129996f50776e6d7175fa7ebb4d4c2; independent scope/Desc oracle6/6 passed; no semantic witness acceptance",
-    "exclusive_actual": "951f7e53d5dc01c98bcab641de3dd9f519783c35 A + independent V d997/7d2a0b94b1fb942fd0c526ced4583cac70922417: direct+factory original Source both complete raw/Wire V + Clang/API O0/O2 eight native passed; strongest previously A-accepted same-Call.argument stale SSA write now independently SafeReject live incompatible loan, exact removal of only write restores positive. PlaceAddress/OwnedView/Reborrow/Static/Store/witness still open."
+    "exclusive_actual": "New public schema547ea4afc112e7126d3789ebc6e31576b8958c2c eight tests pass, five original programs20native overall: original shared/unused8native, Exclusive direct/factory8native, PlaceAddress4native. Independent V fe0186168 focused17/17 + actualSource4/4 + strict; actualstrong sameCallargument staleSSA write rejected, remove only write restores positive; Place six exact raw/Wire attacks reject. Mutable-to-Shared Place Source3d20bca6 full two-kernel/four-native pass. OwnedView concrete region/pending Dyn static implementation still not complete broad Source consumer."
   },
   "source_atoms": {
     "branch": "task/storage-source-atoms",
@@ -72,21 +72,50 @@
   "parent_status": "Language usability completion remains open; do not deliver a final partial handoff.",
   "public_integration": {
     "branch": "task/language-public-integration",
-    "checkpoint": "7c6a93465",
+    "checkpoint": "370079991",
     "content": "root integration + callable return150 + original Core scope7ab + complete StorageSource atoms0d + complete recipe/equality metadata + anonymous f894 + Source417 + independent ordinary head A/V fixes",
-    "checks": "914f all workspace/all-targets LLVM-api truePASS. ee5 six actual suites: anonymous10/10, closure26/26, source_scope5/5, dynamic_context3/3, ordinary_heads1/1, task_aggregate7/7; all zero-filter. Later libraries fail under new elided-head profiles; not accepted jointly. New public static_bindings 31769577c→1e445d662→bd01946f3→669cf: workspace alltargets truePASS and handwritten independent Runtime Wire/fingerprint oracle1/1. Qualified-current/wholeH/Slice merged276f96ad1; 7c6 actual closure33/33 (one explicitly unfinished Static Source excluded), SourceScope5/5, qualified_head_transfers3/3. Raw weak-update counterfactual now grants local mutability and is rejected by the actual retained-loan kernel in both raw/Wire. Static directory structural oracle1/1; public static permission remains failclosed pending full constructor/write proof."
+    "checks": "914f all workspace/all-targets LLVM-api truePASS. ee5 six actual suites: anonymous10/10, closure26/26, source_scope5/5, dynamic_context3/3, ordinary_heads1/1, task_aggregate7/7; all zero-filter. Later libraries fail under new elided-head profiles; not accepted jointly. New public static_bindings 31769577c→1e445d662→bd01946f3→669cf: workspace alltargets truePASS and handwritten independent Runtime Wire/fingerprint oracle1/1. Qualified-current/wholeH/Slice merged276f96ad1; 7c6 actual closure33/33 (one explicitly unfinished Static Source excluded), SourceScope5/5, qualified_head_transfers3/3. Raw weak-update counterfactual now grants local mutability and is rejected by the actual retained-loan kernel in both raw/Wire. Static directory structural oracle1/1; public static permission remains failclosed pending full constructor/write proof. 80deb9882 independent V static dependency transport compiled and original closure33/33 (one explicitly unfinished Static skipped), Scope5/5, qualified3/3 stayed green. Full original static Source subsequently passed raw/Wire and four native at af63a150f. New unused nonfactory constructor counterfactual370079991: same legitimate factory/entry and same declared contract; good uncalled literal constructor raw/Wire passes, changing only that constructor producer to a formal pointer gets actual E-VERIFY-STORED constant-field SafeReject both transports. No final static acceptance yet; Write/cycle/carrier/mixed matrix and nonauthor review pending."
   },
   "ct_catalogue": {
     "branch": "task/storage-source-atoms-ct",
-    "checkpoint": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
-    "status": "f514 actual6/6 includes fullSource→fullCore→Artifact rawWire→independent V→CTVM, None distinct from Someempty. New73-record Scope/Desc/implicit schema transplant frozen/pushed but not yet jointly executed; generator strict style fixed, rerun pending."
+    "checkpoint": "dedc963b2f78b24c3cdb7cc339f955140cccb4ff",
+    "status": "Full Scope/Desc/static public metadata integrated, regenerated73records; CT IR6/6 + CT V2/2 + real fullCore Source→catalogue Wire→V→VM1/1 passed; workspace alltargets LLVM and IR strict passed. Production reifier API exists; ordinary automatic Source fullCore binding and CT4/5 scoped Dyn/Task query consumers still open, test adapter not accepted as terminal."
   },
   "library_combination_regressions": {
     "checkpoint": "40ecd3f8ce66029331a31ca18259ce0dd62ba9f0",
     "actual": "graph0/3, iterator13/21, owning_hash3/15; first failures retained. Original Source and all budgets preserved. Prior standalone libraries passed, but new implicit lifetime headers activate unsupported ordinary Store/ByteBuffer/owned callback proof paths.",
     "source_repair": "14cbc2b55a3fe4aa2c8c212393dab92cc151dcef aligns actual compiler-prelude insertion with existing Origins; graph3/3 now crosses Source/Types on author tree, later Analyze still rejects. Real regression test2f959343e passed1/1.",
     "analyze_author": "task/stdlib-ordinary-head-analyze; V remains independently root-owned",
-    "verifier_candidate": "8d2162451; task/stdlib-ordinary-head-verify",
-    "verifier_actual": "Original complete owning collision/growth/replacement/take/set/reuse Source full raw/Wire and four-native consumer1/1 passed; complete original library suites not yet green or accepted."
+    "verifier_candidate": "ca1dd313c then library A4a2e050f merged into task/stdlib-ordinary-head-verify; latest head in backup manifest",
+    "verifier_actual": "Original complete owning collision/growth/replacement/take/set/reuse Source full raw/Wire and four-native consumer1/1 passed; complete original library suites not yet green or accepted.",
+    "actual_later": "A42b Graph3/3 and original float/buffer/IO restore actual allphase consumers. A4a2e050f seven original iterator Source/rawWire analyses all pass. Independent V original full Hash collision/growth/etc four native + exact default/N/N-1/fresh wholeHash budgets pass at8d; actual callback environment memory now reconstructed independently of class presence, header classification remains separate. Latest full iterator joint run queued; no whole-suite green claim."
+  },
+  "static_occurrences": {
+    "public_schema_chain": [
+      "31769577c",
+      "1e445d662",
+      "bd01946f3",
+      "669cf0a00"
+    ],
+    "independent_verifier": [
+      "cffe66313",
+      "30eae6640",
+      "80deb9882",
+      "c30127e4a",
+      "af63a150f"
+    ],
+    "analyze_types_producer": "1b9e671157529d5141ab46c5df23f18b6aec1225",
+    "public_joint": "370079991",
+    "source_pass": "out/runs/public-static-source-fourth.log; original literal Fn source full Source/Types/A/rawV/WireV/Clang+LLVM-api O0/O2",
+    "global_constructor_pass": "out/runs/public-static-unused-constructor-second.log; 1/1 real positive and exact actual-kernel negative raw/Wire",
+    "open": "FnMut writes, pure unrooted cycles, Static|Param fixed lifetime/parents, phantom/nominal full domains, FnOnce StaticSlice, F/Task/Store/Dyn transport, complete independent review. Ordinary static-parameter signature gate remains failclosed."
+  },
+  "async_current": {
+    "checkpoint": "6b52001b7a3202988f4bcdc739d460f1e3c6f32e",
+    "actual": "TaskOwner6/6 including Source original Task return+two identical frames, actualSource attacks raw/Wire; 100 native process outcomes (48success/48firstFrameOOM/4secondFrameOOM). Prior14th creation17/24 and original borrowedFailure repaired; remaining7RegKnown0 dispatcher fixes in15th pending, not all Task green."
+  },
+  "witness_current": {
+    "checkpoint": "ab7b06ebaf39aed72dbdf172f7eef9a94bcc3ba0",
+    "actual": "Opaque17/17, original matching19/19 scoped tests passed; new associated root20 tests queued. NewSome semantic gate still closed pending full reachable requirements/associated query/method CFG consumers. Astra boundary DTV rule documentedced748ec: intrinsic N and full Type retained, external mapping can many-to-one; no class compression/None0 or copyingContext physical rows."
   }
 }

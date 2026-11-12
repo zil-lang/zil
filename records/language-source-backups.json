@@ -1,6 +1,6 @@
 {
-  "checked_at_utc": "2026-11-12T20:03:00.965146+00:00",
-  "goal_before_update": "50f2c73b1c7912040e250a553915847f09e97ffd",
+  "checked_at_utc": "2026-11-12T20:48:29.794817+00:00",
+  "goal_before_update": "1d1856e9d836eebd7e9bf79ed042104721ee98bb",
   "branches": [
     {
       "path": "/workspace/zil-anonymous-integration",
@@ -24,8 +24,8 @@
       "path": "/workspace/zil-async",
       "local_branch": "task/language-async",
       "remote_branch": "task/language-async",
-      "head": "0e2196e5c5f1ed248acd55dde9be0316d9d6e117",
-      "remote_head": "0e2196e5c5f1ed248acd55dde9be0316d9d6e117",
+      "head": "41bf050ab2e1cfb9822748575a7c6b8f97799665",
+      "remote_head": "41bf050ab2e1cfb9822748575a7c6b8f97799665",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -105,8 +105,8 @@
       "path": "/workspace/zil-dyn-source-atoms-analyze",
       "local_branch": "task/dyn-source-atoms-analyze",
       "remote_branch": "task/dyn-source-atoms-analyze",
-      "head": "951f7e53d5dc01c98bcab641de3dd9f519783c35",
-      "remote_head": "951f7e53d5dc01c98bcab641de3dd9f519783c35",
+      "head": "a98fa40ad80a26a68e645bf32b6dd3bb6d602185",
+      "remote_head": "a98fa40ad80a26a68e645bf32b6dd3bb6d602185",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -114,8 +114,8 @@
       "path": "/workspace/zil-dyn-source-atoms-verify",
       "local_branch": "task/dyn-source-atoms-verify",
       "remote_branch": "task/dyn-source-atoms-verify",
-      "head": "7d2a0b94b1fb942fd0c526ced4583cac70922417",
-      "remote_head": "7d2a0b94b1fb942fd0c526ced4583cac70922417",
+      "head": "33cabf6ae3876c2a8353590648875e8155e89466",
+      "remote_head": "33cabf6ae3876c2a8353590648875e8155e89466",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -150,8 +150,8 @@
       "path": "/workspace/zil-dyn-witness-current",
       "local_branch": "task/dyn-witness-verify-current",
       "remote_branch": "task/dyn-witness-verify-current",
-      "head": "1c7de9aee34fee2143b1f9aafa3911a34e894a16",
-      "remote_head": "1c7de9aee34fee2143b1f9aafa3911a34e894a16",
+      "head": "5a45dccd7c09ae4c3af8a8b10e0e59b067797807",
+      "remote_head": "5a45dccd7c09ae4c3af8a8b10e0e59b067797807",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -267,17 +267,17 @@
       "path": "/workspace/zil-ownership-public",
       "local_branch": "task/language-ownership-public",
       "remote_branch": "task/language-ownership-public",
-      "head": "7ecbdb6ec2273c2df780f8225332d77d8108c43d",
-      "remote_head": "7ecbdb6ec2273c2df780f8225332d77d8108c43d",
+      "head": "1b9e671157529d5141ab46c5df23f18b6aec1225",
+      "remote_head": "1b9e671157529d5141ab46c5df23f18b6aec1225",
       "committed_checkpoint_synced": true,
-      "uncommitted": true
+      "uncommitted": false
     },
     {
       "path": "/workspace/zil-public-integration",
       "local_branch": "task/language-public-integration",
       "remote_branch": "task/language-public-integration",
-      "head": "7c6a93465eef33ec7450ccffaed96665225d6583",
-      "remote_head": "7c6a93465eef33ec7450ccffaed96665225d6583",
+      "head": "370079991c5c16ed1e67a6c1a611657364ef32fa",
+      "remote_head": "370079991c5c16ed1e67a6c1a611657364ef32fa",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -303,8 +303,8 @@
       "path": "/workspace/zil-receiver-proof",
       "local_branch": "task/closure-receiver-proof",
       "remote_branch": "task/closure-receiver-proof",
-      "head": "e65e152d764917d867ec26a4b8c8be0132bd9027",
-      "remote_head": "e65e152d764917d867ec26a4b8c8be0132bd9027",
+      "head": "6bf1e433421ee7fea6d37182484fb20986f83148",
+      "remote_head": "6bf1e433421ee7fea6d37182484fb20986f83148",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -321,8 +321,8 @@
       "path": "/workspace/zil-source-atoms-ct",
       "local_branch": "task/storage-source-atoms-ct",
       "remote_branch": "task/storage-source-atoms-ct",
-      "head": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
-      "remote_head": "de8fc63fc8a49d2884c0b50d76cf20520959a78c",
+      "head": "dedc963b2f78b24c3cdb7cc339f955140cccb4ff",
+      "remote_head": "dedc963b2f78b24c3cdb7cc339f955140cccb4ff",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     },
@@ -348,17 +348,17 @@
       "path": "/workspace/zil-stdlib-ordinary-head-analyze",
       "local_branch": "task/stdlib-ordinary-head-analyze",
       "remote_branch": "task/stdlib-ordinary-head-analyze",
-      "head": "7ef03293a2f56592e9aba56d87c04107846621c4",
-      "remote_head": "7ef03293a2f56592e9aba56d87c04107846621c4",
+      "head": "3e2e74b5b1278d8acfc4f80b04cd7784591ddd74",
+      "remote_head": "3e2e74b5b1278d8acfc4f80b04cd7784591ddd74",
       "committed_checkpoint_synced": true,
-      "uncommitted": false
+      "uncommitted": true
     },
     {
       "path": "/workspace/zil-stdlib-ordinary-head-verify",
       "local_branch": "task/stdlib-ordinary-head-verify",
       "remote_branch": "task/stdlib-ordinary-head-verify",
-      "head": "8d216245111359ebd87e6d97c20206413b4ce993",
-      "remote_head": "8d216245111359ebd87e6d97c20206413b4ce993",
+      "head": "8ddc227d01c5bf85e957c9adb883bebd3839822e",
+      "remote_head": "8ddc227d01c5bf85e957c9adb883bebd3839822e",
       "committed_checkpoint_synced": true,
       "uncommitted": false
     }
