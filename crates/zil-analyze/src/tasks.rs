@@ -741,14 +741,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
             charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
-            super::signature_life::function_relation(
+            super::signature_life::function_relation_resource_scopes(
                 &inputs,
                 &f.return_type,
                 contract,
                 f.callable_return_contract
                     .as_ref()
                     .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
-                &module.closures,
+                module,
+                false,
+                budget,
             )?;
         }
     }

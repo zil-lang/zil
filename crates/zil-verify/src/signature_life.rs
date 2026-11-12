@@ -303,6 +303,13 @@ pub(super) fn function_relation_resource_scopes(
             "resource scope needs its complete static occurrence consumer",
         ));
     }
+    if roots.is_empty() {
+        return if allow_byte_input {
+            function_relation_byte_inputs(module, parameters, result, c, span, allow_callback)
+        } else {
+            function_relation(module, parameters, result, c, span, allow_callback)
+        };
+    }
     function_relation_inner(
         module,
         parameters,

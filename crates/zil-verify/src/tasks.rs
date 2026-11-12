@@ -1132,7 +1132,7 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
             }
             charge_result_selection(&f.return_type, budget)?;
             super::signature_life::charge(contract, budget)?;
-            super::signature_life::function_relation(
+            super::signature_life::function_relation_resource_scopes(
                 module,
                 &inputs,
                 &f.return_type,
@@ -1141,6 +1141,8 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 f.callable_return_contract
                     .as_ref()
                     .is_some_and(|c| f.return_type == Type::Closure(c.closure)),
+                false,
+                budget,
             )?;
         }
         if borrowed_result(&f.return_type) && f.storage_life.is_none() {

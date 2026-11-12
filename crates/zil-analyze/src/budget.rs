@@ -1872,6 +1872,15 @@ pub(super) fn preflight(
             return Err(bad("closure entry references an absent function"));
         }
     }
+    if (budget.registrations || budget.async_registrations)
+        && budget.task_input_scopes.is_none()
+        && module
+            .functions
+            .iter()
+            .any(|function| function.storage_life.is_some())
+    {
+        budget.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, budget)?);
+    }
     let (mut blocks, mut instructions, mut locals, mut values) = (0, 0, 0, 0);
     // Record strict package admission during the already charged type visits.
     // Each bounded function visit also materializes one flag; no second type
@@ -1938,12 +1947,14 @@ pub(super) fn preflight(
                 }
                 super::tasks::charge_result_selection(&function.return_type, budget)?;
                 super::signature_life::charge(contract, budget)?;
-                super::signature_life::function_relation(
+                super::signature_life::function_relation_resource_scopes(
                     &parameters,
                     &function.return_type,
                     contract,
                     false,
-                    &[],
+                    module,
+                    false,
+                    budget,
                 )?;
             } else if !super::tasks::borrowed_signature(module, function, budget)? {
                 super::stored_flow::header(module, function, budget)?;
@@ -2876,15 +2887,6 @@ pub(super) fn preflight(
         super::dynamic_store::owned_capture_profiles(module, &owned_store_capture_roots, budget)?;
     for element in callback_store_elements {
         super::dynamic_store::callback_element(module, element, budget)?;
-    }
-    if (budget.registrations || budget.async_registrations)
-        && budget.task_input_scopes.is_none()
-        && module
-            .functions
-            .iter()
-            .any(|function| function.storage_life.is_some())
-    {
-        budget.task_input_scopes = Some(crate::tasks::input_scope::build(module, limits, budget)?);
     }
     Ok((package_functions, store_profiles))
 }

@@ -907,13 +907,15 @@ fn check_module(
                 tasks::charge_result_selection(&function.return_type, &mut budget)?;
                 if !ordinary_heads::check(module, function, &mut budget)? {
                     signature_life::charge(contract, &mut budget)?;
-                    signature_life::function_relation(
+                    signature_life::function_relation_resource_scopes(
                         module,
                         &parameters,
                         &function.return_type,
                         contract,
                         Some(function.span),
                         false,
+                        false,
+                        &mut budget,
                     )?;
                 }
             } else if !ordinary_heads::check(module, function, &mut budget)?
