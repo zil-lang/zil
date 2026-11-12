@@ -12,16 +12,28 @@ use zil_ir::ct_artifact::CtSymbolId;
 use zil_syntax::{ParseResult, ast as s};
 
 fn error(message: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(Phase::Ct, "E-CT-STAGE-INVENTORY", None, message)]
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-STAGE-INVENTORY",
+        None,
+        message,
+    )]
 }
 fn limit() -> Vec<Diagnostic> {
-    vec![Diagnostic::limit(Phase::Ct, "CT stage inventory budget exhausted", None)]
+    vec![Diagnostic::limit(
+        Phase::Ct,
+        "CT stage inventory budget exhausted",
+        None,
+    )]
 }
 
 /// Host-owned immutable trees. Original origins address actual root items;
 /// generated trees retain the complete verified emission's parse and hygiene.
 enum FrozenTree {
-    Original { parse: Arc<ParseResult>, origins: usize },
+    Original {
+        parse: Arc<ParseResult>,
+        origins: usize,
+    },
     Generated(Arc<GeneratedSourceTree>),
 }
 impl FrozenTree {
@@ -95,7 +107,11 @@ fn content<T: std::fmt::Debug>(
     value: &T,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<Fingerprint> {
-    let mut digest = AstDigest { hash: FingerprintBuilder::new(), budget, failure: None };
+    let mut digest = AstDigest {
+        hash: FingerprintBuilder::new(),
+        budget,
+        failure: None,
+    };
     if write!(&mut digest, "zil/ct-complete-ast/v1\0{value:?}").is_err() {
         return Err(digest.failure.unwrap_or_else(limit));
     }
@@ -108,7 +124,9 @@ fn push<T>(values: &mut Vec<T>, value: T, budget: &mut CtExecutionBudget) -> Com
         let growth = values.capacity().max(4);
         budget.reserve_analysis_work(values.len() as u64)?;
         budget.reserve_temporary_bytes(
-            growth.checked_mul(std::mem::size_of::<T>()).ok_or_else(limit)? as u64,
+            growth
+                .checked_mul(std::mem::size_of::<T>())
+                .ok_or_else(limit)? as u64,
         )?;
         values.try_reserve_exact(growth).map_err(|_| limit())?;
     }
@@ -133,16 +151,28 @@ struct Collector<'a> {
     limits: &'a Limits,
 }
 impl Collector<'_> {
-    fn row(&mut self, ordinal: u32, item: &s::Item, path: &[u32], public: bool) -> CompileResult<()> {
+    fn row(
+        &mut self,
+        ordinal: u32,
+        item: &s::Item,
+        path: &[u32],
+        public: bool,
+    ) -> CompileResult<()> {
         if self.declarations.len() >= self.limits.max_nodes {
             return Err(limit());
         }
         let declaration = match self.relocation {
-            Some(rows) => *rows.get(ordinal as usize).ok_or_else(|| error("generated declaration relocation is incomplete"))?,
+            Some(rows) => *rows
+                .get(ordinal as usize)
+                .ok_or_else(|| error("generated declaration relocation is incomplete"))?,
             None => NodeId(ordinal),
         };
         let row = Declaration {
-            symbol: CtSymbolId { module: self.module, declaration, generation_path: self.generation },
+            symbol: CtSymbolId {
+                module: self.module,
+                declaration,
+                generation_path: self.generation,
+            },
             tree: self.tree,
             path: copy_path(path, self.budget)?,
             public,
@@ -153,12 +183,19 @@ impl Collector<'_> {
     fn allocate(&mut self, count: usize) -> CompileResult<u32> {
         self.budget.reserve_analysis_work(count as u64 + 1)?;
         let old = self.next;
-        self.next = self.next.checked_add(u32::try_from(count).map_err(|_| limit())?).ok_or_else(limit)?;
-        if self.next as usize > self.limits.max_nodes { return Err(limit()); }
+        self.next = self
+            .next
+            .checked_add(u32::try_from(count).map_err(|_| limit())?)
+            .ok_or_else(limit)?;
+        if self.next as usize > self.limits.max_nodes {
+            return Err(limit());
+        }
         Ok(old)
     }
     fn children(&mut self, item: &s::Item, path: &mut Vec<u32>, public: bool) -> CompileResult<()> {
-        if path.len() >= self.limits.max_call_depth.min(128) { return Err(limit()); }
+        if path.len() >= self.limits.max_call_depth.min(128) {
+            return Err(limit());
+        }
         let members = match &item.kind {
             s::ItemKind::Aggregate(value) => {
                 self.allocate(value.fields.len())?;
@@ -168,9 +205,13 @@ impl Collector<'_> {
                 for variant in &value.variants {
                     self.allocate(1)?;
                     match &variant.fields {
-                        s::VariantFields::Unit => {},
-                        s::VariantFields::Tuple(fields) => { self.allocate(fields.len())?; },
-                        s::VariantFields::Record(fields) => { self.allocate(fields.len())?; },
+                        s::VariantFields::Unit => {}
+                        s::VariantFields::Tuple(fields) => {
+                            self.allocate(fields.len())?;
+                        }
+                        s::VariantFields::Record(fields) => {
+                            self.allocate(fields.len())?;
+                        }
                     }
                 }
                 return Ok(());
@@ -181,7 +222,11 @@ impl Collector<'_> {
         };
         for (ordinal, member) in members.iter().enumerate() {
             let id = self.allocate(1)?;
-            push(path, u32::try_from(ordinal).map_err(|_| limit())?, self.budget)?;
+            push(
+                path,
+                u32::try_from(ordinal).map_err(|_| limit())?,
+                self.budget,
+            )?;
             self.row(id, member, path, public && member.public)?;
             self.children(member, path, public && member.public)?;
             path.pop();
@@ -203,31 +248,56 @@ impl FrozenCtStageInventory {
         limits: &Limits,
     ) -> CompileResult<Self> {
         use zil_expand::ct_selection::Visitor;
-        budget.reserve_analysis_work(parsed.len() as u64 + origins.len() as u64 + committed.trees.len() as u64)?;
-        if parsed.len() != origins.len() { return Err(error("original declaration inventory is incomplete")); }
+        budget.reserve_analysis_work(
+            parsed.len() as u64 + origins.len() as u64 + committed.trees.len() as u64,
+        )?;
+        if parsed.len() != origins.len() {
+            return Err(error("original declaration inventory is incomplete"));
+        }
         let mut trees = Vec::new();
         let mut original = std::collections::BTreeSet::new();
         for parse in parsed {
             budget.reserve_analysis_work(origins.len() as u64 + 1)?;
-            let origin = origins.iter().position(|row| row.module == parse.module.id)
+            let origin = origins
+                .iter()
+                .position(|row| row.module == parse.module.id)
                 .ok_or_else(|| error("original module origins are absent"))?;
             budget.reserve_temporary_bytes(64)?;
-            if !original.insert(parse.module.id) || !parse.diagnostics.is_empty()
+            if !original.insert(parse.module.id)
+                || !parse.diagnostics.is_empty()
                 || parse.module.items.len() != origins[origin].items.len()
-            { return Err(error("original source parse or placement is not complete")); }
+            {
+                return Err(error("original source parse or placement is not complete"));
+            }
             for (ordinal, row) in origins[origin].items.iter().enumerate() {
                 budget.reserve_analysis_work(1)?;
-                if row.declaration != NodeId(ordinal as u32) || row.generated.is_some() || row.retained_members.is_some() {
-                    return Err(error("stage inventory requires original unfiltered declaration placement"));
+                if row.declaration != NodeId(ordinal as u32)
+                    || row.generated.is_some()
+                    || row.retained_members.is_some()
+                {
+                    return Err(error(
+                        "stage inventory requires original unfiltered declaration placement",
+                    ));
                 }
             }
-            push(&mut trees, FrozenTree::Original { parse: Arc::clone(parse), origins: origin }, budget)?;
+            push(
+                &mut trees,
+                FrozenTree::Original {
+                    parse: Arc::clone(parse),
+                    origins: origin,
+                },
+                budget,
+            )?;
         }
         for (ordinal, tree) in committed.trees.iter().enumerate() {
             budget.reserve_analysis_work(ordinal as u64 + 1)?;
             if !matches!(tree.identity, SourceTreeIdentity::Generated { .. })
-                || committed.trees[..ordinal].iter().any(|old| old.identity == tree.identity)
-            { return Err(error("committed source event is not unique")); }
+                || committed.trees[..ordinal]
+                    .iter()
+                    .any(|old| old.identity == tree.identity)
+            {
+                return Err(error("committed source event is not unique"));
+            }
             push(&mut trees, FrozenTree::Generated(Arc::clone(tree)), budget)?;
         }
         let mut declarations = Vec::new();
@@ -237,15 +307,24 @@ impl FrozenCtStageInventory {
         all.update(&epoch.to_le_bytes());
         let mut generated = FingerprintBuilder::new();
         generated.update(b"zil/ct-committed-generation-content/v1\0");
+        let mut visited_nodes = 0;
         for (index, tree) in trees.iter().enumerate() {
             let module = tree.module();
-            let mut meter = SyntaxMeter { budget, limits, nodes: 0 };
-            for item in &module.items { meter.item(item, 0)?; }
+            let mut meter = SyntaxMeter {
+                budget,
+                limits,
+                nodes: visited_nodes,
+            };
+            for item in &module.items {
+                meter.item(item, 0)?;
+            }
+            visited_nodes = meter.nodes;
             let digest = content(module, budget)?;
             all.update(&digest.0);
             let (generation, relocation) = match tree {
                 FrozenTree::Original { origins: row, .. } => {
-                    let bytes = super::invocation_context::origins_cost(&origins[*row..=*row], budget)?;
+                    let bytes =
+                        super::invocation_context::origins_cost(&origins[*row..=*row], budget)?;
                     // The complete borrowed origins stay behind an Arc; bytes
                     // are visited/hashed but no second owned copy is created.
                     let _ = bytes;
@@ -253,7 +332,9 @@ impl FrozenCtStageInventory {
                     (None, None)
                 }
                 FrozenTree::Generated(tree) => {
-                    let identity = tree.generation_fingerprint().ok_or_else(|| error("committed source event has no generated identity"))?;
+                    let identity = tree
+                        .generation_fingerprint()
+                        .ok_or_else(|| error("committed source event has no generated identity"))?;
                     generated.update(&identity.0);
                     generated.update(&digest.0);
                     generated.update(&content(&tree.emitter, budget)?.0);
@@ -262,13 +343,22 @@ impl FrozenCtStageInventory {
                 }
             };
             let mut collector = Collector {
-                tree: index, module: module.id, generation, relocation,
+                tree: index,
+                module: module.id,
+                generation,
+                relocation,
                 next: u32::try_from(module.items.len()).map_err(|_| limit())?,
-                declarations: &mut declarations, budget, limits,
+                declarations: &mut declarations,
+                budget,
+                limits,
             };
             let mut path = Vec::new();
             for (ordinal, item) in module.items.iter().enumerate() {
-                push(&mut path, u32::try_from(ordinal).map_err(|_| limit())?, collector.budget)?;
+                push(
+                    &mut path,
+                    u32::try_from(ordinal).map_err(|_| limit())?,
+                    collector.budget,
+                )?;
                 collector.row(ordinal as u32, item, &path, item.public)?;
                 path.pop();
             }
@@ -278,18 +368,36 @@ impl FrozenCtStageInventory {
                 path.pop();
             }
             if relocation.is_some_and(|rows| rows.len() != collector.next as usize) {
-                return Err(error("committed source declaration inventory is not complete"));
+                return Err(error(
+                    "committed source declaration inventory is not complete",
+                ));
             }
         }
         let committed = generated.digest();
         all.update(&committed.0);
-        Ok(Self { source, epoch, trees, origins, declarations, content: all.digest(), committed })
+        Ok(Self {
+            source,
+            epoch,
+            trees,
+            origins,
+            declarations,
+            content: all.digest(),
+            committed,
+        })
     }
 
-    pub(super) fn source_fingerprint(&self) -> Fingerprint { self.source }
-    pub(super) fn epoch(&self) -> u64 { self.epoch }
-    pub(super) fn content_fingerprint(&self) -> Fingerprint { self.content }
-    pub(super) fn committed_fingerprint(&self) -> Fingerprint { self.committed }
+    pub(super) fn source_fingerprint(&self) -> Fingerprint {
+        self.source
+    }
+    pub(super) fn epoch(&self) -> u64 {
+        self.epoch
+    }
+    pub(super) fn content_fingerprint(&self) -> Fingerprint {
+        self.content
+    }
+    pub(super) fn committed_fingerprint(&self) -> Fingerprint {
+        self.committed
+    }
 
     pub(super) fn declaration<'a>(
         &'a self,
@@ -298,17 +406,216 @@ impl FrozenCtStageInventory {
         limits: &Limits,
     ) -> CompileResult<Option<FrozenDeclaration<'a>>> {
         budget.reserve_analysis_work(self.declarations.len() as u64)?;
-        let Some(row) = self.declarations.iter().find(|row| row.symbol == *symbol) else { return Ok(None); };
+        let Some(row) = self.declarations.iter().find(|row| row.symbol == *symbol) else {
+            return Ok(None);
+        };
         let tree = &self.trees[row.tree];
         let item = zil_expand::source_context::source_item_at_path(
-            tree.module(), &row.path, limits.max_call_depth,
+            tree.module(),
+            &row.path,
+            limits.max_call_depth,
             |count| budget.reserve_analysis_work(count as u64),
-        )?.ok_or_else(|| error("frozen declaration structural path is absent"))?;
+        )?
+        .ok_or_else(|| error("frozen declaration structural path is absent"))?;
         let origin = match tree {
-            FrozenTree::Original { origins, .. } => Some(&self.origins[*origins].items[row.path[0] as usize]),
+            FrozenTree::Original { origins, .. } => {
+                Some(&self.origins[*origins].items[row.path[0] as usize])
+            }
             FrozenTree::Generated(_) => None,
         };
-        Ok(Some(FrozenDeclaration { item, origin, public: row.public, content: row.content }))
+        Ok(Some(FrozenDeclaration {
+            item,
+            origin,
+            public: row.public,
+            content: row.content,
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+    use zil_ir::ct_artifact::CtDeclaredBudget;
+
+    fn budget(work: u64) -> CtExecutionBudget {
+        CtExecutionBudget::new(CtDeclaredBudget {
+            max_analysis_work: work,
+            max_temporary_bytes: 16_000_000,
+            max_steps: 100_000,
+            max_call_depth: 128,
+            max_live_cells: 100_000,
+            max_generated_nodes: 100_000,
+            max_instances: 10_000,
+        })
+    }
+    fn original(
+        text: &str,
+    ) -> (
+        SourceUnit,
+        Arc<ParseResult>,
+        Arc<Vec<ModuleDeclarationOrigins>>,
+    ) {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "inventory.zil", text);
+        let parse = Arc::new(zil_syntax::parse(&source));
+        assert!(parse.diagnostics.is_empty(), "{:?}", parse.diagnostics);
+        let (origins, _) = zil_expand::source_context::capture_original_required(
+            std::slice::from_ref(&source),
+            &[&parse.module],
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &BTreeMap::new(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &Limits::default(),
+        )
+        .unwrap();
+        (source, parse, Arc::new(origins))
+    }
+
+    #[test]
+    fn complete_original_headers_and_bodies_survive_epoch_freeze() {
+        let text = "pub trait Read<life unused,T>{fn read(self:&Self)->i32;}struct Cell<T>{value:T;fn number()->i32{return 42}}fn full<life p,const N:usize,T>(value:T)->T{return value}";
+        let (source, parse, origins) = original(text);
+        let mut b = budget(1_000_000);
+        let frozen = FrozenCtStageInventory::freeze(
+            source.fingerprint(),
+            7,
+            std::slice::from_ref(&parse),
+            Arc::clone(&origins),
+            &GeneratedSourceCatalog::default(),
+            &mut b,
+            &Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(frozen.source_fingerprint(), source.fingerprint());
+        assert_eq!(frozen.epoch(), 7);
+        for row in &frozen.declarations {
+            let actual = frozen
+                .declaration(&row.symbol, &mut b, &Limits::default())
+                .unwrap()
+                .unwrap();
+            assert_eq!(actual.content, row.content);
+            assert_eq!(actual.public, row.public);
+            assert!(actual.origin.is_some());
+            if let s::ItemKind::Function(function) = &actual.item.kind {
+                if function.name == "full" {
+                    assert_eq!(function.generics.len(), 3);
+                    assert!(matches!(
+                        function.generics[0].kind,
+                        s::GenericParamKind::Lifetime
+                    ));
+                    assert!(matches!(
+                        function.generics[1].kind,
+                        s::GenericParamKind::Const(_)
+                    ));
+                    assert!(matches!(actual.body(), Some(s::FunctionBody::Block(_))));
+                } else if function.name == "read" {
+                    assert!(actual.body().is_none());
+                    assert_eq!(actual.origin.unwrap().declaration, NodeId(0));
+                } else if function.name == "number" {
+                    assert!(actual.body().is_some());
+                    // Top-level declarations 0,1,2; trait member 3;
+                    // Cell field 4, then Cell method 5, independent of spans.
+                    assert_eq!(row.symbol.declaration, NodeId(5));
+                }
+            }
+        }
+        let next = FrozenCtStageInventory::freeze(
+            source.fingerprint(),
+            8,
+            &[parse],
+            origins,
+            &GeneratedSourceCatalog::default(),
+            &mut b,
+            &Limits::default(),
+        )
+        .unwrap();
+        assert_ne!(frozen.content_fingerprint(), next.content_fingerprint());
+        assert_eq!(frozen.committed_fingerprint(), next.committed_fingerprint());
+    }
+
+    #[test]
+    fn filtered_inventory_and_missing_body_cannot_be_full_source() {
+        let (source, parse, origins) = original("fn full()->i32{return 42}fn other(){} ");
+        let mut filtered = (*origins).clone();
+        filtered[0].items.pop();
+        assert!(
+            FrozenCtStageInventory::freeze(
+                source.fingerprint(),
+                0,
+                std::slice::from_ref(&parse),
+                Arc::new(filtered),
+                &GeneratedSourceCatalog::default(),
+                &mut budget(1_000_000),
+                &Limits::default()
+            )
+            .is_err()
+        );
+        let frozen = FrozenCtStageInventory::freeze(
+            source.fingerprint(),
+            0,
+            &[parse],
+            origins,
+            &GeneratedSourceCatalog::default(),
+            &mut budget(1_000_000),
+            &Limits::default(),
+        )
+        .unwrap();
+        let first = frozen
+            .declaration(
+                &CtSymbolId {
+                    module: ModuleId(0),
+                    declaration: NodeId(0),
+                    generation_path: None,
+                },
+                &mut budget(1_000_000),
+                &Limits::default(),
+            )
+            .unwrap()
+            .unwrap();
+        let s::FunctionBody::Block(body) = first.body().unwrap() else {
+            panic!("actual body lost");
+        };
+        assert!(!body.statements.is_empty());
+    }
+
+    #[test]
+    fn stage_full_source_visit_has_exact_fresh_budget_boundary() {
+        let (source, parse, origins) =
+            original("struct Phantom<life a>{value:i32}fn full<T>(value:T)->T{return value}");
+        let run = |work| {
+            let mut b = budget(work);
+            let value = FrozenCtStageInventory::freeze(
+                source.fingerprint(),
+                3,
+                std::slice::from_ref(&parse),
+                Arc::clone(&origins),
+                &GeneratedSourceCatalog::default(),
+                &mut b,
+                &Limits::default(),
+            );
+            (value, b.usage().analysis_work)
+        };
+        let (baseline, spent) = run(1_000_000);
+        let baseline = baseline.unwrap();
+        for _ in 0..2 {
+            let (exact, used) = run(spent);
+            assert_eq!(
+                exact.unwrap().content_fingerprint(),
+                baseline.content_fingerprint()
+            );
+            assert_eq!(used, spent);
+            let (failure, _) = run(spent - 1);
+            assert!(
+                failure
+                    .err()
+                    .unwrap()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
     }
 }
 
