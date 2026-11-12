@@ -716,8 +716,16 @@ impl Engine<'_> {
             state.hints = None;
         }
         if let (Some(hints), Some(ty)) = (&mut state.hints, &ty) {
-            let ty = self.original_type(ty)?;
-            hints.constrain(index, &ty, arg.span, &mut self.budget)?;
+            let mut actual = self.original_type(ty)?;
+            // A fixed callable parameter already belongs to the callee's
+            // physical signature. Its invocation relation checks source lives;
+            // generic type variables retain the caller's semantic application.
+            if self.stored_nominals
+                && let Some(parameter) = hints.parameter(index)
+            {
+                self.materialize_unification_actual(parameter, &mut actual, depth + 1)?;
+            }
+            hints.constrain(index, &actual, arg.span, &mut self.budget)?;
         }
         state.actual.push(ty);
 

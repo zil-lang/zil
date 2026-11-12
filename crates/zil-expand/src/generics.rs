@@ -280,7 +280,7 @@ fn specialize_products_prepared<'a>(
         {
             return Err(vec![error(
                 item.span,
-                "StoreElement is a compiler shape bound and cannot be implemented",
+                "compiler structural bounds cannot be implemented",
             )]);
         }
         if let ItemKind::Impl(implementation) = &item.kind
@@ -1668,7 +1668,7 @@ impl<'a> Engine<'a> {
             }
         }
         if let Some(source) = &runtime_substitution {
-            let (source, binders) = self.alpha_value_actuals(source, &parameters, span)?;
+            let (source, binders) = self.alpha_value_actuals(source, &parameters, item, span)?;
             self.budget.substituted_item(item, &source)?;
             consts::prepay_scopes(item, &source, &mut self.budget)?;
             substitute_item(&mut instance, &source)?;

@@ -167,10 +167,7 @@ fn option_store_parent(
         let Type::Package { fields, .. } = package_storage(head) else {
             return Err(error("Store window header is not an actual Package field"));
         };
-        budget.spend(
-            fields.len().saturating_add(1),
-            "Option Store nested header field lookup",
-        )?;
+        budget.spend(fields.len(), "Option Store nested header field lookup")?;
         head = &fields
             .get(*index as usize)
             .ok_or_else(|| error("Store window header field is absent"))?

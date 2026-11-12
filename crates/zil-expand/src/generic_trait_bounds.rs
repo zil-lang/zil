@@ -199,7 +199,7 @@ impl<'a> Index<'a> {
                 {
                     return Err(error(
                         item.span,
-                        "StoreElement is a compiler shape bound and cannot be implemented",
+                        "compiler structural bounds cannot be implemented",
                     ));
                 }
                 ItemKind::Impl(i)
