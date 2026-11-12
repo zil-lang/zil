@@ -2213,7 +2213,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             }
             Type::BorrowedStorage { storage, life } => {
                 if !owning
-                    || (!matches!(storage.as_ref(), Type::Package { .. })
+                    || (!matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_))
                         && !shared_record_child(ty, b)?)
                 {
                     if !retained::pure(ty, b)? {
@@ -2229,7 +2229,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     path,
                     out,
                     b,
-                    matches!(storage.as_ref(), Type::Package { .. }),
+                    matches!(storage.as_ref(), Type::Package { .. } | Type::Tuple(_)),
                 )?;
                 let boundary: Vec<_> = path
                     .iter()
