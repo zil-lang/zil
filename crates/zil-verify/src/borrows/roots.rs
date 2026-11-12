@@ -169,6 +169,7 @@ pub(super) fn store_option_root(
     f: &TypedFunction,
     result_type: &Type,
     source: &crate::stored_flow::Source,
+    byte_payload: bool,
     budget: &mut Budget,
 ) -> Check<Root> {
     if source.heap_element.is_none() {
@@ -288,7 +289,14 @@ pub(super) fn store_option_root(
             )
         })?;
     }
+    let descriptor_head = match result_type {
+        Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer => {
+            Some(Type::Managed(inner.clone()))
+        }
+        _ => None,
+    };
     let expected = match result_type {
+        Type::Desc(_) if descriptor_head.is_some() => descriptor_head.as_ref().unwrap(),
         Type::Address {
             mutable: false,
             inner,
@@ -328,7 +336,14 @@ pub(super) fn store_option_root(
         }
     };
     resources::charge_payload(expected, budget)?;
-    if pointee != expected {
+    // A payload view points into the ByteBuffer allocation. Its Store window
+    // deliberately anchors the owning head, whose retirement invalidates that
+    // allocation. Only private actual loan ancestry authorizes this domain.
+    let byte_domain = byte_payload
+        && matches!(pointee, Type::Managed(inner) if inner.as_ref() == &Type::ByteBuffer)
+        && (expected == &Type::U8
+            || matches!(expected, Type::Slice { element } if element.as_ref() == &Type::U8));
+    if pointee != expected && !byte_domain {
         return Err(reject(
             "E-VERIFY-STORE-WINDOW",
             None,

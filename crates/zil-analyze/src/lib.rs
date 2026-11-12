@@ -294,7 +294,9 @@ fn analyze_budgeted(
                     if matches!(ty, Type::BorrowedStorage { .. }) {
                         budget.spend(stored.roots.len(), "qualified actual Hold copy")?;
                         actual_holds[index][value] = stored.clone();
-                    } else if matches!(ty, Type::Address { mutable: false, .. })
+                    } else if (matches!(ty, Type::Address { mutable: false, .. })
+                        || (budget.shared_byte_borrow
+                            && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)))
                         && stored.roots != actual_holds[index][value].roots
                     {
                         let targets = stored_flow::option_sources_snapshot(

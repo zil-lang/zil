@@ -337,6 +337,8 @@ pub(super) struct Source {
 #[derive(Clone, Debug, Default)]
 pub(super) struct StoreOptionFunctionSources {
     pub(super) values: Vec<Vec<Source>>,
+    // Private proof: this value carries an actual ByteBufferBorrow loan.
+    pub(super) byte_payloads: Vec<ValueId>,
 }
 pub(super) fn option_sources_snapshot(
     function: FunctionId,
@@ -2790,7 +2792,8 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
         }
-        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+        InstructionKind::DescribeAddress { address }
+            if b.store_option_results || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
@@ -2810,7 +2813,7 @@ fn step(
             add_loans(&mut out.address.loans, &description.loans, b)?;
         }
         InstructionKind::ByteBufferBorrow { mutable: false, .. } => {
-            out.address = owned_byte_views::transfer(module, f, i, b)?;
+            out.address = owned_byte_views::transfer(module, f, i, values, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::ByteBufferLen { .. }
@@ -3453,6 +3456,9 @@ fn step(
                 Some(i.span),
             ));
         }
+    }
+    if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
+        out.store_description = permission;
     }
     if let Some(id) = i.result
         && b.static_utf8
@@ -5571,6 +5577,7 @@ fn solve_check(
                 b.spend(f.values.len())?;
                 checked.push(StoreOptionFunctionSources {
                     values: vec![Vec::new(); f.values.len()],
+                    byte_payloads: Vec::new(),
                 });
             }
             if let Some(checked) = &mut checked_task_sources {
@@ -5745,15 +5752,29 @@ fn solve_check(
         if let Some(checked) = &mut checked_option_sources {
             b.spend(solution.values.len())?;
             let mut values = Vec::with_capacity(solution.values.len());
-            for value in &solution.values {
+            for (index, value) in solution.values.iter().enumerate() {
                 source_work(&value.address.sources, b)?;
                 let mut sources = value.address.sources.clone();
+                if b.shared_byte_borrow
+                    && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
+                {
+                    add_sources(&mut sources, &value.store_description.sources, b)?;
+                }
                 for (_, leaf) in &value.leaves {
                     add_sources(&mut sources, &leaf.sources, b)?;
                 }
                 values.push(sources);
             }
-            checked.push(StoreOptionFunctionSources { values });
+            let byte_payloads = owned_byte_views::Sites::collect(f, b)?.payload_values(
+                f,
+                &solution.values,
+                &solution.loans,
+                b,
+            )?;
+            checked.push(StoreOptionFunctionSources {
+                values,
+                byte_payloads,
+            });
         }
         if let Some(checked) = checked_task_sources.as_mut() {
             checked.push(task_address::checked_sources(f, solution, b)?);
