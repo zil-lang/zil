@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """No compiler subprocesses: evidence/session/diagnostic regression checks."""
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -140,6 +141,78 @@ class EvidenceTests(unittest.TestCase):
         inventory=mm.rust_inventory(self.args,self.target,{})
         self.assertEqual(inventory['objects'],[])
         self.assertIsNone(inventory['current_session'])
+
+
+class RuntimeEvidenceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        directory = Path(__file__).resolve().parents[1] / 'reactive-query-graph'
+        workloads = mm.load_module('runtime_test_workloads', directory / 'native_workloads.py')
+        with patch.dict('sys.modules', {'native_workloads': workloads}):
+            cls.native = mm.load_module('runtime_test_native', directory / 'native_measure.py')
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.out = self.root / 'out'
+        self.out.mkdir()
+        self.sdk = self.root / 'SDK with spaces'
+        self.sdk.mkdir()
+        self.library = self.sdk / 'libLLVM.so.23.1'
+        self.library.write_bytes(b'original LLVM bytes')
+        self.env = self.native.llvm_environment(self.sdk, {'LD_LIBRARY_PATH': '/wrong/arm'})
+
+    def maps(self, path=None, inode=None):
+        path = path or self.library
+        stat = path.stat()
+        device = f'{os.major(stat.st_dev):02x}:{os.minor(stat.st_dev):02x}'
+        escaped = str(path).replace(' ', r'\040')
+        return (f'1000-2000 r--p 00000000 {device} {stat.st_ino if inode is None else inode} {escaped}\n'
+                f'2000-3000 r-xp 00001000 {device} {stat.st_ino if inode is None else inode} {escaped}\n').encode()
+
+    def capture(self, data=None, cache=None):
+        original = Path.read_bytes
+        with patch.object(Path, 'read_bytes', lambda path: self.maps() if str(path) == '/proc/123/maps' and data is None
+                          else data if str(path) == '/proc/123/maps' else original(path)):
+            return self.native.capture_runtime(123, self.out, self.env, {} if cache is None else cache)
+
+    def test_explicit_arm_path_replaces_inherited_loader_path_and_rejects_injection(self):
+        self.assertEqual(self.env['LD_LIBRARY_PATH'], str(self.sdk))
+        self.assertEqual(self.env['ZIL_LLVM_LIB_DIR'], str(self.sdk))
+        for key in ('LD_PRELOAD', 'LD_AUDIT'):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'not permitted'):
+                self.native.llvm_environment(self.sdk, {key: '/other/injection.so'})
+        with self.assertRaises(FileNotFoundError):
+            self.native.llvm_environment(self.root / 'missing', {})
+
+    def test_actual_maps_deduplicates_segments_and_archives_exact_dso(self):
+        receipt = self.capture()
+        self.assertEqual(len(receipt['llvm_dsos']), 1)
+        item = receipt['llvm_dsos'][0]
+        self.assertEqual(item['path'], str(self.library))
+        self.assertEqual((self.out / item['archive']).read_bytes(), self.library.read_bytes())
+        self.assertEqual(mm.file_hash(self.out / item['archive']), item['sha256'])
+        self.assertEqual((self.out / receipt['maps']['archive']).read_bytes(), self.maps())
+
+    def test_no_mapped_llvm_wrong_arm_deleted_or_stale_inode_are_rejected(self):
+        other = self.root / 'libLLVM.so'
+        other.write_bytes(b'other arm')
+        for data in (b'', self.maps(other), self.maps(inode=self.library.stat().st_ino + 1),
+                     self.maps().replace(b'libLLVM.so.23.1', b'libLLVM.so.23.1 (deleted)')):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                self.capture(data)
+
+    def test_stamp_cache_cannot_hide_replaced_dso_and_final_recapture_is_exact(self):
+        cache = {}
+        first = self.capture(cache=cache)
+        unchanged = self.capture(cache=cache)
+        self.assertEqual(first['llvm_dsos'], unchanged['llvm_dsos'])
+        self.library.write_bytes(b'patched LLVM bytes')
+        changed = self.capture(cache=cache)
+        self.assertNotEqual(first['llvm_dsos'][0]['sha256'], changed['llvm_dsos'][0]['sha256'])
+        final = self.capture(cache={})
+        self.assertEqual(changed['llvm_dsos'], final['llvm_dsos'])
 
 
 class PushReceiptTests(unittest.TestCase):
