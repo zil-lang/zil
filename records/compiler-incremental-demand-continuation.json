@@ -255,10 +255,25 @@
         "implemented": "Checker-owned complete input/plan/closure/target/fullLimits/context bound empty borrowing proof avoids dense perSSA empty rows and redundant origin/no-loan scans; original stage fees/first-error/full global checks retained",
         "validation": "Verify623/623 (7 new), original compiler borrow failure retained; driver alltarget/Clippy/fullworkspace/newperformance still pending",
         "limitations": "Sourcefree exact admitted subset, not fullVerify point-to-point; failed-request avoided-value counter may undercount actual allocations avoided"
+      },
+      {
+        "source": "532e01141b644d13c6e350a7dd310c50226d19d3",
+        "status": "pushed; exact independent review and complete workspace passed",
+        "implemented": "independent empty borrowing proof integration plus ordinary no-consumer projection removal and direct diagnostic body renderer",
+        "validation": "6229 passed/0failed/0ignored,430 test/doc binaries; Clippy/fmt passed; reconnect original shell kernel exit0 receipt; oneblock profile r5 completed, not new Rust matrix"
+      },
+      {
+        "source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+        "tree": "88cec28d91f274e2d6d156bd93e44e11afcf7a86",
+        "status": "pushed; exact nonauthor bounded reviews and targeted tests passed; complete workspace04 active",
+        "implemented": "complete raw FunctionPlan row fragments; source-relative scalar input versions; per-function machine reuse in mixed resource/closure/task projects; sameepoch warm graph retention under four private owners",
+        "validation": "driver200/Types80/backend224/Expand96/IR78 passed; strict workspace alltarget llvm-api Clippy/fmt passed; initial Task Unit fixture and graph reset/phase failures retained",
+        "pending": "complete workspace04, frozen release/full425 profile, six-block three-arm check/native matrices; next raw checkpoint",
+        "limits": "raw caches grant no Verify authority; original budgets/first errors/current ABI checks; rich fallback and global work remain; zero encoded bytes is not zero heap allocation"
       }
     ],
-    "current_source": "50709457daaf4676069c0b91931d9cf6368798e0",
-    "read_goal_latest": "4582a0d995239e057118dec0fe1c57570794b309",
+    "current_source": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "read_goal_latest": "2663b73b88d9279126f8b2abc75f986de3e691b8",
     "raw_latest": {
       "schema": "full-pipeline-remote-recovery-v2",
       "archive_ref": "archive/source-history",
@@ -331,6 +346,6 @@
       "limits": "Root independently read back remote bytes, not a separate reviewer and not a new native compilation/execution. Transient per-request programs are represented by recorded native outcomes and archived content. This checkpoint stops at profile-r4/history196; later Verify source/tests and future runs are outside it. Older lost-environment raw remains unavailable.",
       "receipt": "full-pipeline-recovery-v2.json"
     },
-    "latest_delivery": "609a78270"
+    "latest_delivery": "693f55cd0394a1a72a0bfe9d680740d9509885d1"
   }
 }
