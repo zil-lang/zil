@@ -6294,8 +6294,16 @@ fn solve_check(
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
                     for instruction in &block.instructions {
-                        let InstructionKind::Call { function, .. } = &instruction.kind else {
-                            continue;
+                        let function = match &instruction.kind {
+                            InstructionKind::Call { function, .. } => *function,
+                            kind => {
+                                let Some((definition, _)) =
+                                    super::stored_callables::called(module, f, kind)
+                                else {
+                                    continue;
+                                };
+                                definition.function
+                            }
                         };
                         let callee = module
                             .functions
