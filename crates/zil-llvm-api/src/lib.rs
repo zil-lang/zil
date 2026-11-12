@@ -120,8 +120,25 @@ impl NativeProductStats {
 pub struct NativeWorkProducts {
     #[cfg(all(feature = "native", feature = "native-products"))]
     inner: std::sync::Arc<native::products::Product>,
+    #[cfg(all(feature = "native", feature = "native-products"))]
+    retained_payload_bytes: u64,
     #[cfg(not(all(feature = "native", feature = "native-products")))]
     _private: (),
+}
+
+impl NativeWorkProducts {
+    /// Encoded payload measured by the native producer, for optional cache
+    /// retention admission. This is not total allocator usage or resident RSS.
+    pub fn retained_payload_bytes(&self) -> u64 {
+        #[cfg(all(feature = "native", feature = "native-products"))]
+        {
+            self.retained_payload_bytes
+        }
+        #[cfg(not(all(feature = "native", feature = "native-products")))]
+        {
+            0
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
