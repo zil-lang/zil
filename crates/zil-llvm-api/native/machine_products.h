@@ -36,4 +36,7 @@ extern "C" uint32_t ZilNativeProductsMachineBundleTestResults();
 extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults();
 // Complete frame/current-stack-MMO/CFI owner transport, same scope; expected 255.
 extern "C" uint32_t ZilNativeProductsMachineFrameTestResults();
+// Actual AsmPrinter-entry observations in that scope, never scratch fixtures:
+// stack objects=1, CFI=2, memory operands=4, callee-saved register records=8.
+extern "C" uint32_t ZilNativeProductsMachineFrameObservationResults();
 #endif
