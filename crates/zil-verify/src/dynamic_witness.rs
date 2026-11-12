@@ -4,6 +4,7 @@
 use super::*;
 mod declarations;
 mod definitions;
+mod constants;
 
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN-WITNESS", None, message)

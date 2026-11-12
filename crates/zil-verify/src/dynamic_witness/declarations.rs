@@ -530,7 +530,28 @@ pub(super) fn check(module: &TypedModule, b: &mut Budget) -> Check<()> {
                             return Err(bad("associated constant definition has a type RHS"));
                         };
                         scope.ty(module, ty, 0, b)?;
+                        if let (
+                            DynTypePattern::Concrete(declared),
+                            DynTypePattern::Concrete(actual),
+                        ) = (carrier, ty)
+                        {
+                            dynamic_metadata::ty(declared, b)?;
+                            dynamic_metadata::ty(actual, b)?;
+                            if declared != actual {
+                                return Err(bad(
+                                    "original associated constant RHS carrier differs from its declaration",
+                                ));
+                            }
+                        }
                         scope.constant(module, value, 0, b)?;
+                        if let DynTypePattern::Concrete(carrier) = carrier {
+                            super::constants::closed(
+                                value,
+                                carrier,
+                                module.target.pointer_width,
+                                b,
+                            )?;
+                        }
                     }
                 }
                 _ => return Err(bad("associated original member kind or carrier differs")),
