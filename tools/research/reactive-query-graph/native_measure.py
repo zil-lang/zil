@@ -2,7 +2,8 @@
 """Alternate paired real CLI requests; preserve raw evidence, never infer work.
 
 Run only during an assigned single heavy window. Both binaries must be built
-from the recorded source SHAs with the same Rust/LLVM toolchain and profile.
+from the recorded source SHAs; each arm explicitly selects its LLVM runtime.
+The actual mapped LLVM DSO is archived, including intentionally different runtimes.
 """
 import argparse
 from collections import Counter
@@ -10,6 +11,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import select
 import signal
@@ -27,6 +29,106 @@ def digest(path):
 
 def dump(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + '\n')
+
+
+
+RUNTIME_KEYS = ('LD_LIBRARY_PATH', 'ZIL_LLVM_LIB_DIR', 'LD_PRELOAD', 'LD_AUDIT',
+                'ZIL_CLANG', 'ZIL_LLVM_CONFIG', 'LLVM_CONFIG')
+
+
+def llvm_environment(library_path, base=None):
+    """An explicit single LLVM directory; never inherit another arm's loader path."""
+    env = dict(os.environ if base is None else base)
+    if env.get('LD_PRELOAD') or env.get('LD_AUDIT'):
+        raise ValueError('LD_PRELOAD/LD_AUDIT are not permitted in a measured resident')
+    directory = Path(library_path).resolve(strict=True)
+    if not directory.is_dir() or ':' in str(directory):
+        raise ValueError('LLVM library path must be one existing directory')
+    env['LD_LIBRARY_PATH'] = str(directory)
+    env['ZIL_LLVM_LIB_DIR'] = str(directory)
+    return env
+
+
+def runtime_environment(env):
+    return {key: env.get(key) for key in RUNTIME_KEYS}
+
+
+def llvm_mappings(data):
+    """Actual file-backed LLVM mappings, deduplicated by kernel file identity."""
+    found = {}
+    for line in data.decode().splitlines():
+        fields = line.split(None, 5)
+        if len(fields) != 6:
+            continue
+        path = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1], 8)), fields[5])
+        if not Path(path).name.startswith('libLLVM') or '.so' not in Path(path).name:
+            continue
+        if not path.startswith('/') or path.endswith(' (deleted)') or int(fields[4]) <= 0:
+            raise ValueError('LLVM mapping lacks a live absolute file identity')
+        device = [int(part, 16) for part in fields[3].split(':')]
+        item = {'path': path, 'device': device, 'inode': int(fields[4])}
+        found[(path, tuple(device), item['inode'])] = item
+    return sorted(found.values(), key=lambda item: (item['path'], item['inode']))
+
+
+def _file_stamp(stat):
+    return [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+
+
+def capture_runtime(pid, out, env, cache):
+    """Outside request timing: preserve maps and the bytes of each mapped LLVM DSO.
+
+    A per-worker stamp cache avoids re-reading the large immutable DSO per request;
+    final captures use a fresh cache. Every capture still checks kernel dev/inode.
+    """
+    data = Path(f'/proc/{pid}/maps').read_bytes()
+    archive = out / 'runtime-blobs'
+    archive.mkdir(exist_ok=True)
+    identity = hashlib.sha256(data).hexdigest()
+    maps = archive / (identity + '.maps')
+    if not maps.exists():
+        maps.write_bytes(data)
+    receipt = {'schema': 'resident-llvm-maps-v1', 'pid': pid,
+               'environment': runtime_environment(env),
+               'maps': {'archive': str(maps.relative_to(out)), 'sha256': identity, 'bytes': len(data)},
+               'llvm_dsos': []}
+    directory = Path(env['LD_LIBRARY_PATH'])
+    mappings = llvm_mappings(data)
+    if not mappings:
+        raise ValueError('resident has no actual mapped LLVM DSO')
+    for mapping in mappings:
+        path = Path(mapping['path'])
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(directory):
+            raise ValueError('mapped LLVM DSO is outside the explicitly selected arm directory: ' + str(path))
+        stat = resolved.stat()
+        if (mapping['device'] != [os.major(stat.st_dev), os.minor(stat.st_dev)]
+                or mapping['inode'] != stat.st_ino or not resolved.is_file()):
+            raise ValueError('mapped LLVM DSO device/inode differs from archived file')
+        stamp = _file_stamp(stat)
+        key = (str(resolved), tuple(stamp))
+        if key not in cache:
+            # Stream once rather than retaining hundreds of MB in Python memory.
+            temporary = archive / f'.dso-{pid}.tmp'
+            digest_state = hashlib.sha256()
+            with resolved.open('rb') as source, temporary.open('wb') as target:
+                for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                    digest_state.update(chunk)
+                    target.write(chunk)
+            if _file_stamp(resolved.stat()) != stamp:
+                temporary.unlink(missing_ok=True)
+                raise ValueError('mapped LLVM DSO changed while archiving')
+            digest_value = digest_state.hexdigest()
+            target = archive / (digest_value + '.dso')
+            if target.exists():
+                temporary.unlink()
+            else:
+                temporary.replace(target)
+            cache[key] = {'archive': str(target.relative_to(out)), 'sha256': digest_value,
+                          'bytes': stat.st_size}
+        receipt['llvm_dsos'].append({**mapping, 'resolved_path': str(resolved),
+                                    'file_stamp': stamp, **cache[key]})
+    return receipt
 
 
 def proc_stat(pid):
@@ -53,15 +155,16 @@ def descendants(pid):
 
 
 class Worker:
-    def __init__(self, command, directory, timeout, sample_ms):
+    def __init__(self, command, directory, timeout, sample_ms, env, runtime_root):
         self.command, self.directory, self.timeout = command, directory, timeout
         self.sample_ms = sample_ms
+        self.env, self.runtime_root, self.runtime_cache = env, runtime_root, {}
         self.failed = False
         self.requests = 0
         self.err = (directory / 'stderr.log').open('wb')
         start = time.perf_counter_ns()
         self.p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=self.err, start_new_session=True, bufsize=0)
+                                  stderr=self.err, start_new_session=True, bufsize=0, env=env)
         self.buffer = b''
         try:
             self.ready = self.read_json()
@@ -71,8 +174,15 @@ class Worker:
         self.startup_wall_ms = (time.perf_counter_ns() - start) / 1e6
         if self.ready.get('ready') is not True or self.ready.get('protocol') != 1:
             raise RuntimeError(f'invalid resident ready: {self.ready}')
-        dump(directory / 'startup.json', {'command': command, 'ready': self.ready,
-                                        'wall_ms': self.startup_wall_ms})
+        try:
+            self.runtime = capture_runtime(self.p.pid, runtime_root, env, self.runtime_cache)
+            dump(directory / 'startup.json', {'command': command, 'ready': self.ready,
+                                            'pid': self.p.pid, 'wall_ms': self.startup_wall_ms,
+                                            'environment': runtime_environment(env)})
+            dump(directory / 'runtime-startup.json', self.runtime)
+        except BaseException:
+            self.close()
+            raise
 
     def read_json(self):
         deadline = time.monotonic() + self.timeout
@@ -122,7 +232,9 @@ class Worker:
                        for k in ['cpu_seconds', 'own_cpu_seconds'])
                 or any(not math.isfinite(s['tree_rss_sum_kib']) or s['tree_rss_sum_kib'] <= 0 for s in samples)):
             raise ValueError('missing or invalid CPU/memory measurement')
-        return {'wall_ms': wall_ms, 'cpu_seconds': after['cpu_seconds'] - before['cpu_seconds'] if before and after else None,
+        self.runtime = capture_runtime(self.p.pid, self.runtime_root, self.env, self.runtime_cache)
+        dump(self.directory / f'{name}.runtime.json', self.runtime)
+        return {'runtime': self.runtime, 'wall_ms': wall_ms, 'cpu_seconds': after['cpu_seconds'] - before['cpu_seconds'] if before and after else None,
                 'own_cpu_seconds': after['own_cpu_seconds'] - before['own_cpu_seconds'] if before and after else None,
                 'tree_peak_sampled_rss_sum_kib': max((s['tree_rss_sum_kib'] for s in samples), default=None),
                 'memory_sample_count': len(samples), 'resident': response}
@@ -139,12 +251,12 @@ class Worker:
         self.err.close()
 
 
-def native_outcomes(program, case, label, a, oracle_fn=oracle):
+def native_outcomes(program, case, label, a, oracle_fn=oracle, env=None):
     out = []
     for data in inputs(case):
         expected = oracle_fn(case, data, label, a.modules, a.functions, a.steps)
         try:
-            p = subprocess.run([str(program)], input=data, capture_output=True, timeout=a.native_timeout)
+            p = subprocess.run([str(program)], input=data, capture_output=True, timeout=a.native_timeout, env=env)
             actual = {'exit': p.returncode, 'stdout_hex': p.stdout.hex(), 'stderr_hex': p.stderr.hex()}
             out.append({'stdin_hex': data.hex(), 'expected': expected, 'actual': actual, 'valid': expected == actual})
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -240,6 +352,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--baseline', required=True, type=Path)
     p.add_argument('--candidate', required=True, type=Path)
+    p.add_argument('--baseline-llvm-library-path', required=True, type=Path)
+    p.add_argument('--candidate-llvm-library-path', required=True, type=Path)
     p.add_argument('--baseline-source', required=True, help='exact baseline git SHA')
     p.add_argument('--candidate-source', required=True, help='exact candidate git SHA or tree identity')
     p.add_argument('--out', required=True, type=Path)
@@ -280,9 +394,12 @@ def main():
     if 2 * len(selected) >= 4096:
         p.error('request count must remain below reset boundary')
     binaries = {'baseline': a.baseline, 'candidate': a.candidate}
+    environments = {arm: llvm_environment(getattr(a, arm + '_llvm_library_path')) for arm in binaries}
     for name in ['native_measure.py', 'native_workloads.py']:
         (a.out / name).write_bytes(Path(__file__).with_name(name).read_bytes())
     manifest = {'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()},
+                'arm_runtime_environments': {arm: runtime_environment(env) for arm, env in environments.items()},
+                'runtime_policy': 'Explicit per-arm LLVM directory; actual resident /proc/PID/maps and mapped LLVM DSO bytes archived outside request timing. Stamp cache per worker; final DSO recaptured without cache.',
                 'requests': selected, 'binaries': {arm: {'path': str(path.resolve()), 'sha256': digest(path)} for arm, path in binaries.items()},
                 'source_shas': {'baseline': a.baseline_source, 'candidate': a.candidate_source},
                 'runner_sha256': digest(Path(__file__)), 'generator_sha256': digest(Path(__file__).with_name('native_workloads.py')),
@@ -303,7 +420,7 @@ def main():
             for arm in (['baseline', 'candidate'] if block % 2 == 0 else ['candidate', 'baseline']):
                 directory = a.out / f'block-{block}-{arm}'
                 directory.mkdir()
-                workers[arm] = Worker(command(binaries[arm], source, directory, a, arm), directory, a.timeout, a.sample_ms)
+                workers[arm] = Worker(command(binaries[arm], source, directory, a, arm), directory, a.timeout, a.sample_ms, environments[arm], a.out)
             previous_files = None
             successful_snapshots = set()
 
@@ -365,7 +482,7 @@ def main():
                             if row['valid'] and a.mode != 'check':
                                 if report['artifacts']['executable'] != str(program):
                                     raise ValueError('unexpected executable publication path')
-                                row['native'] = native_outcomes(program, a.case, label, a)
+                                row['native'] = native_outcomes(program, a.case, label, a, env=worker.env)
                                 row['valid'] = bool(row['native']) and all(x['valid'] for x in row['native'])
                                 row['executable_sha256'] = digest(program)
                                 llvm = Path(report['artifacts']['llvm'])
@@ -403,7 +520,14 @@ def main():
                 run_pair(index, label, True, parent)
         finally:
             for worker in workers.values():
-                worker.close()
+                try:
+                    if worker.p.poll() is None and not worker.failed:
+                        final = capture_runtime(worker.p.pid, a.out, worker.env, {})
+                        dump(worker.directory / 'runtime-final.json', final)
+                        if final['llvm_dsos'] != worker.runtime['llvm_dsos']:
+                            raise ValueError('resident LLVM DSO changed during block')
+                finally:
+                    worker.close()
     cells = []
     for label in selected:
         pairs = []
