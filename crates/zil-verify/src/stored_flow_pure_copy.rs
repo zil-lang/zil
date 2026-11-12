@@ -528,9 +528,6 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if ordinary_package_field_borrow(f, i, b)? {
-        return Ok(true);
-    }
     let InstructionKind::BorrowPlaceLocal {
         local,
         path,
