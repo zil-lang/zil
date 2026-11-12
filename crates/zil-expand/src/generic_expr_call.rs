@@ -163,8 +163,8 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
-        if crate::foreign::bare_name(callee) == Some("thread_scope") && arguments.len() == 3 {
-            if let Some(worker) = stores::call_name(&arguments[0].value)
+        if crate::foreign::bare_name(callee) == Some("thread_scope") && arguments.len() == 3
+            && let Some(worker) = stores::call_name(&arguments[0].value)
                 && let Some(signature) = self.signatures.get(worker)
                 && let Some(parameter) = signature.params.first()
                 && matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,..} if path.as_slice()==["Task"])
@@ -198,7 +198,6 @@ impl Engine<'_> {
                 };
                 self.ty(&mut result, depth + 1)?;
                 return Ok(Some(Some(result)));
-            }
         }
         if let ExprKind::TypeApply {
             callee: base,
