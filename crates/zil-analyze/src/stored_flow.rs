@@ -1352,17 +1352,17 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
 
 /// Finite shared Tuples keep independently scoped child instances and all
 /// physical targets. This never establishes a generic Copy capability.
-pub(super) fn shared_compound(
-    module: &TypedModule,
-    ty: &Type,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    if !matches!(ty, Type::Tuple(_)) || ty.is_copy_value() {
-        return Ok(false);
+pub(super) fn shared_compound(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+    if let Type::BorrowedStorage{storage,life}=ty && matches!(storage.as_ref(),Type::Tuple(_)) {
+        b.type_work(ty,true,"anonymous shared compound complete type")?;
+        physical(ty,b)?;
+        fee(b,life.slots.len())?;
+        return Ok(!resources::sums::owned(storage) && life.slots.iter().all(|slot|slot.mode==StoredBorrowMode::SharedAddress));
     }
-    b.type_work(ty, true, "shared compound actual type")?;
-    fn walk(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-        fee(b, 1)?;
+    if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value(){return Ok(false)}
+    b.type_work(ty,true,"shared compound actual type")?;
+    fn walk(module:&TypedModule,ty:&Type,b:&mut Budget)->CompileResult<bool>{
+        fee(b,1)?;
         match ty {
             Type::Tuple(fields) => {
                 for field in fields {
@@ -1526,41 +1526,15 @@ fn compound_extract(
     }
     Ok(true)
 }
-fn compound_unpack(
-    module: &TypedModule,
-    f: &TypedFunction,
-    i: &Instruction,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    let InstructionKind::UnpackTuple { local, fields } = &i.kind else {
-        return Ok(false);
-    };
-    let parent = &f
-        .locals
-        .get(local.0 as usize)
-        .ok_or_else(|| failure("compound unpack local absent"))?
-        .ty;
-    if !affine_compound(module, parent, b)? {
-        return Ok(false);
-    }
-    let Type::Tuple(types) = parent else {
-        unreachable!()
-    };
-    if i.result.is_some() || fields.len() != types.len() {
-        return Err(failure("compound unpack omits complete fields"));
-    }
-    let mut seen = BTreeSet::new();
-    for (field, expected) in fields.iter().zip(types) {
-        ordered(b, seen.len(), 0)?;
-        if field == local
-            || !seen.insert(*field)
-            || f.locals.get(field.0 as usize).map(|local| &local.ty) != Some(expected)
-        {
-            return Err(failure(
-                "compound unpack changes or duplicates actual field place",
-            ));
-        }
-    }
+fn compound_unpack(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::UnpackTuple{local,fields}=&i.kind else{return Ok(false)};
+    let parent=&f.locals.get(local.0 as usize).ok_or_else(||failure("compound unpack local absent"))?.ty;
+    if !affine_compound(module,parent,b)? && !shared_compound(module,parent,b)?{return Ok(false)}
+    let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
+    let Type::Tuple(types)=physical else{unreachable!()};
+    if i.result.is_some() || fields.len()!=types.len(){return Err(failure("compound unpack omits complete fields"))}
+    let mut seen=BTreeSet::new();
+    for (field,expected) in fields.iter().zip(types){ordered(b,seen.len(),0)?;if field==local || !seen.insert(*field) || f.locals.get(field.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(failure("compound unpack changes or duplicates actual field place"))}}
     Ok(true)
 }
 fn compound_drop(
@@ -4595,6 +4569,13 @@ fn transfer(
             for (index,field) in fields.iter().enumerate(){
                 let mut child=Value::default();
                 child.slots=take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
+                if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
+                    // A summary may still be empty in this fixed-point iteration.
+                    // Final address uses and returns independently demand real
+                    // nonempty targets; an empty candidate grants no permission.
+                    child.pointer=child.slots.remove(&Vec::new()).unwrap_or_default();
+                    if !child.slots.is_empty(){return Err(failure("anonymous Tuple address child has stray inline source slots"))}
+                }
                 union(&mut child.held,&source.held,b)?;
                 ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
             }
