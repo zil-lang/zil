@@ -3518,6 +3518,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 Some(true),
                                 statement.span,
                             )?;
+                        } else if let Term::Resource(payload, true) = &value
+                            && let Some(task @ Type::Task { .. }) = self.graph.ty(*payload)?
+                        {
+                            // Preserve the actual owning Task head in the
+                            // closure result type; do not scalarize its payload
+                            // or infer any permission from its result element.
+                            self.bind(
+                                self.closures[owner].result,
+                                &Type::Managed(Box::new(task)),
+                                statement.span,
+                            )?;
                         } else {
                             self.unify(
                                 &value,
@@ -5437,7 +5448,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.unify(&value, &Term::Scalar(parameter), argument.span)?;
             }
         }
-        if let Some(ty @ Type::Address { .. }) = self.graph.ty(result)? {
+        if let Some(ty) = self.graph.ty(result)?
+            && (matches!(ty, Type::Address { .. })
+                || matches!(&ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..})))
+        {
             self.known_term(&ty, span)
         } else {
             Ok(Term::Scalar(result))
@@ -6020,6 +6034,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 || lending::supported_result(t)
                 || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
+                && !(parameters.is_empty() && closures::task_result_head(t))
         }) || parameters.iter().any(|p| {
             p.ty.as_ref().is_some_and(|t| {
                 !closures::signature_parameter(t) && !closures::owned_signature_head(t)

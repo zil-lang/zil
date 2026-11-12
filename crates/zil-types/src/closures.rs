@@ -1293,6 +1293,10 @@ pub(super) fn owned_signature_head(ty: &Type) -> bool {
     )
 }
 
+pub(super) fn task_result_head(ty: &Type) -> bool {
+    matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}))
+}
+
 /// A synchronous input loan is independent from the returned owned debt.
 /// The result must remain closed data; this is not a lending signature.
 pub(super) fn borrowed_owned_parameter(ty: &Type) -> bool {
@@ -1317,6 +1321,7 @@ pub(super) fn borrowed_owned_signature(parameters: &[Type], result: &Type) -> bo
 
 pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
     supported_signature(parameters, result)
+        || parameters.is_empty() && task_result_head(result)
         || (parameters.iter().all(owned_signature_value) && owned_signature_value(result))
         || borrowed_owned_signature(parameters, result)
 }
@@ -3236,6 +3241,21 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                                     self.result,
                                     inner,
                                     Some(true),
+                                    expression.span,
+                                )?;
+                            }
+                            LocalType::Resource(payload, true)
+                                if matches!(self.graph.ty(payload)?, Some(Type::Task { .. })) =>
+                            {
+                                let task = self.graph.ty(payload)?.ok_or_else(|| {
+                                    unsupported(
+                                        expression.span,
+                                        "returned Task actual payload is unknown",
+                                    )
+                                })?;
+                                self.graph.bind(
+                                    self.result,
+                                    &Type::Managed(Box::new(task)),
                                     expression.span,
                                 )?;
                             }

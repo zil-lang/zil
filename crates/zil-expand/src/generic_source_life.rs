@@ -142,6 +142,23 @@ enum Fact {
     List(Box<Fact>),
     Function(Vec<Fact>, Box<Fact>),
 }
+
+// Source code P/R constraints track lifetime classes, separately from resource
+// passing modes. An explicit Managed<Task<...>> result and a `give` Task value
+// have the same complete Task class domain. Types and both resource kernels
+// must still prove the actual owning mode; this supplies no roots or cleanup.
+fn task_resource_classes(fact: &Fact) -> Option<&Fact> {
+    let Fact::Named(Head::Plain(head), arguments) = fact else {
+        return None;
+    };
+    if head.as_slice() != ["Managed"] {
+        return None;
+    }
+    let [task @ Fact::Named(Head::Plain(task_head), task_arguments)] = arguments.as_slice() else {
+        return None;
+    };
+    (task_head.as_slice() == ["Task"] && task_arguments.len() == 2).then_some(task)
+}
 type Facts = BTreeMap<String, Fact>;
 type Substitutions = BTreeMap<Binder, Fact>;
 struct Scope<'a> {
@@ -573,17 +590,28 @@ impl Check<'_, '_, '_> {
             TypeKind::Array { element, .. } | TypeKind::Optional(element) => {
                 Fact::List(Box::new(self.ty(element, scope, depth + 1)?))
             }
-            TypeKind::Impl(bounds) if bounds.len()==1 => {
+            TypeKind::Impl(bounds) if bounds.len() == 1 => {
                 // Callable signature lives are code contracts, not an opaque
                 // value's retained slots. The actual closure environment and
                 // return permissions are checked by the callable consumers.
-                let TypeKind::Named{path,args}=&grouped(&bounds[0]).kind else{return self.unknown_type(ty,scope,depth+1)};
-                if path.len()!=1 || !matches!(path[0].as_str(),"Fn"|"FnMut"|"FnOnce"){return self.unknown_type(ty,scope,depth+1)}
-                let [GenericArg::Type(parameters),GenericArg::Type(result)]=args.as_slice() else{return self.unknown_type(ty,scope,depth+1)};
-                let TypeKind::Tuple(parameters)=&grouped(parameters).kind else{return self.unknown_type(ty,scope,depth+1)};
-                let mut out=Vec::new();
-                for parameter in parameters{out.push(self.ty(parameter,scope,depth+1)?);}
-                Fact::Function(out,Box::new(self.ty(result,scope,depth+1)?))
+                let TypeKind::Named { path, args } = &grouped(&bounds[0]).kind else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                if path.len() != 1 || !matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce") {
+                    return self.unknown_type(ty, scope, depth + 1);
+                }
+                let [GenericArg::Type(parameters), GenericArg::Type(result)] = args.as_slice()
+                else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                let TypeKind::Tuple(parameters) = &grouped(parameters).kind else {
+                    return self.unknown_type(ty, scope, depth + 1);
+                };
+                let mut out = Vec::new();
+                for parameter in parameters {
+                    out.push(self.ty(parameter, scope, depth + 1)?);
+                }
+                Fact::Function(out, Box::new(self.ty(result, scope, depth + 1)?))
             }
             TypeKind::Function { params, result } => {
                 let mut out = Vec::new();
@@ -636,6 +664,8 @@ impl Check<'_, '_, '_> {
         this.work(actual, span)?;
         this.work(expected, span)?;
         this.work(actual, span)?;
+        let expected=task_resource_classes(expected).unwrap_or(expected);
+        let actual=task_resource_classes(actual).unwrap_or(actual);
         match (expected, actual) {
             (Fact::Error(e,r),Fact::Error(a,z)) => {this.compatible_position(e,a,span,retained)?;this.compatible_position(r,z,span,retained)?;}
             (Fact::Error(e,r),actual) => {
@@ -794,6 +824,8 @@ impl Check<'_, '_, '_> {
     ) -> R<()> {
         self.work(formal, span)?;
         self.work(actual, span)?;
+        let formal = task_resource_classes(formal).unwrap_or(formal);
+        let actual = task_resource_classes(actual).unwrap_or(actual);
         if invariant {
             self.work(formal, span)?;
         }
@@ -1615,6 +1647,25 @@ impl Check<'_, '_, '_> {
             ),
             _ => (None, None),
         };
+        if explicit.is_none()
+            && let Some(name) = root
+        {
+            self.budget.text(name, e.span)?;
+            self.lookup(env.len(), name.len(), e.span)?;
+            if let Some(Fact::Function(parameters, result)) = env.get(name) {
+                self.pay(e.span, parameters.len().saturating_add(actuals.len()))?;
+                if parameters.len() != actuals.len() {
+                    return Err(error(
+                        e.span,
+                        "source callable argument count differs from its actual code signature",
+                    ));
+                }
+                for (parameter, actual) in parameters.iter().zip(actuals) {
+                    self.compatible(parameter, actual, e.span)?;
+                }
+                return self.copy(result, e.span);
+            }
+        }
         if root == Some("owned_dyn")
             && let Some([GenericArg::Type(interface), GenericArg::Type(context)]) =
                 explicit.map(Vec::as_slice)
@@ -2283,7 +2334,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         scope: &Scope<'_>,
         env: &mut Facts,
-        _wanted: Option<&Fact>,
+        wanted: Option<&Fact>,
         depth: usize,
     ) -> R<Fact> {
         let actual = match &e.kind {
@@ -2294,22 +2345,63 @@ impl Check<'_, '_, '_> {
                 ..
             } => {
                 let mut child = self.environment(env, e.span)?;
-                for p in params {
-                    let f =
+                let expected = match wanted {
+                    Some(Fact::Function(parameters, result)) => Some((parameters, result.as_ref())),
+                    _ => None,
+                };
+                if expected.is_some_and(|(parameters, _)| parameters.len() != params.len()) {
+                    return Err(error(
+                        e.span,
+                        "closure parameter count differs from its actual expected code signature",
+                    ));
+                }
+                let mut inputs = Vec::new();
+                for (index, p) in params.iter().enumerate() {
+                    let annotation =
                         p.ty.as_ref()
                             .map(|t| self.ty(t, scope, depth + 1))
+                            .transpose()?;
+                    let expected = expected.map(|(parameters, _)| &parameters[index]);
+                    if let (Some(expected), Some(annotation)) = (expected, annotation.as_ref()) {
+                        self.compatible(expected, annotation, p.span)?;
+                    }
+                    let f = match annotation {
+                        Some(actual) => actual,
+                        None => expected
+                            .map(|expected| self.copy(expected, p.span))
                             .transpose()?
-                            .unwrap_or(Fact::Unknown);
+                            .unwrap_or(Fact::Unknown),
+                    };
+                    inputs.push(self.copy(&f, p.span)?);
                     self.budget.text(&p.name, p.span)?;
                     self.lookup(child.len(), p.name.len(), p.span)?;
                     child.insert(p.name.clone(), f);
                 }
-                let output = return_type
+                let annotation = return_type
                     .as_ref()
                     .map(|t| self.ty(t, scope, depth + 1))
                     .transpose()?;
-                self.arrow(body, scope, &mut child, output.as_ref(), depth + 1)?;
-                Fact::Unknown
+                if let (Some((_, expected)), Some(annotation)) = (expected, annotation.as_ref()) {
+                    self.compatible(expected, annotation, e.span)?;
+                }
+                let output = match annotation {
+                    Some(actual) => Some(actual),
+                    None => expected
+                        .map(|(_, expected)| self.copy(expected, e.span))
+                        .transpose()?,
+                };
+                let result = match body {
+                    ArrowBody::Expression(expression) => {
+                        self.expr(expression, scope, &mut child, output.as_ref(), depth + 1)?
+                    }
+                    ArrowBody::Block(block) => {
+                        self.block(block, scope, &mut child, output.as_ref(), depth + 1)?;
+                        output.unwrap_or(Fact::Unknown)
+                    }
+                };
+                // A code P/R fact records checked expressions and declarations.
+                // It says nothing about capture roots, Drop or migration.
+                Fact::Function(inputs, Box::new(result))
             }
             _ => unreachable!("source fact expression dispatcher"),
         };
@@ -2668,6 +2760,37 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
 #[cfg(test)]
 mod local_class_tests {
     use super::*;
+
+    #[test]
+    fn callable_task_result_classes_come_from_actual_expression_or_block_returns() {
+        for (body, accepted) in [
+            ("move()=>give first", true),
+            ("move()=>{return give first;}", true),
+            ("move()=>give second", false),
+            ("move()=>{return give second;}", false),
+            ("move(x:i32)=>give first", false),
+            (
+                "move()=>{if flag{return give first;}return give second;}",
+                false,
+            ),
+        ] {
+            let text = format!(
+                "fn keep<life a,life b>(give first:Task<i32,&'a mut i32>,give second:Task<i32,&'b mut i32>,flag:bool)->impl FnOnce()->Managed<Task<i32,&'a mut i32>>{{return {body};}}fn main(){{}}"
+            );
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "callable-task-result-classes.zil",
+                text,
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = zil_base::Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let result = validate(&parsed, &mut budget);
+            assert_eq!(result.is_ok(), accepted, "{body}: {result:?}");
+        }
+    }
 
     #[test]
     fn local_borrows_cannot_satisfy_a_declared_retained_source_class() {

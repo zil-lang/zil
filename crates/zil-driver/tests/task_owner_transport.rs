@@ -51,16 +51,8 @@ fn cases() -> Vec<(&'static str, String)> {
     ]
 }
 fn closed_owner() -> String {
-    SOURCE
-        .replace(
-            "fn worker(input:&mut i32)->i32 {*input+=5;task_yield();return *input;}",
-            "fn worker()->i32 {task_yield();return 42;}",
-        )
-        .replace("<life a>", "")
-        .replace("Task<i32,&'a mut i32>", "Task<i32>")
-        .replace("var number=37;", "")
-        .replace("task_create(worker,&mut number)", "task_create(worker)")
-        .replace("if number!=42{return 91;}number=9;", "")
+    include_str!("../../../tests/language-readiness/task-owner-transport/closed-task-fnonce.zil")
+        .to_owned()
 }
 #[test]
 fn returned_fnonce_moves_the_actual_live_task_and_retains_its_parent() {
