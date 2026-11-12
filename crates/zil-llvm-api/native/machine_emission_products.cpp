@@ -19,9 +19,13 @@
 #include <limits>
 #include <new>
 #include <type_traits>
+#include <thread>
 #include <vector>
 namespace zil::emission {
 namespace {
+thread_local Stats LastStats;
+thread_local int TestMode=0;
+thread_local uint32_t CounterexampleBits=0;
 constexpr uint32_t Version = 1;
 constexpr size_t MaxBytes = 64u * 1024 * 1024;
 using Clock = std::chrono::steady_clock;
@@ -40,12 +44,12 @@ struct Block {
 };
 struct Event {
   enum Kind : uint32_t { Instruction, CFI };
-  uint32_t kind = Instruction, source = 0, opcode = 0, flags = 0, first = 0, count = 0;
+  uint32_t kind, source, opcode, flags, first, count;
 };
 struct Operand {
   enum Kind : uint32_t { Register, Immediate, BlockSymbol };
-  uint64_t value = 0;
-  uint32_t kind = Immediate, reserved = 0;
+  uint64_t value;
+  uint32_t kind, reserved;
 };
 static_assert(std::is_trivially_copyable_v<Header> && std::is_trivially_copyable_v<Block> &&
               std::is_trivially_copyable_v<Event> && std::is_trivially_copyable_v<Operand>);
@@ -233,6 +237,7 @@ Capture::~Capture()=default;
 std::unique_ptr<Capture> Capture::begin(const llvm::MachineFunction &MF,Reserve R,
                                       void *Owner,PeekSymbol Peek,Stats &Stats) {
   Timer T{Stats.capture_ns};
+  if(TestMode==2) {++Stats.budget_declines;return {};}
   if(!R || !Peek || !domain(MF)) { ++Stats.declined_functions;return {}; }
   size_t N=0,O=0;
   for(const auto &B:MF) for(const auto &I:B.instrs()) {
@@ -247,18 +252,25 @@ std::unique_ptr<Capture> Capture::begin(const llvm::MachineFunction &MF,Reserve 
   auto S=std::make_unique<State>(MF,Peek,Stats); S->blob=Blob::allocate(Bytes);
   if(!S->blob) {++Stats.budget_declines;return {};}
   Header H;H.bytes=Bytes;H.blocks=MF.size();H.eventsOffset=EO;H.operandsOffset=OO;H.maxEvents=N;H.maxOperands=O;
-  std::memcpy(S->blob->data(),&H,sizeof(H));
-  for(const auto &B:MF) {Block K;std::memcpy(blocks(*S->blob)+S->ordinals.size(),&K,sizeof(K));S->ordinals.try_emplace(&B,S->ordinals.size());}
+  ::new (S->blob->data()) Header(H);
+  // Start actual array lifetimes, including unused pool capacity, without
+  // initializing trivial Event/Operand scalars. All consumed rows are written
+  // before their counts advance; no uninitialized tail is read or published.
+  ::new (blocks(*S->blob)) Block[H.blocks];
+  ::new (events(*S->blob)) Event[H.maxEvents];
+  ::new (operands(*S->blob)) Operand[H.maxOperands];
+  for(const auto &B:MF) S->ordinals.try_emplace(&B,S->ordinals.size());
   return std::unique_ptr<Capture>(new Capture(std::move(S)));
 }
 bool Capture::active() const { return state&&!state->bad&&state->blob; }
 bool Capture::beginBlock(const llvm::MachineBasicBlock &B) {
-  if(!active())return false;auto &S=*state;
-  if(S.block || S.blockIndex>=header(*S.blob).blocks || S.ordinals.lookup(&B)!=S.blockIndex || B.getParent()!=&S.mf) {S.decline();return false;}
+  if(!active())return false;auto &S=*state;Timer T{S.stats.capture_ns};
+  auto Ordinal=S.ordinals.find(&B);
+  if(S.block || S.blockIndex>=header(*S.blob).blocks || Ordinal==S.ordinals.end() || Ordinal->second!=S.blockIndex || B.getParent()!=&S.mf) {S.decline();return false;}
   S.block=&B;S.instructionIndex=0;blocks(*S.blob)[S.blockIndex].first=header(*S.blob).events;return true;
 }
 bool Capture::beginInstruction(const llvm::MachineInstr &I) {
-  if(!active())return false;auto &S=*state;
+  if(!active())return false;auto &S=*state;Timer T{S.stats.capture_ns};
   if(!S.block || I.getParent()!=S.block || !S.closeInstruction()) {S.decline();return false;}
   S.instruction=&I;S.emitted=0;return true;
 }
@@ -268,9 +280,9 @@ void Capture::recordInstruction(const llvm::MCInst &I,const llvm::MCSubtargetInf
       &STI!=static_cast<const llvm::MCSubtargetInfo *>(&S.mf.getSubtarget()) || I.getLoc().isValid() || ++S.emitted!=1) {S.decline();return;}
   auto &H=header(*S.blob);
   if(H.events==H.maxEvents || I.getNumOperands()>H.maxOperands-H.operands) {S.decline();return;}
-  Event E;E.source=S.instructionIndex;E.opcode=I.getOpcode();E.flags=I.getFlags();E.first=H.operands;E.count=I.getNumOperands();
+  Event E{};E.source=S.instructionIndex;E.opcode=I.getOpcode();E.flags=I.getFlags();E.first=H.operands;E.count=I.getNumOperands();
   for(const auto &MO:I) {
-    Operand O;
+    Operand O{};
     if(MO.isReg()){O.kind=Operand::Register;O.value=MO.getReg();}
     else if(MO.isImm()){O.kind=Operand::Immediate;auto V=MO.getImm();std::memcpy(&O.value,&V,sizeof(V));}
     else if(MO.isExpr()) {
@@ -283,26 +295,26 @@ void Capture::recordInstruction(const llvm::MCInst &I,const llvm::MCSubtargetInf
       if(!Found || It==S.ordinals.end()) {S.decline();return;}
       O.kind=Operand::BlockSymbol;O.value=It->second;
     } else {S.decline();return;}
-    std::memcpy(operands(*S.blob)+H.operands++,&O,sizeof(O));
+    operands(*S.blob)[H.operands++]=O;
   }
-  std::memcpy(events(*S.blob)+H.events++,&E,sizeof(E));
+  events(*S.blob)[H.events++]=E;
 }
 void Capture::recordCFI(const llvm::MachineInstr &I) {
-  if(!active())return;auto &S=*state;
+  if(!active())return;auto &S=*state;Timer T{S.stats.capture_ns};
   if(S.instruction!=&I || !isCFI(I)) {S.decline();return;}
   auto &H=header(*S.blob);if(H.events==H.maxEvents){S.decline();return;}
-  Event E;E.kind=Event::CFI;E.source=S.instructionIndex;E.first=H.operands;
-  std::memcpy(events(*S.blob)+H.events++,&E,sizeof(E));
+  Event E{};E.kind=Event::CFI;E.source=S.instructionIndex;E.first=H.operands;
+  events(*S.blob)[H.events++]=E;
 }
 void Capture::endBlock(const llvm::MachineBasicBlock &B,Summary Summary) {
-  if(!active())return;auto &S=*state;
+  if(!active())return;auto &S=*state;Timer T{S.stats.capture_ns};
   if(S.block!=&B || !S.closeInstruction()){S.decline();return;}
   auto &K=blocks(*S.blob)[S.blockIndex];K.count=header(*S.blob).events-K.first;
-  K.sourceInstructions=std::distance(B.instr_begin(),B.instr_end());K.instructions=Summary.instructions;K.realCode=Summary.realCode;
+  K.sourceInstructions=S.instructionIndex;K.instructions=Summary.instructions;K.realCode=Summary.realCode;
   S.block=nullptr;++S.blockIndex;++S.stats.captured_blocks;
 }
 Product Capture::finish() {
-  if(!active())return {};auto &S=*state;
+  if(!active())return {};auto &S=*state;Timer T{S.stats.capture_ns};
   if(S.block || S.blockIndex!=header(*S.blob).blocks || !structurallyValid(*S.blob)){S.decline();return {};}
   ++S.stats.captured_functions;S.stats.captured_capacity_bytes+=S.blob->allocationBytes();
   Product P(S.blob.get());S.blob.reset();return P;
@@ -346,8 +358,52 @@ bool replay(const Product &P,const llvm::MachineBasicBlock &B,void *AP,EmitMC Em
       else I.addOperand(llvm::MCOperand::createExpr(llvm::MCSymbolRefExpr::create(BBs[O.value]->getSymbol(),MF.getContext())));
     }
     if(!Emit(AP,I))return false;++Stats.mc_replay_events;
+    if(TestMode==3) return false; // deliberate dirty failure: whole attempt must be discarded
   }
   Summary.instructions=K.instructions;Summary.realCode=K.realCode;
   ++Stats.replayed_blocks;Stats.machine_instructions_skipped+=K.instructions;return true;
 }
+void saveLastStats(const Stats &S) { LastStats=S; }
+int testMode() { return TestMode; }
+uint32_t counterexamples(const Product &P,const llvm::MachineFunction &MF,PeekSymbol Peek) {
+  if(!P || !Peek || !preflight(P,MF,LastStats))return 0;
+  std::vector<const void *> Symbols;
+  for(const auto &B:MF)Symbols.push_back(Peek(&B));
+  auto Clone=[&](){auto B=Blob::allocate(P->capacity());if(B) {
+    ::new (B->data()) Header(header(*P));
+    ::new (blocks(*B)) Block[header(*P).blocks];
+    ::new (events(*B)) Event[header(*P).maxEvents];
+    ::new (operands(*B)) Operand[header(*P).maxOperands];
+    for(size_t I=0;I<header(*P).blocks;++I)blocks(*B)[I]=blocks(*P)[I];
+    for(size_t I=0;I<header(*P).events;++I)events(*B)[I]=events(*P)[I];
+    for(size_t I=0;I<header(*P).operands;++I)operands(*B)[I]=operands(*P)[I];
+  }return B;};
+  Stats S; uint32_t Bits=0;
+  auto B=Clone();if(!B)return 0;
+  header(*B).eventsOffset=std::numeric_limits<uint32_t>::max();
+  if(!preflight(Product(B.get()),MF,S))Bits|=1;
+  B=Clone();if(!B)return 0;
+  if(header(*B).events){events(*B)[0].source=std::numeric_limits<uint32_t>::max();
+    if(!preflight(Product(B.get()),MF,S))Bits|=2;}
+  B=Clone();if(!B)return 0;
+  if(header(*B).operands){auto &O=operands(*B)[0];O.kind=Operand::BlockSymbol;O.value=header(*B).blocks;
+    if(!preflight(Product(B.get()),MF,S))Bits|=4;}
+  size_t I=0;bool Intact=true;for(const auto &BB:MF)Intact&=Peek(&BB)==Symbols[I++];
+  if(Intact)Bits|=8;
+  // Shared immutable product lifetimes must support real concurrent retain /
+  // release, independently of any serialized driver session convention.
+  std::vector<std::thread> Readers;
+  for(unsigned I=0;I<4;++I)Readers.emplace_back([&](){for(unsigned J=0;J<1024;++J){Product Copy=P;assert(payloadBytes(Copy)==payloadBytes(P));}});
+  for(auto &T:Readers)T.join();
+  Bits|=16;CounterexampleBits=Bits;return Bits;
+}
 } // namespace zil::emission
+
+extern "C" int ZilNativeProductsLastMachineEmissionStatsV1(void *Out,size_t Bytes) {
+  if(!Out || Bytes!=sizeof(zil::emission::Stats))return 0;
+  std::memcpy(Out,&zil::emission::LastStats,Bytes);return 1;
+}
+extern "C" int ZilNativeProductsMachineEmissionModeForTestsV1(int Mode) {
+  int Old=zil::emission::TestMode;zil::emission::TestMode=Mode;zil::emission::CounterexampleBits=0;return Old;
+}
+extern "C" uint32_t ZilNativeProductsMachineEmissionCounterexamplesV1() {return zil::emission::CounterexampleBits;}

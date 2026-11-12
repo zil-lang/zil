@@ -1252,6 +1252,120 @@ mod native_machine_numbering_tests {
     }
 
     #[test]
+    fn installed_machine_emission_tape_executes_current_block_and_cfi_consumers() {
+        let source = source();
+        let config = Config {
+            triple: &source.triple,
+            optimization: Optimization::O2,
+        };
+        let compile = |prior| {
+            compile_module_with_native_products(
+                &source,
+                &config,
+                FunctionMerging::Disabled,
+                &|| false,
+                prior,
+            )
+            .unwrap()
+        };
+        let ordinary =
+            compile_module(&source, &config, FunctionMerging::Disabled, &|| false).unwrap();
+        let (cold, _, prior) = compile(None);
+        let cold_mc = products::machine_emission_stats_for_test();
+        assert_eq!(
+            cold_mc.available, 1,
+            "requires the actual SDK17 emission extension"
+        );
+        assert_eq!(cold_mc.captured_functions, 2);
+        assert!(cold_mc.captured_blocks >= 2 && cold_mc.captured_capacity_bytes > 0);
+        assert_eq!(cold_mc.replayed_functions, 0);
+        assert_eq!(cold.bytes, ordinary.bytes);
+        let prior = prior.unwrap();
+        let (warm, _, _) = compile(Some(&prior));
+        let mc = products::machine_emission_stats_for_test();
+        assert_eq!(mc.replayed_functions, 2);
+        assert!(
+            mc.replayed_blocks >= 2
+                && mc.machine_instructions_skipped > 0
+                && mc.mc_replay_events > 0
+        );
+        assert_eq!(mc.failed_replays, 0);
+        let native = warm.receipt.native_products.as_ref().unwrap();
+        assert_eq!(native.machine_function_reuses, 2);
+        assert_eq!(
+            native.asm_printer_runs, 2,
+            "current headers/blocks/footer/MC must still execute"
+        );
+        assert_eq!(native.fresh_context_fallbacks, 0);
+        assert_eq!(warm.bytes, ordinary.bytes);
+        {
+            let _mode = products::machine_emission_mode_for_test(4);
+            let (checked, _, _) = compile(Some(&prior));
+            assert_eq!(products::machine_emission_counterexamples_for_test(), 31);
+            assert_eq!(checked.bytes, ordinary.bytes);
+        }
+        {
+            let _mode = products::machine_emission_mode_for_test(2);
+            let (bounded, _, p) = compile(None);
+            let stats = products::machine_emission_stats_for_test();
+            assert_eq!(stats.captured_functions, 0);
+            assert!(stats.budget_declines > 0);
+            assert!(
+                p.is_some(),
+                "MC refusal must preserve the original typed product"
+            );
+            assert_eq!(bounded.bytes, ordinary.bytes);
+        }
+        {
+            let _mode = products::machine_emission_mode_for_test(3);
+            let (recovered, _, p) = compile(Some(&prior));
+            let failed = products::machine_emission_stats_for_test();
+            assert_eq!(failed.failed_replays, 1);
+            assert!(
+                failed.mc_replay_events > 0,
+                "failure must occur after a real MC event"
+            );
+            let stats = recovered.receipt.native_products.as_ref().unwrap();
+            assert_eq!(stats.fresh_context_fallbacks, 1);
+            assert!(stats.failed_replays > 0);
+            assert!(p.is_none(), "partial MC/native products cannot publish");
+            assert_eq!(recovered.bytes, ordinary.bytes);
+        }
+        let (recovered, _, _) = compile(Some(&prior));
+        assert_eq!(
+            products::machine_emission_stats_for_test().replayed_functions,
+            2
+        );
+        assert_eq!(recovered.bytes, ordinary.bytes);
+        let mut edited = source.clone();
+        let Item::Function(f) = &mut edited.items[0] else {
+            unreachable!()
+        };
+        f.blocks.as_mut().unwrap()[0].instructions[0].op =
+            Op::Return(Some(Arg::new(Ty::Int(32), 43)));
+        let (changed, _, _) = compile_module_with_native_products(
+            &edited,
+            &config,
+            FunctionMerging::Disabled,
+            &|| false,
+            Some(&prior),
+        )
+        .unwrap();
+        let changed_mc = products::machine_emission_stats_for_test();
+        assert_eq!(changed_mc.replayed_functions, 1);
+        assert_eq!(changed_mc.captured_functions, 1);
+        assert_eq!(changed_mc.failed_replays, 0);
+        assert!(changed.receipt.verify_before_after && changed.receipt.preflight_ns > 0);
+        assert_ne!(changed.bytes, cold.bytes);
+        assert_eq!(
+            changed.bytes,
+            compile_module(&edited, &config, FunctionMerging::Disabled, &|| false)
+                .unwrap()
+                .bytes
+        );
+    }
+
+    #[test]
     fn exact_header_and_typed_body_replace_only_redundant_full_mir_text() {
         let source = source();
         let config = Config {

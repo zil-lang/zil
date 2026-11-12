@@ -1342,6 +1342,11 @@ int requestFailedCallback(void *C) { return static_cast<Request *>(C)->Failed; }
 void copyStats(Request &R, ZilNativeProductStats *Out) {
   R.Stats.tli_projection_builds = R.AnalysisMemo.targetLibraryProjections();
   R.Stats.tli_projection_reuses = R.AnalysisMemo.targetLibraryReuses();
+  if(R.Machine) {
+    emission::Stats MC;
+    readMachineEmissionStats(*R.Machine,&MC,sizeof(MC));
+    emission::saveLastStats(MC);
+  }
   if (Out) *Out = R.Stats;
 }
 }
