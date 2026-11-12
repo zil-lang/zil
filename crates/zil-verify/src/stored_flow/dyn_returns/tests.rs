@@ -220,6 +220,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
         retained_port: None,
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     };
     let path = vec![ContractProjection::RetainedPort(0)];
@@ -256,6 +257,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
         }),
         leaf: vec![],
         inline: vec![],
+        heap_parents: Vec::new(),
         heap_element: None,
     };
     summaries[1].complete = true;
@@ -266,6 +268,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
             retained_port: None,
             leaf: vec![],
             inline: vec![],
+            heap_parents: Vec::new(),
             heap_element: None,
         }];
     }
@@ -281,6 +284,7 @@ fn actual_helper_step(update: bool, head_parent: bool) -> (Payload, Frame, Vec<L
                             retained_port: None,
                             leaf: vec![],
                             inline: vec![],
+                            heap_parents: Vec::new(),
                             heap_element: None,
                         }],
                         loans: vec![],

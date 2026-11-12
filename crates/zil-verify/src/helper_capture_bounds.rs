@@ -27,7 +27,7 @@ pub(super) fn bounds(
             Type::BorrowedStorage { life, storage } => {
                 b.spend(life.slots.len().saturating_add(life.retained.len()))?;
                 for slot in &life.slots {
-                    result.0 = true;
+                    result.0 |= matches!(slot.mode, StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress);
                     result.1 = true;
                     result.2 |= matches!(
                         slot.mode,
