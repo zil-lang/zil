@@ -22,13 +22,30 @@ impl Engine<'_> {
     pub(super) fn given_resource_hint(&mut self,operand:&Expr,ty:TypeRef,env:&Env)->R<Option<TypeRef>>{
         // This is a proposal for an explicit transfer from an actual owning
         // lexical position. A description parameter cannot manufacture it.
-        let owns=match &operand.kind {
-            ExprKind::Name(name)=>env.bindings.get(name).is_some_and(|binding|binding.resource_owner),
-            ExprKind::Member{object,..}=>matches!(self.value_hint(object,env,0,false)?,Some(TypeRef{kind:TypeKind::Named{..},..})),
-            ExprKind::Record{..}=>true,
-            _=>false,
-        };
+        let owns=self.resource_place_hint(operand,env,0)?;
         if owns {self.constructed_resource_hint(Some(ty))}else{Ok(Some(ty))}
+    }
+    fn resource_place_hint(&mut self,place:&Expr,env:&Env,depth:usize)->R<bool>{
+        self.budget.node(place.span,depth)?;
+        match &place.kind {
+            ExprKind::Name(name)=>{
+                let Some(binding)=env.bindings.get(name) else{return Ok(false)};
+                if binding.resource_owner{return Ok(true)}
+                let Some(ty)=env.get(name).and_then(Option::as_ref) else{return Ok(false)};
+                let TypeKind::Named{path,..}=&grouped(ty).kind else{return Ok(matches!(grouped(ty).kind,TypeKind::Tuple(_)|TypeKind::Array{..}))};
+                let key=path.join(".");self.budget.text(&key,place.span)?;
+                let original=self.instance_types.get(&key).unwrap_or(ty);
+                let TypeKind::Named{path,..}=&grouped(original).kind else{return Ok(false)};
+                Ok(matches!(self.nominals.get(&path.join(".")),Some(Item{kind:ItemKind::Aggregate(aggregate),..}) if aggregate.kind==AggregateKind::Package))
+            },
+            ExprKind::Member{object,..}=>{
+                if !self.resource_place_hint(object,env,depth+1)?{return Ok(false)}
+                Ok(!self.value_hint(object,env,depth+1,false)?.as_ref().is_some_and(|ty|matches!(grouped(ty).kind,TypeKind::Reference{..})))
+            },
+            ExprKind::Group(inner)=>self.resource_place_hint(inner,env,depth+1),
+            ExprKind::Record{..}=>Ok(true),
+            _=>Ok(false),
+        }
     }
     pub(super) fn bind_resource_access(&mut self,pattern:&Pattern,value:&Expr,annotation:Option<&TypeRef>,env:&mut Env)->R<()> {
         let PatternKind::Name(name)=&pattern.kind else{return Ok(())};
