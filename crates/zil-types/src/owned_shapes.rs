@@ -48,6 +48,9 @@ fn shape(ty: &Type) -> Option<bool> {
             Some(owns)
         }
         Type::ErrorUnion { error, result } => {
+            if let Some(owner) = dynamic_store::managed_error_payload(ty) {
+                return resources::supported(owner).then_some(true);
+            }
             // A selected inline Store can owe the error or success branch. The
             // tag still determines which one actual allocation is retired.
             if inline_store(error) || inline_store(result) {

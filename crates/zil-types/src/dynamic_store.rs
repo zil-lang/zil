@@ -265,6 +265,17 @@ pub(super) fn product_element(ty: &Type) -> bool {
 
 /// These two exact wrappers are the existing push/pop protocol, not arbitrary
 /// Product error unions. Every path still consumes one actual active tag.
+pub(super) fn managed_error_payload(ty: &Type) -> Option<&Type> {
+    let Type::ErrorUnion { error, result } = ty else {
+        return None;
+    };
+    if **result != Type::Unit {
+        return None;
+    }
+    matches!(error.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::Record{..}))
+        .then_some(error)
+}
+
 pub(super) fn product_protocol(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if (**error == Type::Unit && product_element(result))
