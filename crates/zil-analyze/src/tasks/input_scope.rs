@@ -58,6 +58,7 @@ fn walk(
             conjunction(children)
         }
         Type::Array { element, .. }
+        | Type::Slice { element }
         | Type::OwnedStore { element }
         | Type::Mutex { payload: element } => conjunction([walk(element, b, closure)?]),
         Type::ErrorUnion { error, result } => {
@@ -219,8 +220,28 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
             if c.fixed_binder_count == 0 {
                 let mut captures = Vec::new();
                 b.spend(d.captures.len(), "Task actual zero-fixed captured scopes")?;
-                for ty in &d.captures {
-                    captures.push(walk(ty, b, &mut |id, b| {
+                for (ordinal, ty) in d.captures.iter().enumerate() {
+                    b.spend(
+                        c.static_bindings.len(),
+                        "Task actual static capture occurrence",
+                    )?;
+                    let selected = match ty {
+                        Type::Address {
+                            mutable: false,
+                            inner,
+                        } if c.static_bindings.iter().any(|position| {
+                            position.base == StorageBase::Capture(ordinal as u32)
+                                && position.path.is_empty()
+                        }) =>
+                        {
+                            inner.as_ref()
+                        }
+                        other => other,
+                    };
+                    // Only the outer constant occurrence is excluded. Every
+                    // inner nominal/phantom domain must still be known zero;
+                    // all actual constructors/writes are proved separately.
+                    captures.push(walk(selected, b, &mut |id, b| {
                         resolve(id, defs, domains, marks, depth + 1, limits, b)
                     })?);
                 }

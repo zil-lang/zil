@@ -90,6 +90,7 @@ fn probe(
                 continue;
             }
             Type::Array { element, .. }
+            | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Mutex { payload: element } => {
                 stack.push((element, true, false));
@@ -264,13 +265,32 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Ch
                     .saturating_add(1),
             )?;
             let mut outcome = PendingScope::Known(0);
-            for (ty, signature) in d.captures.iter().map(|ty| (ty, false)).chain(
-                d.parameters
-                    .iter()
-                    .chain(std::iter::once(&d.result))
-                    .filter(|_| d.storage_life.is_none())
-                    .map(|ty| (ty, true)),
-            ) {
+            let mut scopes = Vec::new();
+            for (ordinal, ty) in d.captures.iter().enumerate() {
+                let constant = if let Some(contract) = &d.storage_life {
+                    b.spend(contract.static_bindings.len())?;
+                    matches!(ty, Type::Address { mutable: false, .. })
+                        && contract.static_bindings.iter().any(|position| {
+                            position.base == StorageBase::Capture(ordinal as u32)
+                                && position.path.is_empty()
+                        })
+                } else {
+                    false
+                };
+                // Exclude the exact outer occurrence, retaining every inner
+                // class check. Source/ancestor Static proof remains a global
+                // all-constructor and all-write obligation, never this bit.
+                scopes.push((ty, constant));
+            }
+            if d.storage_life.is_none() {
+                scopes.extend(
+                    d.parameters
+                        .iter()
+                        .chain(std::iter::once(&d.result))
+                        .map(|ty| (ty, true)),
+                );
+            }
+            for (ty, signature) in scopes {
                 match probe(ty, Some(&states), signature, b)? {
                     PendingScope::Unknown | PendingScope::Known(1..) => {
                         outcome = PendingScope::Unknown;
