@@ -183,6 +183,7 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
+    pending_static(c, span)?;
     relation_inner(parameters, result, c, span, false, None, None, false, None)
 }
 pub(super) fn function_relation(
@@ -214,6 +215,7 @@ fn function_relation_inner(
     allow_callback: bool,
     allow_byte_input: bool,
 ) -> Check<()> {
+    pending_static(c, span)?;
     if let Type::ErrorUnion {
         result: success, ..
     } = result
@@ -277,7 +279,8 @@ fn function_relation_inner(
                 binder: StorageBinder::Invocation(class),
             });
         }
-        if c.fixed_binder_count != 0
+        if !c.static_bindings.is_empty()
+            || c.fixed_binder_count != 0
             || c.invocation_binder_count != retained_life.binder_count
             || c.bindings != expected_bindings
             || c.classes != expected_classes
@@ -311,6 +314,7 @@ pub(super) fn closure_relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
+    pending_static(c, span)?;
     relation_inner(
         parameters,
         result,
@@ -322,6 +326,16 @@ pub(super) fn closure_relation(
         false,
         Some(kind),
     )
+}
+fn pending_static(c: &StorageLifeContract, span: Option<Span>) -> Check<()> {
+    if c.static_bindings.is_empty() {
+        Ok(())
+    } else {
+        Err(unsupported(
+            "constant borrow occurrences require the complete actual constructor/write proof",
+            span,
+        ))
+    }
 }
 #[allow(clippy::too_many_arguments)]
 fn relation_inner(
@@ -342,9 +356,6 @@ fn relation_inner(
             "incomplete, noncanonical or ungrounded signature class relation",
         )
     };
-    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
-        return Err(invalid());
-    }
     let rows = c
         .bindings
         .len()
@@ -374,6 +385,7 @@ fn relation_inner(
     };
     let mut array_result_input = false;
     let mut borrow = 0usize;
+    let mut constant = 0usize;
     let mut class = 0usize;
     let mut next = [0u32; 2];
     let mut inputs = [0u32; 2];
@@ -439,13 +451,28 @@ fn relation_inner(
             Ok(())
         };
         let (actual, pointee) = match ty {
-            Type::Address { inner, .. } => {
-                let row = c.bindings.get(borrow).ok_or_else(invalid)?;
-                if row.position.base != base || !row.position.path.is_empty() {
-                    return Err(invalid());
+            Type::Address { mutable, inner } => {
+                let position = StoragePosition { base, path: vec![] };
+                if c.static_bindings.get(constant) == Some(&position) {
+                    // A constant occurrence has no class or invocation binder.
+                    // This checks only its shape; actual Static provenance is
+                    // discharged separately by the typed body/constructor proof.
+                    if *mutable
+                        || c.bindings
+                            .get(borrow)
+                            .is_some_and(|r| r.position == position)
+                    {
+                        return Err(invalid());
+                    }
+                    constant += 1;
+                } else {
+                    let row = c.bindings.get(borrow).ok_or_else(invalid)?;
+                    if row.position != position {
+                        return Err(invalid());
+                    }
+                    borrow += 1;
+                    visit(row.binder, capture)?;
                 }
-                borrow += 1;
-                visit(row.binder, capture)?;
                 (inner.as_ref(), true)
             }
             _ => (ty, false),
@@ -458,18 +485,29 @@ fn relation_inner(
                 unreachable!()
             };
             for index in 0..*length {
-                let row = c.bindings.get(borrow).ok_or_else(invalid)?;
-                if row.position.base != base
-                    || row.position.path.as_slice()
-                        != [ContractProjection::Place(PlaceProjection::Field(index))]
-                {
-                    return Err(invalid());
+                let position = StoragePosition {
+                    base,
+                    path: vec![ContractProjection::Place(PlaceProjection::Field(index))],
+                };
+                if c.static_bindings.get(constant) == Some(&position) {
+                    if c.bindings
+                        .get(borrow)
+                        .is_some_and(|r| r.position == position)
+                    {
+                        return Err(invalid());
+                    }
+                    constant += 1;
+                } else {
+                    let row = c.bindings.get(borrow).ok_or_else(invalid)?;
+                    if row.position != position {
+                        return Err(invalid());
+                    }
+                    if !output && Some(row.binder) == array_output_upper {
+                        array_result_input = true;
+                    }
+                    borrow += 1;
+                    visit(row.binder, false)?;
                 }
-                if !output && Some(row.binder) == array_output_upper {
-                    array_result_input = true;
-                }
-                borrow += 1;
-                visit(row.binder, false)?;
             }
             continue;
         }
@@ -696,6 +734,7 @@ fn relation_inner(
             }
             t if pointee => {
                 if !(t.is_address_pointee()
+                    || matches!(t, Type::Slice { element } if element.is_copy_value())
                     // Input Package shape permits either receiver mode. The
                     // actual Store source, parent loan and access authority
                     // still require the independent body checks.
@@ -723,6 +762,7 @@ fn relation_inner(
         }
     }
     if borrow != c.bindings.len()
+        || constant != c.static_bindings.len()
         || class != c.classes.len()
         || next != [c.fixed_binder_count, c.invocation_binder_count]
         || grounded.contains(&false)
@@ -731,7 +771,10 @@ fn relation_inner(
     }
     if let Type::Address { mutable, .. } = result {
         let upper = outer(c, StorageBase::Result);
-        let mut possible = false;
+        let mut possible = !*mutable
+            && c.static_bindings
+                .iter()
+                .any(|position| position.base == StorageBase::Result && position.path.is_empty());
         for (i, p) in parameters.iter().enumerate() {
             possible |= matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
                 && outer(c, StorageBase::Parameter(i as u32)) == upper;
@@ -759,7 +802,8 @@ fn relation_inner(
 }
 
 pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeContract) -> bool {
-    if required.bindings.len() != supplied.bindings.len()
+    if required.static_bindings != supplied.static_bindings
+        || required.bindings.len() != supplied.bindings.len()
         || required.classes.len() != supplied.classes.len()
     {
         return false;
@@ -808,5 +852,62 @@ mod tests {
             classes: vec![],
         };
         assert!(relation(&[], &Type::I32, &relation_data, None).is_err());
+    }
+    #[test]
+    fn constant_occurrence_directory_is_complete_and_disjoint() {
+        let slice = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Slice {
+                element: Box::new(Type::U8),
+            }),
+        };
+        let capture = StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![],
+        };
+        let result = StoragePosition {
+            base: StorageBase::Result,
+            path: vec![],
+        };
+        let c = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+            static_bindings: vec![capture.clone(), result.clone()],
+        };
+        let check = |c: &StorageLifeContract| {
+            relation_inner(
+                &[],
+                &slice,
+                c,
+                None,
+                true,
+                Some(std::slice::from_ref(&slice)),
+                None,
+                false,
+                Some(CallableKind::FnOnce),
+            )
+        };
+        assert!(check(&c).is_ok());
+        for positions in [
+            vec![],
+            vec![capture.clone()],
+            vec![result.clone(), capture.clone()],
+            vec![capture.clone(), capture.clone(), result.clone()],
+        ] {
+            let mut bad = c.clone();
+            bad.static_bindings = positions;
+            assert!(check(&bad).is_err());
+        }
+        let mut bad = c.clone();
+        bad.fixed_binder_count = 1;
+        bad.bindings.push(StorageLifeBinding {
+            position: capture,
+            binder: StorageBinder::Fixed(0),
+        });
+        assert!(check(&bad).is_err());
+        assert!(!entails(&c, &bad));
+        assert!(relation(&[], &slice, &c, None).is_err());
     }
 }
