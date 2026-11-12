@@ -126,6 +126,43 @@ impl Catalog {
     ) -> R<Type> {
         budget.node(source.span, depth)?;
         match &source.kind {
+            s::TypeKind::Named { path, args }
+                if path.as_slice() == ["Managed"]
+                    && matches!(args.as_slice(), [s::GenericArg::Type(inner)]
+                        if matches!(&inner.kind, s::TypeKind::Named { path, .. }
+                            if path.as_slice() == ["Task"])) =>
+            {
+                let s::GenericArg::Type(inner) = &args[0] else {
+                    unreachable!()
+                };
+                let actual = self.pointer_parameter_type(inner, nominals, budget, depth + 1)?;
+                let Type::Desc(task) = actual else {
+                    return Err(invalid(
+                        source.span,
+                        "owning Task code result lacks its actual Task",
+                    ));
+                };
+                if !matches!(task.as_ref(), Type::Task { .. }) {
+                    return Err(invalid(
+                        source.span,
+                        "owning Task code result changes its resource",
+                    ));
+                }
+                Ok(Type::Managed(task))
+            }
+            s::TypeKind::Named { path, args }
+                if path.as_slice() == ["Task"] && matches!(args.len(), 1 | 2) =>
+            {
+                budget.ty_depth(source, depth)?;
+                let actual = type_ref(source);
+                if contains_unresolved(&actual) {
+                    return Err(invalid(
+                        source.span,
+                        "Task code signature needs its complete actual result and ports",
+                    ));
+                }
+                Ok(actual)
+            }
             s::TypeKind::Reference { mutable, inner, .. } => Ok(Type::Address {
                 mutable: *mutable,
                 inner: Box::new(self.pointer_parameter_type(inner, nominals, budget, depth + 1)?),
@@ -473,6 +510,22 @@ pub(super) fn pay_type(
         }
         Type::ErrorUnion { error, result } => {
             pay_type(error, budget, span, depth + 1)?;
+            pay_type(result, budget, span, depth + 1)
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            spend(budget, span, retained_life.ports.len())?;
+            for port in &retained_life.ports {
+                pay_type(&port.leaf, budget, span, depth + 1)?;
+            }
+            for row in &retained_life.retained {
+                spend(budget, span, row.path.len().saturating_add(1))?;
+            }
+            for row in &retained_life.nominal_arguments {
+                spend(budget, span, row.path.len().saturating_add(1))?;
+            }
             pay_type(result, budget, span, depth + 1)
         }
         Type::FunctionPointer { parameters, result }
@@ -1102,6 +1155,16 @@ fn contains_unresolved(ty: &Type) -> bool {
             contains_unresolved(inner)
         }
         Type::Tuple(fields) => fields.iter().any(contains_unresolved),
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            contains_unresolved(result)
+                || retained_life
+                    .ports
+                    .iter()
+                    .any(|port| contains_unresolved(&port.leaf))
+        }
         Type::Array { element, .. } | Type::Slice { element } => contains_unresolved(element),
         Type::ErrorUnion { error, result } => {
             contains_unresolved(error) || contains_unresolved(result)

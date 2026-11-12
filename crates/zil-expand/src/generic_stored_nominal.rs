@@ -800,6 +800,29 @@ impl<'a> Engine<'a> {
                 result
             }
             TypeKind::Named { path: name, args }
+                if name.as_slice() == ["Managed"]
+                    && matches!(args.as_slice(), [GenericArg::Type(inner)]
+                        if matches!(&inner.kind, TypeKind::Named { path, .. }
+                            if path.as_slice() == ["Task"])) =>
+            {
+                let GenericArg::Type(inner) = &mut args[0] else {
+                    unreachable!()
+                };
+                // Managed is the owning mode of this same Task head. Its
+                // retained ports and complete class domain keep the Task's
+                // actual selectors; it introduces no additional byte path.
+                self.storage_header(
+                    inner,
+                    base,
+                    path,
+                    type_path,
+                    occurrences,
+                    stored,
+                    next_elided,
+                    depth + 1,
+                )
+            }
+            TypeKind::Named { path: name, args }
                 if name.as_slice() == ["Task"] && args.len() == 2 =>
             {
                 if let GenericArg::Type(result) = &args[0]

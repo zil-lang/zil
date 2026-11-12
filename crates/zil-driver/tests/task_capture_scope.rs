@@ -2,6 +2,22 @@ use zil_base::{FileId, ModuleId, SourceUnit};
 const SOURCE: &str =
     include_str!("../../../tests/language-readiness/task-owner-transport/returned-task-fnonce.zil");
 
+fn expand_original(source: &SourceUnit) -> zil_base::CompileResult<zil_ir::CoreModule> {
+    let ast = zil_syntax::parse(source).into_result()?;
+    zil_expand::expand_with_map_limits_target_context(
+        source,
+        &ast,
+        &zil_base::Limits::default(),
+        &zil_base::TargetProfile::default(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .map(|expanded| expanded.core)
+}
+
 #[test]
 fn task_capture_fixed_scope_comes_from_actual_input_classes() {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "returned-task-fnonce.zil", SOURCE);
@@ -143,8 +159,7 @@ fn returned_task_class_zero_maps_to_the_actual_second_capture_domain() {
         "returned-second-task-fnonce.zil",
         text,
     );
-    let ast = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand(&input, &ast).unwrap();
+    let core = expand_original(&input).unwrap();
     let typed = zil_types::check(
         &core,
         &zil_base::TargetProfile::default(),
@@ -181,6 +196,5 @@ fn returned_task_class_zero_maps_to_the_actual_second_capture_domain() {
         "drive(give second);return give original;",
     );
     let input = SourceUnit::new(FileId(0), ModuleId(0), "wrong-task-return-scope.zil", bad);
-    let ast = zil_syntax::parse(&input).into_result().unwrap();
-    assert!(zil_expand::expand(&input, &ast).is_err());
+    assert!(expand_original(&input).is_err());
 }
