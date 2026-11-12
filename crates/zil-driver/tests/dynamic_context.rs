@@ -367,3 +367,20 @@ fn trait_object_definition_is_verified_without_a_local_provider() {
     );
     assert_eq!(report.verification_runs, 1);
 }
+
+#[test]
+fn exclusive_context_preserves_mutation_and_the_original_borrow_parent() {
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/dyn-context/exclusive-provider.zil"
+    ))
+    .unwrap();
+    let (project, module, candidate, dir) = context_candidate(&text, "exclusive");
+    let limits = zil_base::Limits::default();
+    let target = module.target.clone();
+    zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    let (module, candidate) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_verify::verify_module(module, candidate, &target, &limits).unwrap();
+    native_context(&project, &dir);
+}
