@@ -1,0 +1,26 @@
+{
+  "schema": "zil-raw-evidence-archive-v1",
+  "archive": "raw.tar.zst",
+  "archive_sha256": "209be2622c10a16170d0c748b8d4b31650bc12e1e5af8e14fb05c401d8f78b9a",
+  "archive_bytes": 45005697,
+  "parts": [
+    {
+      "name": "raw.tar.zst.part.000",
+      "bytes": 25165824,
+      "sha256": "43b1310fb891bf1505863fed119d43786e4f611a791d2333c8254a594d022af0"
+    },
+    {
+      "name": "raw.tar.zst.part.001",
+      "bytes": 19839873,
+      "sha256": "1ddeb0dddff800168a492db7667645e265ea8ef4ca772a0bad695d0225c9a8e3"
+    }
+  ],
+  "compiler_sources": [
+    "e105418b63078757d2f655ffa02858caed7838f6",
+    "b3d4d84002e2411f1cace6099ba96b16f5b5f5fc",
+    "fb6260aa30400cbc63a974b647723cd4b9147f9a"
+  ],
+  "main": "99035931d358add0eaed6d4535035c38413701dd",
+  "scope": "All full-pipeline raw through profile-r2, failures and both immutable binaries; active checkpoint, not final matched Rust acceptance",
+  "inventory": "out/runs/full-pipeline-evidence-v1/inventory.json"
+}
