@@ -121,12 +121,15 @@ def build(sdk, prefix, receipt):
             raise ValueError('replacement changed component member order or membership')
         receipt['compile_units'].append({**unit, 'patched_source_sha256': sha(source),
                                           'object_sha256': sha(obj)})
-    libraries = shlex.split(run('component-libraries', [config, '--link-static', '--libfiles', *installed['release']['components']]))
+    components = [*installed['release']['components'], *manifest.get('additional_components', [])]
+    libraries = shlex.split(run('component-libraries', [config, '--link-static', '--libfiles', *components]))
     libraries = list(dict.fromkeys(libraries))
     for name in libraries:
         relative = str(Path(name).relative_to(sdk))
-        if sha(Path(name)) != installed['component_inputs'][relative]:
+        expected = installed['component_inputs'].get(relative, manifest.get('additional_component_inputs', {}).get(relative))
+        if expected is None or sha(Path(name)) != expected:
             raise ValueError(f'component differs from original SDK receipt: {relative}')
+    receipt['additional_components'] = manifest.get('additional_component_inputs', {})
     if not set(replacements).issubset({Path(name).name for name in libraries}):
         raise ValueError('replacement component is not in the linked SDK component set')
     libraries = [replacements.get(Path(name).name, name) for name in libraries]

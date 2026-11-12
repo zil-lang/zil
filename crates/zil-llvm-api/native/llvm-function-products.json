@@ -63,5 +63,12 @@
       "sha256": "d028ad06d921d824cd6899c29e5696726a5dcb977b80e8d72d66f57063a484cc",
       "destination": "zil-native-private/X86MachineFunctionInfo.h"
     }
-  ]
+  ],
+  "additional_components": [
+    "mirparser"
+  ],
+  "additional_component_inputs": {
+    "lib/libLLVMMIRParser.a": "d161e9679c2bd4ae7b1d5e7cf62c4cacc34dddb429f16e98ac7d818ca4c0b80e"
+  },
+  "additional_component_provenance": "Installed official LLVM 23.1.4 SDK component; explicit current archive hashes. Original SDK archive pinned efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378; additional component is linked into the same DSO, never a second LLVM runtime."
 }
