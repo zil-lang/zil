@@ -199,11 +199,6 @@ pub(super) fn reconstruct(
                                                 "returned environment destination is not an actual capture",
                                             ));
                                         };
-                                        if !binding.position.path.is_empty() {
-                                            return Err(bad(
-                                                "nested returned environment needs complete actual slot transport",
-                                            ));
-                                        }
                                         let mut slot = Slot::default();
                                         for source in &binding.sources {
                                             extend(
@@ -220,7 +215,13 @@ pub(super) fn reconstruct(
                                             };
                                             slot.parents.insert(arguments[parameter as usize]);
                                         }
-                                        row.insert(index, slot);
+                                        // This ordinary envelope conservatively unions all
+                                        // leaves of one capture. The independent stored
+                                        // solver retains the exact nested permissions.
+                                        let actual = row.entry(index).or_default();
+                                        extend(&mut actual.roots, &slot.roots, budget)?;
+                                        budget.spend(slot.parents.len(), "returned capture parent envelope")?;
+                                        actual.parents.extend(slot.parents);
                                     }
                                 }
                             }

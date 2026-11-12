@@ -1785,9 +1785,18 @@ pub(super) fn preflight(
                         .saturating_add(1),
                     "returned environment transport schedule",
                 )?;
-                budget
-                    .returned_borrowed_environments
-                    .insert(contract.closure);
+                let mut pending = vec![contract.closure];
+                while let Some(id) = pending.pop() {
+                    budget.input(budget.returned_borrowed_environments.len().saturating_add(1),
+                        "returned environment child transport schedule")?;
+                    if !budget.returned_borrowed_environments.insert(id) { continue; }
+                    let definition = module.closures.get(id.0 as usize)
+                        .ok_or_else(|| bad("returned environment child definition absent"))?;
+                    budget.input(definition.captures.len(), "returned environment actual child edges")?;
+                    for capture in &definition.captures {
+                        if let Type::Closure(child) = capture { pending.push(*child); }
+                    }
+                }
             }
             count(
                 0,

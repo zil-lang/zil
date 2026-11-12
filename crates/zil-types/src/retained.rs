@@ -168,10 +168,21 @@ fn spend(work: &mut usize, count: usize, span: Span) -> R<()> {
 }
 
 pub(super) fn self_contained(
-    closures: &[closures::Pending],
-    root: ClosureId,
-    work: &mut usize,
-    span: Span,
+    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+) -> R<()> {
+    environment_shape(closures, root, work, span, false)
+}
+
+/// Source-side formation only. Escaping leaves still require actual CFG source
+/// proposals and independent kernel proofs; this grants no closed capability.
+pub(super) fn transportable(
+    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+) -> R<()> {
+    environment_shape(closures, root, work, span, true)
+}
+fn environment_shape(
+    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+    borrowed_leaves: bool,
 ) -> R<()> {
     let mut seen = BTreeSet::new();
     let mut pending = vec![root];
@@ -189,7 +200,8 @@ pub(super) fn self_contained(
         })?;
         spend(work, closure.captures.len(), span)?;
         for capture in &closure.captures {
-            if capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved) {
+            if !borrowed_leaves
+                && (capture.borrowed || (matches!(capture.ty, Type::Managed(_)) && !capture.moved)) {
                 return Err(unsupported(
                     span,
                     "retained callable environments cannot capture borrowed positions or descriptions",
@@ -198,6 +210,8 @@ pub(super) fn self_contained(
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
+                Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. }
+                    if borrowed_leaves => {}
                 ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
@@ -210,6 +224,32 @@ pub(super) fn self_contained(
         }
     }
     Ok(())
+}
+
+pub(super) fn transported_borrows(
+    closures: &[closures::Pending], root: ClosureId, work: &mut usize, span: Span,
+) -> R<(bool, bool)> {
+    let mut todo = vec![root];
+    let mut seen = BTreeSet::new();
+    let (mut external, mut writes) = (false, false);
+    while let Some(id) = todo.pop() {
+        spend(work, seen.len().saturating_add(1), span)?;
+        if !seen.insert(id) { continue; }
+        let closure = closures.get(id.0 as usize)
+            .ok_or_else(|| unsupported(span, "nested capture definition absent"))?;
+        spend(work, closure.captures.len(), span)?;
+        for capture in &closure.captures {
+            if let Type::Closure(child) = capture.ty { todo.push(child); }
+            let leaf = capture.borrowed
+                || matches!(capture.ty, Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. })
+                || matches!(capture.ty, Type::Managed(_)) && !capture.moved;
+            external |= leaf;
+            writes |= leaf && (capture.written
+                || matches!(capture.ty, Type::Desc(_))
+                || matches!(capture.ty, Type::Address { mutable: true, .. }) && capture.moved);
+        }
+    }
+    Ok((external, writes))
 }
 
 struct Dependencies<'a, 'b> {
@@ -691,6 +731,19 @@ impl Builder<'_, '_> {
                     span,
                     "returned closure captures must be self-contained Copy snapshots or owned Managed/Package values; escaping Address/Desc captures are not implemented",
                 ));
+            }
+        }
+        // A moved child owns its environment and can separately retain input
+        // targets. Those two obligations must both appear on the outer slot.
+        for index in 0..self.closures.pending[id.0 as usize].captures.len() {
+            let child = match self.closures.pending[id.0 as usize].captures[index].ty {
+                Type::Closure(child) => child,
+                _ => continue,
+            };
+            let (external, mutable) = self.closures.transported_borrows(child, span)?;
+            if external {
+                hold.push(index as u32);
+                if mutable { writes.push(index as u32); }
             }
         }
         if let Some(previous) = &self.function.callable_return_contract

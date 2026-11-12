@@ -2202,13 +2202,30 @@ fn seed_environment(
         };
         environment_leaf(value, path, &permission, b)
     };
-    for (index, capture) in d.captures.iter().enumerate() {
-        if matches!(capture, Type::Address { mutable: false, .. }) {
-            add(environment_path(index, &[], b)?, value, b)?;
-            if let Some((_, shape)) = pointed_carrier(capture) {
-                for leaf in &shape.slots {
-                    add(environment_path(index, &leaf.path, b)?, value, b)?;
+    let mut pending = vec![(d, Vec::new(), 0usize)];
+    while let Some((definition, prefix, depth)) = pending.pop() {
+        fee(b, definition.captures.len().saturating_add(prefix.len()))?;
+        if depth > b.partial_depth {
+            return Err(failure("nested environment seed exceeds its finite depth"));
+        }
+        for (index, capture) in definition.captures.iter().enumerate() {
+            let mut path = prefix.clone();
+            fee(b, path.len().saturating_add(1))?;
+            path.push(PlaceProjection::Field(index as u32));
+            if matches!(capture, Type::Address { mutable: false, .. }) {
+                add(path.clone(), value, b)?;
+                if let Some((_, shape)) = pointed_carrier(capture) {
+                    for leaf in &shape.slots {
+                        let mut nested = path.clone();
+                        fee(b, nested.len().saturating_add(leaf.path.len()))?;
+                        nested.extend_from_slice(&leaf.path);
+                        add(nested, value, b)?;
+                    }
                 }
+            } else if let Type::Closure(child) = capture {
+                let definition = module.closures.get(child.0 as usize)
+                    .ok_or_else(||failure("nested environment seed definition absent"))?;
+                pending.push((definition, path, depth + 1));
             }
         }
     }
@@ -2408,7 +2425,10 @@ fn seed(
     {
         for (index, ty) in d.captures.iter().enumerate() {
             fee(b, 1)?;
-            let value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            let mut value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            if matches!(ty, Type::Closure(_)) {
+                seed_environment(module, ty, HoldRoot::Capture(index as u32), &mut value, loans, b)?;
+            }
             ordered(b, state.captures.len(), 0)?;
             state.captures.insert(index as u32, value);
         }
@@ -3415,6 +3435,22 @@ fn transfer(
             }
             out.creation_complete = Some(complete);
         }
+        InstructionKind::BorrowCapture { index, .. }
+            if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                && f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                    .and_then(|definition|definition.captures.get(*index as usize))
+                    .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
+        {
+            let actual = state.captures.get(index)
+                .ok_or_else(||failure("nested captured environment has no actual frame value"))?;
+            out = snapshot(actual, b)?;
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                retained_port: None,
+                base: HoldRoot::Capture(*index),
+                stored: Vec::new(), place: Vec::new(), heap_element: None,
+            });
+        }
         InstructionKind::BorrowCapture {
             index,
             mutable: false,
@@ -3497,7 +3533,8 @@ fn transfer(
                 }
             }
         }
-        InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
+        InstructionKind::ReadCapture { index } | InstructionKind::TakeCapture { index }
+            if !state.captures.is_empty() => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
                 state
@@ -6171,6 +6208,15 @@ fn actual_instructions(
                     } else {
                         result(&callee.return_type, b)?;
                     }
+                }
+                InstructionKind::BorrowCapture { index, mutable }
+                    if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                        && f.environment.and_then(|id|module.closures.get(id.0 as usize))
+                            .and_then(|d|d.captures.get(*index as usize))
+                            .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
+                {
+                    let ty = &module.closures[f.environment.unwrap().0 as usize].captures[*index as usize];
+                    address_result(f, i, *mutable, ty, b)?;
                 }
                 InstructionKind::BorrowCapture {
                     index,

@@ -282,6 +282,8 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
     for (label, text) in [
         ("two-addresses", SOURCE.to_owned()),
         ("owned-projected-multiple", owned),
+        ("nested-borrowed", NESTED_BORROWED.to_owned()),
+        ("wrapped-borrowed", WRAPPED_BORROWED.to_owned()),
         ("holder-pointer", HOLDER_SOURCE.to_owned()),
         (
             "holder-pointer-replaced",
@@ -308,5 +310,26 @@ fn emit_untrusted_factory_candidates_for_independent_verify() {
             format!("{candidate:#?}"),
         )
         .unwrap();
+    }
+}
+
+const NESTED_BORROWED: &str = r#"
+fn make<life a>(pointer:&'a i32)->impl Fn()->i32{
+ let inner=move()=>*pointer
+ return move()=>inner()
+}
+fn main()->i32{let value=41;let outer=make(&value);return outer()-41}
+"#;
+const WRAPPED_BORROWED: &str = r#"
+fn wrap<F:Fn()->i32>(input:F)->impl Fn()->i32{return move()=>input()}
+fn main()->i32{let value=41;let pointer=&value;let inner=move()=>*pointer;let outer=wrap(inner);return outer()-41}
+"#;
+#[test]
+fn nested_borrowed_environments_propose_each_actual_leaf() {
+    for text in [NESTED_BORROWED,WRAPPED_BORROWED] {
+        let module=typed_source(text);
+        let contract=module.functions.iter().find_map(|function|function.callable_return_contract.as_ref()).unwrap();
+        assert!(contract.capture_sources.as_ref().unwrap().iter().any(|binding|binding.position.path.iter().any(|step|matches!(step,zil_ir::ContractProjection::Capture(_)))));
+        zil_analyze::analyze(&module,&Limits::default()).unwrap();
     }
 }

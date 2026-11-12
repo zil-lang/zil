@@ -510,6 +510,12 @@ impl State {
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::self_contained(&self.pending, id, &mut self.work_left, span)
     }
+    pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
+        retained::transportable(&self.pending, id, &mut self.work_left, span)
+    }
+    pub(super) fn transported_borrows(&mut self, id: ClosureId, span: Span) -> R<(bool, bool)> {
+        retained::transported_borrows(&self.pending, id, &mut self.work_left, span)
+    }
 
     pub fn new(ordinary_functions: usize, limits: &Limits) -> Self {
         Self {
@@ -963,7 +969,11 @@ impl State {
                 ));
             }
             if let Type::Closure(id) = capture.stored_type() {
-                retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                if capture.moved {
+                    retained::transportable(&self.pending, id, checker.work_left, capture.span)?;
+                } else {
+                    retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                }
                 if self.pending[id.0 as usize].owns_leaf_store {
                     *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
                         limit("owned Store child profile budget exceeded", capture.span)
