@@ -931,3 +931,53 @@ fn absent_environment_ranges_keep_original_unit_fees_and_short_credit_position()
         assert_eq!(call.stats.environment_functions_not_visited, 2);
     }
 }
+
+#[test]
+fn foreign_call_span_outside_current_unsafe_region_cannot_reuse_span_free_flow() {
+    let (mut module, mut plan) = foreign_pair();
+    let file = zil_base::FileId(0);
+    let f = &mut module.functions[0];
+    f.blocks[0].instructions[0].kind = InstructionKind::ForeignCall {
+        function: FunctionId(1),
+        arguments: vec![],
+        region: 0,
+    };
+    f.blocks[0].instructions[0].span = Span::new(file, 110, 120);
+    f.blocks[0].instructions.insert(
+        0,
+        Instruction {
+            result: None,
+            kind: InstructionKind::UnsafeEnter { region: 0 },
+            span: Span::new(file, 100, 150),
+        },
+    );
+    f.blocks[0].instructions.insert(
+        2,
+        Instruction {
+            result: None,
+            kind: InstructionKind::UnsafeExit { region: 0 },
+            span: Span::new(file, 149, 150),
+        },
+    );
+    plan.module_fingerprint = module.structural_fingerprint();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    product(&mut session, &module, &plan, &limits).unwrap();
+    let mut invalid = module.clone();
+    invalid.functions[0].blocks[0].instructions[1].span = Span::new(file, 160, 170);
+    assert!(same_function(&module.functions[0], &invalid.functions[0]));
+    let mut stale = plan.clone();
+    stale.module_fingerprint = invalid.structural_fingerprint();
+    assert!(stale.functions.ptr_eq(&plan.functions));
+    oracle(&mut session, &invalid, &stale, &limits);
+    let errors = product(&mut session, &invalid, &stale, &limits).unwrap_err();
+    assert_eq!(errors[0].code, "E-VERIFY-UNSAFE");
+    assert!(
+        errors[0]
+            .message
+            .contains("outside its lexical unsafe span")
+    );
+    assert_eq!(session.stats().region_functions_checked, 1);
+    product(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().region_functions_reused, 1);
+}
