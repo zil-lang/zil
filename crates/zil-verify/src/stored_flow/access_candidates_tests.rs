@@ -191,6 +191,7 @@ fn step_candidates_preserve_full_old_results_requirement_order_and_error_prefixe
     for flags in 0..16 {
         let mut loans = (0..4)
             .map(|id| Loan {
+                receiver_head: false,
                 sources: vec![source(
                     HoldRoot::Parameter(if id == 1 { 0 } else { id + 1 }),
                     vec![],
@@ -315,6 +316,7 @@ fn complete_call_oracle_preserves_held_leaf_argument_and_summary_checks() {
                 ..Frame::default()
             };
             let mut loans = vec![Loan {
+                receiver_head: false,
                 sources: vec![source(
                     HoldRoot::Parameter(if mode == 1 { 4 } else { 12 }),
                     vec![],
@@ -518,6 +520,7 @@ fn fresh_tables_real_growth_head_order_and_exact_read_work_are_prepaid() {
     }
     let exclusive = vec![
         Loan {
+            receiver_head: false,
             exclusive: true,
             ..Loan::default()
         };

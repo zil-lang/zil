@@ -222,5 +222,7 @@ mod source_receiver_contracts {
     }
 }
 
-consumer!(exclusive_capture_shared_view_keeps_the_live_receiver,
-    "captured-exclusive-short-view");
+consumer!(
+    exclusive_capture_shared_view_keeps_the_live_receiver,
+    "captured-exclusive-short-view"
+);

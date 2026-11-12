@@ -527,6 +527,7 @@ struct Frame {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
+    receiver_head: bool,
     sources: Vec<Source>,
     parents: Vec<usize>,
     exclusive: bool,
@@ -2390,6 +2391,7 @@ fn seed_payload(
         b.spend(3)?;
         let id = loans.len();
         loans.push(Loan {
+            receiver_head: false,
             sources: vec![source.clone()],
             parents: Vec::new(),
             exclusive: *mutable,
@@ -2416,6 +2418,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: mode == StoredBorrowMode::ExclusiveAddress,
@@ -2454,6 +2457,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: false,
@@ -2482,6 +2486,7 @@ fn seed_payload(
             };
             let id = loans.len();
             loans.push(Loan {
+                receiver_head: false,
                 sources: vec![source.clone()],
                 parents: Vec::new(),
                 exclusive: slot.mode == StoredBorrowMode::ExclusiveAddress,
@@ -3815,6 +3820,14 @@ fn step(
             if b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
                     let actual = instantiate(module, f, parent, arguments, values, state, b)?;
+                    if b.closure_receiver_borrows && receiver::helper_head(callee, parent) {
+                        b.spend(actual.loans.len())?;
+                        for id in &actual.loans {
+                            loans.get_mut(*id)
+                                .ok_or_else(|| err("actual helper head loan is absent"))?
+                                .receiver_head = true;
+                        }
+                    }
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
                 }
             }
@@ -6885,6 +6898,9 @@ fn solve_check(
                 // and Store-element payload windows in this dual profile.
                 continue;
             }
+            let receiver_sources = if b.closure_receiver_borrows {
+                receiver::held_sources(p, solution, b)?
+            } else { Vec::new() };
             let mut actual = BTreeSet::new();
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
@@ -6894,6 +6910,7 @@ fn solve_check(
                 .sources
                 .iter()
                 .chain(p.store_description.sources.iter())
+                .chain(receiver_sources.iter())
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
                 .chain(

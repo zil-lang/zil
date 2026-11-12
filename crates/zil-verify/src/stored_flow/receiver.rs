@@ -52,7 +52,7 @@ pub(super) fn add_site(
             }
     );
     let id = loans.len();
-    loans.push(Loan::default());
+    loans.push(Loan { receiver_head: true, ..Loan::default() });
     sites.push((
         i as *const Instruction as usize,
         HEAD_SITE,
@@ -246,4 +246,38 @@ pub(super) fn parameter_head_result(
         }
     }
     Ok(false)
+}
+
+/// Public Hold includes the real receiver debt, while pointer sources remain
+/// the data targets. Only independently created head loans contribute here.
+pub(super) fn held_sources(p: &Payload, solution: &Solution, b: &mut Budget) -> Check<Vec<Source>> {
+    let mut starts = Vec::new();
+    for permission in std::iter::once(&p.address)
+        .chain(std::iter::once(&p.store_description))
+        .chain(p.leaves.iter().map(|(_, permission)| permission))
+        .chain(p.task_ports.iter().map(|(_, permission)| permission))
+        .chain(p.dyn_ports.0.iter().map(|(_, row)| &row.permission))
+    {
+        add_loans(&mut starts, &permission.loans, b)?;
+    }
+    let parents = ancestry(&starts, &solution.loans, b)?;
+    let mut sources = Vec::new();
+    for parent in parents {
+        b.spend(1)?;
+        let loan = solution.loans.get(parent)
+            .ok_or_else(|| err("receiver Hold ancestry exceeds actual loan arena"))?;
+        if loan.receiver_head { add_sources(&mut sources, &loan.sources, b)?; }
+    }
+    Ok(sources)
+}
+
+pub(super) fn helper_head(callee: &TypedFunction, source: &Source) -> bool {
+    let HoldRoot::Parameter(index) = source.base else { return false };
+    source.leaf.is_empty() && source.inline.is_empty()
+        && source.retained_port.is_none() && source.heap_element.is_none()
+        && source.heap_parents.is_empty()
+        && callee.parameters.get(index as usize)
+            .and_then(|local| callee.locals.get(local.0 as usize))
+            .is_some_and(|local| matches!(&local.ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Closure(_))))
 }
