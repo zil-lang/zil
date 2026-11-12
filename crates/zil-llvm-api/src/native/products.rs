@@ -63,6 +63,10 @@ mod enabled {
     }
     unsafe extern "C" {
         #[cfg(test)]
+        fn ZilNativeProductsOwnedUseOrderCounterexample() -> c_int;
+        #[cfg(test)]
+        fn ZilNativeProductsIncomingCallerCounterexample() -> c_int;
+        #[cfg(test)]
         fn ZilNativeProductsAnalysisDiagnostics(enabled: c_int) -> c_int;
         #[cfg(test)]
         fn ZilNativeProductsMachineDiagnostics(enabled: c_int) -> c_int;
@@ -340,6 +344,29 @@ mod enabled {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn owned_use_order_distinguishes_equal_official_function_text() {
+            // SAFETY: the synchronous C++ counterexample owns and destroys its
+            // LLVM context, module and uses before returning a scalar result.
+            // A successful observation grants no native reuse authority.
+            let result = unsafe { ZilNativeProductsOwnedUseOrderCounterexample() };
+            assert_eq!(
+                result, 1,
+                "real reversed LLVM use order must collide in official text, differ in the complete key, and restore exactly"
+            );
+        }
+
+        #[test]
+        fn unmappable_incoming_caller_never_authorizes_callee_reuse() {
+            // SAFETY: the independent C++ fixture retains every LLVM owner
+            // locally and returns only its complete counterexample outcome.
+            let result = unsafe { ZilNativeProductsIncomingCallerCounterexample() };
+            assert_eq!(
+                result, 1,
+                "plain caller must be admitted, while distinct blockaddress callers must both reject reuse rather than share an empty key"
+            );
+        }
 
         #[test]
         fn native_stats_wire_matches_the_twenty_two_u64_c_fields() {
