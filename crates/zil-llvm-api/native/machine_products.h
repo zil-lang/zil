@@ -19,4 +19,7 @@ std::unique_ptr<MachineRequest, void(*)(MachineRequest*)> createMachine(
 int beforeMachine(MachineRequest &, llvm::Pass &, llvm::Function &, llvm::MachineModuleInfo &);
 int machineWasSkipped(MachineRequest &, llvm::Pass &, llvm::Function &);
 }
+// Explicit synchronous test/probe scope only; returns the prior thread mode.
+// Diagnostics never enable reuse, relax a guard, or change a work budget.
+extern "C" int ZilNativeProductsMachineDiagnostics(int enabled);
 #endif
