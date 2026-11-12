@@ -25,7 +25,7 @@
 +      Hooks->before_machine_pass(Hooks->context, this, &F, &MMI))
 +    return false;
 +
-@@ -160,0 +183,67 @@
+@@ -160,0 +183,76 @@
 +
 +// Resident X86 MFI copy: no LLVM-owner pointers may cross a request. The sole
 +// PreallocatedIds writer is the IsPreallocated call-lowering path in fixed7a
@@ -92,6 +92,15 @@
 +
 +extern "C" LLVM_ABI const void *ZilLLVMAsmPrinterPassID() {
 +  return &llvm::X86AsmPrinter::ID;
++}
++
++extern "C" LLVM_ABI int ZilLLVMRestoreMachineBlockNumbers(
++    void *IR, unsigned Capacity, unsigned Next, unsigned Epoch,
++    const unsigned *Numbers, const unsigned *AnalysisNumbers, uint64_t Count) {
++  if (!IR || ((!Numbers || !AnalysisNumbers) && Count)) return 0;
++  return static_cast<llvm::MachineFunction *>(IR)->zilRestoreProductBlockNumbers(
++      Capacity, Next, Epoch, llvm::ArrayRef<unsigned>(Numbers, Count),
++      llvm::ArrayRef<unsigned>(AnalysisNumbers, Count));
 +}
 --- a/llvm/include/llvm/IR/PassManagerImpl.h
 +++ b/llvm/include/llvm/IR/PassManagerImpl.h
@@ -290,4 +299,36 @@
 +    Scanned = State & 1;
 +    return true;
 +  }
++
+--- a/llvm/include/llvm/CodeGen/MachineFunction.h
++++ b/llvm/include/llvm/CodeGen/MachineFunction.h
+@@ -18,0 +19 @@
++#include <climits>
+@@ -935,0 +937,27 @@
++  // Restore a sealed resident product's original numbering, including holes.
++  // Current MBB owners/layout and current MMI FunctionNumber are retained.
++  bool zilRestoreProductBlockNumbers(unsigned Capacity, unsigned Next,
++      unsigned Epoch, ArrayRef<unsigned> Numbers,
++      ArrayRef<unsigned> AnalysisNumbers) {
++    if (Numbers.size() != size() || AnalysisNumbers.size() != size() ||
++        Capacity > (64 * 1024 * 1024) / sizeof(MachineBasicBlock *)) return false;
++    DenseSet<unsigned> IDs, AnalysisIDs;
++    for (unsigned I = 0; I != Numbers.size(); ++I)
++      if (Numbers[I] >= Capacity || Numbers[I] > unsigned(INT_MAX) ||
++          AnalysisNumbers[I] >= Next || AnalysisNumbers[I] > unsigned(INT_MAX) ||
++          !IDs.insert(Numbers[I]).second ||
++          !AnalysisIDs.insert(AnalysisNumbers[I]).second) return false;
++    std::vector<MachineBasicBlock *> NewTable(Capacity, nullptr);
++    unsigned I = 0;
++    for (MachineBasicBlock &BB : *this) NewTable[Numbers[I++]] = &BB;
++    I = 0;
++    for (MachineBasicBlock &BB : *this) {
++      BB.setNumber(Numbers[I]); BB.setAnalysisNumber(AnalysisNumbers[I]); ++I;
++    }
++    MBBNumbering.swap(NewTable);
++    NextAnalysisNumber = Next;
++    AnalysisNumberingEpoch = Epoch;
++    return true;
++  }
++
 +
