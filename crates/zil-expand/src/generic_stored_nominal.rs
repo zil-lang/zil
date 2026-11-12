@@ -439,9 +439,16 @@ impl<'a> Engine<'a> {
             }
         }
         let mut occurrences = Vec::new();
-        let mut stored = if let Some(ty)=function.return_type.as_ref().filter(|ty|callable::opaque_signature(ty).is_some()) {
-            !self.life_scope.is_empty() && callable_return_context::named_life(ty,&mut self.budget)?
-        } else {false};
+        let mut stored = if let Some(ty) = function
+            .return_type
+            .as_ref()
+            .filter(|ty| callable::opaque_signature(ty).is_some())
+        {
+            !self.life_scope.is_empty()
+                && callable_return_context::named_life(ty, &mut self.budget)?
+        } else {
+            false
+        };
         let mut callable_data_profile = true;
         let mut callable_receivers = 0usize;
         let mut next_elided = u32::try_from(self.life_scope.len())

@@ -102,7 +102,7 @@ pub(crate) fn populate(
 ) -> R<()> {
     let mut updates = Vec::new();
     for (id, record) in bounds {
-        let bound=&record.bound;
+        let bound = &record.bound;
         let Some(proposal) = &bound.life else {
             if bound.source_life.is_some() {
                 return Err(invalid(
@@ -117,10 +117,15 @@ pub(crate) fn populate(
             .get(id.0 as usize)
             .ok_or_else(|| invalid(Span::default(), "return bound has no actual creator"))?;
         inference::charge_returned_value_snapshot(bound, f.span, limits, left)?;
-        if let Some(context)=&bound.source_life {
-            let scope=record.source_scope.as_ref().ok_or_else(||invalid(f.span,"returned callable has no actual original Core owner scope"))?;
-            inference::charge_function_scope_snapshot(Some(scope),f.span,limits,left)?;
-            super::source_scope::check(scope,context,f,left)?;
+        if let Some(context) = &bound.source_life {
+            let scope = record.source_scope.as_ref().ok_or_else(|| {
+                invalid(
+                    f.span,
+                    "returned callable has no actual original Core owner scope",
+                )
+            })?;
+            inference::charge_function_scope_snapshot(Some(scope), f.span, limits, left)?;
+            super::source_scope::check(scope, context, f, left)?;
         }
 
         let returned = f

@@ -679,7 +679,7 @@ pub(super) struct Facts {
     // This is derived from actual terminal states, never a type/life claim.
     external_stable: BTreeSet<(u32, Path)>,
     capture_after: BTreeMap<Path, Vec<Target>>,
-    capture_stable:BTreeSet<Path>,
+    capture_stable: BTreeSet<Path>,
     /// Actual entry-head ancestry of every reachable returned permission.
     receiver_return: bool,
     /// Structural callable input heads needed by the result, separate from
@@ -942,11 +942,21 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
         value.work(b)?;
     }
     f.returned_variants.work(b)?;
-    if f.receiver_return {fee(b,1)?;}
-    if !f.returned_head_inputs.is_empty() {fee(b,f.returned_head_inputs.len())?;}
-    if !f.capture_taken.is_empty() {fee(b,f.capture_taken.len())?;}
-    for (_,path) in &f.external_stable {fee(b,path.len().saturating_add(1))?;}
-    for path in &f.capture_stable {fee(b,path.len().saturating_add(1))?;}
+    if f.receiver_return {
+        fee(b, 1)?;
+    }
+    if !f.returned_head_inputs.is_empty() {
+        fee(b, f.returned_head_inputs.len())?;
+    }
+    if !f.capture_taken.is_empty() {
+        fee(b, f.capture_taken.len())?;
+    }
+    for (_, path) in &f.external_stable {
+        fee(b, path.len().saturating_add(1))?;
+    }
+    for path in &f.capture_stable {
+        fee(b, path.len().saturating_add(1))?;
+    }
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
     }
@@ -6704,10 +6714,16 @@ fn derive_cfg(
                 external_after: BTreeMap::new(),
                 external_stable: BTreeSet::new(),
                 capture_after: BTreeMap::new(),
-                capture_stable:BTreeSet::new(),
-                receiver_return: f.environment.is_some() && f.storage_life.as_ref().is_some_and(|life|
-                    super::signature_life::outer(life,StorageBase::Receiver).is_some_and(|receiver|
-                        super::signature_life::outer(life,StorageBase::Result)==Some(receiver))),
+                capture_stable: BTreeSet::new(),
+                receiver_return: f.environment.is_some()
+                    && f.storage_life.as_ref().is_some_and(|life| {
+                        super::signature_life::outer(life, StorageBase::Receiver).is_some_and(
+                            |receiver| {
+                                super::signature_life::outer(life, StorageBase::Result)
+                                    == Some(receiver)
+                            },
+                        )
+                    }),
                 returned_head_inputs: BTreeSet::new(),
                 capture_taken: BTreeSet::new(),
                 apart: BTreeSet::new(),
@@ -6785,36 +6801,53 @@ fn derive_cfg(
                         continue;
                     };
                     for path in rows.keys() {
-                        ordered(b,actual.external_stable.len(),path.len())?;
-                        fee(b,path.len().saturating_add(1))?;
-                        actual.external_stable.insert((*parameter,path.clone()));
+                        ordered(b, actual.external_stable.len(), path.len())?;
+                        fee(b, path.len().saturating_add(1))?;
+                        actual.external_stable.insert((*parameter, path.clone()));
                     }
                 }
             }
-            if let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
-                && capture_after::required(module,d,b)? {
-                for (path,_) in capture_after::outputs(module,d,b)? {
-                    if capture_after::row(d,&entry,&path,b)?.is_some() {
-                        ordered(b,actual.capture_stable.len(),path.len())?;
+            if let Some(d) = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                && capture_after::required(module, d, b)?
+            {
+                for (path, _) in capture_after::outputs(module, d, b)? {
+                    if capture_after::row(d, &entry, &path, b)?.is_some() {
+                        ordered(b, actual.capture_stable.len(), path.len())?;
                         actual.capture_stable.insert(path);
                     }
                 }
             }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
-                if *live && matches!(block.terminator,Terminator::Return(_))
-                    && let Some(d)=f.environment.and_then(|id|module.closures.get(id.0 as usize))
-                    && capture_after::required(module,d,b)? {
-                    let mut changed_rows=Vec::new();
+                if *live
+                    && matches!(block.terminator, Terminator::Return(_))
+                    && let Some(d) = f
+                        .environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                    && capture_after::required(module, d, b)?
+                {
+                    let mut changed_rows = Vec::new();
                     for path in &actual.capture_stable {
-                        let initial=capture_after::row(d,&entry,path,b)?;
-                        let terminal=capture_after::row(d,&outputs[bi],path,b)?;
-                        if let Some(p)=initial {permission_clone_work(p,b)?;}
-                        if let Some(p)=terminal {permission_clone_work(p,b)?;}
-                        if initial!=terminal {fee(b,path.len())?;changed_rows.push(path.clone());}
+                        let initial = capture_after::row(d, &entry, path, b)?;
+                        let terminal = capture_after::row(d, &outputs[bi], path, b)?;
+                        if let Some(p) = initial {
+                            permission_clone_work(p, b)?;
+                        }
+                        if let Some(p) = terminal {
+                            permission_clone_work(p, b)?;
+                        }
+                        if initial != terminal {
+                            fee(b, path.len())?;
+                            changed_rows.push(path.clone());
+                        }
                     }
-                    for path in changed_rows {ordered(b,actual.capture_stable.len(),path.len())?;actual.capture_stable.remove(&path);}
-                    capture_after::summarize(module,f,&outputs[bi],&mut actual,b)?;
+                    for path in changed_rows {
+                        ordered(b, actual.capture_stable.len(), path.len())?;
+                        actual.capture_stable.remove(&path);
+                    }
+                    capture_after::summarize(module, f, &outputs[bi], &mut actual, b)?;
                 }
                 if b.stored_slot_updates
                     && *live
@@ -6842,7 +6875,10 @@ fn derive_cfg(
                     for row in changed_rows {
                         actual.external_stable.remove(&row);
                     }
-                    for row in changed_rows {ordered(b,actual.external_stable.len(),row.1.len())?;actual.external_stable.remove(&row);}
+                    for row in changed_rows {
+                        ordered(b, actual.external_stable.len(), row.1.len())?;
+                        actual.external_stable.remove(&row);
+                    }
                     for (base, slots) in &outputs[bi].external {
                         let HoldRoot::Parameter(index) = base else {
                             continue;
@@ -6889,10 +6925,15 @@ fn derive_cfg(
                 }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
-                    if let Some(marker)=entry.receiver_loan
-                        && f.environment.and_then(|id|module.closures.get(id.0 as usize)).is_some_and(super::stored_callables::fixed_result)
-                        && ancestry(&value.pointer.loans,&loans,b)?.contains(&marker) {
-                        return Err(failure("a Fixed result cannot erase its actual receiver-head dependency"));
+                    if let Some(marker) = entry.receiver_loan
+                        && f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .is_some_and(super::stored_callables::fixed_result)
+                        && ancestry(&value.pointer.loans, &loans, b)?.contains(&marker)
+                    {
+                        return Err(failure(
+                            "a Fixed result cannot erase its actual receiver-head dependency",
+                        ));
                     }
                     if actual.receiver_return {
                         let marker = entry.receiver_loan.ok_or_else(|| {

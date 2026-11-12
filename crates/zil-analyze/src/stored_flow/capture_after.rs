@@ -267,9 +267,13 @@ pub(super) fn summarize(
             for (path, p) in value.slots.iter().chain(&value.environment) {
                 add(path, p)?;
             }
-        } else if matches!(ty, Type::Closure(_)) && definition.kind == CallableKind::FnOnce
-            && let Some(rows) = state.external.get(&HoldRoot::Capture(index)) {
-            for (path, p) in rows {add(path, p)?;}
+        } else if matches!(ty, Type::Closure(_))
+            && definition.kind == CallableKind::FnOnce
+            && let Some(rows) = state.external.get(&HoldRoot::Capture(index))
+        {
+            for (path, p) in rows {
+                add(path, p)?;
+            }
         }
     }
     Ok(())
@@ -278,22 +282,52 @@ pub(super) fn summarize(
 // The physical row from the authenticated frame/actual external pointee.
 // This is for exact entry/terminal identity proof, not target reconstruction
 // from a nominal type or a declared equality class.
-pub(super) fn row<'a>(d:&ClosureDefinition,state:&'a State,path:&Path,b:&mut Budget)->CompileResult<Option<&'a Permission>> {
-    let Some((PlaceProjection::Field(index),tail))=path.split_first() else {return Err(failure("capture identity row has no actual capture selector"));};
-    let ty=d.captures.get(*index as usize).ok_or_else(||failure("capture identity selects an absent field"))?;
-    ordered(b,state.captures.len(),tail.len())?;
-    let value=state.captures.get(index);
-    if tail.is_empty() && let Some(value)=value && !value.pointer.targets.is_empty() {return Ok(Some(&value.pointer));}
+pub(super) fn row<'a>(
+    d: &ClosureDefinition,
+    state: &'a State,
+    path: &Path,
+    b: &mut Budget,
+) -> CompileResult<Option<&'a Permission>> {
+    let Some((PlaceProjection::Field(index), tail)) = path.split_first() else {
+        return Err(failure(
+            "capture identity row has no actual capture selector",
+        ));
+    };
+    let ty = d
+        .captures
+        .get(*index as usize)
+        .ok_or_else(|| failure("capture identity selects an absent field"))?;
+    ordered(b, state.captures.len(), tail.len())?;
+    let value = state.captures.get(index);
+    if tail.is_empty()
+        && let Some(value) = value
+        && !value.pointer.targets.is_empty()
+    {
+        return Ok(Some(&value.pointer));
+    }
     if super::super::stored_callables::mutable_context_capture(ty) {
-        ordered(b,state.external.len(),tail.len())?;
-        return Ok(state.external.get(&HoldRoot::Capture(*index)).and_then(|rows|rows.get(tail)));
+        ordered(b, state.external.len(), tail.len())?;
+        return Ok(state
+            .external
+            .get(&HoldRoot::Capture(*index))
+            .and_then(|rows| rows.get(tail)));
     }
-    if let Some(value)=value {
-        ordered(b,value.slots.len().saturating_add(value.environment.len()),tail.len())?;
-        return Ok(value.slots.get(tail).or_else(||value.environment.get(tail)));
+    if let Some(value) = value {
+        ordered(
+            b,
+            value.slots.len().saturating_add(value.environment.len()),
+            tail.len(),
+        )?;
+        return Ok(value
+            .slots
+            .get(tail)
+            .or_else(|| value.environment.get(tail)));
     }
-    ordered(b,state.external.len(),tail.len())?;
-    Ok(state.external.get(&HoldRoot::Capture(*index)).and_then(|rows|rows.get(tail)))
+    ordered(b, state.external.len(), tail.len())?;
+    Ok(state
+        .external
+        .get(&HoldRoot::Capture(*index))
+        .and_then(|rows| rows.get(tail)))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -403,12 +437,20 @@ pub(super) fn invoke(
         // An unsolved summary is bottom during finite iteration. Final
         // completeness authenticates every actual leaf before windows run.
         if !permission.targets.is_empty() {
-            ordered(b,summary.capture_stable.len(),path.len())?;
+            ordered(b, summary.capture_stable.len(), path.len())?;
             if summary.capture_stable.contains(&path) {
-                ordered(b,receiver.environment.len(),path.len())?;
-                let previous=receiver.environment.get(&path).ok_or_else(||failure("stable capture effect omits actual previous row"))?;
-                permission_clone_work(previous,b)?;permission_clone_work(&permission,b)?;
-                if *previous!=permission {return Err(failure("stable capture effect changed actual targets or loans"));}
+                ordered(b, receiver.environment.len(), path.len())?;
+                let previous = receiver
+                    .environment
+                    .get(&path)
+                    .ok_or_else(|| failure("stable capture effect omits actual previous row"))?;
+                permission_clone_work(previous, b)?;
+                permission_clone_work(&permission, b)?;
+                if *previous != permission {
+                    return Err(failure(
+                        "stable capture effect changed actual targets or loans",
+                    ));
+                }
             } else {
                 permission = retain_slot(&permission, i, u32::MAX - 1, &path, ids, loans, b)?;
             }

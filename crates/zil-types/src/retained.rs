@@ -4,11 +4,11 @@
 use super::*;
 use std::collections::BTreeSet;
 mod return_life;
-mod sources;
 mod source_scope;
+mod sources;
 pub(crate) struct ReturnedLifeBound {
-    pub bound:CoreCallableReturn,
-    pub source_scope:Option<CoreFunctionSourceScope>,
+    pub bound: CoreCallableReturn,
+    pub source_scope: Option<CoreFunctionSourceScope>,
 }
 pub(super) use return_life::populate as populate_return_lives;
 pub(super) use sources::check_contexts;
