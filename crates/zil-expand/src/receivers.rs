@@ -353,6 +353,7 @@ impl Expander<'_> {
         };
         self.functions.push(CoreFunction {
             retained_return_sources: None,
+            source_scope: None,
             storage_life: None,
             call_kind,
             resume_bound,

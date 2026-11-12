@@ -63,6 +63,7 @@ fn program() -> CoreProgram {
                 unsupported: vec![],
                 functions: vec![CoreFunction {
                     retained_return_sources: None,
+                    source_scope: None,
                     storage_life: None,
                     call_kind: None,
                     resume_bound: zil_ir::TaskResumeBound::Local,

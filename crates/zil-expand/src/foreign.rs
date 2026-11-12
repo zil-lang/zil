@@ -65,6 +65,7 @@ impl Expander<'_> {
             .map_or(Type::Unit, |t| self.type_ref(t));
         self.functions.push(CoreFunction {
             retained_return_sources: None,
+            source_scope: None,
             storage_life: None,
             call_kind: Some(CallKind::Direct),
             resume_bound: zil_ir::TaskResumeBound::Local,

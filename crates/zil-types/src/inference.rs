@@ -87,6 +87,7 @@ impl<'a> Budget<'a> {
 /// reuses the borrowed input walk, so nested statements/types and text all count.
 pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
     let mut budget = Budget::new(limits);
+    function_scope_metadata(function.source_scope.as_ref(),function.span,&mut budget)?;
     lifetimes::preflight(function, &mut budget.work)?;
     budget.work(
         function
@@ -664,6 +665,7 @@ fn headers(
                 ));
             }
         }
+        function_scope_metadata(function.source_scope.as_ref(),function.span,budget)?;
         budget.work(function.name.len(), function.span)?;
         if let Some(foreign) = &function.foreign {
             budget.work(
@@ -876,6 +878,7 @@ pub(super) fn snapshot_context_function(
     limits: &Limits,
     left: &mut usize,
 ) -> R<CoreFunction> {
+    charge_function_scope_snapshot(function.source_scope.as_ref(),function.span,limits,left)?;
     for contract in &function.protocol_contracts {
         registration::charge_contract(contract, |work| {
             *left = left.checked_sub(work).ok_or_else(|| {
@@ -904,6 +907,7 @@ pub(super) fn snapshot_context_function(
     }
     Ok(CoreFunction {
         retained_return_sources: function.retained_return_sources.clone(),
+        source_scope: function.source_scope.clone(),
         storage_life: function.storage_life.clone(),
         call_kind: function.call_kind,
         resume_bound: function.resume_bound,
@@ -1214,6 +1218,24 @@ pub(super) fn charge_returned_value_snapshot(
     budget.work = *left;
     returned_snapshot(bound, span, &mut budget)?;
     *left = budget.work;
+    Ok(())
+}
+pub(super) fn charge_function_scope_snapshot(scope:Option<&CoreFunctionSourceScope>,span:Span,limits:&Limits,left:&mut usize)->R<()> {
+    let mut budget=Budget::new(limits);
+    budget.work = *left;
+    function_scope_metadata(scope,span,&mut budget)?;
+    *left=budget.work;
+    Ok(())
+}
+fn function_scope_metadata(scope:Option<&CoreFunctionSourceScope>,span:Span,budget:&mut Budget<'_>)->R<()> {
+    let Some(scope)=scope else {return Ok(());};
+    let (nodes,work)=core_function_scope_metadata_cost(scope,budget.nodes,budget.limits.max_call_depth,budget.work)
+        .ok_or_else(||Diagnostic::limit(Phase::Types,"function source scope exceeds metadata bounds",Some(span)))?;
+    budget.work(work,span)?;
+    budget.nodes=budget.nodes.checked_sub(nodes).ok_or_else(||Diagnostic::limit(Phase::Types,"function source scope exceeds node budget",Some(span)))?;
+    for formal in &scope.parameters {
+        if let LifeParameterKind::Const(ty)=formal {validate_type(ty,0,span,budget)?;}
+    }
     Ok(())
 }
 fn returned_metadata(bound: &CoreCallableReturn, span: Span, budget: &mut Budget<'_>) -> R<()> {
