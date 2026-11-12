@@ -181,7 +181,7 @@ pub(super) fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> Typed
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions: vec![main.finish(result), entry.finish(result_entry)],
+        functions: vec![main.finish(result), entry.finish(result_entry)].into(),
         closures: vec![ClosureDefinition {
             storage_life: None,
             lending_captures: Vec::new(),

@@ -982,7 +982,7 @@ fn direct_capture_fixture() -> (TypedModule, Vec<FunctionGraph>) {
         },
     )];
     helper.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
-    module.functions = vec![caller, helper];
+    module.functions = vec![caller, helper].into();
     module.closures = vec![ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),

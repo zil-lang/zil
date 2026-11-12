@@ -166,7 +166,7 @@ fn whole_package(fresh: bool) -> TypedModule {
             ),
         ],
     );
-    module.functions = vec![caller];
+    module.functions = vec![caller].into();
     module
 }
 fn whole_check(module: &TypedModule) -> Check<()> {
@@ -249,7 +249,7 @@ fn whole_helper(fresh: bool) -> TypedModule {
             vec![ValueId(3), ValueId(4)]
         },
     };
-    module.functions = vec![helper, caller];
+    module.functions = vec![helper, caller].into();
     module
 }
 

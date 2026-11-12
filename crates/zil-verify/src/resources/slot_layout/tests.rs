@@ -114,7 +114,7 @@ fn effect_fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
-        functions,
+        functions: functions.into(),
         closures: vec![],
         resources: vec![ResourceDefinition {
             name: "EffectToken".into(),

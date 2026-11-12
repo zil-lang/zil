@@ -12,6 +12,9 @@
 //! local loan obligations, with original stage fees replayed. A cached CFG or
 //! empty-source fact is never a callee-effect or ownership proof.
 use super::*;
+pub(super) mod inventory;
+mod raw_tree;
+pub(super) mod shapes;
 
 #[cfg(test)]
 mod tests;
@@ -28,6 +31,15 @@ pub struct VerifyStats {
     pub empty_borrow_proofs_reused: usize,
     /// Empty per-SSA root vectors not allocated by this invocation.
     pub empty_borrow_values_avoided: usize,
+    pub raw_shape_functions_checked: usize,
+    pub raw_shape_functions_reused: usize,
+    pub raw_inventory_functions_checked: usize,
+    pub raw_inventory_functions_reused: usize,
+    /// Functions covered by checker-owned aggregate raw-shape obligations.
+    pub raw_shape_functions_aggregated: usize,
+    pub raw_shape_ranges_reused: usize,
+    pub raw_result_modes_checked: usize,
+    pub raw_result_modes_reused: usize,
 }
 
 /// One retained successful epoch, with independently produced local receipts.
@@ -37,6 +49,9 @@ pub struct VerifySession {
     verified: Option<VerifiedModule>,
     flows: Arc<BTreeMap<FunctionId, Arc<FlowReceipt>>>,
     empty_borrows: Arc<BTreeMap<FunctionId, borrows::EmptyContext>>,
+    shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
+    inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
+    shape_tree: Option<Arc<raw_tree::Node>>,
     stats: VerifyStats,
 }
 
@@ -60,6 +75,7 @@ impl VerifySession {
             VerifiedInputs::SharedModule { module, plan },
             expected_target,
             limits,
+            VerificationIdentity::Wire,
         )
     }
 
@@ -74,6 +90,25 @@ impl VerifySession {
             VerifiedInputs::SharedProgram { program, plan },
             expected_target,
             limits,
+            VerificationIdentity::Wire,
+        )
+    }
+
+    /// Verify a current persistent raw program and candidate using the explicit
+    /// product identity domain. The tree hash is an identity comparison only;
+    /// each independently cached obligation still binds its actual raw inputs.
+    pub fn verify_product_program_module(
+        &mut self,
+        program: Arc<TypedProgram>,
+        plan: Arc<CandidatePlan>,
+        expected_target: &TargetProfile,
+        limits: &Limits,
+    ) -> CompileResult<VerifiedModule> {
+        self.verify(
+            VerifiedInputs::SharedProgram { program, plan },
+            expected_target,
+            limits,
+            VerificationIdentity::Product,
         )
     }
 
@@ -82,9 +117,11 @@ impl VerifySession {
         inputs: VerifiedInputs,
         expected_target: &TargetProfile,
         limits: &Limits,
+        identity: VerificationIdentity,
     ) -> CompileResult<VerifiedModule> {
         self.stats = VerifyStats::default();
         if let Some(previous) = &self.verified
+            && previous.identity == identity
             && previous.limits() == limits
             && previous.module().target == *expected_target
             && same_allocations(&previous.inputs, &inputs)
@@ -101,27 +138,121 @@ impl VerifySession {
         let mut attempt = Attempt {
             previous: &self.flows,
             previous_empty_borrows: &self.empty_borrows,
+            previous_shapes: &self.shapes,
+            previous_inventory: &self.inventory,
             previous_inputs: self.verified.as_ref(),
+            delta: None,
+            previous_shape_tree: self.shape_tree.as_ref(),
+            next_shape_tree: None,
             next: BTreeMap::new(),
             next_empty_borrows: BTreeMap::new(),
+            next_shapes: self.shapes.clone(),
+            next_inventory: self.inventory.clone(),
             bound_plans: BTreeMap::new(),
             bound_closures: None,
             bound_functions: BTreeMap::new(),
             stats: VerifyStats::default(),
         };
-        let result = verify_inputs_with_reuse(inputs, expected_target, limits, Some(&mut attempt));
+        let result = verify_inputs_with_identity(
+            inputs,
+            expected_target,
+            limits,
+            Some(&mut attempt),
+            identity,
+        );
         self.stats = attempt.stats;
         if let Ok(verified) = &result {
             let Attempt {
                 next,
                 next_empty_borrows,
+                next_shapes,
+                next_inventory,
+                next_shape_tree,
                 ..
             } = attempt;
             self.flows = Arc::new(next);
             self.empty_borrows = Arc::new(next_empty_borrows);
+            self.shapes = next_shapes;
+            self.inventory = next_inventory;
+            self.shape_tree = next_shape_tree;
             self.verified = Some(verified.clone());
         }
         result
+    }
+}
+
+fn resized_rows<T>(
+    previous: &zil_ir::PersistentVec<Option<Arc<T>>>,
+    count: usize,
+) -> zil_ir::PersistentVec<Option<Arc<T>>> {
+    if previous.len() == count {
+        previous.clone()
+    } else {
+        std::iter::repeat_with(|| None).take(count).collect()
+    }
+}
+
+/// Complete deltas are derived here from immutable raw trees. No producer dirty
+/// bit, fingerprint or claimed dependency list can create these bindings.
+struct RawDelta {
+    functions: zil_ir::PersistentVec<TypedFunction>,
+    plans: zil_ir::PersistentVec<FunctionPlan>,
+    previous_functions: zil_ir::PersistentVec<TypedFunction>,
+    previous_plans: zil_ir::PersistentVec<FunctionPlan>,
+    changed_functions: std::cell::OnceCell<Vec<usize>>,
+    changed_plans: std::cell::OnceCell<Vec<usize>>,
+}
+impl RawDelta {
+    fn new(
+        previous: Option<&VerifiedModule>,
+        module: &TypedModule,
+        plan: &CandidatePlan,
+        target: &TargetProfile,
+        limits: &Limits,
+    ) -> Option<Self> {
+        let previous = previous?;
+        if previous.limits() != limits
+            || previous.module().target != *target
+            || module.target != *target
+        {
+            return None;
+        }
+        Some(Self {
+            previous_functions: previous.module().functions.clone(),
+            previous_plans: previous.plan().functions.clone(),
+            changed_functions: std::cell::OnceCell::new(),
+            changed_plans: std::cell::OnceCell::new(),
+            functions: module.functions.clone(),
+            plans: plan.functions.clone(),
+        })
+    }
+    fn changed_functions(&self) -> &[usize] {
+        self.changed_functions
+            .get_or_init(|| self.functions.changed_indices(&self.previous_functions))
+    }
+    fn changed_plans(&self) -> &[usize] {
+        self.changed_plans
+            .get_or_init(|| self.plans.changed_indices(&self.previous_plans))
+    }
+    fn same_function(&self, function: &TypedFunction) -> bool {
+        let index = function.id.0 as usize;
+        self.changed_functions().binary_search(&index).is_err()
+            && self
+                .functions
+                .get(index)
+                .is_some_and(|f| std::ptr::eq(f, function))
+    }
+    fn same_plan(&self, plan: &FunctionPlan) -> bool {
+        let index = plan.function.0 as usize;
+        self.changed_plans().binary_search(&index).is_err()
+            && self.plans.get(index).is_some_and(|p| std::ptr::eq(p, plan))
+    }
+    fn unchanged_range(&self, module: &TypedModule, start: usize, len: usize) -> bool {
+        self.functions.ptr_eq(&module.functions)
+            && !self
+                .changed_functions()
+                .get(self.changed_functions().partition_point(|i| *i < start))
+                .is_some_and(|i| *i < start + len)
     }
 }
 
@@ -163,9 +294,16 @@ struct FlowReceipt {
 pub(super) struct Attempt<'a> {
     previous: &'a BTreeMap<FunctionId, Arc<FlowReceipt>>,
     previous_empty_borrows: &'a BTreeMap<FunctionId, borrows::EmptyContext>,
+    previous_shapes: &'a zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
+    previous_inventory: &'a zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     previous_inputs: Option<&'a VerifiedModule>,
+    delta: Option<RawDelta>,
+    previous_shape_tree: Option<&'a Arc<raw_tree::Node>>,
+    next_shape_tree: Option<Arc<raw_tree::Node>>,
     next: BTreeMap<FunctionId, Arc<FlowReceipt>>,
     next_empty_borrows: BTreeMap<FunctionId, borrows::EmptyContext>,
+    next_shapes: zil_ir::PersistentVec<Option<Arc<shapes::Receipt>>>,
+    next_inventory: zil_ir::PersistentVec<Option<Arc<inventory::Receipt>>>,
     bound_plans: BTreeMap<FunctionId, bool>,
     bound_closures: Option<bool>,
     bound_functions: BTreeMap<FunctionId, bool>,
@@ -173,6 +311,39 @@ pub(super) struct Attempt<'a> {
 }
 
 impl<'a> Attempt<'a> {
+    /// Called only after schema, target and complete raw table cardinalities
+    /// pass their original entry bounds. Diffing never traverses raw values.
+    pub(super) fn prepare_current(
+        &mut self,
+        module: &TypedModule,
+        plan: &CandidatePlan,
+        limits: &Limits,
+    ) {
+        self.delta = RawDelta::new(self.previous_inputs, module, plan, &module.target, limits);
+    }
+
+    pub(super) fn check_result_modes(&mut self, module: &TypedModule) -> Check<()> {
+        if let Some(delta) = &self.delta
+            && delta.functions.ptr_eq(&module.functions)
+        {
+            let mut checked = 0;
+            for &index in delta.changed_functions() {
+                if let Some(function) = module.functions.get(index) {
+                    self.stats.raw_result_modes_checked += 1;
+                    resources::check_result_mode(function)?;
+                    checked += 1;
+                }
+            }
+            self.stats.raw_result_modes_reused += module.functions.len() - checked;
+        } else {
+            for function in &module.functions {
+                self.stats.raw_result_modes_checked += 1;
+                resources::check_result_mode(function)?;
+            }
+        }
+        Ok(())
+    }
+
     fn function_matches(
         &mut self,
         function: &TypedFunction,
@@ -187,7 +358,12 @@ impl<'a> Attempt<'a> {
                         .module()
                         .functions
                         .get(function.id.0 as usize)
-                        .is_some_and(|prior| same_function(prior, function))
+                        .is_some_and(|prior| {
+                            self.delta
+                                .as_ref()
+                                .is_some_and(|delta| delta.same_function(function))
+                                || same_function(prior, function)
+                        })
             })
         })
     }
@@ -195,7 +371,10 @@ impl<'a> Attempt<'a> {
     fn plan_matches(&mut self, function: &TypedFunction, plan: &FunctionPlan) -> bool {
         *self.bound_plans.entry(function.id).or_insert_with(|| {
             self.previous_inputs.is_some_and(|previous| {
-                previous.plan().functions.get(function.id.0 as usize) == Some(plan)
+                self.delta
+                    .as_ref()
+                    .is_some_and(|delta| delta.same_plan(plan))
+                    || previous.plan().functions.get(function.id.0 as usize) == Some(plan)
             })
         })
     }
@@ -359,6 +538,9 @@ impl InstructionProofs<'_> {
 /// fingerprint: raw input equality is part of the proof boundary. Destructuring
 /// all fields makes future IR field additions require a binding decision here.
 fn same_function(a: &TypedFunction, b: &TypedFunction) -> bool {
+    if std::ptr::eq(a, b) {
+        return true;
+    }
     let TypedFunction {
         storage_life,
         call_kind,

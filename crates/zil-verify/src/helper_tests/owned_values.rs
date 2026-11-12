@@ -137,7 +137,7 @@ fn dispatch() -> Raw {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"owned callback raw and wire"),
             target: TargetProfile::host_llvm(),
-            functions: vec![],
+            functions: vec![].into(),
             closures: vec![ClosureDefinition {
                 storage_life: None,
                 id: ClosureId(0),

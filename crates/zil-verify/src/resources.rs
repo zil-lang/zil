@@ -217,6 +217,7 @@ pub(super) fn check_definitions(
     module: &TypedModule,
     limits: &Limits,
     budget: &mut Budget,
+    reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> Check<()> {
     if module.resources.len() > limits.max_nodes {
         return Err(limit(
@@ -358,35 +359,46 @@ pub(super) fn check_definitions(
         }
     }
     budget.spend(module.functions.len())?;
-    for f in &module.functions {
-        match (&f.return_type, f.result_mode) {
-            (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
-            (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
-            (Type::Desc(_), _) => {
-                return Err(unsupported(
-                    "resource description returns require exported source and management contracts",
-                    Some(f.span),
-                ));
-            }
-            (Type::Managed(_), _) => {
-                return Err(bad(
-                    f.span,
-                    "managed result requires an explicit create or give result mode",
-                ));
-            }
-            (ty, _) if errors::managed_success(ty) => {
-                return Err(bad(
-                    f.span,
-                    "owned success result requires an explicit create or give result mode",
-                ));
-            }
-            (_, PassingMode::Infer) => {}
-            _ => {
-                return Err(bad(
-                    f.span,
-                    "non-resource result must not claim a resource result mode",
-                ));
-            }
+    if let Some(reuse) = reuse {
+        reuse.check_result_modes(module)?;
+    } else {
+        for f in &module.functions {
+            check_result_mode(f)?;
+        }
+    }
+    Ok(())
+}
+
+/// The result-mode rule reads only this raw function and has no budget or
+/// mutable-checker effects. Its table fee is charged before any item is read.
+pub(super) fn check_result_mode(f: &TypedFunction) -> Check<()> {
+    match (&f.return_type, f.result_mode) {
+        (Type::Managed(_), PassingMode::Create | PassingMode::Give) => {}
+        (ty, PassingMode::Create | PassingMode::Give) if errors::managed_success(ty) => {}
+        (Type::Desc(_), _) => {
+            return Err(unsupported(
+                "resource description returns require exported source and management contracts",
+                Some(f.span),
+            ));
+        }
+        (Type::Managed(_), _) => {
+            return Err(bad(
+                f.span,
+                "managed result requires an explicit create or give result mode",
+            ));
+        }
+        (ty, _) if errors::managed_success(ty) => {
+            return Err(bad(
+                f.span,
+                "owned success result requires an explicit create or give result mode",
+            ));
+        }
+        (_, PassingMode::Infer) => {}
+        _ => {
+            return Err(bad(
+                f.span,
+                "non-resource result must not claim a resource result mode",
+            ));
         }
     }
     Ok(())

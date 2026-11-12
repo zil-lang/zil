@@ -326,7 +326,7 @@ fn fixture(
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"independent raw helper fixtures"),
             target: TargetProfile::host_llvm(),
-            functions: vec![],
+            functions: vec![].into(),
             closures: vec![ClosureDefinition {
                 storage_life: None,
                 lending_captures: Vec::new(),

@@ -457,7 +457,7 @@ fn complete_dense_driver_preserves_readonly_and_early_error_diagnostics() {
             }
             _ => unreachable!(),
         }
-        module.functions = vec![f];
+        module.functions = vec![f].into();
         let graphs: Vec<_> = module.functions.iter().map(graph).collect();
         let mut old_budget = budget();
         old_budget.head_descriptions = true;

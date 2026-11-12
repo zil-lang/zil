@@ -117,6 +117,7 @@ pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_byt
 #[derive(Clone)]
 pub struct VerifiedModule {
     inputs: VerifiedInputs,
+    identity: VerificationIdentity,
     fingerprint: Fingerprint,
     limits: Limits,
     uses_owned_sum_extension: bool,
@@ -128,6 +129,14 @@ pub struct VerifiedModule {
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
     task_ownership: Arc<std::collections::BTreeMap<FunctionId, TaskOwnership>>,
+}
+
+// The raw Wire identity and the product-tree identity are distinct domains.
+// Identical allocations cannot transfer a whole-module receipt across them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VerificationIdentity {
+    Wire,
+    Product,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -605,6 +614,22 @@ fn verify_inputs_with_reuse(
     limits: &Limits,
     reuse: Option<&mut incremental::Attempt<'_>>,
 ) -> CompileResult<VerifiedModule> {
+    verify_inputs_with_identity(
+        inputs,
+        expected_target,
+        limits,
+        reuse,
+        VerificationIdentity::Wire,
+    )
+}
+
+fn verify_inputs_with_identity(
+    inputs: VerifiedInputs,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+    reuse: Option<&mut incremental::Attempt<'_>>,
+    identity: VerificationIdentity,
+) -> CompileResult<VerifiedModule> {
     match check_module(
         inputs.module(),
         inputs.plan(),
@@ -612,9 +637,11 @@ fn verify_inputs_with_reuse(
         limits,
         inputs.program(),
         reuse,
+        identity,
     ) {
         Ok(checked) => Ok(VerifiedModule {
             inputs,
+            identity,
             fingerprint: checked.fingerprint,
             limits: limits.clone(),
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
@@ -692,6 +719,7 @@ fn check_module(
     limits: &Limits,
     program: Option<&TypedProgram>,
     mut reuse: Option<&mut incremental::Attempt<'_>>,
+    identity: VerificationIdentity,
 ) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
@@ -736,6 +764,9 @@ fn check_module(
         ));
     }
 
+    if let Some(attempt) = reuse.as_deref_mut() {
+        attempt.prepare_current(module, plan, limits);
+    }
     let mut budget = Budget::new(limits);
     budget.stored_context = true;
     if has_dyn {
@@ -747,7 +778,7 @@ fn check_module(
         budget.stored_borrows = true;
     }
     budget.function_count = module.functions.len();
-    resources::check_definitions(module, limits, &mut budget)?;
+    resources::check_definitions(module, limits, &mut budget, reuse.as_deref_mut())?;
     for text in [
         &module.target.id,
         &module.target.triple,
@@ -758,56 +789,12 @@ fn check_module(
     }
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
-    for (index, function) in module.functions.iter().enumerate() {
-        budget.protocol_contracts |= function.protocol_contract.is_some();
-        if let Some(contract) = &function.storage_life {
-            if function.call_kind == CallKind::Suspend {
-                budget.spend(function.parameters.len())?;
-                let mut parameters = Vec::new();
-                for id in &function.parameters {
-                    let ty = &function
-                        .locals
-                        .get(id.0 as usize)
-                        .ok_or_else(|| {
-                            reject(
-                                "E-VERIFY-TASK",
-                                Some(function.span),
-                                "Suspend signature input absent",
-                            )
-                        })?
-                        .ty;
-                    tasks::charge_result_selection(ty, &mut budget)?;
-                    parameters.push(ty.clone());
-                }
-                for ty in &parameters {
-                    tasks::charge_result_selection(ty, &mut budget)?;
-                }
-                tasks::charge_result_selection(&function.return_type, &mut budget)?;
-                signature_life::charge(contract, &mut budget)?;
-                signature_life::function_relation(
-                    module,
-                    &parameters,
-                    &function.return_type,
-                    contract,
-                    Some(function.span),
-                    false,
-                )?;
-            } else if !tasks::borrowed_signature(module, function, &mut budget)? {
-                stored_flow::header(module, function, &mut budget)?;
-                budget.stored_borrows = true;
-            }
+    if let Some(attempt) = reuse.as_deref_mut() {
+        attempt.check_shape_tree(module, &mut budget, limits)?;
+    } else {
+        for (index, function) in module.functions.iter().enumerate() {
+            check_function_raw_shapes(module, index, function, &mut budget, limits, None)?;
         }
-        budget.current_function = Some(index);
-        for ty in std::iter::once(&function.return_type)
-            .chain(function.locals.iter().map(|l| &l.ty))
-            .chain(&function.values)
-        {
-            check_type_shape(ty, &module.target, limits, &mut budget)?;
-            if budget.pod_stores {
-                dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
-            }
-        }
-        check_reference_return_bound(function, &mut budget)?;
     }
     budget.current_function = None;
     for ty in module.closures.iter().flat_map(|c| {
@@ -902,175 +889,23 @@ fn check_module(
             limits.max_values,
             "value",
         )?;
-        for block in &function.blocks {
-            instruction_count = add_count(
-                instruction_count,
-                block.instructions.len(),
-                limits.max_instructions,
-                "instruction",
+        if let Some(attempt) = reuse.as_deref_mut() {
+            attempt.check_inventory(
+                module,
+                function,
+                &mut budget,
+                limits,
+                &mut instruction_count,
             )?;
-            budget.spend(1)?;
-            for instruction in &block.instructions {
-                budget.spend(1)?;
-                budget.shared_byte_borrow |= matches!(
-                    instruction.kind,
-                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
-                );
-                budget.stored_slot_updates |= matches!(
-                    instruction.kind,
-                    InstructionKind::StoreStoredBorrow { .. }
-                        | InstructionKind::LoadStoredBorrow {
-                            mode: StoredBorrowLoad::Take,
-                            ..
-                        }
-                );
-                if budget.stored_exclusive_shapes
-                    && matches!(
-                        instruction.kind,
-                        InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
-                    )
-                    && let Some(result) = instruction.result
-                    && let Some(Type::BorrowedStorage { life, .. }) =
-                        function.values.get(result.0 as usize)
-                {
-                    budget.spend(life.slots.len())?;
-                    budget.stored_constructor_sites |= life
-                        .slots
-                        .iter()
-                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
-                }
-                match &instruction.kind {
-                    InstructionKind::ReservePlaceLocal { path, .. }
-                    | InstructionKind::ReservePlaceAddress { path, .. }
-                    | InstructionKind::TakeTupleField { path, .. }
-                    | InstructionKind::TakeVariantField { path, .. }
-                    | InstructionKind::BorrowPlaceLocal { path, .. }
-                    | InstructionKind::PlaceTagLocal { path, .. }
-                    | InstructionKind::BorrowPlaceAddress { path, .. }
-                    | InstructionKind::PlaceTagAddress { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit(
-                                "mixed/replacement path exceeds depth limit before fingerprint",
-                            ));
-                        }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(24)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| {
-                                    limit("mixed/replacement preflight path work overflow")
-                                })?,
-                        )?;
-                        if matches!(
-                            instruction.kind,
-                            InstructionKind::ReservePlaceLocal { .. }
-                                | InstructionKind::ReservePlaceAddress { .. }
-                        ) {
-                            budget.replacements = true;
-                        }
-                    }
-                    InstructionKind::BorrowVariantLocal { path, .. }
-                    | InstructionKind::BorrowVariantAddress { path, .. }
-                    | InstructionKind::VariantTagLocal { path, .. }
-                    | InstructionKind::VariantTagAddress { path, .. }
-                    | InstructionKind::ReadVariantLocal { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit(
-                                "variant path exceeds depth limit before fingerprint",
-                            ));
-                        }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(24)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| limit("variant preflight path work overflow"))?,
-                        )?;
-                    }
-                    InstructionKind::BorrowFieldLocal { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit("field path exceeds depth limit before fingerprint"));
-                        }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(12)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| limit("field preflight path work overflow"))?,
-                        )?;
-                    }
-                    InstructionKind::CommitPlaceReplace { .. }
-                    | InstructionKind::AbortPlaceReservation { .. } => {
-                        budget.replacements = true;
-                    }
-                    InstructionKind::StaticUtf8 { bytes } => {
-                        budget.static_utf8 = true;
-                        if bytes.len() > limits.max_nodes {
-                            return Err(limit("static UTF8 byte count exceeds the raw bound"));
-                        }
-                        // Reserve byte validation and module fingerprint traversal first.
-                        budget.spend(bytes.len().saturating_mul(2))?;
-                        if std::str::from_utf8(bytes).is_err() {
-                            return Err(reject(
-                                "E-VERIFY-UTF8",
-                                Some(instruction.span),
-                                "program-static text contains invalid UTF8",
-                            ));
-                        }
-                    }
-                    InstructionKind::Constant(constant) => native_values::constant(
-                        constant,
-                        &module.target,
-                        Some(instruction.span),
-                        limits,
-                        &mut budget,
-                    )?,
-                    InstructionKind::MakeManaged { fields }
-                    | InstructionKind::MakePackage { fields }
-                    | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeAggregate { fields }
-                    | InstructionKind::MakeOwnedTuple { fields }
-                    | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
-                    InstructionKind::Call { arguments, .. }
-                    | InstructionKind::SuspendCall { arguments, .. }
-                    | InstructionKind::ForeignCall { arguments, .. } => {
-                        budget.spend(arguments.len())?
-                    }
-                    InstructionKind::CallClosure { arguments, .. }
-                    | InstructionKind::CallClosureMut { arguments, .. }
-                    | InstructionKind::CallClosureShared { arguments, .. }
-                    | InstructionKind::CallClosureOnce { arguments, .. }
-                    | InstructionKind::CallClosureBorrowed { arguments, .. }
-                    | InstructionKind::CallIndirect { arguments, .. } => {
-                        budget.spend(arguments.len().saturating_add(1))?
-                    }
-                    InstructionKind::WithForeignCallback { .. } => {
-                        budget.spend(3)?;
-                        if budget.scoped_functions.is_none() {
-                            budget.spend(budget.function_count)?;
-                            budget.scoped_functions = Some(vec![false; budget.function_count]);
-                        }
-                        budget.scoped_functions.as_mut().unwrap()[index] = true;
-                    }
-                    InstructionKind::MakeClosure { captures, .. } => {
-                        budget.spend(captures.len())?
-                    }
-                    InstructionKind::ConvertInteger { target, .. }
-                    | InstructionKind::ConvertNumber { target, .. } => {
-                        // This embedded raw type is not necessarily one of the
-                        // function value types. Bound it before fingerprinting.
-                        check_type_shape(target, &module.target, limits, &mut budget)?;
-                    }
-                    InstructionKind::OwnedStoreNew { element } => {
-                        check_type_shape(element, &module.target, limits, &mut budget)?;
-                    }
-                    InstructionKind::Unsupported(feature) => {
-                        return Err(unsupported(
-                            format!("unknown or unimplemented instruction: {feature}"),
-                            Some(instruction.span),
-                        ));
-                    }
-                    _ => {}
-                }
-            }
+        } else {
+            incremental::inventory::check_current(
+                module,
+                function,
+                &mut budget,
+                limits,
+                &mut instruction_count,
+                false,
+            )?;
         }
     }
     // Deep unsupported type trees have already been rejected without recursing.
@@ -1103,7 +938,10 @@ fn check_module(
             &mut budget,
         )?;
     }
-    let fingerprint = module.fingerprint();
+    let fingerprint = match identity {
+        VerificationIdentity::Wire => module.fingerprint(),
+        VerificationIdentity::Product => module.structural_fingerprint(),
+    };
     if plan.module_fingerprint != fingerprint
         || plan.target_fingerprint != module.target.fingerprint()
     {
@@ -1305,6 +1143,62 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
             "anonymous sum members are repeated or not in complete-type canonical order",
         ));
     }
+    Ok(())
+}
+
+fn check_function_raw_shapes(
+    module: &TypedModule,
+    index: usize,
+    function: &TypedFunction,
+    budget: &mut Budget,
+    limits: &Limits,
+    mut reuse: Option<&mut incremental::Attempt<'_>>,
+) -> Check<()> {
+    budget.protocol_contracts |= function.protocol_contract.is_some();
+    if let Some(contract) = &function.storage_life {
+        if function.call_kind == CallKind::Suspend {
+            budget.spend(function.parameters.len())?;
+            let mut parameters = Vec::new();
+            for id in &function.parameters {
+                let ty = &function
+                    .locals
+                    .get(id.0 as usize)
+                    .ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-TASK",
+                            Some(function.span),
+                            "Suspend signature input absent",
+                        )
+                    })?
+                    .ty;
+                tasks::charge_result_selection(ty, budget)?;
+                parameters.push(ty.clone());
+            }
+            for ty in &parameters {
+                tasks::charge_result_selection(ty, budget)?;
+            }
+            tasks::charge_result_selection(&function.return_type, budget)?;
+            signature_life::charge(contract, budget)?;
+            signature_life::function_relation(
+                module,
+                &parameters,
+                &function.return_type,
+                contract,
+                Some(function.span),
+                false,
+            )?;
+        } else if !tasks::borrowed_signature(module, function, budget)? {
+            stored_flow::header(module, function, budget)?;
+            budget.stored_borrows = true;
+        }
+    }
+    budget.current_function = Some(index);
+    if let Some(attempt) = reuse.as_deref_mut() {
+        attempt.check_shapes(module, function, budget, limits)?;
+    } else {
+        incremental::shapes::check_current(module, function, budget, limits, false)?;
+    }
+    check_reference_return_bound(function, budget)?;
     Ok(())
 }
 

@@ -1110,7 +1110,7 @@ mod tests {
             module_id: zil_base::ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
-            functions,
+            functions: functions.into(),
             closures: vec![],
             resources: vec![],
             unsupported: vec![],
