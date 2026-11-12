@@ -236,6 +236,18 @@ impl<'a> Budget<'a> {
                 self.copy_work(result, depth + 2)?;
                 Ok(true)
             }
+            Type::Tuple(fields) if !ty.is_copy_value() => {
+                self.pay(ty, depth)?;
+                for field in fields {
+                    if !self.borrowed(field, depth + 1)? {
+                        self.copy_work(field, depth + 1)?;
+                        if !field.is_copy_value() {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
             Type::ErrorUnion { error, result } if shared_sum(ty) => {
                 self.pay(ty, depth)?;
                 for arm in [error.as_ref(), result.as_ref()] {
@@ -453,6 +465,7 @@ impl<'a> Budget<'a> {
     ) -> CompileResult<bool> {
         self.pay(ty, depth)?;
         match ty {
+            Type::BorrowedStorage { .. } => self.borrowed(ty, depth + 1),
             Type::Address { inner, .. }
                 if matches!(
                     inner.as_ref(),

@@ -1025,10 +1025,21 @@ fn bind_lir<'a>(
             return unsupported("LLVM finite resource closure representation", None);
         }
     }
+    let compound_cleanup = lir.functions.iter().any(|function| {
+        function
+            .locals
+            .iter()
+            .map(|local| &local.ty)
+            .chain(function.values.iter())
+            .any(|ty| matches!(ty, Type::Tuple(_)) && !ty.is_copy_value())
+    });
     let sum_helpers = drop_plan::functions(
         lir,
         verified.limits(),
-        verified.uses_owned_sum_extension() || callback_owned_data || !capture_sum_roots.is_empty(),
+        verified.uses_owned_sum_extension()
+            || callback_owned_data
+            || compound_cleanup
+            || !capture_sum_roots.is_empty(),
         &capture_sum_roots,
         entry,
     )?;
@@ -1039,11 +1050,28 @@ fn bind_lir<'a>(
                 Some(function.span),
             );
         }
+        let mut compound_parameters = std::collections::BTreeSet::new();
+        for id in &function.parameters {
+            if drop_plan::compound_type(
+                &function.locals[id.0 as usize].ty,
+                lir.resources,
+                verified.limits(),
+                remaining_work,
+            )? {
+                compound_parameters.insert(*id);
+            }
+        }
         if !(function.return_type.is_copy_value()
             || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
             || matches!(function.return_type, Type::MutexGuard { .. })
             || matches!(function.return_type, Type::OwnedDyn { .. })
+            || drop_plan::compound_type(
+                &function.return_type,
+                lir.resources,
+                verified.limits(),
+                remaining_work,
+            )?
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
@@ -1054,6 +1082,7 @@ fn bind_lir<'a>(
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
+                    || compound_parameters.contains(id)
                     || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
                     || matches!(ty, Type::MutexGuard { .. })
@@ -1079,6 +1108,7 @@ fn bind_lir<'a>(
             if !ty.is_copy_value()
                 && !stored_borrows::representation_type(ty)
                 && !concrete_closure
+                && !drop_plan::compound_type(ty, lir.resources, verified.limits(), remaining_work)?
                 && !ty.is_shared_sync_cell_address()
                 && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
