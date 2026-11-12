@@ -614,6 +614,12 @@ impl Flow {
                         }
                         consumer = Consumer::Copy;
                     }
+                    InstructionKind::BindPackageCapture { local, index } => {
+                        if let Some(source) = captures.get(*index as usize) {
+                            flow.copy_ports(&locals[local.0 as usize], source, b)?;
+                        }
+                        consumer = Consumer::Copy;
+                    }
                     InstructionKind::ReborrowAddress { address, .. } => {
                         if let Some(out) = out {
                             flow.copy_ports(out, value(values, *address)?, b)?;
