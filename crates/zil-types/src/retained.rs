@@ -195,7 +195,7 @@ pub(super) fn self_contained(
             }
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
-                Type::Managed(_) | Type::Package { .. } => {}
+                Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. } => {}
                 ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {

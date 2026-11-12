@@ -978,7 +978,7 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
     match ty {
         // The concrete interface ID is checked against the complete inventory
         // by the dyn admission pass after ordinary type resolution.
-        Type::Dyn { .. } => {}
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => {}
         Type::BorrowedStorage { storage, life } => {
             for slot in &life.slots {
                 budget.node(depth + 1, span)?;
@@ -3992,6 +3992,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let CoreExprKind::Call { callee, arguments } = &expression.kind else {
             unreachable!("expression dispatcher variant");
         };
+        if let CoreExprKind::TypeApply {
+            callee: target,
+            type_arguments,
+        } = &callee.kind
+            && matches!(&target.kind, CoreExprKind::Name(name) if name == "owned_dyn")
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.budget.node(depth + 2, target.span)?;
+            self.expression_index += 2;
+            let [Type::Dyn { interface }] = type_arguments.as_slice() else {
+                return Err(error(
+                    "E-DYN-OWNER",
+                    span,
+                    "owned_dyn needs one actual dyn interface",
+                ));
+            };
+            let [source] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "owned_dyn needs one actual provider",
+                ));
+            };
+            self.expr(source, depth + 1, false)?;
+            // This private constraint grants no owner authority. Builder checks
+            // the complete concrete provider and the exact owning table.
+            return self.known_term(&dyn_dispatch::owned_result(*interface), span);
+        }
         if let CoreExprKind::TypeApply {
             callee: target,
             type_arguments,

@@ -643,6 +643,13 @@ fn local_value(
         if !budget.dyn_interfaces.contains(interface) {
             return Err(bad("owned dyn lacks an admitted interface"));
         }
+        budget.spend(module.dyn_interfaces.len(), "owned dyn cleanup contract")?;
+        let found = module
+            .dyn_interfaces
+            .iter()
+            .find(|i| i.id == *interface)
+            .ok_or_else(|| bad("owned dyn lacks an actual interface"))?;
+        crate::dyn_cleanup::bound(found.owning_cleanup.as_ref(), budget)?;
         return Ok(false);
     }
     if let Type::ErrorUnion { error, result } = ty
@@ -1483,11 +1490,17 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
-            if matches!(ty, Type::OwnedDyn { .. })
-                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            if matches!(ty, Type::OwnedDyn { .. }) {
+                if closure.kind != zil_ir::CallableKind::FnOnce {
+                    return Err(bad("owned dyn capture requires a consuming entry"));
+                }
+                local_value(ty, Span::default(), module, budget)?;
+                continue;
+            }
+            if matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
             {
                 return Err(bad(
-                    "owned dyn closure capture is outside the closed owner profile",
+                    "owned dyn error capture requires a selected whole owner",
                 ));
             }
             if closure.storage_life.is_some() {

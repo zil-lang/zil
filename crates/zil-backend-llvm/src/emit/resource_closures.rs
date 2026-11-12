@@ -6,7 +6,7 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
     definition.captures.iter().any(|ty| {
         matches!(
             ty,
-            Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
         ) || drop_plan::owned_sum(ty)
     })
 }
@@ -21,7 +21,7 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 /// Package groups are shell followed by direct Managed/complete child fields.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
-        Type::Managed(_) | Type::Closure(_) => 1,
+        Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => 1,
         ty if drop_plan::owned_sum(ty) => 1,
         Type::Package { fields, .. } => {
             1 + fields
@@ -119,6 +119,32 @@ pub(super) fn drop_functions(
                 )),
             ]));
             match ty {
+                Type::OwnedDyn { interface } => {
+                    text.push(m::Event::Instruction(m::Inst::new(
+                        Some(format!("payload.{index}")),
+                        m::Op::Gep {
+                            ty: env.clone(),
+                            ptr: m::local("env".into()),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), 0),
+                                m::Arg::new(m::Ty::Int(32), index as u64),
+                            ],
+                        },
+                    )));
+                    text.push(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Call {
+                            result: m::Ty::Void,
+                            result_attrs: vec![],
+                            callee: m::global(dyn_dispatch::owner_drop_symbol(*interface)),
+                            args: vec![m::Arg::new(
+                                m::Ty::Ptr,
+                                m::local(format!("payload.{index}")),
+                            )],
+                            vararg: None,
+                        },
+                    )));
+                }
                 Type::Managed(payload) => {
                     let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                         Some(dynamic_store::helper(payload, resources, "drop")?)

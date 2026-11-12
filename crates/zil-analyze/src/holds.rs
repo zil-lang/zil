@@ -801,7 +801,8 @@ fn pattern_access(
         | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::DropPackage { local }
-        | InstructionKind::DropManaged { local } => {
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DropDynOwned { local } => {
             (Roots::from([Root::Local(*local)]), true, None)
         }
         InstructionKind::ReadAddress { address }
@@ -1427,6 +1428,7 @@ fn store_window_transition(
         | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::TakeLocal { local }
+        | InstructionKind::DropDynOwned { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
             if boundary_owner(&f.locals[local.0 as usize].ty, callback_windows, budget)? =>
@@ -2144,6 +2146,16 @@ fn infer_with_private(
                             let source = values
                                 .get(address.0 as usize)
                                 .ok_or_else(|| bad("projection address outside table"))?;
+                            extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::CallDynSlot { callee, .. }
+                            if instruction.result.is_some_and(|v| {
+                                matches!(f.values[v.0 as usize], Type::Address { .. })
+                            }) =>
+                        {
+                            let source = values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("dyn borrowed result callee outside values"))?;
                             extend(&mut found, source, budget)?;
                         }
                         InstructionKind::MakeDynBorrow { source, .. } => {

@@ -2953,7 +2953,8 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
     let mut budget = Budget::new(&defaults);
     let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
     let exact = defaults.max_analysis_steps - budget.remaining();
-    assert_eq!(exact, 2073 + callable_storage_delta(18, 30));
+    // V48 prepays the new capture_sources presence flag before hashing.
+    assert_eq!(exact, 2073 + 1 + callable_storage_delta(18, 30));
     assert_eq!(
         analyze(
             &module,

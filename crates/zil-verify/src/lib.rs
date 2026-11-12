@@ -59,8 +59,8 @@ mod ct_program;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
-mod dynamic_dispatch;
 mod dynamic_cleanup;
+mod dynamic_dispatch;
 mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
@@ -3524,7 +3524,7 @@ fn check_instruction(
             })?;
             if matches!(
                 ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             ) || (budget.inline_store_root(ty)?
                 && dynamic_store::inline_sum_capture(ty, budget)?)
             {

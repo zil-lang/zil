@@ -902,6 +902,11 @@ fn reconstruct(
                                 )?;
                                 roots_join(&mut row, &precise, budget)?;
                             }
+                            InstructionKind::CallDynSlot {
+                                callee: address, ..
+                            } if matches!(f.values[result.0 as usize], Type::Address { .. }) => {
+                                roots_join(&mut row, &values[address.0 as usize], budget)?;
+                            }
                             InstructionKind::DescribeAddress { address }
                             | InstructionKind::ReborrowAddress { address, .. }
                             | InstructionKind::MakeDynBorrow {

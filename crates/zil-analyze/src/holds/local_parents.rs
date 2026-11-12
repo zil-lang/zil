@@ -182,7 +182,10 @@ pub(super) fn reconstruct(
                         | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                             union(&mut parents, &facts.heads[store.0 as usize], b)?;
                         }
-                        InstructionKind::DescribeAddress { address }
+                        InstructionKind::CallDynSlot {
+                            callee: address, ..
+                        }
+                        | InstructionKind::DescribeAddress { address }
                         | InstructionKind::ReborrowAddress { address, .. }
                         | InstructionKind::BorrowPlaceAddress { address, .. }
                         | InstructionKind::BorrowVariantAddress { address, .. }

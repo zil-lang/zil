@@ -572,7 +572,7 @@ fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(matches!(
         package_storage(ty),
-        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. } | Type::OwnedDyn { .. }
     ) || matches!(package_storage(ty),Type::Array { element,length } if *length>0 && matches!(package_storage(element.as_ref()),Type::Package { .. })))
 }
 
@@ -640,7 +640,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             budget.spend(1, "resource capture shape")?;
             if matches!(
                 package_storage(ty),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_) | Type::OwnedDyn { .. }
             ) || (matches!(
                 ty,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }

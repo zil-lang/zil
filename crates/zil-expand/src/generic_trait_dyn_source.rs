@@ -23,8 +23,91 @@ pub(super) struct Target {
 }
 
 fn plain_value(ty: &zil_ir::Type) -> bool {
-    ty.is_b0_scalar() || *ty == zil_ir::Type::Unit
-        || matches!(ty, zil_ir::Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == zil_ir::Type::Unit))
+    ty.is_b0_scalar()
+        || *ty == zil_ir::Type::Unit
+        || matches!(ty, zil_ir::Type::Tuple(fields) if fields.iter().all(plain_value))
+        || matches!(ty, zil_ir::Type::Array { element, .. } if plain_value(element))
+}
+
+// Source selects an explicit upper bound. The two typed kernels still prove
+// every actual teardown and reject unknown or asynchronous cleanup.
+fn owner_may_run_user(
+    ty: &zil_ir::Type,
+    module: &zil_ir::CoreModule,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    budget.node(
+        module.functions.first().map_or(Span::default(), |f| f.span),
+        depth,
+    )?;
+    use zil_ir::Type as T;
+    if ty.is_b0_scalar() || matches!(ty, T::Unit | T::ByteBuffer) {
+        return Ok(false);
+    }
+    Ok(match ty {
+        T::Named(name) if name == "ByteBuffer" => false,
+        T::Named(name) => {
+            for a in &module.aggregates {
+                budget.node(a.span, depth)?;
+            }
+            if let Some(a) = module.aggregates.iter().find(|a| a.name == *name) {
+                if a.teardown.is_some() {
+                    return Ok(true);
+                }
+                for field in &a.fields {
+                    if owner_may_run_user(&field.ty, module, budget, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                false
+            } else if let Some(e) = module.enums.iter().find(|e| e.name == *name) {
+                for (_, fields) in &e.variants {
+                    for field in fields {
+                        if owner_may_run_user(field, module, budget, depth + 1)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                false
+            } else {
+                true
+            }
+        }
+        T::Managed(payload) => owner_may_run_user(payload, module, budget, depth + 1)?,
+        T::Record { fields, .. } | T::Package { fields, .. } => {
+            for (_, field) in fields {
+                if owner_may_run_user(field, module, budget, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+            false
+        }
+        T::Tuple(fields) => {
+            for field in fields {
+                if owner_may_run_user(field, module, budget, depth + 1)? {
+                    return Ok(true);
+                }
+            }
+            false
+        }
+        T::Array { element, .. } => owner_may_run_user(element, module, budget, depth + 1)?,
+        T::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    if owner_may_run_user(field, module, budget, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            false
+        }
+        _ => true,
+    })
+}
+
+fn borrowed_result(ty: &zil_ir::Type) -> bool {
+    matches!(ty, zil_ir::Type::Address { mutable: false, inner } if inner.is_b0_scalar())
 }
 
 fn receiver_position() -> zil_ir::StoragePosition {
@@ -67,42 +150,77 @@ fn scalar_read_contract(mutable: bool) -> zil_ir::DynContract {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ScalarExpression<'a> {
+    function: &'a zil_ir::CoreFunction,
+    owner: &'a zil_ir::CoreModule,
+    self_name: &'a str,
+}
+
 fn scalar_expression(
     expr: &zil_ir::CoreExpr,
-    function: &zil_ir::CoreFunction,
-    owner: &zil_ir::CoreModule,
-    self_name: &str,
+    context: ScalarExpression<'_>,
     budget: &mut Budget<'_>,
     panic: &mut bool,
     depth: usize,
 ) -> R<bool> {
+    let ScalarExpression {
+        function,
+        owner,
+        self_name,
+    } = context;
     budget.node(expr.span, depth)?;
     use zil_ir::{CoreExprKind as E, UnaryOp};
     Ok(match &expr.kind {
-        E::Integer(_) | E::Float(_) | E::Bool(_) | E::Literal(_) => true,
+        E::Unit | E::Integer(_) | E::Float(_) | E::Bool(_) | E::Literal(_) => true,
         E::Name(name) => {
-            for p in &function.parameters { budget.node(p.span, depth)?; }
-            function.parameters.iter().skip(1).any(|p| p.name == *name && plain_value(&p.ty))
+            for p in &function.parameters {
+                budget.node(p.span, depth)?;
+            }
+            function
+                .parameters
+                .iter()
+                .skip(1)
+                .any(|p| p.name == *name && plain_value(&p.ty))
         }
-        E::Member { object, member, owner: None } => {
-            for a in &owner.aggregates { budget.node(a.span, depth)?; }
-            let Some(a) = owner.aggregates.iter().find(|a| a.name == self_name) else { return Ok(false); };
-            for f in &a.fields { budget.node(f.span, depth)?; }
+        E::Member {
+            object,
+            member,
+            owner: None,
+        } => {
+            for a in &owner.aggregates {
+                budget.node(a.span, depth)?;
+            }
+            let Some(a) = owner.aggregates.iter().find(|a| a.name == self_name) else {
+                return Ok(false);
+            };
+            for f in &a.fields {
+                budget.node(f.span, depth)?;
+            }
             matches!(&object.kind, E::Name(name) if name == &function.parameters[0].name)
-                && a.fields.iter().any(|f| f.name == *member && f.ty.is_b0_scalar())
+                && a.fields
+                    .iter()
+                    .any(|f| f.name == *member && f.ty.is_b0_scalar())
         }
-        E::Tuple(values) => {
-            for value in values { if !scalar_expression(value, function, owner, self_name, budget, panic, depth + 1)? { return Ok(false); } }
+        E::Tuple(values) | E::Array(values) => {
+            for value in values {
+                if !scalar_expression(value, context, budget, panic, depth + 1)? {
+                    return Ok(false);
+                }
+            }
             true
         }
         E::Binary { left, right, .. } => {
             *panic = true;
-            scalar_expression(left, function, owner, self_name, budget, panic, depth + 1)?
-                && scalar_expression(right, function, owner, self_name, budget, panic, depth + 1)?
+            scalar_expression(left, context, budget, panic, depth + 1)?
+                && scalar_expression(right, context, budget, panic, depth + 1)?
         }
-        E::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } => {
+        E::Unary {
+            op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+            operand,
+        } => {
             *panic = true;
-            scalar_expression(operand, function, owner, self_name, budget, panic, depth + 1)?
+            scalar_expression(operand, context, budget, panic, depth + 1)?
         }
         _ => false,
     })
@@ -131,7 +249,7 @@ fn prove_scalar_read(
         || provider.parameters.len() != slot.parameters.len() + 1
         || provider.return_type != slot.result
         || provider.result_mode != slot.result_mode
-        || !plain_value(&slot.result)
+        || !(plain_value(&slot.result) || !slot.receiver.mutable && borrowed_result(&slot.result))
         || provider.parameters[0].mode != slot.receiver.mode
         || provider.parameters[0].ty
             != (zil_ir::Type::Address {
@@ -202,7 +320,17 @@ fn prove_scalar_read(
                 ));
             };
             if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
-                || !scalar_expression(value, current, owner, self_name, budget, &mut panic, 0)?
+                || !scalar_expression(
+                    value,
+                    ScalarExpression {
+                        function: current,
+                        owner,
+                        self_name,
+                    },
+                    budget,
+                    &mut panic,
+                    0,
+                )?
             {
                 return Err(unsupported(
                     assignment.span,
@@ -440,9 +568,76 @@ fn prove_scalar_read(
             "mutable dyn provider chain has no proven receiver write",
         ));
     }
-    if matches!(&value.kind, zil_ir::CoreExprKind::Binary { .. } | zil_ir::CoreExprKind::Unary { .. } | zil_ir::CoreExprKind::Name(_) | zil_ir::CoreExprKind::Tuple(_))
-        && scalar_expression(value, current, owner, self_name, budget, &mut panic, 0)?
-    { return Ok(panic); }
+    if let zil_ir::Type::Address {
+        mutable: false,
+        inner,
+    } = &slot.result
+    {
+        let zil_ir::CoreExprKind::Unary {
+            op: zil_ir::UnaryOp::Borrow,
+            operand,
+        } = &value.kind
+        else {
+            return Err(unsupported(
+                value.span,
+                "dyn borrowed result needs a real receiver field address",
+            ));
+        };
+        let zil_ir::CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } = &operand.kind
+        else {
+            return Err(unsupported(
+                value.span,
+                "dyn borrowed result needs a real receiver field",
+            ));
+        };
+        for aggregate in &owner.aggregates {
+            budget.node(aggregate.span, 0)?;
+        }
+        let Some(a) = owner.aggregates.iter().find(|a| a.name == *self_name) else {
+            return Err(unsupported(
+                value.span,
+                "dyn borrowed Self declaration absent",
+            ));
+        };
+        for field in &a.fields {
+            budget.node(field.span, 0)?;
+        }
+        if matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+            && a.fields
+                .iter()
+                .any(|f| f.name == *member && f.ty == **inner)
+        {
+            return Ok(panic);
+        }
+        return Err(unsupported(
+            value.span,
+            "dyn borrowed result differs from its actual receiver field",
+        ));
+    }
+    if matches!(
+        &value.kind,
+        zil_ir::CoreExprKind::Binary { .. }
+            | zil_ir::CoreExprKind::Unary { .. }
+            | zil_ir::CoreExprKind::Name(_)
+            | zil_ir::CoreExprKind::Tuple(_)
+            | zil_ir::CoreExprKind::Array(_)
+    ) && scalar_expression(
+        value,
+        ScalarExpression {
+            function: current,
+            owner,
+            self_name,
+        },
+        budget,
+        &mut panic,
+        0,
+    )? {
+        return Ok(panic);
+    }
     if matches!(
         &value.kind,
         zil_ir::CoreExprKind::Integer(_)
@@ -894,7 +1089,9 @@ impl Catalog {
                                 })
                                 .ok_or_else(|| unsupported(span, "dyn entry target body absent"))?;
                             match prove_scalar_read(provider, table, slot, &snapshot, budget) {
-                                Ok(provider_panic) => { panic |= provider_panic; }
+                                Ok(provider_panic) => {
+                                    panic |= provider_panic;
+                                }
                                 Err(diagnostic)
                                     if diagnostic.category
                                         == zil_base::ResultCategory::Unsupported =>
@@ -917,15 +1114,65 @@ impl Catalog {
                 }
             }
         }
+        let mut owner_bounds = Vec::new();
+        for module in &snapshot {
+            for table in &module.dyn_vtables {
+                budget.node(span, 0)?;
+                if table.owned_storage == Some(zil_ir::DynOwnedStorage::Heap) {
+                    owner_bounds.push((
+                        table.interface,
+                        owner_may_run_user(&table.self_type, module, budget, 0)?,
+                    ));
+                }
+            }
+        }
         drop(snapshot);
         for (core, _) in cores.iter_mut() {
             for interface in &mut core.dyn_interfaces {
+                for _ in &owner_bounds {
+                    budget.node(span, 0)?;
+                }
+                if owner_bounds.iter().any(|(id, _)| *id == interface.id) {
+                    let user = owner_bounds
+                        .iter()
+                        .any(|(id, user)| *id == interface.id && *user);
+                    interface.owning_cleanup = Some(zil_ir::DynCleanupContract {
+                        environment: true,
+                        positions: Vec::new(),
+                        access: zil_ir::DynCallAccess {
+                            reads: Vec::new(),
+                            writes: Vec::new(),
+                        },
+                        effects: if user {
+                            vec![
+                                zil_ir::DynEffect::Alloc,
+                                zil_ir::DynEffect::Io,
+                                zil_ir::DynEffect::Block,
+                                zil_ir::DynEffect::Ffi,
+                                zil_ir::DynEffect::Reenter,
+                                zil_ir::DynEffect::Panic,
+                            ]
+                        } else {
+                            Vec::new()
+                        },
+                    });
+                }
                 for (id, ordinal, panic, proven) in &decisions {
                     budget.node(span, 0)?;
                     if *proven && *id == interface.id {
                         interface.slots[*ordinal].contract =
                             scalar_read_contract(interface.slots[*ordinal].receiver.mutable);
-                        if *panic { interface.slots[*ordinal].contract.effects = Some(vec![zil_ir::DynEffect::Panic]); }
+                        if *panic {
+                            interface.slots[*ordinal].contract.effects =
+                                Some(vec![zil_ir::DynEffect::Panic]);
+                        }
+                        if borrowed_result(&interface.slots[*ordinal].result) {
+                            interface.slots[*ordinal].contract.result =
+                                Some(zil_ir::DynResultSource::Borrow {
+                                    sources: vec![receiver_position()],
+                                    mutable: false,
+                                });
+                        }
                     }
                 }
             }
@@ -1180,7 +1427,7 @@ impl Catalog {
                     Some(ty) => lower_type(ty, budget)?,
                     None => zil_ir::Type::Unit,
                 };
-                if !plain_value(&result_type) {
+                if !(plain_value(&result_type) || !mutable && borrowed_result(&result_type)) {
                     return Err(unsupported(
                         slot.signature.span,
                         "dyn result needs its complete retained/lending source contract",
@@ -1194,13 +1441,22 @@ impl Catalog {
                 )?;
                 // This profile has scalar nonreceiver parameters. The sole
                 // invocation address is the actual receiver at position zero.
-                let bindings = vec![zil_ir::StorageLifeBinding {
+                let mut bindings = vec![zil_ir::StorageLifeBinding {
                     position: zil_ir::StoragePosition {
                         base: zil_ir::StorageBase::Parameter(0),
                         path: vec![],
                     },
                     binder: zil_ir::StorageBinder::Invocation(0),
                 }];
+                if borrowed_result(&result_type) {
+                    bindings.push(zil_ir::StorageLifeBinding {
+                        position: zil_ir::StoragePosition {
+                            base: zil_ir::StorageBase::Result,
+                            path: Vec::new(),
+                        },
+                        binder: zil_ir::StorageBinder::Invocation(0),
+                    });
+                }
                 slots.push(DynSlot {
                     member: DynMember {
                         application,
@@ -1360,6 +1616,9 @@ pub(crate) fn prepay_substitute_self(
         | zil_ir::Type::Managed(inner) => {
             prepay_substitute_self(inner, host, budget, span, depth + 1)?
         }
+        zil_ir::Type::Array { element, .. } => {
+            prepay_substitute_self(element, host, budget, span, depth + 1)?
+        }
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 prepay_substitute_self(field, host, budget, span, depth + 1)?;
@@ -1397,6 +1656,7 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
         zil_ir::Type::Address { inner, .. }
         | zil_ir::Type::Desc(inner)
         | zil_ir::Type::Managed(inner) => pay_type(inner, budget, span, depth + 1)?,
+        zil_ir::Type::Array { element, .. } => pay_type(element, budget, span, depth + 1)?,
         zil_ir::Type::Tuple(fields) => {
             for field in fields {
                 pay_type(field, budget, span, depth + 1)?;

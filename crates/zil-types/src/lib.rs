@@ -15,6 +15,7 @@ mod capture_cleanup;
 mod closures;
 mod conditions;
 mod deferred;
+mod dyn_cleanup;
 mod dyn_dispatch;
 mod dynamic_store;
 mod enums;
@@ -200,6 +201,10 @@ fn signatures(
             concrete_index += 1;
         }
         if let Err(diagnostic) = owning_factory::preflight(f, &mut foreign_work, limits) {
+            errors.push(diagnostic);
+            continue;
+        }
+        if let Err(diagnostic) = retained::reserve_owned_signature(f, &mut foreign_work, limits) {
             errors.push(diagnostic);
             continue;
         }
@@ -3310,6 +3315,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         )?;
         builder.imports = self.imports;
         builder.enums = self.enums;
+        builder.dyn_interfaces = self.dyn_interfaces;
+        builder.dyn_vtables = self.dyn_vtables;
         builder.function.environment = Some(id);
         builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
         let lends = lending::supported_result(&function.return_type);
@@ -3418,6 +3425,25 @@ impl<'a, 'c> Builder<'a, 'c> {
                 builder
                     .closure_captures
                     .insert(local, (index as u32, stored));
+                continue;
+            }
+            if matches!(stored, Type::OwnedDyn { .. }) {
+                if builder.closures.pending[id.0 as usize].callable_kind() != CallableKind::FnOnce {
+                    return Err(unsupported(
+                        capture.span,
+                        "owned dyn capture requires its consuming entry",
+                    ));
+                }
+                let local =
+                    builder.local(&capture.name, stored.clone(), capture.written, capture.span)?;
+                let value = builder.value(
+                    InstructionKind::TakeCapture {
+                        index: index as u32,
+                    },
+                    stored,
+                    capture.span,
+                )?;
+                builder.store(local, value, capture.span)?;
                 continue;
             }
             if let Type::Managed(payload) = &stored {
