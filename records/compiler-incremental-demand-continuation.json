@@ -1,7 +1,7 @@
 {
   "task": "G10.5.1.15",
   "status": "Active full-pipeline continuation; prior delivery below remains historical, general acceptance is open",
-  "read_goal": "8d985cb3c0448efe3a568e42ab7d56e09fcd2459",
+  "read_goal": "1ac91c77e38e20a2ce7845190a83550a1ecbd68e",
   "source": "e91d16480d5e31c620d2b776245973c24329840f",
   "delivery": "ff81e07961077613907ce4d3b9cf650defccfd1d",
   "branch": "research/incremental-demand-continuation",
@@ -1573,6 +1573,73 @@
           "receipt_sha256": "ef8246c96fbb0ce92046cf0ac57e3de9f7dc55ca313b509ce375c42fc3dc5956",
           "scope": "8storagepieces+index freshHTTPS fullfilehash/mode; original profile495files/415601601B exactdisjointunion; SDK16all156regularfiles/124312325B plusrelativealias exactunion/recoverymap; originalsSDK and immutable17/18 originalpath/dev/inode/bytes kept. Full source404/e117/4b and exactd36/0f1docs, allfailures/successgates/reviews/cleanup15+16 retained.",
           "limits": "No assembledwhole fresh qualifier rerun/native execution claimed. Prior raw original failure kept. New diagnostic consumer96 gates not part of measured4b or this archive acceptance."
+        },
+        "current_whole_component_96f": {
+          "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+          "tree": "6fcfd44274b3961ac9a2f600c5a257b98aadf2d5",
+          "binary_sha256": "c5334425287f32770f4841ed4a9294c5369d24f4e52fe92d77a441d4e7c0c3c1",
+          "delivery": "8edc9374195641c9ce8a3456bbc17ca674aee2ac",
+          "report": "research/full-push-native:tools/research/incremental-demand/full-push-checkpoint-96f.md",
+          "actual_removed_work": "ActualItemEq keeps persistent item/fragment roots, no rebuilding all names/map/vector; bounded64 IoSlice write uses retained payload directly, no1MiB extra payload aggregation. All current .ll/header/fingerprint/writererror/Verify/budgets/O2 retained. Still visits actualItems and writes allbytes.",
+          "counts": {
+            "backend": 249,
+            "driver": 210,
+            "failed": 0,
+            "ignored": 0
+          },
+          "gates": {
+            "push-backend-library-tests-17": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "9aa94f58324a32bf94d50afa521f8e26a2a03e28da4cdaf5bce05f3513d446ff"
+            },
+            "push-driver-library-tests-20": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "803759d0e336a93cb7c366685ef93a4f167b881a3e5925ace1c454819b77c882"
+            },
+            "full-push-native-clippy-20": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "e1be44e3afe7e654aa2d549b66568f8a13b07319226da5645b134d827edb016a"
+            },
+            "full-push-fmt-18": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "full-push-release-19": {
+              "source": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "source_after": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+              "exit_code": 0,
+              "log_sha256": "d08cb4077391c7ae7a07eecf1bec308662d9a5c4248156ee03ac58b793d29075"
+            }
+          },
+          "original_controller_exit": "unknown",
+          "original_controller_event": "Tool96999 handle vanished, boot unchanged, realdriver kept running; two subprocess completions receipt/log/exits independentchecked. Never infer originalcontroller0. No test rerun.",
+          "resume_controller": {
+            "observed_tool_exit": 0,
+            "persisted_exit": 0,
+            "log_sha256": "4685f6eb296f989237b65ad1439ec800bb917412a76805bba2fa87152ca76ab1",
+            "only_previously_unexecuted": [
+              "full-push-native-clippy-20",
+              "full-push-fmt-18",
+              "full-push-release-19"
+            ]
+          },
+          "review_sha256": "bb790bb125c0490672e70b7435ec2ed138dace565875c58f52e68a0b6af11154",
+          "performance": "Not newlymeasured; do not rebind old4b or formal328 timings to96.",
+          "next": "Actual immutable machine-output piece tree through emit/history/transform/diag/CGU; unknown/rich/realtransform materialize original path. Separate fixedLLVM strictMC operationproduct consumer underAstra closure, unaccepted/unmeasured."
+        },
+        "raw_current_v22": {
+          "fixed_ref": "98dfcab311a22dae96f6e5ffac9cc0b83ce35118",
+          "receipt": "research/full-push-native:tools/research/incremental-demand/full-push-recovery-v22.json",
+          "receipt_sha256": "eaf2d10acf960436ab12e37019891fffcd224537ed551fe65bdf229babf3568a",
+          "scope": "36files/43134497B metadata and index freshHTTPS allhash/mode; exact d1/96 source + immutable19 originalpath/dev/inode + originalcontrollerunknown/event + resume3gates + allrawlogs/receipts/scripts/reviews + exact8fdocs + V21. No futureMC/rope or newnative execution claim."
         }
       }
     }
