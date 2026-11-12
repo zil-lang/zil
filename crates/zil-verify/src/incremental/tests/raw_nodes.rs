@@ -59,6 +59,8 @@ fn attempt<'a>(
         previous_empty_borrows: &session.empty_borrows,
         previous_shapes: &session.shapes,
         previous_inventory: &session.inventory,
+        previous_lexical: &session.lexical,
+        next_lexical: session.lexical.clone(),
         previous_inputs: session.verified.as_ref(),
         delta: RawDelta::new(
             session.verified.as_ref(),
@@ -119,6 +121,8 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     assert_eq!(stats.raw_inventory_functions_checked, 1);
     assert_eq!(stats.resource_inventory_functions_checked, 1);
     assert_eq!(stats.resource_inventory_functions_reused, 15);
+    assert_eq!(stats.region_functions_reused, 15);
+    assert_eq!(stats.lexical_cleanup_functions_reused, 15);
     assert!(stats.raw_shape_ranges_reused < 15);
     assert_ne!(
         initial.fingerprint(),
@@ -560,4 +564,173 @@ fn foreign_selector_preserves_original_n_and_n_minus_one_declaration_fees() {
         other.functions[0].foreign = module.functions[1].foreign.clone();
         assert!(call.foreign_indices(&other).is_none());
     }
+}
+
+#[test]
+fn region_receipts_bind_semantic_lexical_spans_not_only_span_free_body_equality() {
+    let (mut module, mut plan) = pair();
+    let enter = |region, start, end| Instruction {
+        result: None,
+        kind: InstructionKind::UnsafeEnter { region },
+        span: Span::new(zil_base::FileId(0), start, end),
+    };
+    let exit = |region| Instruction {
+        result: None,
+        kind: InstructionKind::UnsafeExit { region },
+        span: Span::new(zil_base::FileId(0), 20, 21),
+    };
+    let mut instructions = vec![enter(0, 10, 100), enter(1, 20, 30), exit(1), exit(0)];
+    instructions.extend(module.functions[0].blocks[0].instructions.clone());
+    module.functions[0].blocks[0].instructions = instructions;
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().region_functions_reused, 2);
+    let mut invalid = module.clone();
+    invalid.functions[0].blocks[0].instructions[1].span.start = 5;
+    assert!(same_function(&module.functions[0], &invalid.functions[0]));
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = invalid.fingerprint();
+    let expected =
+        verify_module(invalid.clone(), candidate.clone(), &invalid.target, &limits).unwrap_err();
+    assert_eq!(
+        verify(&mut session, &invalid, &candidate, &limits).unwrap_err(),
+        expected
+    );
+    assert_eq!(expected[0].code, "E-VERIFY-UNSAFE");
+    assert_eq!(session.stats().region_functions_checked, 1);
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().region_functions_reused, 2);
+}
+
+#[test]
+fn lexical_receipts_keep_current_cleanup_exit_checks_and_failed_recovery() {
+    let (mut module, mut plan) = pair();
+    let span = module.functions[0].span;
+    let op = |kind| Instruction {
+        result: None,
+        kind,
+        span,
+    };
+    let mut instructions = vec![
+        op(InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(InstructionKind::StorageLive(LocalId(0))),
+    ];
+    instructions.extend(module.functions[0].blocks[0].instructions.clone());
+    instructions.push(op(InstructionKind::StorageDead(LocalId(0))));
+    instructions.push(op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    }));
+    module.functions[0].blocks[0].instructions = instructions;
+    plan.functions[0].blocks[0].initialized_out.clear();
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().lexical_cleanup_functions_reused, 2);
+    let mut invalid = module.clone();
+    invalid.functions[0].blocks[0]
+        .instructions
+        .last_mut()
+        .unwrap()
+        .kind = InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Break,
+    };
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = invalid.fingerprint();
+    let expected =
+        verify_module(invalid.clone(), candidate.clone(), &invalid.target, &limits).unwrap_err();
+    assert_eq!(
+        verify(&mut session, &invalid, &candidate, &limits).unwrap_err(),
+        expected
+    );
+    assert_eq!(expected[0].code, "E-VERIFY-CLEANUP");
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    assert_eq!(session.stats().lexical_cleanup_functions_reused, 2);
+}
+
+#[test]
+fn lexical_stage_fees_preserve_each_n_and_n_minus_one_position_and_sum_context() {
+    let (module, plan) = pair();
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let current = VerifiedInputs::SharedModule {
+        module: Arc::new(module.clone()),
+        plan: Arc::new(plan.clone()),
+    };
+    let f = &module.functions[0];
+    let row = &plan.functions[0];
+    let graph = check_function(&module, f, row, &mut raw_budget(&limits, 2), &limits).unwrap();
+    let mut measured = raw_budget(&limits, 2);
+    foreign::check_regions(f, &graph, &mut measured).unwrap();
+    let region_work = limits.max_analysis_steps - measured.remaining;
+    cleanup::check_lexical(f, &graph, &mut measured).unwrap();
+    let work = limits.max_analysis_steps - measured.remaining;
+    for available in [work, work - 1, region_work, region_work - 1, 0] {
+        for sums in [false, true] {
+            let mut fresh = raw_budget(&limits, 2);
+            fresh.remaining = available;
+            fresh.sums = sums;
+            let expected = foreign::check_regions(f, &graph, &mut fresh)
+                .and_then(|()| cleanup::check_lexical(f, &graph, &mut fresh));
+            let mut warm = raw_budget(&limits, 2);
+            warm.remaining = available;
+            warm.sums = sums;
+            let mut call = attempt(&session, &current, &limits);
+            let actual = call.check_lexical(f, row, &module.target, &graph, &mut warm, &limits);
+            assert_eq!(expected, actual);
+            assert_eq!(fresh.remaining, warm.remaining);
+            if available == work {
+                assert_eq!(call.stats.region_functions_reused, 1);
+                assert_eq!(
+                    call.stats.lexical_cleanup_functions_reused,
+                    usize::from(!sums)
+                );
+                assert_eq!(
+                    call.stats.lexical_cleanup_functions_checked,
+                    usize::from(sums)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn lexical_receipts_do_not_authorize_changed_deferred_callee_bodies() {
+    let module = crate::defer_tests::fixture(1, false, false);
+    let plan = crate::resource_tests::plan(&module);
+    let limits = Limits::default();
+    let mut session = VerifySession::new();
+    verify(&mut session, &module, &plan, &limits).unwrap();
+    let mut invalid = module.clone();
+    let span = invalid.functions[1].span;
+    invalid.functions[1].blocks[0].instructions.insert(
+        1,
+        Instruction {
+            result: None,
+            kind: InstructionKind::RegisterDefer {
+                scope: ScopeId(0),
+                local: LocalId(0),
+            },
+            span,
+        },
+    );
+    let mut candidate = plan.clone();
+    candidate.module_fingerprint = invalid.fingerprint();
+    let expected =
+        verify_module(invalid.clone(), candidate.clone(), &invalid.target, &limits).unwrap_err();
+    assert_eq!(
+        verify(&mut session, &invalid, &candidate, &limits).unwrap_err(),
+        expected
+    );
+    assert_eq!(expected[0].code, "E-VERIFY-DEFER");
+    assert!(expected[0].message.contains("nested defer registration"));
+    assert_eq!(session.stats().lexical_cleanup_functions_reused, 1);
+    verify(&mut session, &module, &plan, &limits).unwrap();
 }

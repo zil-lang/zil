@@ -119,6 +119,19 @@ pub(super) fn check_function(
     graph: &FunctionGraph,
     budget: &mut Budget,
 ) -> Check<()> {
+    if check_lexical(function, graph, budget)? {
+        defers::check(module, function, graph, budget)?;
+    }
+    Ok(())
+}
+
+/// Complete lexical scope/storage proof. Deferred-action invocation and callee
+/// body obligations are a separate current-module check after this stage.
+pub(super) fn check_lexical(
+    function: &TypedFunction,
+    graph: &FunctionGraph,
+    budget: &mut Budget,
+) -> Check<bool> {
     let bad = |span, message| reject("E-VERIFY-CLEANUP", Some(span), message);
     let mut required = false;
     let mut deferred = false;
@@ -208,7 +221,7 @@ pub(super) fn check_function(
         }
     }
     if !required {
-        return Ok(());
+        return Ok(false);
     }
     let entry = function.entry.0 as usize;
     if !function.blocks[entry]
@@ -406,8 +419,5 @@ pub(super) fn check_function(
             }
         }
     }
-    if deferred {
-        defers::check(module, function, graph, budget)?;
-    }
-    Ok(())
+    Ok(deferred)
 }

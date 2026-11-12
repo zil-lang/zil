@@ -66,6 +66,7 @@ impl Attempt<'_> {
     ) -> Check<()> {
         self.next_shapes = resized_rows(self.previous_shapes, module.functions.len());
         self.next_inventory = resized_rows(self.previous_inventory, module.functions.len());
+        self.next_lexical = resized_rows(self.previous_lexical, module.functions.len());
         let previous = self.previous_shape_tree.cloned();
         let root = self.check_shape_range(
             module,
