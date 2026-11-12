@@ -1146,7 +1146,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
         }
         helper_classes::populate(module, left, limits)?;
     }
-    receiver_contracts::finish(module, &summaries, left)?;
+    receiver_contracts::finish(module, &summaries, left, limits)?;
     Ok(())
 }
 
