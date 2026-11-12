@@ -193,11 +193,11 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     args.as_slice()
                 && let s::TypeKind::Tuple(parameters) = &reference(parameters).kind
             {
-                let mark = self.headers.len();
-                for header in parameters.iter().chain(std::iter::once(result)) {
-                    self.budget
-                        .node(header.span, depth + 1)
-                        .map_err(|error| vec![error])?;
+                self.budget.note_stored_lifetimes();
+                self.budget.note_source_identity();
+                let mark=self.headers.len();
+                for header in parameters.iter().chain(std::iter::once(result)){
+                    self.budget.node(header.span,depth+1).map_err(|error|vec![error])?;
                     self.headers.push(std::ptr::from_ref(reference(header)));
                 }
                 let mutable = self.mutable_life;

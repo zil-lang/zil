@@ -2,13 +2,20 @@
 use super::*;
 
 #[derive(Clone, Debug)]
-pub(super) struct CallableContextEmission {
-    pub(super) creator: NodeId,
-    pub(super) item: usize,
-    pub(super) parameter: u32,
-    pub(super) generic: u32,
-    pub(super) bound: u32,
+pub(super) enum CallableContextEmission {
+    Parameter {
+        creator: NodeId,
+        item: usize,
+        parameter: u32,
+        generic: u32,
+        bound: u32,
+    },
+    Return {
+        creator: NodeId,
+        item: usize,
+    },
 }
+
 impl generics::products::Products {
     pub(crate) fn bind_callable_contexts(
         &mut self,
@@ -30,19 +37,97 @@ impl generics::products::Products {
             })?;
             for emission in std::mem::take(&mut expanded.callable_context_emissions) {
                 budget.node(module.span, 0)?;
-                let item = module.items.get(emission.item).ok_or_else(|| {
+                let (creator, item_ordinal) = match &emission {
+                    CallableContextEmission::Parameter { creator, item, .. }
+                    | CallableContextEmission::Return { creator, item } => (*creator, *item),
+                };
+                let item = module.items.get(item_ordinal).ok_or_else(|| {
                     Diagnostic::unsupported(
                         Phase::Expand,
                         "source helper output placement is absent",
                         None,
                     )
                 })?;
-                let origin = origins.in_module(module.id, emission.item, &mut budget, item.span)?;
+                let origin = origins.in_module(module.id, item_ordinal, &mut budget, item.span)?;
+                if matches!(emission, CallableContextEmission::Return { .. }) {
+                    if let Some(row) =
+                        self.callable_returns
+                            .consume(origin, &mut budget, item.span)?
+                    {
+                        budget.identity_work(
+                            expanded.core.functions.len().saturating_add(1),
+                            item.span,
+                        )?;
+                        let mut actual = expanded
+                            .core
+                            .functions
+                            .iter_mut()
+                            .filter(|function| function.id == creator);
+                        let function = actual.next().ok_or_else(|| {
+                            Diagnostic::unsupported(
+                                Phase::Expand,
+                                "opaque return actual creator is absent",
+                                Some(item.span),
+                            )
+                        })?;
+                        if actual.next().is_some() || function.source_scope.is_some() {
+                            return Err(Diagnostic::unsupported(
+                                Phase::Expand,
+                                "opaque return actual owner is ambiguous",
+                                Some(item.span),
+                            ));
+                        }
+                        let Type::Opaque { identity, hidden } = &mut function.return_type else {
+                            return Err(Diagnostic::unsupported(
+                                Phase::Expand,
+                                "opaque return actual creator changed its result kind",
+                                Some(item.span),
+                            ));
+                        };
+                        if *identity != function.id
+                            || function
+                                .callable_return
+                                .as_ref()
+                                .is_none_or(|bound| bound.kind != row.returned.kind)
+                        {
+                            return Err(Diagnostic::unsupported(
+                                Phase::Expand,
+                                "opaque return actual creator changed its declared bound",
+                                Some(item.span),
+                            ));
+                        }
+                        crate::stored_types::pay_type(
+                            &row.returned.result,
+                            &mut budget,
+                            item.span,
+                            0,
+                        )?;
+                        for ty in &row.returned.parameters {
+                            crate::stored_types::pay_type(ty, &mut budget, item.span, 0)?;
+                        }
+                        *hidden = Box::new(Type::FunctionPointer {
+                            parameters: row.returned.parameters.clone(),
+                            result: Box::new(row.returned.result.clone()),
+                        });
+                        function.source_scope = Some(row.scope);
+                        function.callable_return = Some(row.returned);
+                    }
+                    continue;
+                }
+                let CallableContextEmission::Parameter {
+                    parameter,
+                    generic,
+                    bound,
+                    ..
+                } = emission
+                else {
+                    unreachable!()
+                };
                 let Some(row) = self.callable_contexts.consume(
                     origin,
-                    emission.parameter,
-                    emission.generic,
-                    emission.bound,
+                    parameter,
+                    generic,
+                    bound,
                     &mut budget,
                     item.span,
                 )?
@@ -54,7 +139,7 @@ impl generics::products::Products {
                     .core
                     .functions
                     .iter_mut()
-                    .filter(|f| f.id == emission.creator);
+                    .filter(|f| f.id == creator);
                 let function = actual.next().ok_or_else(|| {
                     Diagnostic::unsupported(
                         Phase::Expand,
@@ -76,7 +161,7 @@ impl generics::products::Products {
                 let role = function
                     .callable_parameters
                     .iter_mut()
-                    .find(|r| r.index == emission.parameter)
+                    .find(|r| r.index == parameter)
                     .ok_or_else(|| {
                         Diagnostic::unsupported(
                             Phase::Expand,
@@ -109,7 +194,10 @@ impl generics::products::Products {
     }
     pub(crate) fn finish_callable_contexts(&mut self, limits: &Limits) -> CompileResult<()> {
         let mut budget = generics::Budget::new(self.allowance.as_ref().unwrap_or(limits));
-        let result = self.callable_contexts.finish(&mut budget, Span::default());
+        let result = self
+            .callable_contexts
+            .finish(&mut budget, Span::default())
+            .and_then(|()| self.callable_returns.finish(&mut budget, Span::default()));
         self.allowance = Some(budget.remaining_limits());
         result.map_err(|e| vec![e])
     }
