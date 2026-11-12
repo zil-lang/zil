@@ -490,11 +490,11 @@ impl Inventory<'_> {
             if life != &value.life {
                 return Err(bad("dynamic external and embedded complete shapes differ"));
             }
-        } else if let Type::Managed(inner) = &value.ty {
-            let child = self.domain(inner, b)?;
-            return self.wrapper(value, child, LifeTypeProjection::Pointee, b);
-        } else if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
-            return self.borrow(value, b);
+        } else if matches!(
+            value.ty,
+            Type::Managed(_) | Type::Address { .. } | Type::Desc(_)
+        ) {
+            return super::compound::external(self, &value.ty, &value.life, b);
         } else if !value.life.slots.is_empty()
             || !value.life.retained.is_empty()
             || !value.life.nominal_arguments.is_empty()
@@ -510,98 +510,6 @@ impl Inventory<'_> {
             ));
         }
         Ok(domain)
-    }
-    fn wrapper(
-        &mut self,
-        value: &DynTypeValue,
-        child: Domain,
-        path: LifeTypeProjection,
-        b: &mut Budget,
-    ) -> Check<Domain> {
-        let life = &value.life;
-        if !life.slots.is_empty()
-            || !life.nominal_arguments.is_empty()
-            || life.retained.len() != child.count as usize
-        {
-            return Err(bad(
-                "dynamic wrapper omits its actual child class directory",
-            ));
-        }
-        let mut seen = vec![false; life.binder_count as usize];
-        for (class, row) in life.retained.iter().enumerate() {
-            b.spend(row.path.len().saturating_add(1))?;
-            if row.path != [path] || row.class as usize != class || row.binder >= life.binder_count
-            {
-                return Err(bad(
-                    "dynamic wrapper class differs from its actual child domain",
-                ));
-            }
-            seen[row.binder as usize] = true;
-        }
-        if seen.contains(&false) {
-            return Err(bad("dynamic wrapper has an ungrounded intrinsic class"));
-        }
-        Ok(Domain {
-            count: life.binder_count,
-            pending_sources: child.pending_sources,
-        })
-    }
-    fn borrow(&mut self, value: &DynTypeValue, b: &mut Budget) -> Check<Domain> {
-        let (inner, address) = match &value.ty {
-            Type::Address { mutable, inner } => (inner.as_ref(), Some(*mutable)),
-            Type::Desc(inner) => (inner.as_ref(), None),
-            _ => unreachable!(),
-        };
-        let life = &value.life;
-        if life.slots.len() != 1
-            || !life.slots[0].path.is_empty()
-            || !life.nominal_arguments.is_empty()
-        {
-            return Err(bad(
-                "dynamic borrow omits its outer occurrence or invents physical child rows",
-            ));
-        }
-        let slot = &life.slots[0];
-        let mode_ok = match address {
-            Some(true) => slot.mode == StoredBorrowMode::ExclusiveAddress,
-            Some(false) => slot.mode == StoredBorrowMode::SharedAddress,
-            None => matches!(
-                slot.mode,
-                StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription
-            ),
-        };
-        if !mode_ok || slot.binder >= life.binder_count {
-            return Err(bad("dynamic outer borrow mode or class differs"));
-        }
-        let child = self.domain(inner, b)?;
-        if life.retained.len() != child.count as usize {
-            return Err(bad(
-                "dynamic borrow omits a complete pointee class occurrence",
-            ));
-        }
-        let mut seen = vec![false; life.binder_count as usize];
-        seen[slot.binder as usize] = true;
-        for (class, row) in life.retained.iter().enumerate() {
-            b.spend(row.path.len().saturating_add(1))?;
-            if row.path != [LifeTypeProjection::Pointee]
-                || row.class as usize != class
-                || row.binder >= life.binder_count
-            {
-                return Err(bad(
-                    "dynamic borrow child map differs from its actual Pointee domain",
-                ));
-            }
-            seen[row.binder as usize] = true;
-        }
-        if seen.contains(&false) {
-            return Err(bad(
-                "dynamic borrow directory contains an unbound intrinsic class",
-            ));
-        }
-        Ok(Domain {
-            count: life.binder_count,
-            pending_sources: child.pending_sources,
-        })
     }
 }
 pub(super) fn check(
@@ -904,6 +812,115 @@ mod tests {
             );
         duplicated.functions[0].storage_life = duplicated.closures[0].storage_life.clone();
         assert!(run(&duplicated, &actual).is_err());
+    }
+
+    #[test]
+    fn ordinary_qualified_pointee_keeps_nominal_occurrences_and_managed_path_depth() {
+        let (mut module, _) = crate::tests::baseline();
+        let declaration = LifeDeclarationId {
+            module: zil_base::ModuleId(0),
+            declaration: zil_base::NodeId(80),
+            compiler: false,
+        };
+        let tag_life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![NominalLifeArgument {
+                path: vec![],
+                declaration,
+                argument: 0,
+                binder: 0,
+            }],
+        };
+        let tag = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "test.Tag".into(),
+                fields: vec![("code".into(), Type::I32)],
+            }),
+            life: tag_life.clone(),
+        };
+        module.life_declarations.push(LifeNominalDeclaration {
+            id: declaration,
+            identity: LifeDeclarationIdentity {
+                package: "test".into(),
+                module_path: vec![],
+                declaration_path: vec!["Tag".into()],
+                generation_path: vec![],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![LifeParameterKind::Lifetime],
+        });
+        module.life_instances.push(LifeNominalInstance {
+            declaration,
+            ty: tag.clone(),
+            arguments: vec![LifeNominalActual::Lifetime(0)],
+        });
+        for managed in [false, true] {
+            let inner = if managed {
+                Type::Managed(Box::new(tag.clone()))
+            } else {
+                tag.clone()
+            };
+            let mut actual = value(
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(inner),
+                },
+                2,
+            );
+            let path = vec![LifeTypeProjection::Pointee; if managed { 2 } else { 1 }];
+            actual.life.slots = vec![StorageLifeSlot {
+                path: vec![],
+                binder: 0,
+                mode: StoredBorrowMode::SharedAddress,
+            }];
+            actual.life.retained = vec![StorageRetainedBinding {
+                path: path.clone(),
+                class: 0,
+                binder: 1,
+            }];
+            actual.life.nominal_arguments = vec![NominalLifeArgument {
+                path: path.clone(),
+                declaration,
+                argument: 0,
+                binder: 1,
+            }];
+            assert_eq!(run(&module, &actual).unwrap().count, 2);
+            let mut missing = actual.clone();
+            missing.life.nominal_arguments.clear();
+            assert!(run(&module, &missing).is_err());
+            let mut wrong = actual.clone();
+            wrong.life.nominal_arguments[0].binder = 0;
+            assert!(run(&module, &wrong).is_err());
+            let mut collapsed = actual.clone();
+            collapsed.life.binder_count = 1;
+            collapsed.classes.truncate(1);
+            collapsed.life.retained[0].binder = 0;
+            collapsed.life.nominal_arguments[0].binder = 0;
+            assert_eq!(run(&module, &collapsed).unwrap().count, 1);
+            if managed {
+                let mut flattened = actual.clone();
+                flattened.life.retained[0].path.pop();
+                flattened.life.nominal_arguments[0].path.pop();
+                assert!(run(&module, &flattened).is_err());
+            }
+        }
+        let mut owner = value(Type::Managed(Box::new(tag)), 1);
+        owner.life.retained = vec![StorageRetainedBinding {
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+            binder: 0,
+        }];
+        owner.life.nominal_arguments = vec![NominalLifeArgument {
+            path: vec![LifeTypeProjection::Pointee],
+            declaration,
+            argument: 0,
+            binder: 0,
+        }];
+        assert_eq!(run(&module, &owner).unwrap().count, 1);
+        owner.life.nominal_arguments.clear();
+        assert!(run(&module, &owner).is_err());
     }
 
     #[test]

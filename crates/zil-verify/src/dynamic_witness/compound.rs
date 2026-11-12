@@ -213,6 +213,30 @@ pub(super) fn check(
     if !matches!(storage, Type::Tuple(_)) {
         return Err(bad("anonymous compound has no actual Tuple root"));
     }
+    external_inner(inventory, storage, life, true, b)
+}
+/// Ordinary wrapper paths belong to the actual constructor. Managed adds a
+/// Pointee edge; it does not turn its whole payload into one opaque boundary.
+pub(super) fn external(
+    inventory: &mut values::Inventory<'_>,
+    ty: &Type,
+    life: &StorageLifeShape,
+    b: &mut Budget,
+) -> Check<values::Domain> {
+    if !matches!(ty, Type::Address { .. } | Type::Desc(_) | Type::Managed(_)) {
+        return Err(bad(
+            "external compound has no actual Address, Desc or Managed root",
+        ));
+    }
+    external_inner(inventory, ty, life, false, b)
+}
+fn external_inner(
+    inventory: &mut values::Inventory<'_>,
+    storage: &Type,
+    life: &StorageLifeShape,
+    anonymous: bool,
+    b: &mut Budget,
+) -> Check<values::Domain> {
     if life.binder_count as usize > b.limits.max_nodes {
         return Err(limit("compound actual domain exceeded"));
     }
@@ -264,7 +288,7 @@ pub(super) fn check(
             .get_mut(class as usize)
             .ok_or_else(|| bad("compound class lies outside its intrinsic domain"))?;
         if !*row {
-            if class != next {
+            if anonymous && class != next {
                 return Err(bad(
                     "compound intrinsic classes are not dense by complete actual occurrence",
                 ));
@@ -273,7 +297,7 @@ pub(super) fn check(
             next += 1;
         }
     }
-    if seen.contains(&false) || life.binder_count == 0 {
+    if seen.contains(&false) || anonymous && life.binder_count == 0 {
         return Err(bad(
             "compound invents an ungrounded class or a qualified zero-domain anonymous root",
         ));
