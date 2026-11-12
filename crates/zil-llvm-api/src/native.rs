@@ -638,11 +638,12 @@ fn compile_input(
     // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
-    if let Some(timings) = attempt_timings.as_deref_mut() {
+    if let Some(timings) = attempt_timings {
         timings.emit_ns = emit_ns;
     }
     check(cancelled)?;
     let completed_products = product_scope.take().and_then(products::Scope::finish);
+    #[cfg(feature = "native-products")]
     drop(product_scope);
     if let Some((_, _, failed, output)) = hook_state {
         if *failed {
