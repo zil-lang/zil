@@ -31,4 +31,6 @@ extern "C" uint32_t ZilNativeProductsMachineNumberingTestResults();
 extern "C" int ZilNativeProductsMachineAlignmentTest(int max_bytes);
 // Extra assertions within the same explicit scratch scope: expected 0b111.
 extern "C" uint32_t ZilNativeProductsMachineBundleTestResults();
+// Typed-body current-owner reconstruction and rejection checks; expected 255.
+extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults();
 #endif

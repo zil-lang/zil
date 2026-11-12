@@ -55,6 +55,7 @@ thread_local bool MachineNumberingTests = false;
 thread_local bool MachineNumberingTestsRan = false;
 thread_local uint32_t MachineNumberingTestBits = 0;
 thread_local uint32_t MachineBundleTestBits = 0;
+thread_local uint32_t MachineTypedBodyTestBits = 0;
 void diagnose(const llvm::Function &F, llvm::StringRef Stage,
               llvm::StringRef Detail = {}) {
   if (!MachineDiagnostics) return;
@@ -442,6 +443,9 @@ bool captureBody(const llvm::MachineFunction &MF, BodyState &Out) {
           // Read the raw renamable bit without retaining this temporary copy's
           // original parent/links. The contextual accessor masks that bit for
           // descriptors with additional allocation constraints.
+          // NoReg has no legal renamable query. Its inactive bit is normalized
+          // to false: the bound tail contains no register-changing transforms
+          // or allocator, only preserves-all providers and the actual printer.
           auto Detached = MO; Detached.clearParent();
           O.kind = BodyOperand::Reg; O.value = MO.getReg().id(); O.subReg = MO.getSubReg();
           O.flags = (MO.isDef() ? Def : 0) | (MO.isImplicit() ? Implicit : 0) |
@@ -633,12 +637,80 @@ std::string machineText(const llvm::MachineModuleInfo &MMI,
   return Text;
 }
 
+void testTypedBody(llvm::MachineFunction &Current) {
+  auto Make = [&]() {
+    auto MF = std::make_unique<llvm::MachineFunction>(Current.getFunction(), Current.getTarget(),
+        Current.getSubtarget(), Current.getContext(), 91);
+    MF->initTargetMachineFunctionInfo(Current.getSubtarget());
+    MF->getRegInfo().freezeReservedRegs();
+    return MF;
+  };
+  auto Source = Make();
+  auto *A = Source->CreateMachineBasicBlock(&Current.getFunction().front());
+  auto *B = Source->CreateMachineBasicBlock();
+  Source->push_back(A); Source->push_back(B);
+  A->addSuccessor(B, llvm::BranchProbability::getOne());
+  A->addLiveIn(llvm::MCRegister::from(1), llvm::LaneBitmask::getAll());
+  A->setAlignment(llvm::Align(16));
+  const auto *TII = Source->getSubtarget().getInstrInfo();
+  auto *MI = Source->CreateMachineInstr(TII->get(llvm::TargetOpcode::KILL), llvm::DebugLoc(), true);
+  A->push_back(MI);
+  MI->addOperand(*Source, llvm::MachineOperand::CreateReg(llvm::Register(1), true, false,
+      false, true, true, true, 0, false, true, true));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateReg(llvm::Register(1), false, false,
+      true, false, true, false, 0, false, true, true));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateReg(llvm::Register(0), false));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateImm(-173));
+  const uint64_t Words[] = {0xfedcba9876543210ULL, 0x1234567890abcdefULL};
+  MI->addOperand(*Source, llvm::MachineOperand::CreateCImm(llvm::ConstantInt::get(
+      Current.getFunction().getContext(), llvm::APInt(128, Words))));
+  MI->addOperand(*Source, llvm::MachineOperand::CreateMBB(B, 7));
+  MI->tieOperands(0, 1);
+  MI->setFlag(llvm::MachineInstr::NoUWrap);
+  MI->setAsmPrinterFlag(1);
+  BodyState Saved;
+  if (!captureBody(*Source, Saved)) return;
+  MachineTypedBodyTestBits |= 1;
+  auto Restored = Make();
+  BodyState Again;
+  if (restoreBody(*Restored, Saved) && captureBody(*Restored, Again) && Saved == Again)
+    MachineTypedBodyTestBits |= 2;
+  // Destroy every historical MBB/MI before following restored pointers.
+  Source.reset();
+  if (Restored->size() == 2 && !Restored->front().empty()) {
+    auto &NewMI = Restored->front().front();
+    if (NewMI.getParent() == &Restored->front() &&
+        NewMI.getOperand(5).getMBB() == &Restored->back() &&
+        Restored->front().isSuccessor(&Restored->back()) &&
+        NewMI.findTiedOperandIdx(1) == 0 &&
+        NewMI.getOperand(4).getCImm()->getValue() == llvm::APInt(128, Words))
+      MachineTypedBodyTestBits |= 4;
+  }
+  auto Changed = Saved;
+  Changed.blocks[0].instructions[0].operands[1].flags ^= Undef;
+  if (!(Changed == Saved)) MachineTypedBodyTestBits |= 8;
+  Changed = Saved; Changed.blocks[0].irBlock = Current.getFunction().size();
+  auto InvalidIR = Make();
+  if (!restoreBody(*InvalidIR, Changed) && InvalidIR->empty()) MachineTypedBodyTestBits |= 16;
+  Changed = Saved; Changed.blocks[0].successors[0].first = Saved.blocks.size();
+  auto InvalidEdge = Make();
+  if (!restoreBody(*InvalidEdge, Changed)) MachineTypedBodyTestBits |= 32;
+  Changed = Saved; Changed.reservedRegisters.flip(0);
+  auto InvalidMask = Make();
+  if (!restoreBody(*InvalidMask, Changed) && InvalidMask->empty()) MachineTypedBodyTestBits |= 64;
+  auto ExtraVReg = Make();
+  ExtraVReg->getRegInfo().createGenericVirtualRegister(llvm::LLT::scalar(32));
+  BodyState Ignored;
+  if (!captureBody(*ExtraVReg, Ignored)) MachineTypedBodyTestBits |= 128;
+}
+
 // Invoked only by an explicit test scope. The scratch MF is never registered
 // with current MMI, and none of its blocks enter the actual emitted function.
 void testMachineNumbering(llvm::MachineFunction &Current,
                           llvm::MachineModuleInfo &MMI) {
   if (!MachineNumberingTests || MachineNumberingTestsRan) return;
   MachineNumberingTestsRan = true;
+  testTypedBody(Current);
   llvm::MachineFunction MF(Current.getFunction(), Current.getTarget(),
                            Current.getSubtarget(), Current.getContext(), 37);
   // Match MachineModuleInfo's construction contract: the constructor creates
@@ -1112,6 +1184,7 @@ extern "C" int ZilNativeProductsMachineNumberingTests(int Enabled) {
     zil::MachineNumberingTestsRan = false;
     zil::MachineNumberingTestBits = 0;
     zil::MachineBundleTestBits = 0;
+    zil::MachineTypedBodyTestBits = 0;
   }
   return Old;
 }
@@ -1128,4 +1201,8 @@ extern "C" int ZilNativeProductsMachineAlignmentTest(int MaxBytes) {
 
 extern "C" uint32_t ZilNativeProductsMachineBundleTestResults() {
   return zil::MachineBundleTestBits;
+}
+
+extern "C" uint32_t ZilNativeProductsMachineTypedBodyTestResults() {
+  return zil::MachineTypedBodyTestBits;
 }
