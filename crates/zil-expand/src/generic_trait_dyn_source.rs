@@ -7,7 +7,11 @@ use zil_ir::{
     LifeDeclarationId, LifeParameterKind,
 };
 
+#[path = "generic_dyn_pattern.rs"]
+mod pattern;
+
 pub(super) struct Declaration {
+    self_pattern: Option<zil_ir::DynSelfPattern>,
     origin: origins::DeclId,
     symbol: Option<String>,
     kind: DynDeclarationKind,
@@ -673,6 +677,7 @@ pub(super) fn declarations(
     origins: &origins::Origins,
     budget: &mut Budget<'_>,
 ) -> R<Vec<Declaration>> {
+    let mut recipes = pattern::collect(module, origins, budget)?;
     let mut result = Vec::new();
     for (ordinal, item) in module.items.iter().enumerate() {
         budget.node(item.span, 0)?;
@@ -727,6 +732,7 @@ pub(super) fn declarations(
             });
         }
         result.push(Declaration {
+            self_pattern: recipes.remove(&origins.get(ordinal, item.span)?.declaration),
             origin: origins.get(ordinal, item.span)?.declaration,
             symbol: symbol
                 .map(|symbol| {
@@ -1556,7 +1562,11 @@ impl Catalog {
                     }
                 }
             }
+            if let Some(recipe) = &declaration.self_pattern {
+                pattern::pay(recipe, budget, span, 0)?;
+            }
             result.push(DynDeclaration {
+                self_pattern: declaration.self_pattern.clone(),
                 id: declaration_id(declaration.origin, origins, budget, span)?,
                 identity: identity.clone(),
                 kind: declaration.kind,

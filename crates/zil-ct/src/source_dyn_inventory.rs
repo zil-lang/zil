@@ -69,6 +69,52 @@ impl Walk<'_> {
         }
         Ok(())
     }
+    fn self_pattern(&mut self, pattern: &DynSelfPattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        for actual in &pattern.arguments {
+            self.node(depth + 1)?;
+            match actual {
+                DynPatternActual::Type(ty) => self.pattern_type(ty, depth + 2)?,
+                DynPatternActual::Const(value) => self.pattern_const(value, depth + 2)?,
+                DynPatternActual::LifeParameter(_) => {}
+            }
+        }
+        Ok(())
+    }
+    fn pattern_const(&mut self, value: &DynConstPattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        if let DynConstPattern::Value(value) = value {
+            self.constant(value, depth + 1)?;
+        }
+        Ok(())
+    }
+    fn pattern_type(&mut self, value: &DynTypePattern, depth: usize) -> CompileResult<()> {
+        self.node(depth)?;
+        match value {
+            DynTypePattern::Concrete(value) => self.ty(value, depth + 1)?,
+            DynTypePattern::Nominal(value) => self.self_pattern(value, depth + 1)?,
+            DynTypePattern::Parameter(_) => {}
+            DynTypePattern::Address { inner, .. }
+            | DynTypePattern::Slice(inner)
+            | DynTypePattern::Managed(inner)
+            | DynTypePattern::Desc(inner)
+            | DynTypePattern::OwnedStore(inner) => self.pattern_type(inner, depth + 1)?,
+            DynTypePattern::Array { element, length } => {
+                self.pattern_const(length, depth + 1)?;
+                self.pattern_type(element, depth + 1)?;
+            }
+            DynTypePattern::Tuple(values) => {
+                for value in values {
+                    self.pattern_type(value, depth + 1)?;
+                }
+            }
+            DynTypePattern::ErrorUnion { error, result } => {
+                self.pattern_type(error, depth + 1)?;
+                self.pattern_type(result, depth + 1)?;
+            }
+        }
+        Ok(())
+    }
     fn actual(&mut self, a: &DynGenericActual, depth: usize) -> CompileResult<()> {
         self.node(depth)?;
         match a {
@@ -243,6 +289,10 @@ pub(super) fn inventory(core: &CoreModule, limits: &Limits) -> CompileResult<(us
         }
     }
     for declaration in &core.dyn_declarations {
+        w.node(1)?;
+        if let Some(pattern) = &declaration.self_pattern {
+            w.self_pattern(pattern, 2)?;
+        }
         w.node(0)?;
         w.identity(&declaration.identity, 1)?;
         for p in &declaration.parameters {

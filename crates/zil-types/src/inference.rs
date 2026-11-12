@@ -333,6 +333,7 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
             .into_owned(),
         );
     }
+    crate::dyn_metadata::snapshot(core, limits, &mut budget.work, 2).map_err(|e| vec![e])?;
     Ok(copy_module_metadata(core, functions))
 }
 
@@ -548,6 +549,8 @@ pub(super) fn infer_program_closures_borrowed<'a>(
                 .map_err(|e| vec![e])?,
             );
         }
+        crate::dyn_metadata::snapshot(&module.core, limits, &mut budget.work, 2)
+            .map_err(|e| vec![e])?;
         modules.push((module, functions));
     }
     // All header/name/import/metadata/dependency checks and logical charges ran
@@ -925,6 +928,7 @@ pub(super) fn snapshot_context_module(
     limits: &Limits,
     left: &mut usize,
 ) -> R<CoreModule> {
+    crate::dyn_metadata::snapshot(core, limits, left, 2)?;
     let mut functions = Vec::with_capacity(core.functions.len());
     for function in &core.functions {
         functions.push(snapshot_context_function(function, limits, left)?);

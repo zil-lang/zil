@@ -7,6 +7,7 @@ fn span() -> Span {
 
 fn declaration(id: u32, name: &str, kind: DynDeclarationKind) -> DynDeclaration {
     DynDeclaration {
+        self_pattern: None,
         id: LifeDeclarationId {
             module: ModuleId(0),
             declaration: NodeId(id),

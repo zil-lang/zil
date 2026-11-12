@@ -293,6 +293,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         slots: vec![slot],
     };
     let dyn_declaration = DynDeclaration {
+        self_pattern: None,
         id: trait_id,
         identity: LifeDeclarationIdentity {
             package: "probe".into(),
