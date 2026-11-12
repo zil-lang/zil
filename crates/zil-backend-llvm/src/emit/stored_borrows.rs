@@ -1329,6 +1329,7 @@ mod tests {
         // permission. Real verified semantic/native controls are separate.
         for (rows, path) in [(0, 0), (8, 4), (32, 32)] {
             let life = StorageLifeContract {
+                static_bindings: Vec::new(),
                 fixed_binder_count: 0,
                 invocation_binder_count: 1,
                 bindings: vec![],
