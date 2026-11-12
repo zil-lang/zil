@@ -1472,31 +1472,15 @@ fn compound_move(
     }
     Ok(true)
 }
-fn compound_extract(
-    module: &TypedModule,
-    f: &TypedFunction,
-    i: &Instruction,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    let InstructionKind::ExtractField { aggregate, index } = i.kind else {
-        return Ok(false);
-    };
-    let parent = value_type(f, aggregate)?;
-    if !shared_compound(module, parent, b)? {
-        return Ok(false);
-    }
-    let Type::Tuple(fields) = parent else {
-        unreachable!()
-    };
-    let child = fields
-        .get(index as usize)
-        .ok_or_else(|| failure("compound extraction field absent"))?;
-    let result = i
-        .result
-        .ok_or_else(|| failure("compound extraction result absent"))?;
-    if value_type(f, result)? != child {
-        return Err(failure("compound extraction changes complete child type"));
-    }
+fn compound_extract(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
+    let InstructionKind::ExtractField{aggregate,index}=i.kind else{return Ok(false)};
+    let parent=value_type(f,aggregate)?;
+    if !shared_compound(module,parent,b)?{return Ok(false)}
+    let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
+    let Type::Tuple(fields)=physical else{unreachable!()};
+    let child=fields.get(index as usize).ok_or_else(||failure("compound extraction field absent"))?;
+    let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
+    if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
     Ok(true)
 }
 fn compound_unpack(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->CompileResult<bool>{
@@ -4547,7 +4531,8 @@ fn transfer(
         InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
             let parent=value_type(f,*aggregate)?;
             if shared_compound(module,parent,b)? {
-                let Type::Tuple(fields)=parent else{unreachable!()};
+                let physical=carrier(parent).map_or(parent,|(storage,_)|storage);
+                let Type::Tuple(fields)=physical else{unreachable!()};
                 let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
                 let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
                 if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
@@ -4555,7 +4540,11 @@ fn transfer(
                 for (path,permission) in &source.slots{
                     fee(b,path.len().saturating_add(1))?;
                     if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
-                        union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        if matches!(child,Type::Address{..}) && tail.is_empty(){
+                            union(&mut out.pointer,permission,b)?;
+                        }else{
+                            union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
+                        }
                     }
                 }
                 union(&mut out.held,&source.held,b)?;
