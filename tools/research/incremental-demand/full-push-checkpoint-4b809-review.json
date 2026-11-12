@@ -1,0 +1,376 @@
+{
+  "schema": "independent-component-checkpoint-document-review-v1",
+  "docs_source": "0f1bcd1fb8ae94be889e184cb1e3bb6fcb9889c8",
+  "compiler_source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+  "tree": "0cdc093e968f73a7d7295afdb3192686da7e8622",
+  "status": "bounded_document_and_recorded_results_accepted_after_timer_scope_correction",
+  "findings": [],
+  "resolved_finding": {
+    "original_docs_source": "d36f71479656fd16382bc7941040ee1b3c4b6157",
+    "issue": "262ms was summed object receipt total, not the full object phase268.955ms.",
+    "correction_source": "0f1bcd1fb8ae94be889e184cb1e3bb6fcb9889c8",
+    "result": "Markdown now explicitly separates receipt262ms from object phase269ms; other native children remain inside their named parent scopes."
+  },
+  "documents": {
+    "full-push-checkpoint-4b809.md": "6982c7578c464f51e03a09ecca8dc80b2b7f2055b27b193be95c2203f51b7aa6",
+    "full-push-checkpoint-4b809.json": "5cad1d75623a7cf1056b71b7c1e48d5a3506ad3e57b2265b0fb8eb552e355e08",
+    "full-push-profile15-qualification.json": "840b35a138a93cc2e7dd9272a30bfb1936dedc48ec3beb3852e8daf2f45933b9",
+    "full-push-native-profile-15-scopes.json": "2bb4f203d11f376b26cd984ac78ebf09a60f720295bd79d639b502ee66b08e67"
+  },
+  "gate_evidence": [
+    {
+      "stem": "full-push-sdk16-build-01",
+      "source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "exit_code": 0,
+      "log_sha256": "59aa90a5b9438a644942cb42379e2c44bcb984fe22de012961c1a492f69ce78a",
+      "counts": []
+    },
+    {
+      "stem": "native-products-full-tests-28",
+      "source": "404c61c889ab0a5f9c0fb97243c7a7310ef9e363",
+      "exit_code": 101,
+      "log_sha256": "74bc0e39126c665ce58a22d9a469a68e99277fe3612403ea9f593b6175508b2a",
+      "counts": []
+    },
+    {
+      "stem": "native-products-full-tests-29",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "e86709ba742d82db2f543b1248891f3c7b06d2a5c8cf512864ad8c04dc47ec6a",
+      "counts": [
+        [
+          76,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "stem": "push-backend-library-tests-15",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "4055dfb754712c8f394deb5e4931627899a7bbd85e32142f1d404c0f0410318c",
+      "counts": [
+        [
+          244,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "stem": "push-driver-library-tests-18",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "7e993f449bda89b597de4f51bdf087be10f1e658e786fc74b62e93dd4aa682c8",
+      "counts": [
+        [
+          210,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "stem": "full-push-native-clippy-18",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "b4ca64486a14e9bd93cf994671d5f3e11f2e3df69956a2695b56c0106abbb3dd",
+      "counts": []
+    },
+    {
+      "stem": "full-push-fmt-16",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": []
+    },
+    {
+      "stem": "full-push-release-17",
+      "source": "e11777565e89523ef25131aeb9687faef456cf2b",
+      "exit_code": 0,
+      "log_sha256": "cca76a66ba1954da51b09f632066ab20c849fbc8c2eb75e68f2cd2dd3365f67f",
+      "counts": []
+    },
+    {
+      "stem": "push-backend-library-tests-16",
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "exit_code": 0,
+      "log_sha256": "69f58f3558e100208959be5886f5385d6f48d4718a7a2d6b5a845d09e2d32008",
+      "counts": [
+        [
+          247,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "stem": "push-driver-library-tests-19",
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "exit_code": 0,
+      "log_sha256": "0675bce4a519b9b3275164b44c78b50ccaa5c3a9ed4032a905b1f837d0b79233",
+      "counts": [
+        [
+          210,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "stem": "full-push-native-clippy-19",
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "exit_code": 0,
+      "log_sha256": "df1d83208dd278e422e20128c039b3c9ea05dafc4b1ee46b4e4f82c5d076d2da",
+      "counts": []
+    },
+    {
+      "stem": "full-push-fmt-17",
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": []
+    },
+    {
+      "stem": "full-push-release-18",
+      "source": "4b809bbfedb92b23062d5bf151eb75fef4bfcd35",
+      "exit_code": 0,
+      "log_sha256": "5f5b38bc6ada17f9ed7f8b5ad06d17b339a1f2de0ae2413c8c6e6081e918a50d",
+      "counts": []
+    }
+  ],
+  "profile_counts": {
+    "rows": 34,
+    "measured": 18,
+    "parents": 16,
+    "pairs": 17,
+    "successful_pairs": 15,
+    "safe_error_pairs": 2,
+    "native_outcomes_recomputed": 180,
+    "files": 22,
+    "functions": 425
+  },
+  "measured_wall_ms": [
+    {
+      "arm": "baseline",
+      "request": "cold",
+      "transition_from": null,
+      "wall_ms": 6070.251641,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "cold",
+      "transition_from": null,
+      "wall_ms": 7366.302723,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "unchanged",
+      "transition_from": "cold",
+      "wall_ms": 82.406523,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "unchanged",
+      "transition_from": "cold",
+      "wall_ms": 475.188649,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "private",
+      "transition_from": "cold",
+      "wall_ms": 1505.297638,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "private",
+      "transition_from": "cold",
+      "wall_ms": 482.14061,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "multi",
+      "transition_from": "cold",
+      "wall_ms": 770.603989,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "multi",
+      "transition_from": "cold",
+      "wall_ms": 1680.898315,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "broad",
+      "transition_from": "cold",
+      "wall_ms": 5210.057736,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "broad",
+      "transition_from": "cold",
+      "wall_ms": 6210.565843,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "positions",
+      "transition_from": "cold",
+      "wall_ms": 816.133956,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "positions",
+      "transition_from": "cold",
+      "wall_ms": 1500.762936,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "error",
+      "transition_from": "cold",
+      "wall_ms": 341.271875,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "error",
+      "transition_from": "cold",
+      "wall_ms": 49.018862,
+      "status": "SafeReject"
+    },
+    {
+      "arm": "candidate",
+      "request": "recovery",
+      "transition_from": "error",
+      "wall_ms": 479.128107,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "recovery",
+      "transition_from": "error",
+      "wall_ms": 1598.693388,
+      "status": "Success"
+    },
+    {
+      "arm": "baseline",
+      "request": "restore",
+      "transition_from": "private",
+      "wall_ms": 734.177091,
+      "status": "Success"
+    },
+    {
+      "arm": "candidate",
+      "request": "restore",
+      "transition_from": "private",
+      "wall_ms": 219.770692,
+      "status": "Success"
+    }
+  ],
+  "llvm_artifacts_independently_rehashed": {
+    "files": 12,
+    "bytes": 166020412,
+    "artifacts": {
+      "llvm-inputs/5d4c6796f6f1e97abe934b5edb46bbea8cba1fcc610741a2b4deefc5e8f28b1e.ll": {
+        "sha256": "5d4c6796f6f1e97abe934b5edb46bbea8cba1fcc610741a2b4deefc5e8f28b1e",
+        "normalized_sha256": "4d4e22e535e3676ea57c02548e263a477780cfb13cf73c67ea8be5339d505bf8",
+        "bytes": 13834950
+      },
+      "llvm-inputs/b98c0dbd84ce94fa60abc51855d261b7b7ecc26266ab27822a67996faafcae46.ll": {
+        "sha256": "b98c0dbd84ce94fa60abc51855d261b7b7ecc26266ab27822a67996faafcae46",
+        "normalized_sha256": "4d4e22e535e3676ea57c02548e263a477780cfb13cf73c67ea8be5339d505bf8",
+        "bytes": 13834950
+      },
+      "llvm-inputs/f2ee2559411cf5b3c158e05a396c4f2c9d032760346ac81cbe2bc98cd07981fb.ll": {
+        "sha256": "f2ee2559411cf5b3c158e05a396c4f2c9d032760346ac81cbe2bc98cd07981fb",
+        "normalized_sha256": "33426f0b59403cfac2c7169fbf6014fceb93779951809cfe5d3958ad968d9650",
+        "bytes": 13834951
+      },
+      "llvm-inputs/f405c146141605ebeb6594ee915e7559e6f4efd0fc79dbc82b03ba21398ee848.ll": {
+        "sha256": "f405c146141605ebeb6594ee915e7559e6f4efd0fc79dbc82b03ba21398ee848",
+        "normalized_sha256": "33426f0b59403cfac2c7169fbf6014fceb93779951809cfe5d3958ad968d9650",
+        "bytes": 13834951
+      },
+      "llvm-inputs/1f1d855038d645db3aff879175122e16bff922ed2d23c9b646f3e7315f203b11.ll": {
+        "sha256": "1f1d855038d645db3aff879175122e16bff922ed2d23c9b646f3e7315f203b11",
+        "normalized_sha256": "585878d547370a2f1d54484bf9e07d1bf99b0fc9cfd8905621fd04eb9cf2774f",
+        "bytes": 13834954
+      },
+      "llvm-inputs/d505e29ae8c73333c28900248f86e209d11c23ae1a84e610ee3d90d6076faf23.ll": {
+        "sha256": "d505e29ae8c73333c28900248f86e209d11c23ae1a84e610ee3d90d6076faf23",
+        "normalized_sha256": "585878d547370a2f1d54484bf9e07d1bf99b0fc9cfd8905621fd04eb9cf2774f",
+        "bytes": 13834954
+      },
+      "llvm-inputs/c743b6e56db9542f78e6221961d59bf7d049dfccb5743d6b3d1daa7e4be553bc.ll": {
+        "sha256": "c743b6e56db9542f78e6221961d59bf7d049dfccb5743d6b3d1daa7e4be553bc",
+        "normalized_sha256": "75a9f4f33d1718e9dbd00a1978f06e4ba8bd4444bae406bfb8348283e6224f67",
+        "bytes": 13835449
+      },
+      "llvm-inputs/c4641d89d67a6bea58beb35a2de8ae6c87a7a46069c2b52196c299d2e2e625e0.ll": {
+        "sha256": "c4641d89d67a6bea58beb35a2de8ae6c87a7a46069c2b52196c299d2e2e625e0",
+        "normalized_sha256": "75a9f4f33d1718e9dbd00a1978f06e4ba8bd4444bae406bfb8348283e6224f67",
+        "bytes": 13835449
+      },
+      "llvm-inputs/8566043bcc5e9f97ae456a74a1e747992a2ba957f0e7a70f8551a77749a4366a.ll": {
+        "sha256": "8566043bcc5e9f97ae456a74a1e747992a2ba957f0e7a70f8551a77749a4366a",
+        "normalized_sha256": "4d4e22e535e3676ea57c02548e263a477780cfb13cf73c67ea8be5339d505bf8",
+        "bytes": 13834950
+      },
+      "llvm-inputs/6887c07d1c44fa639b6c6549976ee8f9400a0c292d679ffd0a0b56486f1fa135.ll": {
+        "sha256": "6887c07d1c44fa639b6c6549976ee8f9400a0c292d679ffd0a0b56486f1fa135",
+        "normalized_sha256": "4d4e22e535e3676ea57c02548e263a477780cfb13cf73c67ea8be5339d505bf8",
+        "bytes": 13834950
+      },
+      "llvm-inputs/bc6f9b782c0cfad9310408d66b19e7ebe5aa9ed12e8e398511824dd566fae467.ll": {
+        "sha256": "bc6f9b782c0cfad9310408d66b19e7ebe5aa9ed12e8e398511824dd566fae467",
+        "normalized_sha256": "3bb554a53d629317b99ab151ef8a342b2ffd0fd166c0328959646033073f87d1",
+        "bytes": 13834952
+      },
+      "llvm-inputs/ad358504f4b6e3d99db464bcb90591e2d3e43f6b22b73b830c8b21223dba3b1a.ll": {
+        "sha256": "ad358504f4b6e3d99db464bcb90591e2d3e43f6b22b73b830c8b21223dba3b1a",
+        "normalized_sha256": "3bb554a53d629317b99ab151ef8a342b2ffd0fd166c0328959646033073f87d1",
+        "bytes": 13834952
+      }
+    }
+  },
+  "private_timer_ns": {
+    "object_receipt_sum": 261691838,
+    "machine_ns": 14027358,
+    "partition_ns": 246649,
+    "diagnostic_ns": 21480650,
+    "object_ns": 268954672,
+    "link_key_ns": 91059439,
+    "link_execution_ns": 26551411,
+    "other_ns": 509845,
+    "total_ns": 422830024
+  },
+  "scope_checks": [
+    "Exact source/tree/binary receipt identities and per-row recorded runtime DSO identities agree with SDK16 build receipt; no large compiler/DSO binary rehash was performed in this review.",
+    "Every one of34 scope rows was independently reconciled to raw: observed/unobserved units, sum of native counters, object receipt timing sums, and current phase/driver/backend/CT fields. Missing observations stay null, not zero.",
+    "Original compile failure exit101 contains E0425 before any running/test-result line; zero test execution is preserved. Subsequent76/244/210 and247/210 counts and exact sources/log hashes verified without summing overlaps.",
+    "All9 measured time pairs and summary ratios match raw; only one diagnostic block, candidate profiling enabled, no Rust row, no old-window multiplication, no single-slice causal claim.",
+    "15 successful pairs carry equal historical full ELF SHA records and strict LLVM hashes; all180 recorded native results match their expected records. Error pairs report current safe rejection and Verify0; success rows each contain one current executed Verify.",
+    "Original controller exit0 is preserved and bound; profile14 custom-quality exit1 remains separate, and profile15 has neither late flag nor new native-quality protocol.",
+    "IR parse is included in replay and pack in capture; MIR parse covers header/typed reconstruction/destruction, validation separate. Native scope counters are first hooked attempt, parent native total/request wall can include fallback/retries; child scopes must not be added to parents.",
+    "All495 raw file sizes match415601601 logical bytes. Pending v21 custody claim is local, not remote restoration. Earlier v20 custody is explicitly separate."
+  ],
+  "limitations": [
+    "Read-only source/log/row/metadata arithmetic, plus existing LLVM artifact hashing; no compiler/test/validator/native program/measurement was started.",
+    "Full ELF equality was checked as recorded, not by physically rehashing overwritten historical executables; this does not enlarge prior artifact custody proof.",
+    "The reported pinned-Git oracle recomputation is bound to qualifier source/hash and existing result; this review compared all recorded actual and expected native outcomes and did not independently execute oracle/generator code.",
+    "No full workspace rerun, new six-round formal comparison, Rust superiority, speed significance, RSS/lifetime-byte bound, global minimum or completed full LLVM push claim.",
+    "This document review does not replace separate independent production correctness reviews or prove the whole MIR domain from fixture counts."
+  ]
+}

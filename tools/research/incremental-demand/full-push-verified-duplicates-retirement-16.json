@@ -1,0 +1,41 @@
+{
+  "schema": "verified-duplicate-retirement-summary-v1",
+  "manifest": "/workspace/zil-push-main/out/evidence/checkpoint-cleanup-16/verified-before-retirement.json",
+  "manifest_sha256": "cb3b7bb42c684ef5643861418826443809dfacb762117491c18b6097eddf9770",
+  "files_retired": 3155,
+  "logical_bytes": 1542680272,
+  "allocated_bytes_sum": 1550204928,
+  "skipped_entries": 0,
+  "free_before": 774279168,
+  "free_after": 2322845696,
+  "remote_proof": {
+    "6": {
+      "commit": "a4f8736df4095948ae12413fc9bbd8f2c7df7b72",
+      "manifest_path": "research/incremental-demand-full-push-20261112-v6/evidence-manifest.json",
+      "manifest_sha256": "cec6b3106ad2e5af5ecd61ba280de9356549780d21fb17d6a4d5e13ba4f37747",
+      "prior_fresh_recovery": "/workspace/zil-push-main/tools/research/incremental-demand/full-push-recovery-v6.json",
+      "prior_recovery_sha256": "c4a698326d5be35ad1833c6fddc92954c71f45b5e5a3ff6312cda613748002f8",
+      "archive_sha256": "cdc900c6f23022e0fbc855cfbd47c88816fe9235887a368d6d7fbd928731960d",
+      "scope": "Prior fresh HTTPS recovery verifies all original entries; this retirement rehashes exact local duplicates, not a new fresh download."
+    },
+    "7": {
+      "commit": "c04b7a9adc7d2c53d1c64f18145c6eb371dc8638",
+      "manifest_path": "research/incremental-demand-full-push-20261112-v7/evidence-manifest.json",
+      "manifest_sha256": "1436ff43977358543d765676458f1d75e1e498e74110e0a170949be9f6d14ac9",
+      "prior_fresh_recovery": "/workspace/zil-push-main/tools/research/incremental-demand/full-push-recovery-v7.json",
+      "prior_recovery_sha256": "0ecd43959dd635a1acb0ee31ea54f8a7f530d1e259e35506724bba2ad8b6a75b",
+      "archive_sha256": "87d7c8ad657638e7fad759d36a383161a600d3ab7e97ff8fa03ec57deb0a9297",
+      "scope": "Prior fresh HTTPS recovery verifies all original entries; this retirement rehashes exact local duplicates, not a new fresh download."
+    },
+    "8": {
+      "commit": "7f069c9122af50168a4bf07442756f1538bd6319",
+      "manifest_path": "research/incremental-demand-full-push-20261112-v8/evidence-manifest.json",
+      "manifest_sha256": "2c49d208d7a2b42a3ee812d3f4a2194d1d402c80ce7cfdaf4b007cf11158d7d8",
+      "prior_fresh_recovery": "/workspace/zil-push-main/tools/research/incremental-demand/full-push-recovery-v8.json",
+      "prior_recovery_sha256": "386a28df397dfd28f6f15cbd316b2d07fa5c2825267fae579071e569e0204bf3",
+      "archive_sha256": "bbb865ae3b869acd7d8b912133fd9382b8a058ba20ccfadcaf53ebf497c5d915",
+      "scope": "Prior fresh HTTPS recovery verifies all original entries; this retirement rehashes exact local duplicates, not a new fresh download."
+    }
+  },
+  "limitations": "Existing fixed-commit fresh recovery receipts plus current exact local hashes and modes. No new fresh assembled validator/native execution. Empty directories retained. No unique evidence or original immutable binaries retired."
+}
