@@ -30,6 +30,14 @@ selector. Borrowing the child head transports those classes to its Pointee
 domain, while the separate stored ledger preserves the leaf targets and parent
 loans. Cleanup retains the child's entire owning responsibility.
 
+Inline child definitions have the same complete domain requirement. Their
+source proposals project the full returned Capture path to the actual child
+constructed in that creator's CFG; a foreign input child's type cannot supply
+that origin. A nonzero qualified owning domain cannot be omitted as Unknown.
+Every stored address replacement also preserves its declared slot class:
+keeping actual targets alive does not permit assigning an independent formal
+class to that slot.
+
 A shared entry cannot mutate captured storage or hide an exclusive stored
 address behind the qualification wrapper. Mutable entries publish the actual
 terminal state of each external capture leaf. At invocation the caller

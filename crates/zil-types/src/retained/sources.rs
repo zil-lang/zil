@@ -1228,6 +1228,19 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usi
             candidates.push((id, prefix));
         }
         for (id, prefix) in candidates {
+            if !prefix.is_empty() {
+                // An input F's child was constructed by its own creator. Its
+                // type alone cannot borrow this factory's header classes.
+                let mut constructed = false;
+                spend(left, f.blocks.len(), f.span)?;
+                for block in &f.blocks {
+                    spend(left, block.instructions.len(), f.span)?;
+                    constructed |= block.instructions.iter().any(|i|matches!(i.kind,InstructionKind::MakeClosure{closure,..} if closure==id));
+                }
+                if !constructed {
+                    continue;
+                }
+            }
             let definition = &module.closures[id.0 as usize];
             if definition.storage_life.is_some()
             || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
