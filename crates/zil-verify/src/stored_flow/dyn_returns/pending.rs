@@ -2,7 +2,7 @@
 //! remain pending. Neither a source upper nor a missing row proves grounding.
 use super::*;
 
-pub(super) fn register(
+pub(in crate::stored_flow) fn register(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,
@@ -13,6 +13,9 @@ pub(super) fn register(
     let Some(life) = &f.storage_life else {
         return Ok(Vec::new());
     };
+    if life.fixed_binder_count == 0 {
+        return Ok(Vec::new());
+    }
     let mut result = Vec::new();
     for row in &life.classes {
         if row.position.base != StorageBase::Result
