@@ -17,6 +17,11 @@ pub(super) fn create_error() -> Type {
     }
 }
 
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar() || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+}
+
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
@@ -67,6 +72,15 @@ fn closed_owner_shape(
                         && r.teardown.is_none()
                 })
                 .then_some(1));
+        }
+        Type::Managed(payload) => {
+            budget.spend(module.resources.len(), WORK)?;
+            if !module.resources.iter().any(|r| r.payload == **payload) { return Ok(None); }
+            match payload.as_ref() {
+                Type::Record { .. } if closed_owner_shape(payload, module, budget, depth + 1)? == Some(0) => return Ok(Some(1)),
+                Type::OwnedStore { element } if closed_owner_shape(element, module, budget, depth + 1)?.is_some() => return Ok(Some(1)),
+                _ => return Ok(None),
+            }
         }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
@@ -163,6 +177,12 @@ fn closed_contract(mutable: bool) -> DynContract {
             share: false,
         }),
     }
+}
+
+fn valid_contract(slot: &DynSlot) -> bool {
+    let mut expected = closed_contract(slot.receiver.mutable);
+    if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) { expected.effects = Some(vec![DynEffect::Panic]); }
+    slot.contract == expected
 }
 
 fn receiver_life() -> StorageLifeContract {
@@ -308,14 +328,14 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                     } else {
                         PassingMode::Borrow
                     }
-                || !slot.parameters.iter().all(scalar)
+                || !slot.parameters.iter().all(plain_value)
                 || slot.parameter_modes.iter().any(|m| !scalar_mode(*m))
                 || slot.parameters.len() != slot.parameter_modes.len()
-                || !scalar(&slot.result)
+                || !plain_value(&slot.result)
                 || !scalar_mode(slot.result_mode)
                 || slot.call_kind != CallKind::Direct
                 || slot.storage_life.as_ref() != Some(&receiver_life())
-                || slot.contract != closed_contract(slot.receiver.mutable)
+                || !valid_contract(slot)
             {
                 return Err(bad("dyn slot lacks a body-derived closed shared contract"));
             }
@@ -349,6 +369,7 @@ fn body(
     receiver: &Type,
     mutable: bool,
     result: &Type,
+    panic: bool,
     visiting: &mut BTreeSet<FunctionId>,
     budget: &mut Budget,
 ) -> CompileResult<()> {
@@ -413,7 +434,7 @@ fn body(
                 InstructionKind::Load(local)
                     if f.locals
                         .get(local.0 as usize)
-                        .is_some_and(|l| scalar(&l.ty)) =>
+                        .is_some_and(|l| plain_value(&l.ty)) =>
                 {
                     let result = instruction
                         .result
@@ -490,6 +511,33 @@ fn body(
                     }
                     value_results.insert(result);
                 }
+                InstructionKind::MakeAggregate { fields } => {
+                    budget.spend(fields.len().saturating_add(1), WORK)?;
+                    if !fields.iter().all(|id| value_results.contains(id)) { return Err(bad("dyn aggregate has unproved value fields")); }
+                    let output = instruction.result.ok_or_else(|| bad("dyn aggregate lacks result"))?;
+                    if !plain_value(value(f, output, budget)?) { return Err(bad("dyn aggregate result is not a plain tuple")); }
+                    value_results.insert(output);
+                }
+                InstructionKind::ExtractField { aggregate, .. } => {
+                    if !value_results.contains(aggregate) || !plain_value(value(f, *aggregate, budget)?) { return Err(bad("dyn projection has unproved aggregate")); }
+                    let output = instruction.result.ok_or_else(|| bad("dyn projection lacks result"))?;
+                    if !plain_value(value(f, output, budget)?) { return Err(bad("dyn projection has nonvalue result")); }
+                    value_results.insert(output);
+                }
+                InstructionKind::Binary { left, right, .. } if panic => {
+                    if !value_results.contains(left) || !value_results.contains(right) || !scalar(value(f, *left, budget)?) || !scalar(value(f, *right, budget)?) {
+                        return Err(bad("dyn numeric operation has unproved operands"));
+                    }
+                    let output = instruction.result.ok_or_else(|| bad("dyn numeric operation lacks result"))?;
+                    if !scalar(value(f, output, budget)?) { return Err(bad("dyn numeric operation has nonvalue result")); }
+                    value_results.insert(output);
+                }
+                InstructionKind::Unary { op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, operand } if panic => {
+                    if !value_results.contains(operand) || !scalar(value(f, *operand, budget)?) { return Err(bad("dyn unary operation has unproved operand")); }
+                    let output = instruction.result.ok_or_else(|| bad("dyn unary operation lacks result"))?;
+                    if !scalar(value(f, output, budget)?) { return Err(bad("dyn unary operation has nonvalue result")); }
+                    value_results.insert(output);
+                }
                 InstructionKind::Call {
                     function,
                     arguments,
@@ -527,7 +575,7 @@ fn body(
                     {
                         return Err(bad("dyn helper actual entry signature differs"));
                     }
-                    body(module, target, receiver, mutable, result, visiting, budget)?;
+                    body(module, target, receiver, mutable, result, panic, visiting, budget)?;
                     if let Some(output) = instruction.result {
                         value_results.insert(output);
                     }
@@ -549,7 +597,7 @@ fn body(
         match &block.terminator {
             Terminator::Return(None) if *result == Type::Unit => saw_return = true,
             Terminator::Return(Some(result))
-                if value_results.contains(result) && scalar(value(f, *result, budget)?) =>
+                if value_results.contains(result) && plain_value(value(f, *result, budget)?) =>
             {
                 saw_return = true
             }
@@ -682,6 +730,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 &table.self_type,
                 slot.receiver.mutable,
                 &slot.result,
+                slot.contract.effects.as_ref().is_some_and(|e| e.contains(&DynEffect::Panic)),
                 &mut BTreeSet::new(),
                 budget,
             )?;

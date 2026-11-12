@@ -10,6 +10,11 @@ pub(super) fn pair() -> m::Ty {
     m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Ptr])
 }
 
+fn plain_value(ty: &Type) -> bool {
+    ty.is_b0_scalar() || *ty == Type::Unit
+        || matches!(ty, Type::Tuple(fields) if fields.len() <= 32 && fields.iter().all(|t| t.is_b0_scalar() || *t == Type::Unit))
+}
+
 fn table_symbol(id: DynVtableId) -> String {
     format!("zil.dyn.{}.{}", id.module.0, id.index)
 }
@@ -145,6 +150,15 @@ fn closed_owner_shape(
                 })
                 .then_some((1, 32)));
         }
+        Type::Managed(payload) if resources::supported_type(ty, &module.resources) => {
+            let child = match payload.as_ref() {
+                Type::Record { .. } => payload.as_ref(),
+                Type::OwnedStore { element } => element.as_ref(),
+                _ => return Ok(None),
+            };
+            let Some((_, child_work)) = closed_owner_shape(child, module, limits, depth + 1)? else { return Ok(None); };
+            return Ok(Some((1, child_work.saturating_add(module.resources.len()).saturating_add(64))));
+        }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
                 let Some((n, work)) = closed_owner_shape(field, module, limits, depth + 1)? else {
@@ -233,8 +247,8 @@ pub(super) fn reserve(
         }
         for slot in &interface.slots {
             cost = cost.saturating_add(slot.parameters.len().saturating_mul(64));
-            if !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
-                || !slot.parameters.iter().all(Type::is_b0_scalar)
+            if !plain_value(&slot.result)
+                || !slot.parameters.iter().all(plain_value)
             {
                 return unsupported("borrowed dyn ABI requires fixed scalar or Unit slots", None);
             }
