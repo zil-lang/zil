@@ -135,6 +135,26 @@ fn fixed(
             fee(b, c.bindings.len())?;
             super::super::signature_life::outer(c, base)
         }
+        Type::Address { inner, .. } if carrier(inner).is_some() => {
+            let (_, life) = carrier(inner).unwrap();
+            let (class, duplicate) = b
+                .physical_slot(life, tail)?
+                .ok_or_else(|| failure("pointed callable leaf has no physical slot"))?;
+            if duplicate {
+                return Err(failure(
+                    "pointed callable leaf has duplicate physical slots",
+                ));
+            }
+            fee(b, c.classes.len())?;
+            c.classes
+                .iter()
+                .find(|row| {
+                    row.position.base == base
+                        && row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                        && row.position.class == class
+                })
+                .map(|row| row.binder)
+        }
         Type::BorrowedStorage { life, .. } => {
             let (class, duplicate) = b
                 .physical_slot(life, tail)?
