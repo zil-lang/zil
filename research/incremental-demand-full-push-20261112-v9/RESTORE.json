@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "manifest": {
+    "sha256": "58445ecb8c861ac40813ebbb662cd0668f437660344661a7da4cd60819373b84",
+    "bytes": 7329672
+  },
+  "verifier": {
+    "sha256": "4a65fe492d5d5454e62d3965581a53e02e7ab6ca61214181919be996d256a18a",
+    "bytes": 21146
+  },
+  "archive_sha256": "8855e150f970883640b6cc977043f059a60cac6aebcdf8d780831f2b5c437945",
+  "scope": "433 complete two formal three-arm windows and named parents, real425 diagnostic profiles05/06 (candidate-only profiling), SDK14/15 actual runtime DSO/source/receipts, post-v8 native failures/successes and native16/clippy04. Completed bd release06 is an unmeasured later candidate. No all-language completeness or global Rust speed claim.",
+  "source_commits": {
+    "formal": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
+    "profile05": "c35e4c3815a1c25a4975b19b95c5022726c8f5f6",
+    "unmeasured_release06": "bd39660f2257f7deac093131ced8481a4d0b8a08",
+    "validator": "5d2e3dd849b95d75c2c8a88aadf1a0379e982170"
+  },
+  "limits": "No new native/compiler execution during restore. Fixed-commit HTTPS parts plus all restored regular file hashes/modes are verified. Current bd release is not the formally measured433 source."
+}
