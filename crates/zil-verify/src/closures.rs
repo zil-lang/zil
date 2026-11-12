@@ -1148,6 +1148,7 @@ pub(super) fn check_resource_instruction(
             if !supports(definition.kind, expected_kind)
                 || (expected_kind == CallableKind::FnOnce
                     && !definition.lending_captures.is_empty()
+                    && !stored_callables::static_result(definition)
                     && !definition.storage_life.as_ref().is_some_and(|life| {
                         super::signature_life::outer(life, StorageBase::Result).is_some()
                     }))
