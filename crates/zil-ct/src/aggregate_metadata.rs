@@ -218,6 +218,42 @@ pub fn preflight_core_metadata(
             position(&mut w, &input.position)?;
         }
     }
+    for function in &core.functions {
+        let Some(bound) = &function.callable_return else { continue };
+        if bound.life.is_none() && bound.source_life.is_none() { continue; }
+        let work = callable_return_metadata_work(bound, limits.max_nodes, limits.max_call_depth)
+            .ok_or_else(|| quota(Some(function.span)))?;
+        w.work = w.work.checked_sub(work).ok_or_else(|| quota(Some(function.span)))?;
+        w.node(0, Some(function.span))?;
+        if let Some(life) = &bound.life {
+            for binding in &life.bindings {
+                w.node(1, Some(function.span))?;
+                path(&mut w, binding.position.path.len())?;
+            }
+            for binding in &life.classes {
+                w.node(1, Some(function.span))?;
+                path(&mut w, binding.position.path.len())?;
+            }
+        }
+        if let Some(context) = &bound.source_life {
+            w.node(0, Some(function.span))?;
+            // Strings and vector indices have already been reserved in work.
+            for _ in context.identity.module_path.iter().chain(&context.identity.declaration_path) {
+                w.node(1, Some(function.span))?;
+            }
+            for _ in &context.identity.generation_path { w.node(1, Some(function.span))?; }
+            for formal in &context.parameters {
+                w.node(1, Some(function.span))?;
+                if let LifeParameterKind::Const(ty) = formal {
+                    w.ty(ty, function.span, 0)?;
+                }
+            }
+            for fixed in &context.fixed {
+                w.node(1, Some(function.span))?;
+                position(&mut w, &fixed.input.position)?;
+            }
+        }
+    }
     Ok((w.nodes, limits.max_analysis_steps - w.work))
 }
 
