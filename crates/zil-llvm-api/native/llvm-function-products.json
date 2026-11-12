@@ -1,0 +1,13 @@
+{
+  "llvm_commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "version": "23.1.4",
+  "patch_sha256": "06b915cdd128d0ba42c33b2bf8abb8161e07b4b5012dd7d3aa1fcb2fc06546ba",
+  "original_files": {
+    "llvm/lib/CodeGen/MachineFunctionPass.cpp": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d"
+  },
+  "sdk_include": "/workspace/.zil-environment/llvm-23.1.4/include",
+  "replacement_archives": {
+    "libLLVMCodeGen.a": "MachineFunctionPass.cpp.o"
+  },
+  "default_behavior": "No installed thread-local hook: execute original pipeline unchanged. New adapter binds exact current inputs; default native_products=false. AsmPrinter and global streamer remain original archive objects."
+}
