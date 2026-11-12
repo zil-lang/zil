@@ -2353,7 +2353,9 @@ fn fixed_environment(module: &TypedModule, ty: &Type, b: &Budget) -> bool {
     } else {
         ty
     };
-    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources))
+    // This selects actual environment memory transport, not a class count.
+    // A missing class directory remains unknown to signature/class checking.
+    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some() || b.returned_environment_sources || b.nested_callable_sources))
 }
 fn seed_environment(
     module: &TypedModule,
@@ -3531,7 +3533,7 @@ fn step(
                 }
             }
         }
-        InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
+        InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources || b.nested_callable_sources => {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
         }
         InstructionKind::MakeClosure { closure, captures }
@@ -5810,7 +5812,14 @@ fn windows(
                             }
                         }
                         for (index, (p, write)) in all.iter().enumerate() {
-                            checks.check(p, *write, requirements, b)?;
+                            checks
+                                .check(p, *write, requirements, b)
+                                .map_err(|failure| {
+                                    failure.with_note(format!(
+                                        "actual indirect-call access {index} of {}",
+                                        all.len()
+                                    ))
+                                })?;
                             for (other, other_write) in &all[..index] {
                                 if *write || *other_write {
                                     for a in &p.sources {
