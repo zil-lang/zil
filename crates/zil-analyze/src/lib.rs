@@ -30,6 +30,7 @@ mod holds;
 mod incremental;
 mod lifetimes;
 mod mixed_address_sums;
+mod nested_store;
 mod owned_callbacks;
 mod ownership_store;
 mod place_replacements;

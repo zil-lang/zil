@@ -183,6 +183,9 @@ pub(super) fn carrier(
     element: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if super::nested_store::selected(element) {
+        return super::nested_store::carrier(module, element, budget);
+    }
     if cached_carrier(module, element, budget)? {
         return Ok(());
     }
@@ -335,7 +338,7 @@ pub(super) fn instruction(
             let Type::OwnedStore { element } = payload.as_ref() else {
                 return Err(bad("Store operation requires a Store payload"));
             };
-            if matches!(element.as_ref(), Type::Package { .. }) {
+            if matches!(element.as_ref(), Type::Package { .. }) && !budget.nested_store_windows {
                 return Ok(());
             }
             if !matches!(carrier, Type::Desc(_)) {
@@ -345,7 +348,7 @@ pub(super) fn instruction(
         }
         _ => return Ok(()),
     };
-    if matches!(element, Type::Package { .. }) {
+    if matches!(element, Type::Package { .. }) && !budget.nested_store_windows {
         return Ok(());
     }
     budget.spend(1, "POD Store instruction")?;

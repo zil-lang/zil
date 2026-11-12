@@ -7,6 +7,7 @@ fn permission(id: usize) -> Permission {
             base: HoldRoot::Parameter(id as u32),
             stored: vec![PlaceProjection::Field(511); 8],
             place: vec![PlaceProjection::Field(3); 8],
+            heap_parents: Vec::new(),
             heap_element: None,
         }]),
         loans: Loans::from([id]),
