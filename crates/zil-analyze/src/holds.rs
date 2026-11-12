@@ -1362,10 +1362,8 @@ fn scoped_transition(
 // Storage descriptions supply provenance to derived views; they are not
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
-fn tracked_desc(ty: &Type, returned_borrowed: bool) -> bool {
+fn tracked_desc(ty: &Type) -> bool {
     matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
-        || returned_borrowed
-            && matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Record {..}))
 }
 
 pub(super) fn retained_task_value(ty: &Type) -> bool {
@@ -1737,14 +1735,8 @@ fn infer_with_private(
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. })))
     };
-    // Returned borrowed environments schedule complete descriptor origins for
-    // actual user-resource heads too. Type/resource admission remains in raw
-    // preflight; a head root grants no payload borrow or management authority.
-    let returned_borrowed = !budget.returned_borrowed_environments.is_empty();
     let mut has_sources = f.values.iter().any(|ty| {
-        matches!(ty, Type::Address { .. })
-            || tracked_desc(ty, returned_borrowed)
-            || retained_task_value(ty)
+        matches!(ty, Type::Address { .. }) || tracked_desc(ty) || retained_task_value(ty)
     });
     if !has_sources {
         for local in &f.parameters {
@@ -1892,7 +1884,7 @@ fn infer_with_private(
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-                        || tracked_desc(&f.locals[local.0 as usize].ty, returned_borrowed)
+                        || tracked_desc(&f.locals[local.0 as usize].ty)
                         || retained_task_value(&f.locals[local.0 as usize].ty)
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
@@ -2060,9 +2052,9 @@ fn infer_with_private(
                             found.insert(Root::Local(*local));
                         }
                         InstructionKind::DescribePackageField { local, index }
-                            if instruction.result.is_some_and(|value| {
-                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
-                            }) =>
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
                             let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
@@ -2072,9 +2064,9 @@ fn infer_with_private(
                             found.insert(root);
                         }
                         InstructionKind::ProjectOwnedArrayField { local, .. }
-                            if instruction.result.is_some_and(|value| {
-                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
-                            }) =>
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
                             // Array element slots are independently owned, but the
                             // initial window profile keeps a conservative whole
@@ -2082,9 +2074,9 @@ fn infer_with_private(
                             found.insert(Root::Local(*local));
                         }
                         InstructionKind::DescribeCapture { index }
-                            if instruction.result.is_some_and(|value| {
-                                tracked_desc(&f.values[value.0 as usize], returned_borrowed)
-                            }) =>
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
                             found.insert(Root::Capture(*index));
                         }
@@ -2270,7 +2262,7 @@ fn infer_with_private(
                                 .result
                                 .and_then(|id| f.values.get(id.0 as usize));
                             if matches!(ty, Some(Type::Address { .. }))
-                                || ty.is_some_and(|ty| tracked_desc(ty, returned_borrowed))
+                                || ty.is_some_and(|ty| tracked_desc(ty))
                             {
                                 found.insert(Root::Capture(*index));
                             }
