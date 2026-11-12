@@ -354,6 +354,14 @@ pub(crate) fn registration_operation(
     if !b.task_sources() {
         return Ok(false);
     }
+    if let InstructionKind::DropTuple { local } = &i.kind {
+        let ty = &f
+            .locals
+            .get(local.0 as usize)
+            .ok_or_else(|| fail(i.span, "registration tuple cleanup slot absent"))?
+            .ty;
+        return registration_value(ty, b);
+    }
     let actual = match &i.kind {
         InstructionKind::AsyncRegistrationStart { .. } => {
             i.result.and_then(|r| f.values.get(r.0 as usize))
