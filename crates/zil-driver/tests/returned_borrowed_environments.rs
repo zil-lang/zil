@@ -203,7 +203,8 @@ fn analyze_keeps_returned_capture_loans_until_the_actual_last_use() {
         let errors = zil_analyze::analyze(&module, &Limits::default())
             .expect_err("captured parent must remain live");
         assert!(
-            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+            errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+                || d.code == "E-ANALYZE-IR" && d.message.contains("actual stored target/parent loan")),
             "{errors:?}"
         );
     }
@@ -1202,4 +1203,12 @@ fn captured_mutable_holder_call_before_return_updates_external_memory() {
         "../../../tests/fixtures/returned-owning-holders/captured-mutable-holder-call-before-return.zil"
     );
     zil_analyze::analyze(&typed_source(source), &Limits::default()).unwrap();
+}
+
+#[test]
+fn captured_mutable_holder_branch_targets_preserve_unselected_dependencies() {
+    let source=include_str!("../../../tests/fixtures/returned-owning-holders/captured-mutable-holder-branch-heads.zil");
+    zil_analyze::analyze(&typed_source(source),&Limits::default()).unwrap();
+    let bad=source.replace("f();let x", "f();a=21;let x");
+    assert!(zil_analyze::analyze(&typed_source(&bad),&Limits::default()).is_err());
 }

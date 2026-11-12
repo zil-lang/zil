@@ -4263,20 +4263,10 @@ fn transfer(
                 let actual = get(*arguments
                     .get(index)
                     .ok_or_else(|| failure("external summary actual argument is absent"))?)?;
-                let mut roots = actual.pointer.targets.iter();
-                let root = roots
-                    .next()
-                    .ok_or_else(|| failure("external update has no actual carrier root"))?;
-                if roots.next().is_some() || !root.stored.is_empty() {
-                    return Err(failure(
-                        "external update needs one actual inline carrier root",
-                    ));
+                if actual.pointer.targets.is_empty() {
+                    return Err(failure("external update has no actual carrier root"));
                 }
-                let actual_path = if root.place.is_empty() {
-                    path.clone()
-                } else {
-                    slot_position(&actual.pointer, path, b)?.place
-                };
+                let strong=actual.pointer.targets.len()==1;
                 let mut permission = Permission::default();
                 for source in sources {
                     union(
@@ -4292,13 +4282,21 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.base, actual_path, permission, match &callee.locals[local.0 as usize].ty {
-                    Type::Address { inner, .. } => match inner.as_ref() { Type::Closure(id) => Some(*id), _ => None },
-                    _ => None,
-                }));
+                for root in &actual.pointer.targets {
+                    fee(b,target_width(root).saturating_add(path.len()))?;
+                    if !root.stored.is_empty() || root.heap_element.is_some() || root.retained_port.is_some() {
+                        return Err(failure("external update requires an actual inline carrier root"));
+                    }
+                    let mut actual_path=root.place.clone();
+                    actual_path.extend(path);
+                    updates.push((root.base, actual_path, copy_permission(&permission,b)?, match &callee.locals[local.0 as usize].ty {
+                        Type::Address { inner, .. } => match inner.as_ref() { Type::Closure(id) => Some(*id), _ => None },
+                        _ => None,
+                    },strong));
+                }
             }
             let mut environments = BTreeMap::new();
-            for (base, path, permission, environment) in updates {
+            for (base, path, permission, environment,strong) in updates {
                 if let Some(id) = environment {
                     ordered(b, environments.len(), 0)?;
                     if let std::collections::btree_map::Entry::Vacant(entry)=environments.entry(base) {
@@ -4306,11 +4304,17 @@ fn transfer(
                     }
                     let (_,rows)=environments.get_mut(&base).unwrap();
                     ordered(b,rows.len(),path.len())?;
-                    rows.insert(path,permission);
+                    if strong {rows.insert(path,permission);} else {
+                        let previous=rows.get_mut(&path).ok_or_else(||failure("weak environment update omits an actual previous row"))?;
+                        union(previous,&permission,b)?;
+                    }
                 } else {
                     let holder=actual_slot_rows_mut(state,base,b)?;
                     ordered(b,holder.len(),path.len())?;
-                    holder.insert(path,permission);
+                    if strong {holder.insert(path,permission);} else {
+                        let previous=holder.get_mut(&path).ok_or_else(||failure("weak holder update omits an actual previous slot"))?;
+                        union(previous,&permission,b)?;
+                    }
                 }
             }
             for (definition,before,after) in moved_contexts {
