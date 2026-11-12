@@ -41,11 +41,13 @@ fn key(path: &[PlaceProjection], port: u32) -> Vec<ContractProjection> {
 /// borrowing the owner retains its actual head/address ancestors as well.
 pub(super) fn select(
     value: &Value,
-    path: &[PlaceProjection],
+    carrier: &[ContractProjection],
     port: u32,
     b: &mut Budget,
 ) -> CompileResult<Permission> {
-    let key = key(path, port);
+    fee(b, carrier.len().saturating_add(1))?;
+    let mut key = carrier.to_vec();
+    key.push(ContractProjection::RetainedPort(port));
     ordered(b, value.dyn_ports.len(), key.len())?;
     let permission = value
         .dyn_ports
@@ -156,11 +158,18 @@ pub(super) fn seed(
     for (path, item) in rows {
         fee(b, item.retained_life.ports.len())?;
         for (port, upper) in item.retained_life.ports.iter().enumerate() {
-            fee(b, path.len().saturating_mul(3).saturating_add(4))?;
+            fee(b, path.len().saturating_mul(7).saturating_add(4))?;
             let target = Target {
                 base,
                 stored: path.clone(),
-                retained_port: Some(PortOrigin::Dyn(port as u32)),
+                retained_port: Some(PortOrigin::Dyn {
+                    carrier: path
+                        .iter()
+                        .copied()
+                        .map(ContractProjection::Place)
+                        .collect(),
+                    port: port as u32,
+                }),
                 place: vec![],
                 heap_parents: Vec::new(),
                 heap_element: None,
@@ -541,7 +550,13 @@ mod tests {
         let values = vec![value];
         let arguments = vec![ValueId(0)];
         let state = State::default();
-        let dyn_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Dyn(0)));
+        let dyn_source = target(
+            HoldRoot::Parameter(0),
+            Some(PortOrigin::Dyn {
+                carrier: vec![],
+                port: 0,
+            }),
+        );
         let task_source = target(HoldRoot::Parameter(0), Some(PortOrigin::Task(0)));
         let dyn_actual = substitute(&dyn_source, &arguments, &values, &state, &mut b).unwrap();
         let task_actual = substitute(&task_source, &arguments, &values, &state, &mut b).unwrap();
@@ -557,7 +572,13 @@ mod tests {
         );
         assert_eq!(dyn_actual.loans, Loans::from([22, 77]));
         assert_ne!(dyn_actual.targets, task_actual.targets);
-        let missing = target(HoldRoot::Parameter(0), Some(PortOrigin::Dyn(1)));
+        let missing = target(
+            HoldRoot::Parameter(0),
+            Some(PortOrigin::Dyn {
+                carrier: vec![],
+                port: 1,
+            }),
+        );
         assert!(substitute(&missing, &arguments, &values, &state, &mut b).is_err());
         let mut explicit_empty = values[0].clone();
         explicit_empty

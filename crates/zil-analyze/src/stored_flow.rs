@@ -435,10 +435,13 @@ fn package_return_candidates(
 }
 
 /// Port numbers have meaning only within the actual carrier namespace.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
     Task(u32),
-    Dyn(u32),
+    Dyn {
+        carrier: Vec<zil_ir::ContractProjection>,
+        port: u32,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -672,6 +675,10 @@ pub(super) fn target_width(target: &Target) -> usize {
         .saturating_add(target.heap_parents.iter().fold(0usize, |n, path| {
             n.saturating_add(path.len()).saturating_add(1)
         }))
+        .saturating_add(match &target.retained_port {
+            Some(PortOrigin::Dyn { carrier, .. }) => carrier.len(),
+            _ => 0,
+        })
 }
 fn target_work(t: &Targets, b: &mut Budget) -> CompileResult<()> {
     fee(b, t.len())?;
@@ -3072,10 +3079,10 @@ fn substitute(
     let value = values
         .get(actual.0 as usize)
         .ok_or_else(|| failure("call actual is outside values"))?;
-    let mut result = if let Some(port) = source.retained_port {
+    let mut result = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Task(port) => task_address::select(value, &source.stored, port, b)?,
-            PortOrigin::Dyn(port) => dyn_address::select(value, &source.stored, port, b)?,
+            PortOrigin::Task(port) => task_address::select(value, &source.stored, *port, b)?,
+            PortOrigin::Dyn { carrier, port } => dyn_address::select(value, carrier, *port, b)?,
         }
     } else if source.stored.is_empty() {
         let mut out = Permission::default();
