@@ -953,6 +953,36 @@ fn resolve_indexed(
                 LifeNominalActual::Type(ty) => LifeNominalActual::Type(
                     resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
                 ),
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    aggregate_templates::spend(
+                        &mut resolver.remaining,
+                        (life.binder_count as usize)
+                            .saturating_add(life.slots.len())
+                            .saturating_add(life.retained.len())
+                            .saturating_add(life.nominal_arguments.len())
+                            .saturating_add(1),
+                        Span::default(),
+                    )
+                    .map_err(|e| vec![e])?;
+                    for length in life
+                        .slots
+                        .iter()
+                        .map(|r| r.path.len())
+                        .chain(life.retained.iter().map(|r| r.path.len()))
+                        .chain(life.nominal_arguments.iter().map(|r| r.path.len()))
+                    {
+                        aggregate_templates::spend(
+                            &mut resolver.remaining,
+                            length,
+                            Span::default(),
+                        )
+                        .map_err(|e| vec![e])?;
+                    }
+                    LifeNominalActual::QualifiedType {
+                        ty: resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
+                        life: life.clone(),
+                    }
+                }
                 LifeNominalActual::Const(value) => LifeNominalActual::Const(value.clone()),
                 LifeNominalActual::Lifetime(class) => LifeNominalActual::Lifetime(*class),
             });

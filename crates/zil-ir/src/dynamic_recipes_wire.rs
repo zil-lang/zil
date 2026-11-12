@@ -47,11 +47,16 @@ impl Writer<'_> {
     pub(super) fn dyn_obligation(&mut self, value: &DynObligation, depth: usize) -> WireResult<()> {
         self.dyn_recipe_node(depth)?;
         match value {
+            DynObligation::Structural { receiver, bound } => {
+                self.u8(0)?;
+                self.dyn_type_pattern(receiver, depth + 1)?;
+                self.dyn_structural_bound(bound, depth + 1)?;
+            }
             DynObligation::Trait {
                 receiver,
                 application,
             } => {
-                self.u8(0)?;
+                self.u8(1)?;
                 self.dyn_type_pattern(receiver, depth + 1)?;
                 self.dyn_self_pattern(application, depth + 1)?;
             }
@@ -61,7 +66,7 @@ impl Writer<'_> {
                 quantified_lifetimes,
                 signature,
             } => {
-                self.u8(1)?;
+                self.u8(2)?;
                 self.dyn_type_pattern(receiver, depth + 1)?;
                 self.u8(match kind {
                     CallableKind::FunctionPointer => 0,
@@ -517,6 +522,28 @@ impl Writer<'_> {
         }
         Ok(())
     }
+    pub(super) fn dyn_structural_bound(
+        &mut self,
+        value: &DynStructuralBound,
+        depth: usize,
+    ) -> WireResult<()> {
+        self.dyn_recipe_node(depth)?;
+        match value {
+            DynStructuralBound::Copy => {
+                self.u8(0)?;
+            }
+            DynStructuralBound::Value => {
+                self.u8(1)?;
+            }
+            DynStructuralBound::SyncDrop => {
+                self.u8(2)?;
+            }
+            DynStructuralBound::StoreElement => {
+                self.u8(3)?;
+            }
+        }
+        Ok(())
+    }
     pub(super) fn dyn_self_pattern(
         &mut self,
         value: &DynSelfPattern,
@@ -752,11 +779,15 @@ impl Reader<'_> {
     pub(super) fn dyn_obligation(&mut self, depth: usize) -> WireResult<DynObligation> {
         self.dyn_recipe_node(depth)?;
         Ok(match self.u8()? {
-            0 => DynObligation::Trait {
+            0 => DynObligation::Structural {
+                receiver: self.dyn_type_pattern(depth + 1)?,
+                bound: self.dyn_structural_bound(depth + 1)?,
+            },
+            1 => DynObligation::Trait {
                 receiver: self.dyn_type_pattern(depth + 1)?,
                 application: self.dyn_self_pattern(depth + 1)?,
             },
-            1 => DynObligation::Callable {
+            2 => DynObligation::Callable {
                 receiver: self.dyn_type_pattern(depth + 1)?,
                 kind: self.callable_kind()?,
                 quantified_lifetimes: self.u32()?,
@@ -1170,6 +1201,16 @@ impl Reader<'_> {
                 }
                 rows
             },
+        })
+    }
+    pub(super) fn dyn_structural_bound(&mut self, depth: usize) -> WireResult<DynStructuralBound> {
+        self.dyn_recipe_node(depth)?;
+        Ok(match self.u8()? {
+            0 => DynStructuralBound::Copy,
+            1 => DynStructuralBound::Value,
+            2 => DynStructuralBound::SyncDrop,
+            3 => DynStructuralBound::StoreElement,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown dynamic recipe tag")),
         })
     }
     pub(super) fn dyn_self_pattern(&mut self, depth: usize) -> WireResult<DynSelfPattern> {

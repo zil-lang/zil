@@ -24,6 +24,7 @@ pub fn module() -> TypedModule {
         inner: Box::new(package),
     };
     let function = TypedFunction {
+        dyn_instance: None,
         retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
