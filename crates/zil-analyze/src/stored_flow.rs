@@ -4799,6 +4799,15 @@ fn transfer(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DropPackage { local }
+            if owned::ordinary_value(module, &f.locals[local.0 as usize].ty, b)? => {
+            // The ordinary responsibility kernel discharges the actual
+            // remaining fields. Stored flow retires this exact local memory;
+            // its windows still reject every live intersecting child loan.
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DropPackage { local }
             if owned_byte_views::drop_package(module, f, *local, b)? =>
         {
             ordered(b, state.locals.len(), 0)?;
@@ -7623,7 +7632,11 @@ pub(super) fn infer(
                 || affine_compound(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?)
-                || owned::ordinary_value(module, ty, b)?)
+                || {
+                    let ordinary_owner = owned::ordinary_value(module, ty, b)?;
+                    ordinary_observations |= ordinary_owner;
+                    ordinary_owner
+                })
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
