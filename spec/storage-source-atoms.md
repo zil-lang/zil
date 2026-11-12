@@ -59,6 +59,24 @@ preserves phantom classes without manufacturing data targets. These facts do
 not erase named classes or establish that the whole scope has zero classes.
 Every pending obligation must be discharged before module verification ends.
 
+A head-bounded reborrow has two independent loan roles. Its data child keeps
+the selected leaf's original class and targets. A distinct child of the actual
+head permission prevents the original head SSA from replacing or retiring the
+holder while the view is live. Attaching only the head's existing parent loan
+to a data child is insufficient when the data and holder occupy different
+storage. The head child remains a parent of the data child; its target is not
+added to the public data target set.
+
+Ordinary function summaries preserve this role from the actual loan ancestry,
+separately from symbolic data and generic parent sources. At the next call,
+every head child is rebuilt from the same call-before actual argument and
+storage snapshot before publishing the data child. An `Exact` forwarding upper
+does not remove a head dependency established by the actual returned value.
+Loan identifiers are local to each function and never cross the summary edge.
+Output-only Static or NoTarget grounding requires all retained parents to be
+independently static; a parameter or local activation head cannot be erased by
+static data, an empty row, or a phantom class.
+
 An inline owned-region view names the real initialized physical windows under
 its actual head permission. Distinct fields with the same Type and class remain
 distinct windows. Creating a projected field view checks its selected window
