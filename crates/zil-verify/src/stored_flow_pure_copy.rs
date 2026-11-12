@@ -28,6 +28,12 @@ pub(super) fn ordinary_owned_union(
     b: &mut Budget,
 ) -> Check<bool> {
     let union = match &i.kind {
+        InstructionKind::DropErrorUnion { local } => {
+            &f.locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("ordinary owning union drop local is absent"))?
+                .ty
+        }
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
             if vt(f, i.result.ok_or_else(|| err("union tag lacks result"))?)? != &Type::I32 {
                 return Err(err("ordinary owning union tag result differs"));
