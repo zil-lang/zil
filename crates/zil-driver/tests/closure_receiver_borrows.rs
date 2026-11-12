@@ -1,7 +1,9 @@
 //! Whole Source, raw candidate, decoded candidate and real machine consumers.
+use source_receiver_contracts::typed;
 use std::{fs, process::Command};
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
+use zil_ir::{StorageBase, StorageBinder};
 fn accepted(name: &str, text: &str) {
     let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
     let limits = Limits::default();
@@ -424,7 +426,7 @@ fn public_return_life_keeps_extra_capture_classes_and_rejects_raw_relabeling() {
 
 mod public_life_source_proofs {
     use super::source_receiver_contracts::typed;
-    use zil_base::{Limits, TargetProfile};
+    use zil_base::Limits;
     use zil_ir::{StorageBase, StorageBinder};
     #[test]
     fn exclusive_stored_field_reborrow_keeps_the_actual_holder_receiver_region() {
