@@ -1654,6 +1654,7 @@ pub(super) fn preflight(
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::exclusive_capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
+                    && !super::stored_callables::ordinary_capture(module, ty, budget)?
                     && !matches!(ty,Type::Closure(child) if super::stored_callables::finite(module,*child))
                 {
                     return Err(vec![Diagnostic::unsupported(

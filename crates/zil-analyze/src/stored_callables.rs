@@ -227,6 +227,23 @@ pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
     };
     resource_payload(payload, b)
 }
+/// Classification of a complete ordinary borrowed owner. No pointer target or
+/// mutable permission is created here; actual capture and parent loans remain
+/// in the CFG proof. Reject hidden borrowed/opaque domains before admission.
+pub(super) fn ordinary_capture(
+    module: &TypedModule,
+    t: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Address { inner, .. } = t else {
+        return Ok(false);
+    };
+    if !matches!(inner.as_ref(), Type::Package { .. } | Type::Managed(_)) {
+        return Ok(false);
+    }
+    closed_callback_data(inner, b)?;
+    super::stored_flow::owned::ordinary_value(module, t, b)
+}
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
@@ -254,6 +271,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                 capture(t)
                     || exclusive_capture(t)
                     || owned_capture(t, b)?
+                    || ordinary_capture(module, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)

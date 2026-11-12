@@ -784,6 +784,7 @@ fn relation_inner(
                     // Actual resource identity and CFG head access are checked
                     // independently by ownership and stored-flow.
                     || matches!(target, Type::Managed(_)) && class_free_owned_tree(target)
+                    || matches!(target, Type::Package { .. }) && class_free_owned_tree(target)
                     // A borrowed Package manager may ground a Store window.
                     // Mutable input shape does not supply a target or loan;
                     // body provenance and exclusive authority are checked later.
