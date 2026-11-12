@@ -333,6 +333,11 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
+    assert!(f.protocol_contracts.is_empty(), "state protocols are outside this retained legacy oracle");
+    if v32 {
+        encode_text(b, "ZIL-FUNCTION-PROTOCOLS-2");
+        encode_len(b, 0);
+    }
     b.push(u8::from(f.foreign.is_some()));
     if let Some(foreign) = &f.foreign {
         encode_text(b, &foreign.abi);
