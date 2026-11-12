@@ -52,7 +52,8 @@ pub(super) fn ordinary_value(
 ) -> CompileResult<bool> {
     fee(b, 1)?;
     match ty {
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => {
+        Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Managed(_) | Type::Package { .. }) => {
             ordinary_value(module, inner, b)
         }
         Type::Managed(payload) | Type::Desc(payload) => match payload.as_ref() {

@@ -7504,7 +7504,7 @@ pub(super) fn infer(
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "stored profile requires ordinary direct function bodies",
+                format!("stored profile requires ordinary direct function bodies: {}", f.name),
                 Some(f.span),
             )]);
         }
