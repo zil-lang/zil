@@ -253,3 +253,11 @@ fn refilling_a_partially_moved_child_cleans_only_its_remaining_leaves() {
         "BADEC74\n",
     );
 }
+
+#[test]
+fn observing_nested_copy_fields_keeps_the_complete_parent_for_retry() {
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages r:R;n:i32}package Parent{left:Child;right:Child}fn identity(p:Parent)->Parent{return p}fn result()->i32{let p=Parent{left:Child{r:R{n:65},n:20},right:Child{r:R{n:66},n:22}};let observed=p.left.n+p.right.n;let whole=identity(p);return observed+whole.left.n+whole.right.n}",
+        "AB84\n",
+    );
+}
