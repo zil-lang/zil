@@ -6705,18 +6705,19 @@
     "archive_manifest": "out/evidence-archives/incremental-demand-final/MANIFEST.json"
   },
   "latest_full_push_checkpoint": {
-    "compiler": "04a637f6e85ec686b2b119cf70524119753a7b6c",
+    "compiler": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
     "measured_compiler": "433227ab1056d778ec382aa28c7e0b6a8cc1cfe0",
     "actual_main": "3ec7e8a960ca69368cd9a90f1a15ac063fec5a02",
     "full_results": "full-push-matched-433-raw-review.json",
     "panorama": "full-push-panorama.md",
     "status": "in_progress_not_complete_not_globally_faster_than_Rust",
-    "latest_compiler_verification": "Frame source55e: native69/backend239/driver207 pass; strictClippy07 failed feature-gated test getters;04a fixes conditions, retry pending. Default9daad workspace exact-source recovery33groups/6375pass, original ENOSPC failures preserved.",
-    "raw_recovery": "full-push-recovery-v9.json and full-push-recovery-v10.json; newer v11 preparation",
+    "latest_compiler_verification": "244c native70,strictnativeworkspacealltargetClippy08,fmt07,39tools,release08pass;55e backend239/driver207;9daad workspace6375 recovered, originalENOSPC preserved",
+    "raw_recovery": "full-push-recovery-v9/v10/v11.json verified; latest244c raw v12 in progress",
     "historical_identity_above_is_not_current": true,
     "formal_comparison_main": "42f0396f36b2a36860ecb55371d436e4327877a4",
-    "latest_profile": "full-push-diagnostic-5bf55f35c.json",
+    "latest_profile": "full-push-diagnostic-244c5bdbd.json",
     "frame_review": "full-push-spill-frame-review-addendum.json",
-    "architecture_review": "full-push-astra-native-panorama-review.json"
+    "architecture_review": "full-push-astra-native-panorama-review.json",
+    "latest_profile_status": "Both policies34valid/180native/15strongpairs;singleblocknotformalRust. Defaultprivate626;closedprivate788 actual1MFreuse1exec. Cold/broad stillnegative;reuseoverheadmeasured, economiccut next."
   }
 }

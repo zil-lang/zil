@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "reviewer": "independent non-author /root/audit",
+  "source_commit": "244c5bdbd73db14a9ab06e86ee75a67afd5f1e52",
+  "source_tree": "c01b4b233a4e00f7effa0a92def586af6afcc3f7",
+  "parent_commit": "00979c2d795b50eb653fb86de9de8fcdb0cecb46",
+  "status": "static_bounded_accepted_tests_pending",
+  "scope": "StageEntrySummary complete-entry negative prefilter; no change to previous spill acceptance or broad native authority",
+  "file_sha256": {
+    "crates/zil-llvm-api/native/work_products.cpp": "1313ddaf6be9e392c4c51c51080b46592eab55288bd6b94dd6b111857cdea0df",
+    "crates/zil-llvm-api/native/work_products.h": "f3f6871e8d3a303a121c9c3461258f3918f3b70b9e3ace083115d0870d6155f6",
+    "crates/zil-llvm-api/src/native/products.rs": "1910bc73d43b799be2fbb3c5781b261ceea036f6645df794dee2635a9e596252",
+    "docs/guide/native-work-product-scopes.md": "0987a0e5ba75105105692539cdadce8268bf8b3430642f0094a440ef5597f0fd"
+  },
+  "method": "Read exact commit, before/after stage consumers, decode/replay and original cap accounting, strict C fixture and Rust assert1 wrapper. No Cargo, native compilation/execution, benchmark, additional tests, production writes or commit. Root owns pending native21 and all validation windows.",
+  "findings": [],
+  "conclusions": [
+    {
+      "topic": "negative-only authority",
+      "conclusion": "Current Config equality and original Slot lookup still precede filtering. Ordered full typed EntryKeys and Input/World/Pipeline/EntryFacts lengths/digests only decline optional candidates. A match proceeds through bounded complete packed decode and original exact byte/typed-key comparison before replay. Digest collisions or corrupted private hints cannot authorize stale output; output/exit state is deliberately not used as an entry key."
+    },
+    {
+      "topic": "Current.EntrySummary",
+      "conclusion": "The optional summary is calculated from current entry text only after ordered keys/lengths agree, retained solely to avoid a second hash at publication. Entry columns are assigned once in beforeStage and not mutated by afterStage. Even an erroneous/stale hint can only cause an unnecessary miss or extra decode followed by full original equality. It is not read by replay or analysis restoration as permission."
+    },
+    {
+      "topic": "accounting",
+      "conclusion": "New inline StageEntrySummary and optional state are included by existing sizeof(Stage) decoded accounting and sizeof(PackedStage) encoded accounting; full typed arrays and text/slot payload charging remain. No auxiliary unbounded map/history is introduced. Original dual 64MiB logical payload and slot limits can conservatively admit fewer products; this is not an RSS or temporary-allocation bound."
+    },
+    {
+      "topic": "errors and original execution",
+      "conclusion": "Negative or malformed/unavailable packet miss leaves current LLVM function and analysis manager untouched and executes the original stage. Positive full-equality path retains previous replay, original PA, full output verification/current analysis reconstruction and failed-attempt behavior. No earlier checks or global Module/CGSCC passes are removed."
+    },
+    {
+      "topic": "tests and observations",
+      "conclusion": "New strict fixture covers four independent columns including bytes after NUL, both length and same-length changes, reordered/missing typed keys, deliberately forced summary false positive, nonentry output changes and broken packets; AttemptedDecode proves actual negative rejection skips unpack. Rust wrapper requires exactly1. ir_key_ns explicitly includes selected-slot digest work; no measured net improvement is inferred."
+    }
+  ],
+  "validation": {
+    "status": "native21/Clippy08/fmt07/Python39 pending at static receipt creation; not run by reviewer",
+    "no_claim": [
+      "new targeted pass",
+      "new full workspace",
+      "425 profile or balanced net performance",
+      "general LLVM proof or full push termination"
+    ]
+  },
+  "prior_spill_receipt": {
+    "path": "/tmp/full-push-spill-frame-review-addendum.json",
+    "sha256": "9008aadad714ba0824b429ba6f7f606406019156a9cbc4b98a45a7e42dbfc215",
+    "unchanged": true
+  }
+}

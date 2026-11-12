@@ -1,6 +1,10 @@
 # 增量编译：main 与 Rust 对照
 
-> **当前施工线：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，编译器检查点 `04a637f6e85ec686b2b119cf70524119753a7b6c`；实际远端 main 已核为 `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02` 并单独构建冻结。旧正式六轮三方 check/O2 仍绑定源码433与 main42，见 [全部结果和边界](full-push-matched-433-raw-review.md)：私有641ms/Rust704ms、多处898/970；冷编译、无修改、广泛修改及恢复仍有负结果，未实现整体拉开差距。新 main 不回填到旧窗口。最新 [默认负载诊断](full-push-diagnostic-5bf55f35c.json) 私有642ms，没有证明新的明显墙钟收益。Frame/CFI 完整消费者已集成，实际压力质量门 native69、后端239、驱动207通过，见 [精确源码独审](full-push-spill-frame-review-addendum.json)；Clippy07暴露测试getter feature条件不一致，修复已提交、复验待跑。此前默认9daad完整workspace范围通过6375项，见 [失败与同源码恢复边界](full-push-workspace-recovery-9daad.json)。研究开关仍默认关闭，未合main。raw v9/v10已远端完整恢复核验，见 [v9](full-push-recovery-v9.json)、[v10](full-push-recovery-v10.json)；本地已退役的旧raw应从固定远端恢复，不能假设路径仍存在。新增阶段计时、Frame实际425测量及更新正式窗口待验；[Astra固定源码架构复核](full-push-astra-native-panorama-review.md) 明确下一项删除性切片与边界。以下历史段落不能转记为当前成果。
+> **当前施工线：完整 push 与 LLVM 优化/发射增量**，独立分支 `research/full-push-native`，冻结源码 `244c5bdbd73db14a9ab06e86ee75a67afd5f1e52`；实际 main `3ec7e8a960ca69368cd9a90f1a15ac063fec5a02`。目标未完成、研究开关默认关闭、未合 main。旧 [正式六轮三方结果](full-push-matched-433-raw-review.md) 仍绑定433/main42：private641ms/Rust704、多处898/970，cold/noop/broad/recovery负例保留；新main不能回填旧窗口。
+>
+> [最新真实425诊断](full-push-diagnostic-244c5bdbd.json)：默认private626ms/main1462ms，cold8656/main6260、broad8466/main5301仍负。共同closed附加策略private788ms，实际1机器函数复用/1执行、零回退；两策略各34有效请求/180native/15完整ELF及严格LLVM对。只是一轮profile，不作新Rust比值或跨窗口归因。schema3表明cold键构造540ms/捕获1031ms，private优化255ms仍高于main115ms；下一刀是降低缓存自身净成本。
+>
+> native70、严格Clippy/fmt、工具39及release08过；Frame之前的后端239/驱动207过，失败记录不删。[独审](full-push-spill-frame-review-addendum.json)、[负筛选静态复核](full-push-stage-negative-filter-pre-review.json)、[Astra架构复核](full-push-astra-native-panorama-review.md) 均保留精确源码边界。默认9daad完整workspace6375项由同源码28成功组+5补跑组覆盖，[首次ENOSPC原败保留](full-push-workspace-recovery-9daad.json)。raw [v9](full-push-recovery-v9.json)/[v10](full-push-recovery-v10.json)/[v11](full-push-recovery-v11.json) 已远端全新HTTPS恢复核验；最新244c诊断raw归档中。以下旧段落是历史，不能转记当前成果。
 
 > 最新冻结编译器 `900293cfd8afcd7118775e8165e1ec4f5266e3d7` 已完成真实私有编辑→CFG→Analyze→独立 Verify→机器 IR→CGU/对象→最终可执行文件的增量消费者接入。源码分支 `research/incremental-demand-continuation`，研究开关仍默认关闭，未合入 main。这里是限定域的实际全流程进展，中央 ReactiveGraph 仍只调度 BodyKey，全局工作和保守回退尚未消除。
 >
