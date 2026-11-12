@@ -1,0 +1,217 @@
+{
+  "schema": "zil.independent_source_review.v1",
+  "created_utc": "2026-11-12T06:38:18.184191+00:00",
+  "reviewer": "/root/verification_pipeline",
+  "status": "bounded_source_and_targeted_tests_accepted",
+  "non_author_of_reviewed_change": true,
+  "independence_note": "Reviewer authored prior unchanged Verify receipt implementation, but did not author this candidate-array representation/Analyze change or the new Verify test. Review is of the new delta and its interaction with existing proof boundaries.",
+  "source": {
+    "commit": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+    "tree": "d72bc434c161db36e04aba5c784047b79337431b",
+    "comparison_base": "693f55cd0394a1a72a0bfe9d680740d9509885d1",
+    "initial_review_commit": "a6c563265e60e7dda06d43d41ee91f183c887168",
+    "focused_files": [
+      {
+        "path": "crates/zil-ir/src/lib.rs",
+        "git_blob": "5de39232c63f70c677d19dce4447e803f0dac86c",
+        "sha256": "121e1e513707e03e899151e1d3da5c0d02508ad81c5397d4e08fb1dd02e6397d"
+      },
+      {
+        "path": "crates/zil-ir/src/shared_vec.rs",
+        "git_blob": "0166f069116578a5e5081f4b18d9d5dd607e0dc5",
+        "sha256": "f7b5b4c38729d1f75cad4c9b33ac7b2aab2ec7ae32196b5f28747501a8c9de93"
+      },
+      {
+        "path": "crates/zil-ir/src/wire.rs",
+        "git_blob": "6ce05a7290640e9b6a0457415e11d92c9777cb5c",
+        "sha256": "5a93c2f0add70aa8fd388b1b5f33871e140db21ec09367d56ed5790289278156"
+      },
+      {
+        "path": "crates/zil-ir/src/wire/function_encoding_tests.rs",
+        "git_blob": "f11f0ffedc84c9417255a3d69108f580cdc0e7b7",
+        "sha256": "d37d09d6a66030573249f60742cd9e6ad204498a501bfbe7fd9575a3d6b606f2"
+      },
+      {
+        "path": "crates/zil-analyze/src/lib.rs",
+        "git_blob": "c185cae66a8000bf30a4eeea4eeda9adcfcbe524",
+        "sha256": "a5c95028b5112ae8d7d990c0012212b51e9eac2671f52a589d8218e64852e7d8"
+      },
+      {
+        "path": "crates/zil-analyze/src/incremental.rs",
+        "git_blob": "b7d26229a60ba65b15c20743165158ad6b0e50d4",
+        "sha256": "c83aea5a3f6fbb73f9266b16a1f1d0d9b8b2815f51beb1c739c2998c62711910"
+      },
+      {
+        "path": "crates/zil-analyze/src/candidate_queries.rs",
+        "git_blob": "3860be9413536d039cdc150bd44d22cf64ca66aa",
+        "sha256": "581767b8e1fa1352fffa25cfb7363117c07c63f3620aad73819db94bc2b3e840"
+      },
+      {
+        "path": "crates/zil-analyze/src/candidate_queries_tests.rs",
+        "git_blob": "55508fb517158f40242c1ce5b4c8f6ca14d3f62e",
+        "sha256": "21073791940f1cc37fc37de8185d276c8cdfc003933a5b3783e1dffff5b39cc1"
+      },
+      {
+        "path": "crates/zil-analyze/src/holds.rs",
+        "git_blob": "7a7318af74e0a0fb34a31257647c6a9be865d847",
+        "sha256": "420a0f4f267ed43946fa8e827045771ccb24ea5f8111e2522ed86866413e7dc2"
+      },
+      {
+        "path": "crates/zil-analyze/src/stored_flow/enum_address.rs",
+        "git_blob": "8051460a0cd55492e2a24f0b37f83827c24654bc",
+        "sha256": "1db1b4f61fceaca4ad6e635fbea8aa9c525c7afe9394b2e9ce3e199aeab0aa3b"
+      },
+      {
+        "path": "crates/zil-analyze/src/stored_flow/option_address.rs",
+        "git_blob": "15ce01ef3aaf941c3072417d915e74c5b48509ed",
+        "sha256": "7b196f9b4e1ff3a173420705a4b56f9f9453f5a6bcd0bdbbd629c0acb6e86dc1"
+      },
+      {
+        "path": "crates/zil-verify/src/lib.rs",
+        "git_blob": "898469b2caa897e5be4296c0697d662572282c86",
+        "sha256": "ce5fc487c25ca74b16739574fec64b9f342cd1e78ddc9f131b0ca0073f26b116"
+      },
+      {
+        "path": "crates/zil-verify/src/incremental.rs",
+        "git_blob": "0897d27d7cd239c63ad5456dc68fddb754cd8ca1",
+        "sha256": "7cb88967db05997d8c6aeca18a231045df0b73f7cb655fd41a7b615f89618b47"
+      },
+      {
+        "path": "crates/zil-verify/src/incremental/tests.rs",
+        "git_blob": "6fda68f1219d3debb230f968dd8ccb4d25deeb0b",
+        "sha256": "8179166322e0787e81dc6a08c345743377fec63565d869d1813700139f7dba7e"
+      },
+      {
+        "path": "crates/zil-analyze/src/place_replacements/tests.rs",
+        "git_blob": "21c4a78f1d3922b430fe20e391d7a21f222c4530",
+        "sha256": "afe4a143e3359059fdadba292e457cbd945b2aacd688edf942cdc3b5ed591470"
+      },
+      {
+        "path": "crates/zil-analyze/src/resources/replacements/tests.rs",
+        "git_blob": "02ca73c84353c64246ad13cf8029a8a4ed6f6c10",
+        "sha256": "e38398f1bfa7c6c7e4bd0a64d16ffee91455584df011274aa4235ea5168fc7b9"
+      },
+      {
+        "path": "crates/zil-analyze/src/stored_flow.rs",
+        "git_blob": "bf1fb67f9dab3dbc39de9f721e39dcc62ead4e5d",
+        "sha256": "0f3eaca373b6b5e6ac746d0edac791b18844aea11deeabfcf2b16be64d7059e8"
+      }
+    ],
+    "repair_delta": {
+      "from": "a6c563265e60e7dda06d43d41ee91f183c887168",
+      "to": "66e5335b5a7bba68d17d1bec3c8e55aa3db3bb7a",
+      "paths": [
+        "crates/zil-analyze/src/place_replacements/tests.rs",
+        "crates/zil-analyze/src/resources/replacements/tests.rs",
+        "crates/zil-analyze/src/stored_flow.rs"
+      ],
+      "diff_sha256": "8d606d18ae3ad7ae17e13a088b1454000780dc66ba2a2d81d7ab56266aeaa414",
+      "classification": "12 test-fixture constructor rows changed from Vec graph columns to SharedVec via .into(); no production algorithm, budget debit, test assertion or expected result changed."
+    }
+  },
+  "production_edits_by_reviewer": false,
+  "cargo_or_tests_executed_by_reviewer": false,
+  "blocking_findings": [],
+  "initial_conclusions": [
+    "FunctionPlan retains derived complete equality, now with SharedVec blocks and holds; owner FunctionId remains part of row identity. SharedVec itself is unchanged and safely uses strong Arc identity only as an equality shortcut, with structural fallback for distinct arrays.",
+    "BlockPlan and ValueHold contain no interior mutability. Nested initialization/root edits first require SharedVec DerefMut, which Arc::make_mut isolates; cloning Vec elements deep-clones their nested ordinary Vec children. Owned conversion/iteration also isolates when arrays are shared.",
+    "Verify production binding logic is unchanged from base: full receipt needs both enclosing live input allocations plus full Limits and target; local receipt needs current complete Typed function AND complete candidate row. Sharing candidate columns does not prove current Typed input or global relations.",
+    "Initialization result clone now shallowly shares blocks/predecessors/reachable; analyze_budgeted destructures that result into actual Candidate.blocks and hold_graphs. All migrated graph consumers borrow the shared tuple; refinements construct fresh predecessor/reachable Vecs before conversion.",
+    "Queries.holds reuses the prior actual candidate HoldRows, and final assembly moves those rows directly into FunctionPlan.holds. The new Analyze regression asserts actual output allocation identity across distinct candidate epochs and ordinary Wire byte equality.",
+    "Fresh HoldRows are converted once and uniquely owned through richer stored-proof overlays; shared cache hits are admitted only for scalar raw values. Overlay element writes select Address/BorrowedStorage/retained-task/enum-address shapes, never a cached scalar value. Whole-row replacements do not mutate an aliased array. No new linear COW copy was identified on a cached hit.",
+    "RawFunctionPlanEncoding clones now share the two arrays; complete current-row equality/full Limits and existing node/byte fallback guards remain unchanged. Wire encoding layout and charge order are unchanged; decoder merely converts completed Vec rows into SharedVec.",
+    "The new Verify regression retains sealed bytes while mutating each nested column separately, rejects an outer-new Candidate Arc as a full-receipt hit, and changes the current same-ID Typed Store to StorageDead while both old candidate arrays remain pointer-equal; fresh Verify remains the error oracle."
+  ],
+  "test_review": {
+    "status": "targeted_tests_accepted",
+    "reviewer_executed_tests": false,
+    "evidence_method": "Reviewer independently read completed raw logs and explicit exit files and matched individual COW/mutation/budget tests and per-crate totals. Source-window provenance is parent supplied; logs are not self-contained source manifests.",
+    "raw_logs": [
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-candidate-arrays-01.log",
+        "log_sha256": "cb964f55ad356cfe80ac3c77b941f035133b06a97c78c5020fd82180f680d3b3",
+        "log_bytes": 15613,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-candidate-arrays-01.exit",
+        "exit_sha256": "39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c",
+        "exit_code": 101,
+        "completed": true
+      },
+      {
+        "log": "/workspace/zil-demand/out/runs/full-pipeline-candidate-arrays-02.log",
+        "log_sha256": "c804f47aa454e00dae052be8721b2b2f135467805430d1180738620ea661f131",
+        "log_bytes": 121229,
+        "exit_file": "/workspace/zil-demand/out/runs/full-pipeline-candidate-arrays-02.exit",
+        "exit_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "exit_code": 0,
+        "completed": true
+      }
+    ],
+    "accepted_targets": [
+      {
+        "crate": "zil-analyze",
+        "passed": 279,
+        "failed": 0
+      },
+      {
+        "crate": "zil-driver",
+        "passed": 200,
+        "failed": 0
+      },
+      {
+        "crate": "zil-ir",
+        "passed": 79,
+        "failed": 0
+      },
+      {
+        "crate": "zil-verify",
+        "passed": 624,
+        "failed": 0
+      }
+    ],
+    "explicit_test_passes_checked": [
+      "candidate_queries::tests::reused_initialization_and_holds_are_the_actual_candidate_arrays_and_mutate_in_isolation",
+      "candidate_queries::tests::exact_budget_boundaries_and_insufficient_aggregate_balance_keep_the_first_error",
+      "candidate_queries::tests::resource_query_costs_preserve_n_minus_one_and_failed_epochs",
+      "wire::function_encoding_tests::shared_plan_columns_isolate_mutations_and_row_ids_still_bind_encoding_slots",
+      "wire::function_encoding_tests::plan_fragment_replay_preserves_aggregate_first_errors_and_exact_boundaries",
+      "incremental::tests::empty_borrows::every_residual_budget_matches_dense_oracle_at_each_original_stage",
+      "incremental::tests::insufficient_remaining_work_falls_back_at_the_original_check_position",
+      "incremental::tests::exact_work_boundary_and_failed_retry_match_fresh_verification",
+      "incremental::tests::shared_candidate_columns_preserve_verified_bytes_without_proving_current_cfgs"
+    ],
+    "retained_initial_failure": {
+      "window": "full-pipeline-candidate-arrays-01",
+      "exit_code": 101,
+      "diagnostic": "18 E0308 mismatched-type errors in Analyze test graph fixtures",
+      "accepted": false,
+      "repair": "The three-file, 12-row constructor-only diff was read in full; arrays-02 supersedes the initial failed compilation without deleting it."
+    },
+    "pending": [
+      "all-target strict Clippy",
+      "full-workspace05 acceptance",
+      "release build and immutable binary acceptance for this source",
+      "formal performance/memory measurement for candidate-array change"
+    ],
+    "scope_exclusions": [
+      "Later whole-machine and import-binding work is not integrated or covered by this receipt.",
+      "The older 693 full-workspace 6242-test result belongs to a different source revision; it is not treated as full-workspace evidence for 66e5335."
+    ]
+  },
+  "limits": [
+    "This final receipt accepts the bounded candidate-array representation/Analyze consumer delta and listed targeted tests only; it is not whole-workspace, release or performance acceptance.",
+    "No performance or total-memory saving is claimed. Existing Verify already borrows Arc<CandidatePlan>; this change does not eliminate a formerly nonexistent entry-point deep copy.",
+    "Raw COW arrays carry no Verify authority. The reviewed unchanged current-input binding and budget first-error requirements remain mandatory.",
+    "All-target Clippy, full-workspace05, this-source release and formal measurement remain pending. Later whole-machine/import-binding changes require separate source review."
+  ],
+  "release_approval": false,
+  "finalized_utc": "2026-11-12T06:41:26.370130+00:00",
+  "revision_chain": [
+    {
+      "path": "/tmp/zil-candidate-arrays-review-a6c563265-wip.json",
+      "sha256": "6c140a959fc2efb38b7230ac8ef183dd7310752140e01dc9a44537f0a514b9b6",
+      "status": "WIP_test_pending",
+      "preserved_unchanged": true
+    }
+  ],
+  "disposition": "No blocking findings in the reviewed candidate-array representation/actual Analyze consumer/current Verify and raw plan encoding interaction. Constructor-only repairs and completed Analyze279/Driver200/IR79/Verify624 targeted tests accepted. Initial WIP and failed arrays-01 compilation retained. Broader pending gates and excluded later work are not approved."
+}
