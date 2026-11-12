@@ -19,6 +19,20 @@ pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, false).map(|_| ())
 }
 
+/// A capture borrows the complete owning head, without acquiring its cleanup
+/// debt. The actual source and entry permissions are checked by holds/loans.
+pub(crate) fn admit_capture_head(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    if budget.ordinary_pod_store_type(ty)? || budget.owned_store_package_type(ty)? {
+        admit_owned(module, ty, budget).map(|_| ())
+    } else {
+        admit(ty, budget)
+    }
+}
+
 /// A borrowed nested Product retains its old finite field profile. A valid
 /// owner outside that profile is unsupported at this boundary; malformed
 /// Product identities still fail the independent structural check.

@@ -1658,7 +1658,7 @@ fn check_module_mask(
                                     Some(instruction.span),
                                 ));
                             }
-                            packages::check_shared_product_type(
+                            packages::check_captured_product_type(
                                 module,
                                 actual,
                                 Some(instruction.span),

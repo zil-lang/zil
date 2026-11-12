@@ -216,7 +216,7 @@ pub(super) fn check_definitions(
                     }
                     budget.owning_address_captures = true;
                 }
-                packages::check_shared_product_type(module, inner, None, budget)?;
+                packages::check_captured_product_type(module, inner, None, budget)?;
                 resources::charge_payload(&closure.result, budget)?;
                 if !closure.result.is_copy_value() {
                     return Err(unsupported(

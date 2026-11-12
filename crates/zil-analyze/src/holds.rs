@@ -3562,7 +3562,7 @@ pub(super) fn infer_module(
                                 Some(instruction.span),
                             )]);
                         }
-                        super::resources::product::admit(actual, budget)?;
+                        super::resources::product::admit_capture_head(module, actual, budget)?;
                     }
                 }
             }
