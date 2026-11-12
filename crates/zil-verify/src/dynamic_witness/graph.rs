@@ -670,6 +670,182 @@ mod tests {
         module.dyn_declarations = vec![trait_decl, implementation];
         module
     }
+    fn add_nominal(module: &mut TypedModule, count: u32) -> DynTypeValue {
+        let declaration = LifeDeclarationId {
+            module: ModuleId(0),
+            declaration: NodeId(50),
+            compiler: false,
+        };
+        if !module.life_declarations.iter().any(|d| d.id == declaration) {
+            module.life_declarations.push(LifeNominalDeclaration {
+                id: declaration,
+                identity: LifeDeclarationIdentity {
+                    package: "test".into(),
+                    module_path: vec![],
+                    declaration_path: vec!["P".into()],
+                    generation_path: vec![],
+                },
+                kind: LifeNominalKind::Record,
+                parameters: vec![LifeParameterKind::Lifetime; 2],
+            });
+        }
+        let life = StorageLifeShape {
+            binder_count: count,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: (0..2)
+                .map(|i| NominalLifeArgument {
+                    path: vec![],
+                    declaration,
+                    argument: i,
+                    binder: i % count,
+                })
+                .collect(),
+        };
+        let ty = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: format!("test.P{count}"),
+                fields: vec![],
+            }),
+            life: life.clone(),
+        };
+        module.life_instances.push(LifeNominalInstance {
+            declaration,
+            ty: ty.clone(),
+            arguments: (0..2)
+                .map(|i| LifeNominalActual::Lifetime(i % count))
+                .collect(),
+        });
+        DynTypeValue {
+            ty,
+            life,
+            classes: vec![StorageBinder::Fixed(0); count as usize],
+        }
+    }
+    fn intrinsic_fixture(count: u32, default: bool) -> (TypedModule, DynTypeValue, DynTypeValue) {
+        let mut module = fixture();
+        let p2 = add_nominal(&mut module, 2);
+        let p1 = add_nominal(&mut module, 1);
+        let receiver = if count == 2 { &p2 } else { &p1 };
+        let context_id = LifeDeclarationId {
+            module: ModuleId(0),
+            declaration: NodeId(60),
+            compiler: false,
+        };
+        let context_life = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![NominalLifeArgument {
+                path: vec![],
+                declaration: context_id,
+                argument: 0,
+                binder: 0,
+            }],
+        };
+        let context = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "test.Context".into(),
+                fields: vec![("code".into(), Type::I32)],
+            }),
+            life: context_life.clone(),
+        };
+        module.life_declarations.push(LifeNominalDeclaration {
+            id: context_id,
+            identity: LifeDeclarationIdentity {
+                package: "test".into(),
+                module_path: vec![],
+                declaration_path: vec!["Context".into()],
+                generation_path: vec![],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![LifeParameterKind::Lifetime],
+        });
+        module.life_instances.push(LifeNominalInstance {
+            declaration: context_id,
+            ty: context.clone(),
+            arguments: vec![LifeNominalActual::Lifetime(0)],
+        });
+        let lifetimes = vec![DynGenericActual::Life(StorageBinder::Fixed(0)); 2];
+        let application = DynTraitApplication {
+            declaration: module.dyn_declarations[0].id,
+            actuals: lifetimes.clone(),
+        };
+        let p_pattern = DynTypePattern::Nominal(Box::new(DynSelfPattern {
+            declaration: module.life_declarations[0].id,
+            arguments: (0..2)
+                .map(|i| DynPatternActual::Life(DynLifePattern::DeclarationParameter(i)))
+                .collect(),
+        }));
+        module.dyn_declarations[0].parameters = vec![LifeParameterKind::Lifetime; 2];
+        module.dyn_declarations[1].parameters = vec![LifeParameterKind::Lifetime; 2];
+        module.dyn_declarations[1].self_pattern = Some(p_pattern.clone());
+        module.dyn_declarations[1].implemented_trait = Some(DynSelfPattern {
+            declaration: application.declaration,
+            arguments: (0..2)
+                .map(|i| DynPatternActual::Life(DynLifePattern::DeclarationParameter(i)))
+                .collect(),
+        });
+        if default {
+            module.dyn_declarations[1].members.pop();
+            module.dyn_declarations[1]
+                .associated_definitions
+                .as_mut()
+                .unwrap()
+                .pop();
+            module.dyn_declarations[0]
+                .associated_definitions
+                .as_mut()
+                .unwrap()[0]
+                .value = Some(DynAssociatedValueRecipe::Type(p_pattern));
+        } else {
+            module.dyn_declarations[1]
+                .associated_definitions
+                .as_mut()
+                .unwrap()[1]
+                .value = Some(DynAssociatedValueRecipe::Type(p_pattern));
+        }
+        let interface = &mut module.dyn_interfaces[0];
+        interface.application = application.clone();
+        interface.context = Some(context);
+        interface.retained_life.binder_count = 1;
+        interface.retained_life.nominal_arguments = context_life.nominal_arguments;
+        interface.associated_types = vec![DynAssociatedType {
+            member: DynMember {
+                application: application.clone(),
+                ordinal: 0,
+            },
+            ty: receiver.ty.clone(),
+            life: receiver.life.clone(),
+            classes: receiver.classes.clone(),
+        }];
+        let table = &mut module.dyn_vtables[0];
+        table.self_type = receiver.ty.clone();
+        table.self_life = Some(receiver.life.clone());
+        table.self_classes = receiver.classes.clone();
+        table.actuals = lifetimes.clone();
+        let witness = &mut table.implementation_witnesses.as_mut().unwrap()[0];
+        witness.scope.fixed_binder_count = 1;
+        witness.to_context = vec![DynLifeEmbedding {
+            from: StorageBinder::Fixed(0),
+            to: StorageBinder::Fixed(0),
+        }];
+        witness.receiver = receiver.clone();
+        witness.application = application.clone();
+        witness.actuals = lifetimes;
+        for row in &mut witness.associated {
+            row.member.application = application.clone();
+        }
+        witness.associated[0].value = DynAssociatedValue::Type(receiver.clone());
+        if default {
+            witness.associated[0].source = DynAssociatedSource::TraitDefault {
+                declaration: application.declaration,
+                member: 0,
+            };
+        }
+        (module, p2, p1)
+    }
+
     fn run(module: &TypedModule) -> Check<()> {
         let limits = Limits::default();
         let raw = claims(module, &mut Budget::new(&limits));
@@ -683,6 +859,39 @@ mod tests {
         );
         raw
     }
+    #[test]
+    fn intrinsic_origin_partition_survives_raw_wire_override_and_trait_default_boundaries() {
+        for default in [false, true] {
+            let (module, p2, p1) = intrinsic_fixture(2, default);
+            assert!(run(&module).is_ok(), "{:?}", run(&module));
+            let mut compressed = module.clone();
+            compressed.dyn_vtables[0]
+                .implementation_witnesses
+                .as_mut()
+                .unwrap()[0]
+                .associated[0]
+                .value = DynAssociatedValue::Type(p1.clone());
+            assert!(run(&compressed).is_err());
+            let (shared, _, _) = intrinsic_fixture(1, default);
+            assert!(run(&shared).is_ok(), "{:?}", run(&shared));
+            let mut split = shared.clone();
+            split.dyn_vtables[0]
+                .implementation_witnesses
+                .as_mut()
+                .unwrap()[0]
+                .associated[0]
+                .value = DynAssociatedValue::Type(p2.clone());
+            assert!(run(&split).is_err());
+        }
+        let (mut repeated, _, _) = intrinsic_fixture(2, false);
+        if let Some(DynTypePattern::Nominal(pattern)) =
+            &mut repeated.dyn_declarations[1].self_pattern
+        {
+            pattern.arguments[1] = pattern.arguments[0].clone();
+        }
+        assert!(run(&repeated).is_err());
+    }
+
     #[test]
     fn associated_original_impl_ordinals_are_not_trait_ordinals_or_inferred_from_abi() {
         let module = fixture();
