@@ -267,3 +267,37 @@ fn main()->i32{let n=41;let f=make(wrap(&n));return f()-42}
     assert_eq!(contract.capture_sources.as_ref().unwrap().len(), 1);
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
 }
+
+#[test]
+fn emit_untrusted_factory_candidates_for_independent_verify() {
+    use std::fs;
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../out/runs/returned-source-candidates-recovery-20261112");
+    fs::create_dir_all(&directory).unwrap();
+    let owned = format!("{PROJECT_MODEL}{PROJECT_FACTORY}{PROJECT_MAIN}")
+        .replace("import model;", "")
+        .replace("import factory;", "")
+        .replace("model.", "")
+        .replace("factory.", "");
+    for (label, text) in [
+        ("two-addresses", SOURCE.to_owned()),
+        ("owned-projected-multiple", owned),
+    ] {
+        let module = typed_source(&text);
+        let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&module, &candidate, &Limits::default()).unwrap();
+        fs::write(directory.join(format!("{label}.zil")), text).unwrap();
+        fs::write(directory.join(format!("{label}.wire")), wire).unwrap();
+        fs::write(
+            directory.join(format!("{label}.typed.txt")),
+            format!("{module:#?}"),
+        )
+        .unwrap();
+        fs::write(
+            directory.join(format!("{label}.candidate.txt")),
+            format!("{candidate:#?}"),
+        )
+        .unwrap();
+    }
+}
