@@ -945,28 +945,8 @@ fn instruction_count(f: &TypedFunction) -> Option<usize> {
         .iter()
         .try_fold(0usize, |n, b| n.checked_add(b.instructions.len()))
 }
-fn relative_equal(left: &TypedFunction, right: &TypedFunction) -> Option<bool> {
-    let mut left = left.clone();
-    let mut right = right.clone();
-    let a = Span::new(
-        zil_base::FileId(0),
-        0,
-        left.span.end.checked_sub(left.span.start)?,
-    );
-    let b = Span::new(
-        zil_base::FileId(0),
-        0,
-        right.span.end.checked_sub(right.span.start)?,
-    );
-    let left_origin = left.span;
-    let right_origin = right.span;
-    if !incremental::rebase(&mut left, left_origin, a)
-        || !incremental::rebase(&mut right, right_origin, b)
-    {
-        return None;
-    }
-    Some(left == right)
-}
+mod relative;
+use relative::relative_equal;
 
 #[cfg(test)]
 mod tests {
