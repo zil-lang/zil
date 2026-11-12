@@ -31,6 +31,14 @@ mod loan_union_tests;
 mod pure_copy;
 
 // Class grounding may recognize only this independently authenticated origin.
+pub(super) fn qualified_package_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    pure_copy::qualified_package_borrow(f, i, b)
+}
+
 pub(super) fn ordinary_error_borrow(
     f: &TypedFunction,
     i: &Instruction,
@@ -1397,6 +1405,7 @@ pub(super) fn qualifications(
                     && !pure_copy::ordinary_owned_union(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
+                    && !pure_copy::qualified_package_description(f, i, b)?
                     && !ordinary_error_borrow(f, i, b)?
                     && !matches!(
                         &i.kind,
@@ -2857,6 +2866,22 @@ fn step(
             state.locals[l.0 as usize] = Payload::default();
             clear_local_holes(state, *l, b)?;
         }
+        InstructionKind::BorrowPackageField { local, index, mutable: false }
+            if pure_copy::qualified_package_borrow(f, i, b)? => {
+                b.spend(2)?;
+                out.address.sources.push(Source { retained_port: None,
+                    base: HoldRoot::Local(*local), leaf: Vec::new(),
+                    inline: vec![PlaceProjection::Field(*index)], heap_element: None });
+            }
+        InstructionKind::DescribePackageField { local, index }
+            if pure_copy::qualified_package_description(f, i, b)? => {
+                b.spend(2)?;
+                out.address.sources.push(Source {
+                    retained_port: None, base: HoldRoot::Local(*local),
+                    leaf: Vec::new(), inline: vec![PlaceProjection::Field(*index)],
+                    heap_element: None,
+                });
+            }
         InstructionKind::DescribeLocal { local } => {
             if f.locals
                 .get(local.0 as usize)
@@ -4555,6 +4580,46 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    InstructionKind::ReadDesc { desc, .. } => {
+                        let actual = pointer(*desc)?;
+                        if !actual.sources.is_empty() {
+                            checks.check(actual, false, requirements, b)?;
+                        }
+                    }
+                    InstructionKind::BorrowPackageField {
+                        local,
+                        index,
+                        mutable: false,
+                    } if pure_copy::qualified_package_borrow(f, i, b)? => {
+                        b.spend(2)?;
+                        let actual = Permission {
+                            sources: vec![Source {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                leaf: Vec::new(),
+                                inline: vec![PlaceProjection::Field(*index)],
+                                heap_element: None,
+                            }],
+                            loans: Vec::new(),
+                        };
+                        checks.check(&actual, false, requirements, b)?;
+                    }
+                    InstructionKind::DescribePackageField { local, index }
+                        if pure_copy::qualified_package_description(f, i, b)? =>
+                    {
+                        b.spend(2)?;
+                        let actual = Permission {
+                            sources: vec![Source {
+                                retained_port: None,
+                                base: HoldRoot::Local(*local),
+                                leaf: Vec::new(),
+                                inline: vec![PlaceProjection::Field(*index)],
+                                heap_element: None,
+                            }],
+                            loans: Vec::new(),
+                        };
+                        checks.check(&actual, false, requirements, b)?;
                     }
                     InstructionKind::ReadPackageField { local, index }
                         if pure_copy::ordinary_package_read(f, i, b)? =>

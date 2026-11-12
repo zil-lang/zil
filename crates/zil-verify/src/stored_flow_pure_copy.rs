@@ -123,6 +123,9 @@ pub(super) fn ordinary_package_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
+    if qualified_package_borrow(f, i, b)? {
+        return Ok(true);
+    }
     let InstructionKind::BorrowPackageField {
         local,
         index,
@@ -284,7 +287,9 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
             };
             match i.kind {
                 InstructionKind::ReadErrorUnion { is_error: true, .. } => error.as_ref(),
-                InstructionKind::ReadErrorUnion { is_error: false, .. } => result.as_ref(),
+                InstructionKind::ReadErrorUnion {
+                    is_error: false, ..
+                } => result.as_ref(),
                 _ => &Type::Bool,
             }
         }
@@ -622,7 +627,12 @@ pub(super) fn ordinary_error_borrow(
     } else {
         error.as_ref()
     };
-    if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    resources::charge_payload(parent, b)?;
+    if parent.is_copy_value() {
+        // Both arms must be target-free before an ordinary selected-arm view
+        // can omit stored permissions. An inactive sibling is not evidence.
+        ordinary(parent, b, 0)?;
+    } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
         return Ok(false);
     }
     resources::charge_payload(selected, b)?;
@@ -672,4 +682,90 @@ mod tests {
             assert!(ordinary(&ty, &mut Budget::new(&limits), 0).is_err());
         }
     }
+}
+
+/// A package projection retains the actual owner root; it never creates an
+/// external borrowed slot or supplies ownership from the qualified shell.
+pub(super) fn qualified_package_description(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::DescribePackageField { local, index } = i.kind else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("description owner local absent"))?
+        .ty;
+    let Type::BorrowedStorage { storage, .. } = parent else {
+        return Ok(false);
+    };
+    let Type::Package { fields, .. } = storage.as_ref() else {
+        return Ok(false);
+    };
+    let (_, field) = fields
+        .get(index as usize)
+        .ok_or_else(|| err("description owning field absent"))?;
+    let Type::Managed(payload) = field else {
+        return Err(err("description field is not an actual managed owner"));
+    };
+    // Reuse the complete pure payload check, including every inactive arm.
+    ordinary(payload, b, 0)?;
+    let output = vt(
+        f,
+        i.result
+            .ok_or_else(|| err("description lacks a typed result"))?,
+    )?;
+    resources::charge_payload(output, b)?;
+    if !matches!(output, Type::Desc(actual) if actual == payload) {
+        return Err(err(
+            "description differs from its exact managed field payload",
+        ));
+    }
+    Ok(true)
+}
+
+pub(super) fn qualified_package_borrow(
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<bool> {
+    let InstructionKind::BorrowPackageField {
+        local,
+        index,
+        mutable: false,
+    } = i.kind
+    else {
+        return Ok(false);
+    };
+    let parent = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| err("owning field view local absent"))?
+        .ty;
+    let Type::BorrowedStorage { storage, .. } = parent else {
+        return Ok(false);
+    };
+    let Type::Package { fields, .. } = storage.as_ref() else {
+        return Ok(false);
+    };
+    let (_, field) = fields
+        .get(index as usize)
+        .ok_or_else(|| err("owning field view index absent"))?;
+    let Type::Managed(payload) = field else {
+        return Ok(false);
+    };
+    ordinary(payload, b, 0)?;
+    let out = vt(
+        f,
+        i.result
+            .ok_or_else(|| err("owning field view result absent"))?,
+    )?;
+    resources::charge_payload(out, b)?;
+    if !matches!(out, Type::Address { mutable: false, inner } if inner.as_ref() == field) {
+        return Err(err("owning field view changes its exact managed payload"));
+    }
+    Ok(true)
 }
