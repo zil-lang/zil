@@ -10,6 +10,27 @@ fn pure_array_value(ty: &Type) -> bool {
     pure_value_tree(ty)
 }
 
+// A complete class-free owning tree contributes no lifetime equation. This
+// only classifies the known domain: canonical resource admission, moves and
+// cleanup remain mandatory in the independent ownership consumers. Unknown
+// shells, Address, Closure, Task and qualified children never become empty.
+fn class_free_owned_tree(ty:&Type)->bool{
+    let mut pending=vec![ty];
+    while let Some(current)=pending.pop(){match current{
+        Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..}|Type::ByteBuffer|Type::OwnedStore{..})=>pending.push(payload),
+        Type::Package{fields,..}|Type::Record{fields,..}=>pending.extend(fields.iter().map(|(_,ty)|ty)),
+        Type::Tuple(fields)=>pending.extend(fields),
+        Type::Enum{variants,..}=>for(_,fields)in variants{pending.extend(fields)},
+        Type::ErrorUnion{error,result}=>{pending.push(error);pending.push(result);},
+        Type::Array{element,..}|Type::OwnedStore{element}=>pending.push(element),
+        Type::ByteBuffer=>{},
+        Type::Unit|Type::Bool|Type::ForeignHandle|Type::CWideString=>{},
+        other if other.is_integer() || other.is_float()=>{},
+        _=>return false,
+    }}
+    true
+}
+
 fn pure_nominal_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
 }
@@ -615,6 +636,7 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                || class_free_owned_tree(target)
                 || pure_array_value(target)
                 // A proved query's exact weak input has no semantic class.
                 // It creates/grounds no row and is not an owning consumer.
