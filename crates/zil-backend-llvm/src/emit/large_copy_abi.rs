@@ -402,7 +402,6 @@ pub(super) fn entry_error_wrapper(
 impl FunctionEmitter<'_> {
     pub(super) fn abi(&self) -> &Signature {
         static EMPTY: Signature = Signature {
-            retained_return_sources: None,
             parameters: Vec::new(),
             result: None,
             versioned: false,
