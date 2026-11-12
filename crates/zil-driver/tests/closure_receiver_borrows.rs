@@ -961,3 +961,76 @@ consumer!(
     consuming_qualified_head_reads_the_current_pointee_after_a_local_transfer,
     "fnonce-qualified-head-updates-pointee"
 );
+
+#[test]
+fn consuming_capture_with_two_possible_original_holders_keeps_weak_updates() {
+    use zil_ir::{Constant, Instruction, InstructionKind, Type, ValueHold, ValueId};
+    let source = include_str!(
+        "../../../tests/fixtures/returned-owning-holders/fnonce-multiple-possible-holders.zil"
+    );
+    let original = typed(source);
+    let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        original.clone(),
+        plan.clone(),
+        &original.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    accepted("multiple-possible-holders", source);
+    let mut bad = original;
+    let mut claim = plan;
+    let function = bad.functions.iter_mut().find(|f| f.name == "run").unwrap();
+    let local = function
+        .locals
+        .iter()
+        .find(|local| local.name == "a")
+        .unwrap()
+        .id;
+    let (block, at) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.kind, InstructionKind::CallClosureOnce { .. })
+                })
+                .map(|at| (block, at))
+        })
+        .unwrap();
+    let span = function.blocks[block].instructions[at].span;
+    let value = ValueId(function.values.len() as u32);
+    function.values.push(Type::I32);
+    function.blocks[block].instructions.splice(
+        at + 1..at + 1,
+        [
+            Instruction {
+                result: Some(value),
+                kind: InstructionKind::Constant(Constant::I32(99)),
+                span,
+            },
+            Instruction {
+                result: None,
+                kind: InstructionKind::Store { local, value },
+                span,
+            },
+        ],
+    );
+    claim
+        .functions
+        .iter_mut()
+        .find(|p| p.function == function.id)
+        .unwrap()
+        .holds
+        .push(ValueHold {
+            value,
+            roots: vec![],
+        });
+    independently_reject_typed_attack(
+        bad,
+        claim,
+        "weak update cannot erase an untouched original holder",
+    );
+}
