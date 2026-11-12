@@ -322,14 +322,17 @@ int machineWasSkipped(MachineRequest &R, llvm::Pass &P, llvm::Function &F) {
   auto &C = It->second;
   const bool Machine = C.pendingMachine == &P;
   C.pendingMachine = nullptr;
+  const bool Skipped = C.skipped == &P;
+  C.skipped = nullptr;
+  // Unsupported current functions execute the original pipeline without
+  // allocating a duplicate per-pass dependency trace that cannot be reused.
+  if (!C.recording && !C.replay) return Skipped;
   auto Step = describe(P, Machine);
   if (C.replay &&
       (C.sequence.size() >= C.replay->sequence.size() ||
        !(C.replay->sequence[C.sequence.size()] == Step)))
     R.fail();
   C.sequence.push_back(std::move(Step));
-  const bool Skipped = C.skipped == &P;
-  C.skipped = nullptr;
   return Skipped;
 }
 
