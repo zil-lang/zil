@@ -808,3 +808,126 @@ fn output_only_invocation_class_preserves_its_original_nominal_call_domain() {
         DynClassGrounding::Unknown
     );
 }
+
+#[test]
+fn owned_inline_region_has_all_actual_windows_and_stops_at_borrowed_payloads() {
+    let (module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Record {
+            name: "Pair".into(),
+            fields: vec![("left".into(), Type::I32), ("right".into(), Type::I32)],
+        }),
+    };
+    let leaf = module.dyn_interfaces[0].retained_life.ports[0].leaf.clone();
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::OwnedView {
+        head: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![],
+        },
+        leaf: leaf.clone(),
+        mode: StoredBorrowMode::SharedAddress,
+    }];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(1)];
+    assert!(checked(&module, &f, &actual));
+    let limits = Limits::default();
+    let sources = published_sources(
+        &module,
+        &f,
+        &[ContractProjection::RetainedPort(0)],
+        &mut Budget::new(&limits),
+    )
+    .unwrap();
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].inline, [PlaceProjection::Field(0)]);
+    assert_eq!(sources[1].inline, [PlaceProjection::Field(1)]);
+    assert!(
+        sources
+            .iter()
+            .all(|s| s.leaf.is_empty() && s.retained_port.is_none())
+    );
+    // A declaration's region upper contains both real windows; caller-side
+    // current initialization must still reject a vacated candidate window.
+    let state = Frame {
+        vacant: vec![sources[0].clone()],
+        ..Frame::default()
+    };
+    let permission = Permission {
+        sources,
+        loans: vec![],
+    };
+    assert!(initialized(&state, &permission, &mut Budget::new(&limits)).is_err());
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Parameter(1);
+    assert!(!checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].base = HoldRoot::Parameter(0);
+    f.locals[0].ty = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::Record {
+            name: "Holder".into(),
+            fields: vec![("pointer".into(), leaf)],
+        }),
+    };
+    actual.0[0].1.permission.sources[0].inline.clear();
+    actual.0[0].1.permission.sources[0].leaf = vec![PlaceProjection::Field(0)];
+    assert!(
+        !checked(&module, &f, &actual),
+        "owned region cannot cross the stored pointer edge"
+    );
+}
+
+#[test]
+fn owned_inline_region_respects_selected_head_access_and_complete_leaf_type() {
+    let (mut module, mut f, mut actual) = boundary();
+    f.locals[0].ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Tuple(vec![Type::I32, Type::I32])),
+    };
+    let mut leaf = module.dyn_interfaces[0].retained_life.ports[0].leaf.clone();
+    let Type::Address { mutable, .. } = &mut leaf else {
+        unreachable!()
+    };
+    *mutable = true;
+    module.dyn_interfaces[0].retained_life.ports[0].leaf = leaf.clone();
+    module.dyn_interfaces[0].retained_life.ports[0].mode = StoredBorrowMode::ExclusiveAddress;
+    f.retained_return_sources.as_mut().unwrap()[0].sources = vec![StorageSource::OwnedView {
+        head: StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+        },
+        leaf,
+        mode: StoredBorrowMode::ExclusiveAddress,
+    }];
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    assert!(checked(&module, &f, &actual));
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(1)];
+    assert!(
+        !checked(&module, &f, &actual),
+        "another same-type sibling is outside the selected region"
+    );
+    actual.0[0].1.permission.sources[0].inline = vec![PlaceProjection::Field(0)];
+    let Type::Address { mutable, .. } = &mut f.locals[0].ty else {
+        unreachable!()
+    };
+    *mutable = false;
+    assert!(
+        !checked(&module, &f, &actual),
+        "shared actual head cannot grant exclusive view"
+    );
+    let StorageSource::OwnedView { mode, leaf, .. } =
+        &mut f.retained_return_sources.as_mut().unwrap()[0].sources[0]
+    else {
+        unreachable!()
+    };
+    *mode = StoredBorrowMode::SharedAddress;
+    let Type::Address { mutable, inner } = leaf else {
+        unreachable!()
+    };
+    *mutable = false;
+    **inner = Type::I64;
+    assert!(
+        !checked(&module, &f, &actual),
+        "same machine width or outer mode does not replace complete leaf type"
+    );
+}

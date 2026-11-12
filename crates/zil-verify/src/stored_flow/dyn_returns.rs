@@ -191,7 +191,7 @@ pub(super) fn published_sources(
     if let Some(row) = claim.iter().find(|row| row.position.path == path) {
         for atom in &row.sources {
             let (_, _, source) = atoms::resolve(module, f, atom, b)?;
-            add_sources(&mut result, &[source], b)?;
+            add_sources(&mut result, source.sources(), b)?;
         }
     }
     Ok(result)
@@ -290,16 +290,14 @@ pub(super) fn validate(
                         "source upper full borrowed leaf differs from result port",
                     ));
                 }
-                source_work(std::slice::from_ref(&symbolic), b)?;
-                b.spend(
-                    upper
-                        .len()
-                        .saturating_mul(width(&symbolic).saturating_add(1)),
-                )?;
-                if upper.contains(&symbolic) {
-                    return Err(bad("result source upper repeats an actual input selector"));
+                source_work(symbolic.sources(), b)?;
+                for source in symbolic.into_sources() {
+                    b.spend(upper.len().saturating_mul(width(&source).saturating_add(1)))?;
+                    if upper.contains(&source) {
+                        return Err(bad("result source upper repeats an actual input selector"));
+                    }
+                    upper.push(source);
                 }
-                upper.push(symbolic);
             }
         }
         for source in &actual.permission.sources {
