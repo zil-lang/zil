@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "llvm_sha": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "status": "source-only narrow provider-write proof; implementation gate and actual runtime admission not yet reviewed",
+  "built_or_run": false,
+  "candidate_reviewed": "dd3557457d458afdb25d6e1bfbdfe65f83ea89c7",
+  "problem": "Existing restore typed equality and MachineVerifier run before fresh emission providers; body tape preflight does not re-compare arbitrary current MI immediate/register/flags/CFI. Therefore complete executed window needs new authority.",
+  "counterexample": "An intervening executed pass changes MOV immediate 1 to 2 while retaining all source positions, event kinds, instruction counts and block roles. dd355 preflight still permits the old MC immediate 1. preservesAll is not a no-MIR-write proof.",
+  "allow": [
+    {
+      "typed_id": "&llvm::MachineOptimizationRemarkEmitterPass::ID",
+      "condition": "Current Function LLVMContext.getDiagnosticsHotnessRequested() is false",
+      "proof": "runOnMachineFunction assigns local MBFI=nullptr and replaces its own unique_ptr with MachineOptimizationRemarkEmitter(MF,nullptr). No MI/MBB/Frame/CFI/targetInfo/Function/Module writes."
+    },
+    {
+      "typed_id": "&llvm::LazyMachineBlockFrequencyInfoPass::ID",
+      "condition": "Only runOnMachineFunction/releaseMemory path; no client invokes getBFI in admitted provider window",
+      "proof": "run stores this->MF=&F only; releaseMemory resets owned MBFI/MLI/MDT objects. ORE hotness=false excludes getBFI; unknown other consumers decline."
+    }
+  ],
+  "immutable_dependencies": [
+    {
+      "typed_id": "&llvm::MachineBranchProbabilityInfoWrapperPass::ID",
+      "proof": "ImmutablePass; getters only read existing MBB successor probabilities; no per-function run slot."
+    },
+    {
+      "typed_id": "&llvm::GCModuleInfo::ID",
+      "proof": "ImmutablePass; not an allowed per-function callback. Current no-GC function domain excludes getFunctionInfo; module initialization/finalization remains original."
+    }
+  ],
+  "wrapper_proof": "Both allowed classes inherit base empty Required/Set/ClearedProperties. MachineFunctionPass wrapper resets/sets empty masks, optionally counts unchanged MIs. Ordinary NDEBUG domain keeps existing debug/diagnostic contracts; no body mutation is introduced by either class.",
+  "gate_algorithm": [
+    "At successful current MF restore/equality/verifier start a request-local tape-preserved boolean.",
+    "Track every actually executed callback from restore through immediately before original AsmPrinter, preserving current full canonical pipeline and AU/occurrence checks.",
+    "Skipped callbacks cannot mutate this MF. Executed callbacks require Machine=true plus one of the two exact fixed-DSO Class::ID values and current hotness=false.",
+    "Any non-MachineFunctionPass or any other ID permanently clears optional tape permission for this function; run original current AP. Do not infer from names, preservesAll, emissionProviders cardinality, or prior membership.",
+    "Check this permission before beginEmission. AP itself is handled by its separate strict current-state/body-domain proof; FreeMachineFunction after AP is outside the checked window. If FreeMachineFunction occurs before AP, decline."
+  ],
+  "not_proven": [
+    "Actual current workload satisfies this gate; acceptance requires actual callback provenance.",
+    "Hotness-enabled getBFI -> MDT/MLI/MBFI calculation path.",
+    "Other machine analysis passes or arbitrary non-MFP writers.",
+    "Complete no-MF FunctionEmissionDescriptor protocol; this narrow proof only enables current restored-and-verified MF body tape."
+  ],
+  "sources": [
+    {
+      "path": "/tmp/astra-mc-provider-7a/llvm/lib/CodeGen/MachineOptimizationRemarkEmitter.cpp",
+      "sha256": "b4b710fe531d973df7f202ec20e365aa419425abe9909eb46ed1a50a320449ce",
+      "lines": [
+        74,
+        84,
+        87,
+        92
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-provider-7a/llvm/lib/CodeGen/LazyMachineBlockFrequencyInfo.cpp",
+      "sha256": "7f5621cf944ea393dbd24da181e1ec15993cb1c8b1a788a161f7e4b95bdb78fd",
+      "lines": [
+        36,
+        47,
+        49,
+        85,
+        89,
+        93
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-provider-7a/llvm/lib/CodeGen/MachineBranchProbabilityInfo.cpp",
+      "sha256": "c4ee46ff47a84c16ccdad3a27189d9547727fc5868f76cd147868af8fc9b8a02",
+      "lines": [
+        57,
+        64,
+        76,
+        83
+      ]
+    },
+    {
+      "path": "/tmp/astra-mc-provider-7a/llvm/lib/CodeGen/GCMetadata.cpp",
+      "sha256": "b695543063ff32d86c1a3931e6eb5825a07cfce4b787ec9e7a9b2fd6093daa42",
+      "lines": [
+        89,
+        101
+      ]
+    },
+    {
+      "path": "/tmp/industry-incremental-official/llvm23-runtime/llvm/lib/CodeGen/MachineFunctionPass.cpp",
+      "sha256": "5e4e44cfb817bd4f2eb90bd1fa817348a0dbaa1a59fe2387a97e328ed9e53b7d",
+      "lines": [
+        50,
+        123
+      ]
+    },
+    {
+      "path": "/workspace/.zil-environment/llvm-23.1.4/include/llvm/CodeGen/MachineFunctionPass.h",
+      "sha256": "6341da1f855009f84224e9368afc9ae5b8f5ab4aa0bed2805dc31083000d4ee5",
+      "lines": [
+        57,
+        65
+      ]
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "schema": "independent-actual-machine-output-pieces-review-v1",
+  "source": "d432fa35258d09f95f8a60d9806e60f5ab44ed54",
+  "tree": "a29527a9e8fb9cdfce4d93127753ace4c29e6062",
+  "base": "96f5053f59ddb50871eaabbf5005a46ff782dcda",
+  "reviewer": "audit; non-author of nine-file actual-output component",
+  "status": "bounded_static_accepted; exact_runtime_native_quality_and_performance_pending",
+  "findings": [],
+  "changed_files": {
+    "crates/zil-backend-llvm/src/build.rs": "fc4d663b837436e377a8122a2504120d65355671c8eaf1fbef71e6acddc77c14",
+    "crates/zil-backend-llvm/src/emit.rs": "bfd2f4a0d8e90dde444e39c9019a95e6b92698ad7695c3dc3858afbd4b7f2718",
+    "crates/zil-backend-llvm/src/emit/incremental.rs": "82886df7981d34028a0084f3255ed09ddf6f7f0f05377c986a8c83dd10545e4f",
+    "crates/zil-backend-llvm/src/emit/incremental/whole.rs": "864b2bc818949c34b638feb5cf5f5fc58b0f024b6e08087942a12df75825ab82",
+    "crates/zil-backend-llvm/src/incremental.rs": "b9960ee27389728f754c66fba69632e88b7a30cd56d2d46475e65d3a1855b68f",
+    "crates/zil-backend-llvm/src/lib.rs": "ccd4144cb79a23f27c1f4fff5eb750807b2e8a3fc12921332e866e8abfbefac9",
+    "crates/zil-backend-llvm/src/machine_cgu/recipe.rs": "dd3d01fa511418e05f49ff49a4b8cec80165086e1cc81f7a63357ee3971d7d7b",
+    "crates/zil-backend-llvm/src/machine_output.rs": "e68683c35bfc511ab67d69e4eecd2f0f5f6f7b4173cb2cae012a6773368ebd6b",
+    "crates/zil-backend-llvm/src/whole_machine_tests.rs": "f455f926471937b77cd25b6b8518d41c3ecf0d492ed9628912566a83e78c969a"
+  },
+  "consumer_dependencies": {
+    "crates/zil-backend-llvm/src/task_abi.rs": "a3d9e9ebc90a5cf215b18dbf4f7bee17c4980e27563d38baf5ad9571879fd0a4",
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "13aeb058c6ba2641cefd00f4783d550bf151d6684ed79f670829ac889cd3f742",
+    "crates/zil-backend-llvm/src/machine_cgu/layout.rs": "aaae0ac64f15591a272bf2432016cc363952e950fa90627ef3a836504b3f14f4",
+    "crates/zil-backend-llvm/src/machine_scalar.rs": "b072adda48aa7dd97724fcfb07cbd44c5048958d965d5090652e341a72c71879",
+    "crates/zil-backend-llvm/src/machine_checked_add_chain.rs": "62acbc7234d70d3a1369034ac2a6b86b74ed90c39c20faae171d7a5a8214038d",
+    "crates/zil-ir/src/persistent_vec.rs": "c1cf1cd1d0cc3b2d17394f7f1504c797d8717c8ba22f76332f14fb534eccd201",
+    "crates/zil-llvm-api/src/model.rs": "0f2919fc8301f9bda9b2699bed013c58992b0b63173ad54240535b52a0d9e9c5",
+    "crates/zil-llvm-api/src/shared_vec.rs": "ad9b6f1e06b9d5c8cb309f476f0f21f8233bf3197d5a2c2687caf49115fca883",
+    "crates/zil-driver/src/session.rs": "0b2a55a5f4e03c7ef348e4f6c93820a65d02c840ff4c2f60879d99ebe6555a32"
+  },
+  "actual_read_scope": [
+    "Complete nine-file diff, full new MachineOutput implementation and its tests, all changed production emit/build/history/identity/diagnostic/recipe methods and actual downstream native-unit/key/preflight consumers.",
+    "Original task_abi::derive empty-domain boundary; full output assembly order/current prefix reservation/bind_lir/ordered per-function lower consumers; existing complete partition planner and imports/layout consumers.",
+    "Current persistent ownership/diff/COW invariants and common item formatter; existing driver pending BackendSession publication contract. New source counterfixtures and native full-output oracle test were read, not executed."
+  ],
+  "conclusions": [
+    {
+      "boundary": "Actual body owners, not lower input tokens",
+      "source": "emit/incremental.rs:354-360,426-454,524-580",
+      "evidence": "output_bodies is private emitter state populated only from complete successful FunctionBatch.body. Cache hits still require same_input/full current context/facts/collected status and run the original current reservation consumer. Fresh equal FunctionBatch reuses its actual old output owner; no raw input revision or digest alone mints a body. Complete scalar identity now additionally requires product_count==output_bodies.len; products and actual bodies share the same ordered successful consumer position."
+    },
+    {
+      "boundary": "Immutable complete pieces and placement",
+      "source": "machine_output.rs:7-207",
+      "evidence": "Pieces privately own real prefix, per-function bodies and suffix; all underlying sequences use immutable/COW owners. Body offsets are reused only for equal prefix length, equal body count and equal lengths at every structurally changed body position. changed_items additionally requires current triple/total length, exact same starts owner and equal suffix length. It checks every actual changed item value within changed prefix/body/suffix pieces. Empty pieces and repeated starts resolve to the containing nonempty body/suffix via partition_point. Any insertion/deletion/changed placement/foreign Flat anchor returns unknown, forcing original full comparison. Mutable flat memo is excluded from value equality; it stores only items, so each current Module header is regenerated from current triple/fingerprint."
+    },
+    {
+      "boundary": "Original emitter and global helper/error order",
+      "source": "emit.rs:190-233,333-477,635-750",
+      "evidence": "Original metadata prefix, exact bind_lir, dyn/copy/task plans and shared ledger remain before/around the same ordered function consumers. All intrinsics, foreign adapters and global helper generators still execute and contribute actual prefix/suffix items. Piece mode requires ordinary retain preference, no scalar transform/closed collection, complete current scalar identity and no worker batches. It discards only redundant flat body aggregation, whose real values are retained in output_bodies. Any unexpected produced worker suffix explicitly combines all original function bodies followed by worker bodies and falls back to flat. Prefix, wrapper and suffix parsing retain original fallible order; no logical fee is removed."
+    },
+    {
+      "boundary": "Task-empty optimization preserves original checks and fees",
+      "source": "build.rs:363-369; task_abi.rs:206-223",
+      "evidence": "Skipping machine.to_module for empty current task_interfaces exactly matches derive first returning Ok(empty) before target checks, scans or fee debits. Nonempty task interfaces materialize and run unchanged derive, including target, layout, metadata and budget checks. This is not a task ABI validation skip."
+    },
+    {
+      "boundary": "History and transforms retain exact corresponding values",
+      "source": "emit/incremental/whole.rs:98-117,172-227,235-285; build.rs:374-408",
+      "evidence": "Whole history continues complete current ModuleInput/functions/layout/limits/options/initial-ledger and checked-domain binding after current prefix/bind_lir. Its paired epoch now restores output_bodies together with entries, context, product owners, count and admitted map. It saves the actual complete MachineOutput. Transform caching still binds current complete raw machine/source result identities; actual transform runs explicitly materialize, transform the current Module and replace output with Flat. Native/stable post-transforms do not leave stale pre-transform piece authority. Representation preference itself need not be a semantic key: compatibility and unknown consumers explicitly materialize; unchanged actual values may retain a previously materialized owner."
+    },
+    {
+      "boundary": "Diagnostic delta is tied to its own complete actual prior",
+      "source": "incremental.rs:53-169",
+      "evidence": "render invalidates its diagnostic_output anchor. render_output may use sparse actual changed_items only against the exact immutable output saved with its paired item/fragment roots; unknown placement/flat/count falls back to full current render before installing a new anchor. Changed positions are formatted from current actual items and update both roots; unchanged actual values retain bytes. Current full header is always rebuilt, and the existing complete .ll writer/publication remains unconditional. A prior partition diagnostic and a last-render anchor may differ safely because each has its own immutable value binding."
+    },
+    {
+      "boundary": "Cold layout binding and every actual CGU consumer",
+      "source": "machine_cgu/recipe.rs:13-131; build.rs:435-612",
+      "evidence": "A cold recipe initially holds the full planner input. bind_output performs complete actual Module equality before associating an output tree with that layout. Replay compares actual changed items from its own prior output or all positions when unknown; existing full function ABI/name/linkage/attrs/cost/references/directcalls checks and all(unit,slot) consumers remain. Imports, global/type/declaration/topology/unknown placement changes retain original planner fallback. Current options/names/collected/closure inventory and exact lowering-context owner still gate recipe use."
+    },
+    {
+      "boundary": "Stable/unknown branches and native preflight",
+      "source": "build.rs:495-613,731-903",
+      "evidence": "Stable preparation/renaming/pruning, explicit scalar transforms, collected-only plans, no-session/unknown contexts and other complete planners consume an explicitly materialized current Module. Scalar transform results are replaced with Flat; stable mutations likewise replace output before rendering/partition. Cached partition equality still binds current options and current complete source/machine identities. Native UnitInput contains full actual per-unit Module; object-key and preflight reuse still compare actual triple/items, and current compile_units/native/link/cancellation/publication consumers are unchanged. The piece tree neither creates a VerifiedModule nor authorizes a native check skip."
+    },
+    {
+      "boundary": "Failure and memory lifetime",
+      "source": "emit/incremental/whole.rs:230-285; driver/session.rs:1287-1355",
+      "evidence": "No partial new whole output epoch is published on lower Err. Actual body roots and piece nodes are immutable/COW, and driver native builds operate on a cloned tentative BackendSession installed only after final successful publication/cancellation guards. History count remains four; memoized flat vectors may coexist with piece owners after required cold/fallback materialization, without changing actual values. No RSS or strict lifetime byte-bound claim follows."
+    }
+  ],
+  "counterexamples_read_not_run": [
+    "New piece test includes leading/interior/trailing empty bodies, direct item addressing, one-body change, equal actual output, prefix change, body growth/placement fallback and Flat equality/materialization isolation.",
+    "New real emitter consumer test verifies cold pieces, single-leaf private edit, exactly one diagnostic item and one CGU update without warm flattening, broad two-unit update, fresh complete planner/model equality and a different historical parent restored against the correct prior recipe.",
+    "New Linux native test preserves current LLVM full input bytes, full ELF bytes and stdout/stderr relative to a fresh no-session/no-object-cache compiler; requires actual two units and one unchanged unit reuse. It is source-only at this review.",
+    "Existing full current limits/raw LIR/target/layout/first-error/N-N1/foreign/resources/tasks/history/checkpoint tests remain unchanged; their earlier pass status is not labeled as a run of this candidate."
+  ],
+  "remaining_cost_limits": [
+    "New representation avoids flattening actual current function body item headers on the proven ordinary warm branch. It does not remove current global preparation, function admission/reservation, per-function result publication or actual native unit preflight.",
+    "Cold/unknown/changed-placement/topology paths may materialize a full item vector once, memoized per immutable piece product. Full diagnostics still write every byte; full unit modules remain real native consumers.",
+    "Prefix/suffix are rebuilt/compared, PersistentVec paths and result metadata carry costs, and changed CGU item/header vectors can still COW clone while unchanged blocks remain shared.",
+    "A complete result already materialized in cold history may be shared on later equal results; is_materialized is not a universal warm-work counter. New runtime performance and full fixture quality must be established by root gates, not inferred from this source review."
+  ],
+  "validation": {
+    "method": "Read-only Git/source/consumer review and small source hashes; no Cargo/C++ compilation, tests, native execution or measurement launched.",
+    "exact_candidate_runtime": "Pending root unified gate. Source-only fresh/native tests are not runtime evidence.",
+    "base_boundary": "Previous96 diagnostic gates and preceding4b809 profile remain separate prior-source results.",
+    "scope": "This receipt assesses only the named actual-output piece representation and all its changed/actual consumers; it does not reaccept unchanged LLVM checker/pass or language domains."
+  }
+}
