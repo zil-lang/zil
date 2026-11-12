@@ -10,6 +10,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -393,6 +394,9 @@ void describeAnalyses(FunctionAnalysisManager &AM, Function &F, const char *Poin
 struct Stage {
   std::string Input, World, Path, Pipeline, Output, OutputText, EntryFacts, ExitFacts;
   Keys EntryKeys, ExitKeys;
+  // A full function projection equality (not PA::all or a digest) proves that
+  // this stage has no function state to transport. Analyses remain separate.
+  bool BodyUnchanged = false;
   unsigned OutputNextBlock = 0, OutputBlockEpoch = 0;
   AnalysisReplayState OutputAnalysisReplay;
   NameState OutputNames;
@@ -516,11 +520,79 @@ std::string snapshot(Function &F) {
   if (!preserveLocalUseOrder(F, Map) || verifyModule(Out, nullptr)) return {};
   std::string S; raw_string_ostream OS(S); WriteBitcodeToFile(Out, OS, true); return S;
 }
+bool restoreStageAnalyses(Function &F, FunctionAnalysisManager &AM, const Stage &P,
+                          AnalysisFactsMemo *Memo, uint64_t &Reconstructions,
+                          bool CurrentIsEntry) {
+  auto Fail = [&](const char *Site) {
+    if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
+    return false;
+  };
+  // beforeStage has just bound the complete CURRENT entry keys/facts. If the
+  // retained exit is byte-for-byte that same supported state, keeping those
+  // current analyses is exact: no factory or historical owner is replayed.
+  if (CurrentIsEntry && P.EntryKeys == P.ExitKeys && P.EntryFacts == P.ExitFacts)
+    return true;
+  for (const void *K : P.ExitKeys)
+    if (!symbols().has(&AM, K)) return Fail("exit-analysis-registration");
+  if (CurrentIsEntry) AM.clear(F, F.getName());
+  for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++Reconstructions; }
+  if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return Fail("empty-analysis-state-restore");
+  std::string Facts;
+  if (analysisKeys(AM, F) != P.ExitKeys) return Fail("exit-analysis-availability-order");
+  if (!analysisFacts(F, AM, P.ExitKeys, Facts, nullptr, Memo)) return Fail("exit-analysis-domain");
+  if (Facts != P.ExitFacts) {
+    if (AnalysisDiagnostics) {
+      size_t At = 0;
+      while (At < Facts.size() && At < P.ExitFacts.size() && Facts[At] == P.ExitFacts[At]) ++At;
+      auto Fragment = [At](const std::string &S) {
+        size_t Start = At > 120 ? At - 120 : 0;
+        return S.substr(Start, 320);
+      };
+      std::fprintf(stderr, "ZIL FPM facts-difference %.*s offset=%zu expected-bytes=%zu actual-bytes=%zu\nEXPECTED [%s]\nACTUAL [%s]\n",
+          static_cast<int>(F.getName().size()), F.getName().data(), At,
+          P.ExitFacts.size(), Facts.size(), Fragment(P.ExitFacts).c_str(), Fragment(Facts).c_str());
+    }
+    return Fail("exit-analysis-facts");
+  }
+  return true;
+}
+
+bool captureStageBody(Stage &P, Function &F, ZilNativeProductStats &Stats) {
+  std::string Output = functionText(F);
+  if (Output.empty()) return false;
+  if (Output == P.Input) {
+    // Keep only the input's complete bytes. No bitcode clone, serialization,
+    // second output-text copy, old declaration map or numbering payload.
+    P.BodyUnchanged = true; return true;
+  }
+  P.OutputText = std::move(Output);
+  for (const BasicBlock &B : F) for (const Instruction &I : B)
+    if (const auto *Call = dyn_cast<CallBase>(&I)) {
+      const Function *D = Call->getCalledFunction();
+      P.OriginalDeclarations.emplace(D->getName().str(), declarationText(*D));
+    }
+  P.OutputNames = nameState(F);
+  if (P.OutputNames.present < 0) return false;
+  P.OutputNextBlock = F.getMaxBlockNumber(); P.OutputBlockEpoch = F.getBlockNumberEpoch();
+  for (const BasicBlock &B : F) P.OutputBlockNumbers.push_back(B.getNumber());
+  P.Output = snapshot(F);
+  if (P.Output.empty()) return false;
+  Stats.ir_snapshot_bytes += P.Output.size() + P.OutputText.size();
+  return true;
+}
+
 bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P) {
   auto Fail = [&](const char *Site) {
     if (AnalysisDiagnostics) std::fprintf(stderr, "ZIL FPM replay-failure %.*s: %s\n", static_cast<int>(F.getName().size()), F.getName().data(), Site);
     return false;
   };
+  if (P.BodyUnchanged) {
+    // Input/world/stage/config/entry analyses were matched in beforeStage.
+    // Retain the current Function and all of its Values/use-lists/name/BB
+    // state; only the independently bound analysis transition may need work.
+    return restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
+                                R.Stats.analysis_reconstructions, true);
+  }
   auto Buffer = MemoryBuffer::getMemBufferCopy(P.Output, "zil.function.product");
   auto Parsed = parseBitcodeFile(Buffer->getMemBufferRef(), F.getContext());
   if (!Parsed) { consumeError(Parsed.takeError()); return Fail("bitcode-parse"); }
@@ -576,25 +648,8 @@ bool replay(Request &R, Function &F, FunctionAnalysisManager &AM, const Stage &P
   if (verifyFunction(F, nullptr)) return Fail("current-function-verifier");
   if (!symbols().restoreNames(&F, P.OutputNames.present, P.OutputNames.counter, P.OutputNames.maximum)) return Fail("value-name-state-restore");
   if (functionText(F) != P.OutputText) return Fail("complete-output-text");
-  for (const void *K : P.ExitKeys) { symbols().require(&AM, &F, K); ++R.Stats.analysis_reconstructions; }
-  if (!restoreAnalysisFacts(F, AM, P.OutputAnalysisReplay)) return Fail("empty-analysis-state-restore");
-  std::string Facts;
-  if (analysisKeys(AM, F) != P.ExitKeys) return Fail("exit-analysis-availability-order");
-  if (!analysisFacts(F, AM, P.ExitKeys, Facts, nullptr, &R.AnalysisMemo)) return Fail("exit-analysis-domain");
-  if (Facts != P.ExitFacts) {
-    if (AnalysisDiagnostics) {
-      size_t At = 0;
-      while (At < Facts.size() && At < P.ExitFacts.size() && Facts[At] == P.ExitFacts[At]) ++At;
-      auto Fragment = [At](const std::string &S) {
-        size_t Start = At > 120 ? At - 120 : 0;
-        return S.substr(Start, 320);
-      };
-      std::fprintf(stderr, "ZIL FPM facts-difference %.*s offset=%zu expected-bytes=%zu actual-bytes=%zu\nEXPECTED [%s]\nACTUAL [%s]\n",
-          static_cast<int>(F.getName().size()), F.getName().data(), At,
-          P.ExitFacts.size(), Facts.size(), Fragment(P.ExitFacts).c_str(), Fragment(Facts).c_str());
-    }
-    return Fail("exit-analysis-facts");
-  }
+  if (!restoreStageAnalyses(F, AM, P, &R.AnalysisMemo,
+                            R.Stats.analysis_reconstructions, false)) return false;
   R.Stats.ir_replay_bytes += P.Output.size(); return true;
 }
 int beforeStage(void *Context, void *PM, void *IR, void *Manager, void *, void *PA, void **Token) {
@@ -658,21 +713,8 @@ void afterStage(void *Context, void *, void *IR, void *Manager, const void *PA, 
   P->Product->ExitKeys = std::move(Exit);
   if (!analysisFacts(F, *static_cast<FunctionAnalysisManager *>(Manager),
                      P->Product->ExitKeys, P->Product->ExitFacts, &P->Product->OutputAnalysisReplay, &R.AnalysisMemo)) return;
-  for (const BasicBlock &B : F) for (const Instruction &I : B)
-    if (const auto *Call = dyn_cast<CallBase>(&I)) {
-      const Function *D = Call->getCalledFunction();
-      P->Product->OriginalDeclarations.emplace(D->getName().str(), declarationText(*D));
-    }
-  P->Product->OutputNames = nameState(F);
-  if (P->Product->OutputNames.present < 0) return;
-  P->Product->OutputText = functionText(F);
-  P->Product->OutputNextBlock = F.getMaxBlockNumber();
-  P->Product->OutputBlockEpoch = F.getBlockNumberEpoch();
-  for (const BasicBlock &B : F) P->Product->OutputBlockNumbers.push_back(B.getNumber());
-  P->Product->Output = snapshot(F);
-  if (P->Product->Output.empty()) return;
+  if (!captureStageBody(*P->Product, F, R.Stats)) return;
   P->Product->PA = *static_cast<const PreservedAnalyses *>(PA);
-  R.Stats.ir_snapshot_bytes += P->Product->Output.size() + P->Product->OutputText.size();
   retainStage(R, P->Slot, std::move(P->Product));
 }
 void enterPass(void *C, unsigned Kind, unsigned Index) {
@@ -896,4 +938,63 @@ extern "C" int ZilNativeProductsModuleHeaderCounterexample() {
   const std::string After = zil::worldText(M, F, &Stats);
   return !Before.empty() && Before != After && Stats.world_projection_fallback == 2 &&
          Stats.world_projection_direct == 0 && !verifyModule(M, nullptr);
+}
+
+extern "C" int ZilNativeProductsUnchangedStageCounterexample() {
+  if (!zil::symbols().available) return 0;
+  LLVMContext Context; Module M("unchanged-stage", Context);
+  auto *I32 = Type::getInt32Ty(Context);
+  auto *F = Function::Create(FunctionType::get(I32, {I32}, false), GlobalValue::ExternalLinkage, "f", &M);
+  F->getArg(0)->setName("x");
+  IRBuilder<> B(BasicBlock::Create(Context, "entry", F));
+  auto *Return = B.CreateRet(F->getArg(0));
+  auto Register = [](FunctionAnalysisManager &AM) {
+    AM.registerPass([] { return PassInstrumentationAnalysis(); });
+    AM.registerPass([] { return DominatorTreeAnalysis(); });
+  };
+  FunctionAnalysisManager Cold; Register(Cold);
+  Cold.getResult<PassInstrumentationAnalysis>(*F);
+  zil::Stage P; P.Input = zil::functionText(*F);
+  P.EntryKeys = zil::analysisKeys(Cold, *F);
+  if (!zil::analysisFacts(*F, Cold, P.EntryKeys, P.EntryFacts)) return 0;
+  FunctionPassManager PM;
+  PM.addPass(RequireAnalysisPass<DominatorTreeAnalysis, Function>());
+  P.PA = PM.run(*F, Cold); // actual unchanged-body stage with a new analysis
+  P.ExitKeys = zil::analysisKeys(Cold, *F);
+  if (!zil::analysisFacts(*F, Cold, P.ExitKeys, P.ExitFacts, &P.OutputAnalysisReplay)) return 0;
+  ZilNativeProductStats Stats{};
+  if (!zil::captureStageBody(P, *F, Stats) || !P.BodyUnchanged ||
+      !P.Output.empty() || !P.OutputText.empty() || !P.OriginalDeclarations.empty() ||
+      !P.OutputBlockNumbers.empty() || Stats.ir_snapshot_bytes ||
+      P.EntryKeys == P.ExitKeys || !P.PA.areAllPreserved()) return 0;
+  FunctionAnalysisManager Current; Register(Current);
+  Current.getResult<PassInstrumentationAnalysis>(*F);
+  std::string Facts;
+  if (zil::analysisKeys(Current, *F) != P.EntryKeys ||
+      !zil::analysisFacts(*F, Current, P.EntryKeys, Facts) || Facts != P.EntryFacts) return 0;
+  zil::AnalysisFactsMemo Memo; uint64_t Rebuilt = 0;
+  auto *OriginalBlock = &F->getEntryBlock(); auto *OriginalArgument = F->getArg(0);
+  if (!zil::restoreStageAnalyses(*F, Current, P, &Memo, Rebuilt, true) || !Rebuilt ||
+      zil::functionText(*F) != P.Input || &F->getEntryBlock() != OriginalBlock ||
+      F->getArg(0) != OriginalArgument || F->getEntryBlock().getTerminator() != Return) return 0;
+  // A stage that changes neither IR nor supported analyses must retain the
+  // current actual result object, not destroy/reconstruct it gratuitously.
+  zil::Stage Identity = P; Identity.EntryKeys = P.ExitKeys; Identity.EntryFacts = P.ExitFacts;
+  auto *CurrentTree = Current.getCachedResult<DominatorTreeAnalysis>(*F);
+  const uint64_t Before = Rebuilt;
+  if (!zil::restoreStageAnalyses(*F, Current, Identity, &Memo, Rebuilt, true) ||
+      Rebuilt != Before || Current.getCachedResult<DominatorTreeAnalysis>(*F) != CurrentTree) return 0;
+  // Different hidden naming state is NOT an unchanged product, even though
+  // official Function::print does not expose this counter.
+  auto Names = zil::nameState(*F);
+  if (Names.present < 0 || !zil::symbols().restoreNames(F, Names.present, Names.counter + uint32_t(1), Names.maximum) ||
+      zil::functionText(*F) == P.Input ||
+      !zil::symbols().restoreNames(F, Names.present, Names.counter, Names.maximum)) return 0;
+  if (zil::functionText(*F) != P.Input) return 0;
+  // Equality of the function body does not authorize a different analysis
+  // exit. Keep the exact facts comparison and let the full native caller retry.
+  zil::Stage Corrupt = P; Corrupt.ExitFacts += "not-the-current-analysis-state";
+  if (zil::restoreStageAnalyses(*F, Current, Corrupt, &Memo, Rebuilt, true) ||
+      zil::functionText(*F) != P.Input || verifyModule(M, nullptr)) return 0;
+  return 1;
 }
