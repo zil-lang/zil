@@ -198,6 +198,58 @@ fn transfer(
         .result
         .filter(|v| f.values.get(v.0 as usize).and_then(shape).is_some());
     let result = match &instruction.kind {
+        InstructionKind::DescribeCapture { index } if output.is_some() => {
+            let d = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| d.function == f.id)
+                .ok_or_else(|| bad("Task capture description has no actual environment entry"))?;
+            let actual = d
+                .captures
+                .get(*index as usize)
+                .ok_or_else(|| bad("Task capture description selects an absent input"))?;
+            let Type::Managed(payload) = actual else {
+                return Err(bad("Task capture description has no actual owning frame"));
+            };
+            let Type::Desc(described) = &f.values[output.unwrap().0 as usize] else {
+                return Err(bad(
+                    "Task capture description changes its actual carrier mode",
+                ));
+            };
+            b.type_work(
+                actual,
+                false,
+                "actual captured Task description correspondence",
+            )?;
+            b.type_work(
+                described,
+                false,
+                "actual Task description payload correspondence",
+            )?;
+            if payload != described {
+                return Err(bad(
+                    "Task capture description changes its actual frame type",
+                ));
+            }
+            let mut carrier = Carrier::empty(
+                shape(actual)
+                    .ok_or_else(|| bad("Task capture description omits frame ports"))?
+                    .ports
+                    .len(),
+            );
+            carrier.success = true;
+            for (port, sources) in carrier.ports.iter_mut().enumerate() {
+                fee(b, 2)?;
+                sources.insert(Origin::Input(StoragePosition {
+                    base: StorageBase::Capture(*index),
+                    path: vec![ContractProjection::RetainedPort(port as u32)],
+                }));
+            }
+            // This identifies which existing frame was described. Actual
+            // data-port permissions remain in the stored/borrow proof; a
+            // weak description does not create a new loan or owning ticket.
+            Some(carrier)
+        }
         InstructionKind::TakeCapture { .. } | InstructionKind::CallClosureOnce { .. }
             if output.is_some() && b.task_callable_results =>
         {
