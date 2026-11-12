@@ -889,7 +889,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     }
     loop {
         helper_classes::factory_inputs(module, left)?;
-        if !populate_creator_fixed(module, left)? {
+        if !populate_creator_fixed(module, left, limits.max_call_depth)? {
             break;
         }
         helper_classes::populate(module, left, limits)?;
@@ -1174,7 +1174,29 @@ fn captured_parameter(
     }
     parameter.ok_or_else(|| unsupported(f.span, "capture class has no actual construction"))
 }
-fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool> {
+fn relative_capture<'a>(
+    position: &'a StoragePosition,
+    prefix: &[ContractProjection],
+) -> Option<(u32, &'a [ContractProjection])> {
+    let StorageBase::Capture(index) = position.base else {
+        return None;
+    };
+    if prefix.is_empty() {
+        return Some((index, &position.path));
+    }
+    if prefix.first() != Some(&ContractProjection::Capture(index))
+        || !position.path.starts_with(&prefix[1..])
+    {
+        return None;
+    }
+    let (ContractProjection::Capture(index), tail) =
+        position.path[prefix.len() - 1..].split_first()?
+    else {
+        return None;
+    };
+    Some((*index, tail))
+}
+fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limit: usize) -> R<bool> {
     let mut updates = Vec::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else {
@@ -1183,133 +1205,168 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool>
         if contract.source != CallableReturnSource::Fresh {
             continue;
         }
-        let definition = &module.closures[contract.closure.0 as usize];
-        if definition.storage_life.is_some()
-            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
-        { continue; }
-        if !definition.result.is_copy_value()
-            || definition.parameters.iter().any(|ty| !ty.is_copy_value())
-        {
-            return Err(unsupported(
-                f.span,
-                "captured owning classes need the complete callable input/result class relation",
-            ));
-        }
-        let mut keys = BTreeMap::new();
-        let mut proposed = StorageLifeContract {
-            fixed_binder_count: 0,
-            invocation_binder_count: 0,
-            bindings: Vec::new(),
-            classes: Vec::new(),
-        };
-        let rows = contract
-            .capture_sources
-            .as_ref()
-            .ok_or_else(|| unsupported(f.span, "capture class source relation unknown"))?;
-        for (index, ty) in definition.captures.iter().enumerate() {
-            let class_count = match ty {
-                Type::BorrowedStorage { life, .. } => life.binder_count,
-                Type::Closure(id) => module.closures[id.0 as usize]
-                    .storage_life
-                    .as_ref()
-                    .map_or(0, |life| life.fixed_binder_count),
-                _ => 0,
-            };
-            let count = if matches!(ty, Type::Address { .. }) {
-                1
-            } else {
-                class_count
-            };
-            for class in 0..count {
-                let mut actual = None;
-                for row in rows
-                    .iter()
-                    .filter(|row| row.position.base == StorageBase::Capture(index as u32))
-                {
-                    let selected = match ty {
-                        Type::BorrowedStorage { life, .. } => life.slots.iter().any(|slot| {
-                            slot.binder == class
-                                && row.position.path.iter().copied().eq(slot
-                                    .path
-                                    .iter()
-                                    .copied()
-                                    .map(ContractProjection::Place))
-                        }),
-                        Type::Address { .. } => row.position.path.is_empty(),
-                        Type::Closure(id) => {
-                            capture_class(module, *id, &row.position.path, 0, left, f.span)?
-                                == class
-                        }
-                        _ => false,
-                    };
-                    if !selected {
-                        continue;
-                    }
-                    for source in &row.sources {
-                        let key = source_class(module, f, source, left)?;
-                        if actual.replace(key).is_some_and(|old| old != key) {
-                            return Err(unsupported(
-                                f.span,
-                                "captured class has no single proved creator relation",
-                            ));
-                        }
-                    }
-                }
-                let actual = if let Some(actual) = actual {
-                    actual
-                } else {
-                    header_class(
-                        f,
-                        captured_parameter(f, definition.id, index, left)?,
-                        Vec::new(),
-                        class,
-                        left,
-                    )?
-                };
-                spend(left, keys.len().saturating_add(1), f.span)?;
-                let next = keys.len() as u32;
-                let fixed = *keys.entry(actual).or_insert(next);
-                if matches!(ty, Type::Address { .. }) {
-                    proposed.bindings.push(StorageLifeBinding {
-                        position: StoragePosition {
-                            base: StorageBase::Capture(index as u32),
-                            path: Vec::new(),
-                        },
-                        binder: StorageBinder::Fixed(fixed),
-                    });
-                } else {
-                    proposed.classes.push(SignatureLifeClassBinding {
-                        position: SignatureLifeClass {
-                            base: StorageBase::Capture(index as u32),
-                            path: Vec::new(),
-                            class,
-                        },
-                        binder: StorageBinder::Fixed(fixed),
-                    });
+        let mut pending = vec![(contract.closure, Vec::<ContractProjection>::new())];
+        let mut candidates = Vec::new();
+        while let Some((id, prefix)) = pending.pop() {
+            spend(left, prefix.len().saturating_add(1), f.span)?;
+            if prefix.len() > limit {
+                return Err(unsupported(
+                    f.span,
+                    "nested owning class graph exceeds finite depth",
+                ));
+            }
+            let d = &module.closures[id.0 as usize];
+            spend(left, d.captures.len(), f.span)?;
+            for (index, capture) in d.captures.iter().enumerate() {
+                if let Type::Closure(child) = capture {
+                    spend(left, prefix.len().saturating_add(1), f.span)?;
+                    let mut child_path = prefix.clone();
+                    child_path.push(ContractProjection::Capture(index as u32));
+                    pending.push((*child, child_path));
                 }
             }
+            candidates.push((id, prefix));
         }
-        proposed.fixed_binder_count = keys.len() as u32;
-        let mut result_classes = Vec::new();
-        spend(left, keys.len(), f.span)?;
-        for (creator, fixed) in keys {
-            result_classes.push(SignatureLifeClassBinding {
-                position: SignatureLifeClass {
-                    base: StorageBase::Result,
-                    path: Vec::new(),
-                    class: fixed,
-                },
-                binder: creator,
-            });
+        for (id, prefix) in candidates {
+            let definition = &module.closures[id.0 as usize];
+            if definition.storage_life.is_some()
+            || !definition.captures.iter().any(|ty|matches!(ty,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Package{..})) || matches!(ty,Type::Closure(id) if module.closures[id.0 as usize].storage_life.as_ref().is_some_and(|life|life.fixed_binder_count>0)))
+        { continue; }
+            if !definition.result.is_copy_value()
+                || definition.parameters.iter().any(|ty| !ty.is_copy_value())
+            {
+                return Err(unsupported(
+                    f.span,
+                    "captured owning classes need the complete callable input/result class relation",
+                ));
+            }
+            let mut keys = BTreeMap::new();
+            let mut proposed = StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: Vec::new(),
+                classes: Vec::new(),
+            };
+            let rows = contract
+                .capture_sources
+                .as_ref()
+                .ok_or_else(|| unsupported(f.span, "capture class source relation unknown"))?;
+            for (index, ty) in definition.captures.iter().enumerate() {
+                let class_count = match ty {
+                    Type::BorrowedStorage { life, .. } => life.binder_count,
+                    Type::Closure(id) => module.closures[id.0 as usize]
+                        .storage_life
+                        .as_ref()
+                        .map_or(0, |life| life.fixed_binder_count),
+                    _ => 0,
+                };
+                let count = if matches!(ty, Type::Address { .. }) {
+                    1
+                } else {
+                    class_count
+                };
+                for class in 0..count {
+                    let mut actual = None;
+                    for row in rows {
+                        spend(
+                            left,
+                            row.position
+                                .path
+                                .len()
+                                .saturating_add(prefix.len())
+                                .saturating_add(1),
+                            f.span,
+                        )?;
+                        let Some((capture, tail)) = relative_capture(&row.position, &prefix) else {
+                            continue;
+                        };
+                        if capture != index as u32 {
+                            continue;
+                        }
+                        let selected = match ty {
+                            Type::BorrowedStorage { life, .. } => life.slots.iter().any(|slot| {
+                                slot.binder == class
+                                    && tail.iter().copied().eq(slot
+                                        .path
+                                        .iter()
+                                        .copied()
+                                        .map(ContractProjection::Place))
+                            }),
+                            Type::Address { .. } => tail.is_empty(),
+                            Type::Closure(id) => {
+                                capture_class(module, *id, tail, 0, left, f.span)? == class
+                            }
+                            _ => false,
+                        };
+                        if !selected {
+                            continue;
+                        }
+                        for source in &row.sources {
+                            let key = source_class(module, f, source, left)?;
+                            if actual.replace(key).is_some_and(|old| old != key) {
+                                return Err(unsupported(
+                                    f.span,
+                                    "captured class has no single proved creator relation",
+                                ));
+                            }
+                        }
+                    }
+                    let actual = if let Some(actual) = actual {
+                        actual
+                    } else {
+                        header_class(
+                            f,
+                            captured_parameter(f, definition.id, index, left)?,
+                            Vec::new(),
+                            class,
+                            left,
+                        )?
+                    };
+                    spend(left, keys.len().saturating_add(1), f.span)?;
+                    let next = keys.len() as u32;
+                    let fixed = *keys.entry(actual).or_insert(next);
+                    if matches!(ty, Type::Address { .. }) {
+                        proposed.bindings.push(StorageLifeBinding {
+                            position: StoragePosition {
+                                base: StorageBase::Capture(index as u32),
+                                path: Vec::new(),
+                            },
+                            binder: StorageBinder::Fixed(fixed),
+                        });
+                    } else {
+                        proposed.classes.push(SignatureLifeClassBinding {
+                            position: SignatureLifeClass {
+                                base: StorageBase::Capture(index as u32),
+                                path: Vec::new(),
+                                class,
+                            },
+                            binder: StorageBinder::Fixed(fixed),
+                        });
+                    }
+                }
+            }
+            proposed.fixed_binder_count = keys.len() as u32;
+            let mut result_classes = Vec::new();
+            spend(left, keys.len(), f.span)?;
+            for (creator, fixed) in keys {
+                result_classes.push(SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Result,
+                        path: Vec::new(),
+                        class: fixed,
+                    },
+                    binder: creator,
+                });
+            }
+            result_classes.sort_by_key(|row| row.position.class);
+            updates.push((
+                definition.id,
+                definition.function,
+                prefix.is_empty().then_some(f.id),
+                proposed,
+                result_classes,
+            ));
         }
-        result_classes.sort_by_key(|row| row.position.class);
-        updates.push((
-            definition.id,
-            definition.function,
-            f.id,
-            proposed,
-            result_classes,
-        ));
     }
     let changed = !updates.is_empty();
     for (id, function, creator, proposal, result_classes) in updates {
@@ -1320,6 +1377,9 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize) -> R<bool>
         )?;
         module.closures[id.0 as usize].storage_life = Some(proposal.clone());
         module.functions[function.0 as usize].storage_life = Some(proposal);
+        let Some(creator) = creator else {
+            continue;
+        };
         let span = module.functions[creator.0 as usize].span;
         let header = module.functions[creator.0 as usize]
             .storage_life
