@@ -137,6 +137,74 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> CompileRe
 }
 
 /// Snapshot private actual origins only after paying for every copied path.
+/// Certify only a physical inline endpoint from the completed stored proof.
+/// This does not recover a pointee from an input's stored pointer slot, invent
+/// a heap element, or grant access/initialization/loan authority.
+pub(super) fn inline_hold_source(
+    function: &TypedFunction,
+    target: &Target,
+    expected: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    fee(budget, target_width(target).saturating_add(1))?;
+    if target.retained_port.is_some()
+        || target.heap_element.is_some()
+        || !target.stored.is_empty()
+        || target.place.is_empty()
+    {
+        return Ok(false);
+    }
+    let mut actual = match target.base {
+        HoldRoot::Local(local) => function.locals.get(local.0 as usize).map(|l| &l.ty),
+        HoldRoot::Parameter(index) => function
+            .parameters
+            .get(index as usize)
+            .and_then(|local| function.locals.get(local.0 as usize))
+            .and_then(|local| match &local.ty {
+                Type::Address { inner, .. } => Some(inner.as_ref()),
+                _ => None,
+            }),
+        _ => None,
+    }
+    .ok_or_else(|| failure("inline Hold endpoint has no actual local/input root"))?;
+    budget.type_work(actual, false, "inline Hold root type")?;
+    for step in &target.place {
+        fee(budget, 1)?;
+        if let Type::BorrowedStorage { storage, .. } = actual {
+            actual = storage;
+        }
+        let PlaceProjection::Field(index) = step else {
+            return Ok(false);
+        };
+        actual = match actual {
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                match fields.get(*index as usize) {
+                    Some((_, ty)) => ty,
+                    None => return Ok(false),
+                }
+            }
+            Type::Tuple(fields) => match fields.get(*index as usize) {
+                Some(ty) => ty,
+                None => return Ok(false),
+            },
+            Type::Array { element, length } if *index < *length => element,
+            _ => return Ok(false),
+        };
+    }
+    budget.type_work(actual, false, "inline Hold actual endpoint")?;
+    budget.type_work(expected, false, "inline Hold requested endpoint")?;
+    Ok(match expected {
+        Type::Address {
+            mutable: false,
+            inner,
+        } => actual == inner.as_ref(),
+        Type::Desc(inner) if budget.shared_byte_borrow && inner.as_ref() == &Type::ByteBuffer => {
+            matches!(actual,Type::Managed(payload) if payload.as_ref()==&Type::ByteBuffer)
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn option_sources_snapshot(
     function: FunctionId,
     value: ValueId,
