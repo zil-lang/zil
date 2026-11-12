@@ -957,6 +957,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
     for (index, node) in reference.nodes.iter().enumerate() {
         let child = |id: CtTypeNodeId| (id.0 as usize) < index;
         let good = match node {
+            CtTypeNode::ScopedDyn { .. } | CtTypeNode::ScopedTask { .. } => false,
             CtTypeNode::BorrowedStorage { .. } => false,
             CtTypeNode::Primitive(_) | CtTypeNode::Builtin(_) | CtTypeNode::Opaque { .. } => true,
             CtTypeNode::Nominal { arguments, .. } => arguments.iter().all(|a| match a {
