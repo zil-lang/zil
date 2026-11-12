@@ -380,6 +380,9 @@ struct Budget {
     // Derived only from the bounded raw tree: direct Managed elements or a
     // Store header below another Store's actual element. No candidate flag.
     nested_store_windows: bool,
+    // Paid raw-Type presence only schedules ordinary Store descriptions when
+    // returned environments select the shared source solver.
+    actual_store_types: bool,
     qualified_package_returns: bool,
     byte_queries: bool,
     shared_byte_borrow: bool,
@@ -408,6 +411,10 @@ struct Budget {
     stored_context: bool,
 }
 impl Budget {
+    fn store_descriptions(&self) -> bool {
+        self.nested_store_windows
+            || self.returned_environment_sources && self.actual_store_types
+    }
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
@@ -455,6 +462,7 @@ impl Budget {
             task_borrowed_results: false,
             store_option_results: false,
             nested_store_windows: false,
+            actual_store_types: false,
             qualified_package_returns: false,
             byte_queries: false,
             shared_byte_borrow: false,
@@ -1105,6 +1113,10 @@ fn check_module(
     } else {
         None
     };
+    if budget.store_descriptions() {
+        budget.store_option_results = true;
+        budget.stored_borrows = true;
+    }
     let store_option_mask = if budget.store_option_results {
         budget.spend(module.functions.len())?;
         Some(
@@ -1355,6 +1367,7 @@ fn check_type_shape(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.actual_store_types |= matches!(ty, Type::OwnedStore { .. });
         budget.head_descriptions |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         budget.borrowed_task_ports |=

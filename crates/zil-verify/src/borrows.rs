@@ -884,7 +884,7 @@ fn reconstruct(
                             InstructionKind::OwnedStoreBorrow { store, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
                                 let source = &values[store.0 as usize];
-                                if budget.nested_store_windows
+                                if budget.store_descriptions()
                                     || source.iter().any(|root| matches!(root, Root::Window(..))) {
                                     let precise =
                                         roots::store_element_roots(f, result, source, budget)?;
@@ -1388,7 +1388,7 @@ fn overlay_store_option_sources(
                 && !matches!(ty, Type::Address { mutable: false, .. })
                 && !(budget.shared_byte_borrow
                     && matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
-                && !(budget.nested_store_windows
+                && !(budget.store_descriptions()
                     && matches!(ty, Type::Address { .. } | Type::Desc(_)))
             {
                 return Err(reject(
