@@ -1,0 +1,5 @@
+# V22 bounded diagnostic consumer gate metadata
+
+Single fixed storage shard preserves36files/43134497B: original d1 and integrated96 source trees, immutable release19, backend249/driver210 completed subprocess records, original96999 UnknownProcess/sameboot event and unknown original-controllerexit, initial pending and final independent reviews, resume-only strict20/fmt18/release19 with directly observed4531exit0 and durable log/exit/script, V21 receipt and exact8f docs. Subsequent MC/rope work is excluded.
+
+Use V22-INDEX.json shard bootstrap_url and bootstrap_sha256: download exact URL, verify SHA256, then run `python3 DOWNLOADED_BOOTSTRAP.py FIXED_ARCHIVE_COMMIT --receipt UNIQUE_RECEIPT.json`. The tested bootstrap freshly restores every selected regularfile and fully checks SHA256/size/mode. Original immutable binary path/bytes/device/inode and SDK/source/Git remain. No compiler/native/performance work was executed by this archive task. Original tool-handle loss is never rewritten as controllerexit0 or a causal reboot/termination claim.
